@@ -162,14 +162,14 @@ def check_verbs(text: str) -> VerbCheckResults:
     Perform all verb checks once per sentence.
     Returns cached results to avoid redundant regex calls.
     """
+    has_poss = bool(POSS_VERB_REGEX.search(text))
+    has_usage = bool(USAGE_VERB_REGEX.search(text))
     return VerbCheckResults(
         has_active_verb=bool(ACTIVE_VERB_REGEX.search(text)),
         has_transaction=bool(TRANS_VERB_REGEX.search(text)),
-        has_poss_verb=bool(POSS_VERB_REGEX.search(text)),
-        has_usage_verb=bool(USAGE_VERB_REGEX.search(text)),
-        has_poss_or_use=bool(
-            POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text)
-        ),
+        has_poss_verb=has_poss,
+        has_usage_verb=has_usage,
+        has_poss_or_use=has_poss or has_usage,
     )
 
 
@@ -258,7 +258,7 @@ def check_quantitative_evidence(
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
-        if STRICT_REGEX.search(text):
+        if SOFT_REGEX.search(text):
             if not verbs.has_transaction:
                 return (
                     EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
@@ -592,6 +592,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     # Mask each sentence individually
     masked_sentences = [_cleaner.clean(s, is_nst=is_nst) for s in original_sentences]
 
+    # Pre-compute verb checks for all sentences
+    sentence_verbs = [check_verbs(s) for s in masked_sentences]
+
     # Reconstruct masked text for global check
     masked_text = " ".join(masked_sentences)
     is_strict_derivative = check_derivative_global(masked_text)
@@ -600,8 +603,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     has_active_maturity = False
     mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT}
 
-    for s in masked_sentences:
-        verbs = check_verbs(s)
+    for i, s in enumerate(masked_sentences):
+        verbs = sentence_verbs[i]
         res = check_future_maturity(s, reporting_year, is_strict_derivative, verbs)
         if res in mat_reasons:
             has_active_maturity = True
@@ -611,15 +614,15 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     tagged_sentences = []
     all_evidence: Set[EvidenceReason] = set()
 
-    for orig, masked in zip(original_sentences, masked_sentences):
+    for i, (orig, masked) in enumerate(zip(original_sentences, masked_sentences)):
         # Parse existing tags from this sentence
         clean_sent, existing_noise = parse_noise_tags(orig)
+        verbs = sentence_verbs[i]
 
         # === PROMOTION LOGIC: Reclaim Historical Inception ===
         if has_active_maturity and (
             NoiseReason.TIME in existing_noise or NoiseReason.TRANSACT in existing_noise
         ):
-            verbs = check_verbs(masked)
             if verbs.has_transaction:
                 # Promote to Active Transaction Evidence
                 evidence = (
@@ -642,9 +645,6 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
 
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
-            # Perform verb checks once per sentence
-            verbs = check_verbs(masked)
-
             # Scan for evidence - returns single tag or None
             evidence = scan_sentence_for_evidence(
                 masked, reporting_year, is_strict_derivative, verbs
