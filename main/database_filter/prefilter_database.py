@@ -104,6 +104,8 @@ FOOTNOTE_PATTERN = re.compile(r"<FN>(.*?)</FN>\s*</TABLE>", re.DOTALL | re.IGNOR
 INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
     r"<F\s+(\d+)>\s*(.*?)(?=<F\s+\d+>|$)", re.DOTALL
 )
+TRADING_CONTEXT_REGEX = re.compile(r"\b(?:trad(?:e|es|ing|ed)|speculat(?:e|ion|ing|ive))\b", re.IGNORECASE)
+
 TAG_PATTERN = re.compile(r"<[^>]+>")
 
 def is_standard_debt(text: str) -> bool:
@@ -181,7 +183,7 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return NoiseReason.DEBT.value
         # Commodity check: is it refering to a derivative?
     if CP_SOFT_REGEX.search(text) and not CP_REGEX.search(text):
-        if not find_hedging_context(text):
+        if not find_hedging_context(text) and not TRADING_CONTEXT_REGEX.search(text):
             return NoiseReason.NC.value
     return None
 
