@@ -68,7 +68,7 @@ _ABSENCE_NOUNS = [
 VERB_MAP = {
     "POSS": [
         r"hold(?:s|ing)?|held",
-        r"hav(?:e|ing)|had",
+        r"(?:hav(?:e|ing)|had)(?![- ]designat(?:e|es|ed|ing))",
         r"maintain(?:s|ed|ing)?",
         r"possess(?:e|es|ed|ing)?",
         r"carr(?:y|ies|ied|ying)",
