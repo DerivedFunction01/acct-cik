@@ -298,7 +298,7 @@ def check_active_state_year(
 
 def check_active_state_general(
     text: str, is_strict_derivative: bool
-) -> Optional[EvidenceReason]:
+) -> Optional[Reason]:
     """Check for General (Yearless) Possession or Usage."""
 
     if not check_mention(text):
@@ -310,7 +310,9 @@ def check_active_state_general(
             if is_strict_derivative
             else EvidenceReason.CONT_USE_AMB
         )
-
+        
+    if CHANGE_FV_REGEX.search(text):
+        return NoiseReason.PNL
     return None
 
 

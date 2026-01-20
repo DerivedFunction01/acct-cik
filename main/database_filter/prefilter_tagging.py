@@ -54,7 +54,7 @@ from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
 from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX, EXCLUDE_PLAN_ASSETS_REGEX, NON_DERIVATIVE_TREATMENT_REGEX
 from defs.shared_context import COMPARISON_PHRASES
-from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX
+from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX, BS_LOC_REGEX
 
 
 # =============================================================================
@@ -414,6 +414,8 @@ def is_gen_hedge_doc(text: str) -> bool:
     if SOFT_CATEGORY_REGEX.search(text): # Excludes GEN_REGEX
         return False
     if HEDGE_DOC_REGEX.search(text):
+        return True
+    if BS_LOC_REGEX.search(text):
         return True
     return False
 VALUE_REGEX = build_regex(["notional", r"(?:fair|carrying|market)\s+value"])
