@@ -41,6 +41,7 @@ def build_energy_dynamic_pattern() -> str:
     prefixes = [
         "bio",
         "liquefied",
+        "liquid",
     ]
 
     bases = [
