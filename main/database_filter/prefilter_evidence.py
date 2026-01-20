@@ -3,10 +3,18 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-from typing import Optional, Set
+from typing import Optional, Set, NamedTuple
 
 from tqdm import tqdm
-from defs.verb_regex import ACCT_VERB_REGEX, POSS_VERB_REGEX, TERMINATION_ALL_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX, is_immaterial, ACTIVE_VERB_REGEX
+from defs.verb_regex import (
+    ACCT_VERB_REGEX,
+    POSS_VERB_REGEX,
+    TERMINATION_ALL_REGEX,
+    TRANS_VERB_REGEX,
+    USAGE_VERB_REGEX,
+    is_immaterial,
+    ACTIVE_VERB_REGEX,
+)
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
@@ -53,9 +61,7 @@ _cleaner = MinimalTextCleaner()
 
 NOTIONAL_TERMS = [
     r"notional",
-    r"face\s+(?:amount|value)",
-    r"par\s+value",
-    r"contract\s+(?:amount|value|volume)",
+    r"(?:contract|face|par)\s+(?:amount|value|volume)",
 ]
 
 FAIR_VALUE_TERMS = [
@@ -137,6 +143,37 @@ REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
 
 # =============================================================================
+# VERB CHECK RESULTS (Cached at sentence level)
+# =============================================================================
+
+
+class VerbCheckResults(NamedTuple):
+    """Cached results of all verb checks for a sentence."""
+
+    has_active_verb: bool
+    has_transaction: bool
+    has_poss_or_use: bool
+    has_poss_verb: bool
+    has_usage_verb: bool
+
+
+def check_verbs(text: str) -> VerbCheckResults:
+    """
+    Perform all verb checks once per sentence.
+    Returns cached results to avoid redundant regex calls.
+    """
+    return VerbCheckResults(
+        has_active_verb=bool(ACTIVE_VERB_REGEX.search(text)),
+        has_transaction=bool(TRANS_VERB_REGEX.search(text)),
+        has_poss_verb=bool(POSS_VERB_REGEX.search(text)),
+        has_usage_verb=bool(USAGE_VERB_REGEX.search(text)),
+        has_poss_or_use=bool(
+            POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text)
+        ),
+    )
+
+
+# =============================================================================
 # HELPER FUNCTIONS (Global checks - called once per paragraph)
 # =============================================================================
 
@@ -156,16 +193,19 @@ def check_derivative_global(text: str) -> bool:
 
 
 # =============================================================================
-# EVIDENCE CHECKERS (Now take is_strict_derivative as parameter)
+# EVIDENCE CHECKERS (Now take VerbCheckResults as parameter)
 # =============================================================================
 
 
 def check_quantitative_evidence(
-    text: str, reporting_year: int, is_strict_derivative: bool
+    text: str,
+    reporting_year: int,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[Reason]:
+    """Check for Quantitative Evidence (NVY/FVY)."""
     from prefilter_tagging import extract_values_and_years
 
-    """Check for Quantitative Evidence (NVY/FVY). """
     if not reporting_year:
         return None
 
@@ -182,39 +222,23 @@ def check_quantitative_evidence(
         return None
 
     has_relevant_year = any(y >= reporting_year for y in years_found)
-    # "We hold interest rate swaps... with value of XX in 2025"
-    # has_active_verb = (
-    #     POSS_VERB_REGEX.search(text)
-    #     or USAGE_VERB_REGEX.search(text)
-    #     or TRANS_VERB_REGEX.search(text)
-    # )
-    has_active_verb = ACTIVE_VERB_REGEX.search(text)
-    has_transaction = TRANS_VERB_REGEX.search(text)
+
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
-    # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
-    if is_notional: # The notional value is... or we hold XX with notional of ...
-        if not has_transaction:
+    if is_notional:
+        if not verbs.has_transaction:
             return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
         else:
-            return EvidenceReason.ACT_YEAR
+            return EvidenceReason.ACT_YEAR if has_relevant_year else EvidenceReason.NVNY
 
     # 2. FAIR VALUE LOGIC
     if is_fair_value:
         # 1. STRICT PNL CHECK (The Override)
-        # Catches: "had a change", "has recorded a change", "have significant changes"
-        # Logic: This specific proximity implies an event, not possession.
         if HAD_CHANGE_REGEX.search(text):
             return NoiseReason.PNL
 
         # 2. STANDARD PNL CHECK (The Rescue Logic)
-        # Catches: "The change in fair value was..."
         if CHANGE_FV_REGEX.search(text):
-            # ...UNLESS we see an Active Verb elsewhere in the sentence.
-            # "We have swaps... to hedge the change in fair value."
-            # Since "have... swaps... to... hedge... the..." is > 2 words,
-            # HAD_CHANGE_REGEX failed, so we reach this rescue block.
-
-            if not has_active_verb:
+            if not verbs.has_active_verb:
                 return NoiseReason.PNL
 
         # 3. VALID EVIDENCE
@@ -224,21 +248,26 @@ def check_quantitative_evidence(
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
-    if has_active_verb:
-        if (has_transaction or POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text)):
+    if verbs.has_active_verb:
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
-            if STRICT_REGEX.search(text):
-                if not has_transaction:
-                    return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
-                else:
-                    return EvidenceReason.ACT_YEAR
+        if STRICT_REGEX.search(text):
+            if not verbs.has_transaction:
+                return (
+                    EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
+                )
+            else:
+                return EvidenceReason.ACT_YEAR if has_relevant_year else EvidenceReason.VNY
+
     return None
 
 
 def check_future_maturity(
-    text: str, reporting_year: int, is_strict_derivative: bool
+    text: str,
+    reporting_year: int,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[Reason]:
     """Check for Future Maturity."""
     if not reporting_year:
@@ -252,27 +281,33 @@ def check_future_maturity(
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
-    if not any(y > reporting_year for y in years): # Termination noun without a year? probably termination amount/settlement
-        # Check if it is just settlement mechanics, such as weekly, etc.
+    if not any(y > reporting_year for y in years):
         is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
-        if is_notional: # Bypass 
+        if is_notional:
             return None
         if SETTLEMENT_MECHANICS_REGEX.search(text):
             return NoiseReason.STL_MECH
         return NoiseReason.PNL
 
-    is_transaction = bool(TRANS_VERB_REGEX.search(text))
-    if is_transaction:
-        # Treat it as a transaction that didn't expire yet
-        return EvidenceReason.ACT_YEAR if is_strict_derivative else EvidenceReason.ACT_AMB_YEAR
+    if verbs.has_transaction:
+        return (
+            EvidenceReason.ACT_YEAR
+            if is_strict_derivative
+            else EvidenceReason.ACT_AMB_YEAR
+        )
     else:
         return (
-        EvidenceReason.MAT_FUT if is_strict_derivative else EvidenceReason.MAT_AMB_FUT
-    )
+            EvidenceReason.MAT_FUT
+            if is_strict_derivative
+            else EvidenceReason.MAT_AMB_FUT
+        )
 
 
 def check_active_state_year(
-    text: str, reporting_year: int, is_strict_derivative: bool
+    text: str,
+    reporting_year: int,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[EvidenceReason]:
     """Check for Active State anchored to a year."""
     if not reporting_year:
@@ -285,18 +320,17 @@ def check_active_state_year(
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
-    # Tightened Verb Check: Must have Possession/Usage verb AND Active Connection (Verb+Inst)
-    has_poss_or_use = bool(POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text))
-    has_valid_verb = has_poss_or_use and ACTIVE_VERB_REGEX.search(text)
+    # Tightened Verb Check: Must have Possession/Usage verb AND Active Connection
+    has_valid_verb = verbs.has_poss_or_use and verbs.has_active_verb
 
     if not (has_prep or has_adj or has_current_state or has_valid_verb):
         return None
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
-    
+
     if not years:
         return None
-    
+
     has_relevant_year = any(y >= reporting_year for y in years)
 
     if not has_relevant_year and not has_current_state:
@@ -306,20 +340,22 @@ def check_active_state_year(
 
 
 def check_active_state_general(
-    text: str, is_strict_derivative: bool
+    text: str,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[Reason]:
     """Check for General (Yearless) Possession or Usage."""
 
     if not check_mention(text):
         return None
 
-    if ACTIVE_VERB_REGEX.search(text):
+    if verbs.has_active_verb:
         return (
             EvidenceReason.CONT_USE
             if is_strict_derivative
             else EvidenceReason.CONT_USE_AMB
         )
-        
+
     if CHANGE_FV_REGEX.search(text):
         return NoiseReason.PNL
     return None
@@ -327,7 +363,6 @@ def check_active_state_general(
 
 def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
     """Check for Balance Sheet Location (self-validating)."""
-    
 
     if not check_mention(text):
         return None
@@ -339,7 +374,10 @@ def check_balance_sheet_location(text: str) -> Optional[EvidenceReason]:
 
 
 def check_transaction_action(
-    text: str, reporting_year: int, is_strict_derivative: bool
+    text: str,
+    reporting_year: int,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[EvidenceReason]:
     """Check for Transactional Events."""
     if not reporting_year:
@@ -348,16 +386,20 @@ def check_transaction_action(
     if not check_mention(text):
         return None
 
-    if not TRANS_VERB_REGEX.search(text):
+    if not verbs.has_transaction:
         return None
 
-    if not ACTIVE_VERB_REGEX.search(text):
+    if not verbs.has_active_verb:
         return None
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not years:
-        return EvidenceReason.ACT_GEN if is_strict_derivative else EvidenceReason.ACT_AMB_GEN
+        return (
+            EvidenceReason.ACT_GEN
+            if is_strict_derivative
+            else EvidenceReason.ACT_AMB_GEN
+        )
 
     if any(y >= reporting_year for y in years):
         return (
@@ -383,7 +425,7 @@ def check_remaining_term(text: str) -> Optional[EvidenceReason]:
 
 def check_valuation_context(text: str) -> Optional[EvidenceReason]:
     """Check for Valuation Models (self-validating)."""
-    
+
     if not check_mention(text):
         return None
 
@@ -392,18 +434,20 @@ def check_valuation_context(text: str) -> Optional[EvidenceReason]:
 
     return None
 
-def mark_sentence_as_other(text: str) -> Optional[Reason]:
+
+def mark_sentence_as_other(text: str, verbs: VerbCheckResults) -> Optional[Reason]:
+    """Determine if sentence is noise/other category."""
     if AOCI_NOISE_REGEX.search(text):
         return NoiseReason.AOCI
     if is_pnl(text, False):
         return NoiseReason.PNL
-    if TABLE_ANCHOR in text and not is_sophisticated_content(text): # Only for "normal" derivatives
+    if TABLE_ANCHOR in text and not is_sophisticated_content(text):
         return EvidenceReason.TABLE
     if HEDGE_DOC_REGEX.search(text):
         return NoiseReason.DOC
-    if not SOFT_REGEX.search(text): # Contracts, swaps, etc
+    if not SOFT_REGEX.search(text):
         return NoiseReason.CTX
-    return None # Remain uncategorized
+    return None
 
 
 # =============================================================================
@@ -412,25 +456,34 @@ def mark_sentence_as_other(text: str) -> Optional[Reason]:
 
 
 def scan_sentence_for_evidence(
-    text: str, reporting_year: int, is_strict_derivative: bool
+    text: str,
+    reporting_year: int,
+    is_strict_derivative: bool,
+    verbs: VerbCheckResults,
 ) -> Optional[Reason]:
     """
     Scan a sentence and return the HIGHEST PRIORITY evidence tag.
-    Returns only ONE tag per sentence based on the survival hierarchy.
+    Accepts pre-computed verb check results to avoid redundant regex calls.
     """
     if SKIP_TOKEN in text:
         return None
 
     # TIER 1: STRONG (highest priority)
-    if mat := check_future_maturity(text, reporting_year, is_strict_derivative): # Overrides quant in case it is not relavant (ie termination amounts become PNL)
+    if mat := check_future_maturity(text, reporting_year, is_strict_derivative, verbs):
         return mat
-    if q := check_quantitative_evidence(text, reporting_year, is_strict_derivative):
+    if q := check_quantitative_evidence(
+        text, reporting_year, is_strict_derivative, verbs
+    ):
         return q
-    if as_year := check_active_state_year(text, reporting_year, is_strict_derivative):
+    if as_year := check_active_state_year(
+        text, reporting_year, is_strict_derivative, verbs
+    ):
         return as_year
 
     # TIER 1.5: FLOW
-    if act := check_transaction_action(text, reporting_year, is_strict_derivative):
+    if act := check_transaction_action(
+        text, reporting_year, is_strict_derivative, verbs
+    ):
         return act
 
     # TIER 2: MEDIUM
@@ -438,7 +491,7 @@ def scan_sentence_for_evidence(
         return loc
     if val := check_valuation_context(text):
         return val
-    if gen := check_active_state_general(text, is_strict_derivative):
+    if gen := check_active_state_general(text, is_strict_derivative, verbs):
         return gen
 
     # TIER 3: FLUFF (lowest priority)
@@ -446,7 +499,7 @@ def scan_sentence_for_evidence(
         return term
 
     # TIER 4: OTHER (catch-all)
-    other = mark_sentence_as_other(text)
+    other = mark_sentence_as_other(text, verbs)
     if other:
         return other
 
@@ -458,9 +511,6 @@ def scan_sentence_for_evidence(
 # =============================================================================
 
 
-# In prefilter_evidence.py
-
-
 def should_mark_deadweight(
     evidence_tags: set, noise_tags: set, sent_count: int = 0
 ) -> bool:
@@ -468,33 +518,29 @@ def should_mark_deadweight(
     Determine if paragraph should be marked as deadweight.
     """
 
-    # 1. ORPHAN KILL RULE (The "Anti-Clutter" Logic)
-    # If it's a single sentence with NO evidence and NO noise, it's likely a
-    # header, footer, or isolated bullet point. Kill it to prevent "Definition" counts.
+    # 1. ORPHAN KILL RULE
     if sent_count == 1 and not evidence_tags and not noise_tags:
         return True
     if len(evidence_tags) == 1:
-        # If we have an immaterial tag and certain non-year evidence tag, invalidate them both
         if not noise_tags.isdisjoint({NoiseReason.IMM}):
-            # If we have exactly that one piece of higher level evidence we wish to invalidate
             if not evidence_tags.isdisjoint(IMMATERIAL_KILLED_EVIDENCE):
                 return True
-    
-    # Handle cases where all the evidence in the set is ambiguous (derivative global is false)
-    if not evidence_tags.isdisjoint({
-        EvidenceReason.ASAIY,
-        EvidenceReason.MAT_AMB_FUT,
-        EvidenceReason.FVAIY,
-        EvidenceReason.ACT_AMB_YEAR,
-        EvidenceReason.ACT_AMB_GEN,
-        EvidenceReason.CONT_USE_AMB,
-        EvidenceReason.FVAINY,
-    }):
+
+    # Handle ambiguous evidence
+    if not evidence_tags.isdisjoint(
+        {
+            EvidenceReason.ASAIY,
+            EvidenceReason.MAT_AMB_FUT,
+            EvidenceReason.FVAIY,
+            EvidenceReason.ACT_AMB_YEAR,
+            EvidenceReason.ACT_AMB_GEN,
+            EvidenceReason.CONT_USE_AMB,
+            EvidenceReason.FVAINY,
+        }
+    ):
         return True
 
-    # 2. Handle Remaining No-Evidence Cases (Multi-sentence clean text)
-    # If we are here, and tags are empty, it must be > 1 sentence.
-    # We treat this as "Uncategorized Context" (Fluff). 
+    # 2. Handle Remaining No-Evidence Cases
     if not evidence_tags:
         evidence_tags.add(EvidenceReason.UNCAT)
 
@@ -513,7 +559,6 @@ def should_mark_deadweight(
         return not noise_tags.isdisjoint(POLICY_KILLERS)
 
     # FLUFF (including UNCAT) survives ONLY if there are no noise tags
-    # This means multi-sentence clean text survives.
     if not evidence_tags.isdisjoint(FLUFF_EVIDENCE):
         return bool(noise_tags)
 
@@ -528,16 +573,6 @@ def should_mark_deadweight(
 def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     """
     Tag untagged sentences with evidence and mark paragraph as deadweight if needed.
-
-    Process:
-    1. Check if paragraph is already deadweight - if so, return unchanged
-    2. Parse existing noise tags from paragraph
-    3. Pre-scan for future maturity signals (paragraph-level promotion hook)
-    4. Split into sentences
-    5. Tag ONLY untagged sentences with their evidence
-    6. Apply promotion logic for historical-but-active sentences
-    7. Collect evidence for dominance check
-    8. Apply hierarchy to check if mixed signals should kill the paragraph
     """
     # If paragraph is already marked deadweight, leave it alone
     if text.startswith(DEADWEIGHT_TOKEN):
@@ -552,22 +587,19 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     ]
 
     # Mask each sentence individually
-    masked_sentences = [
-        _cleaner.clean(s, is_nst=is_nst) for s in original_sentences
-    ]
+    masked_sentences = [_cleaner.clean(s, is_nst=is_nst) for s in original_sentences]
 
     # Reconstruct masked text for global check
     masked_text = " ".join(masked_sentences)
     is_strict_derivative = check_derivative_global(masked_text)
 
     # === PRE-SCAN: Identify if paragraph contains an Active Maturity signal ===
-    # This allows us to "rescue" historical inception sentences in the same paragraph.
-    # Logic: If position matures in the future, then "2001 entry" is active evidence.
     has_active_maturity = False
     mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT}
 
     for s in masked_sentences:
-        res = check_future_maturity(s, reporting_year, is_strict_derivative)
+        verbs = check_verbs(s)
+        res = check_future_maturity(s, reporting_year, is_strict_derivative, verbs)
         if res in mat_reasons:
             has_active_maturity = True
             break
@@ -581,11 +613,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
         clean_sent, existing_noise = parse_noise_tags(orig)
 
         # === PROMOTION LOGIC: Reclaim Historical Inception ===
-        # If we know the position matures in the future (has_active_maturity),
-        # then a "2001 entry" tagged as TIME is actually active evidence.
-        if has_active_maturity and (NoiseReason.TIME in existing_noise or NoiseReason.TRANSACT in existing_noise):
-            # Check if this sentence contains a transaction verb (entering position)
-            if TRANS_VERB_REGEX.search(masked):
+        if has_active_maturity and (
+            NoiseReason.TIME in existing_noise or NoiseReason.TRANSACT in existing_noise
+        ):
+            verbs = check_verbs(masked)
+            if verbs.has_transaction:
                 # Promote to Active Transaction Evidence
                 evidence = (
                     EvidenceReason.ACT_YEAR
@@ -599,9 +631,12 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
 
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
+            # Perform verb checks once per sentence
+            verbs = check_verbs(masked)
+
             # Scan for evidence - returns single tag or None
             evidence = scan_sentence_for_evidence(
-                masked, reporting_year, is_strict_derivative
+                masked, reporting_year, is_strict_derivative, verbs
             )
             if evidence:
                 evidence_type = isinstance(evidence, EvidenceReason)
@@ -622,10 +657,16 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     tagged_paragraph = " ".join(tagged_sentences)
 
     # Apply hierarchy: check if mixed signals kill the paragraph
-    if should_mark_deadweight(all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)):
-        return mark_as_deadweight(tagged_paragraph, noise=existing_paragraph_noise, stage=Stage.PF_EV)
+    if should_mark_deadweight(
+        all_evidence, existing_paragraph_noise, sent_count=len(original_sentences)
+    ):
+        return mark_as_deadweight(
+            tagged_paragraph, noise=existing_paragraph_noise, stage=Stage.PF_EV
+        )
     else:
-        return mark_as_evidence(tagged_paragraph, evidence=all_evidence, noise=existing_paragraph_noise)
+        return mark_as_evidence(
+            tagged_paragraph, evidence=all_evidence, noise=existing_paragraph_noise
+        )
 
 
 # =============================================================================
@@ -647,31 +688,24 @@ def process_row(row):
         return None
 
     new_paragraphs = []
-    is_nst = False  # Default to False unless metadata says otherwise
+    is_nst = False
 
     # 1. Extract and Handle Metadata
     if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
         try:
-            metadata_str = paragraphs.pop(0)  # Remove it so it isn't tagged as text
+            metadata_str = paragraphs.pop(0)
             metadata = json.loads(metadata_str)
-            is_nst = metadata.get(
-                "NST", False
-            )  # Use the key "NST" from your earlier plan
-
-            # Re-add the metadata to the top of the NEW list
-            # so it persists for the next stage (Phase 2/3)
+            is_nst = metadata.get("NST", False)
             new_paragraphs.append(metadata_str)
         except (json.JSONDecodeError, KeyError):
             pass
 
     # 2. Process remaining actual text paragraphs
     for p in paragraphs:
-        # Respect existing tags (e.g., DEADWEIGHT from Phase 0)
         if DEADWEIGHT_TOKEN in p:
             new_paragraphs.append(p)
             continue
 
-        # Pass the is_nst flag to the tagger to inform its logic
         local_is_nst = convertible_ir(p)
         tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
