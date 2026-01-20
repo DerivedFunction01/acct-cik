@@ -274,11 +274,13 @@ def check_active_state_year(
 
     has_prep = bool(ACTIVE_PREP_REGEX.search(text))
     has_adj = bool(ACTIVE_ADJ_REGEX.search(text))
-    has_poss_verb = bool(POSS_VERB_REGEX.search(text))
-    has_use = bool(USAGE_VERB_REGEX.search(text))
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
-    if not (has_prep or has_adj or has_poss_verb or has_current_state or has_use):
+    # Tightened Verb Check: Must have Possession/Usage verb AND Active Connection (Verb+Inst)
+    has_poss_or_use = bool(POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text))
+    has_valid_verb = has_poss_or_use and ACTIVE_VERB_REGEX.search(text)
+
+    if not (has_prep or has_adj or has_current_state or has_valid_verb):
         return None
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
