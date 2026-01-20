@@ -356,7 +356,7 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     # "terminated [the] [interest rate] swap"
     pat_verb_target = (
         rf"\b{verbs}\s+"
-        rf"(?:{_DENIAL_FILLER})?" # Optional filler
+        rf"{gap_chain}" # Optional filler
         rf"{_DENIAL_TARGET}\b"
     )
 
@@ -364,7 +364,8 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     # "swap [was] terminated", "swap expired"
     pat_target_verb = (
         rf"\b{_DENIAL_TARGET}\s+"
-        rf"(?:{_DENIAL_FILLER})?"
+        rf"{gap_chain}"
+        rf"{_DENIAL_FILLER}"
         rf"{verbs}\b"
     )
 
@@ -476,17 +477,48 @@ def run_tests():
     print("Running tests for verb_regex.py...")
 
     test_cases = [
+        # ACTIVE_VERB_REGEX
+        (
+            "ACTIVE: Simple",
+            ACTIVE_VERB_REGEX,
+            "We hold interest rate swaps",
+            True,
+        ),
+        (
+            "ACTIVE: Quant + Modifiers",
+            ACTIVE_VERB_REGEX,
+            "The Company uses approximately two million in notional interest rate swaps",
+            True,
+        ),
+        (
+            "ACTIVE: Long Chain",
+            ACTIVE_VERB_REGEX,
+            "We entered into three separate foreign currency forward exchange contracts",
+            True,
+        ),
+        (
+            "ACTIVE: Negative (No Instrument)",
+            ACTIVE_VERB_REGEX,
+            "We use significant estimates",
+            False,
+        ),
         # DID_NOT_HOLD_REGEX
         (
             "DID_NOT_HOLD",
             DID_NOT_HOLD_REGEX,
-            "Kronos was not a party to such a contract at December 31, 2004",
+            "Kronos was not a party to any such material contract at December 31, 2004",
             True,
         ),
         (
             "DID_NOT_HOLD",
             DID_NOT_HOLD_REGEX,
-            "We do not, as a routine matter, use hedging vehicles",
+            "We do not, as a routine matter, use any speculative hedging vehicles",
+            True,
+        ),
+        (
+            "DID_NOT_HOLD",
+            DID_NOT_HOLD_REGEX,
+            "We did not enter into any of the five million notional interest rate swaps",
             True,
         ),
         (
@@ -499,13 +531,19 @@ def run_tests():
         (
             "ABSENCE",
             ABSENCE_REGEX,
-            "At March 31, 2004 and March 31, 2003, no financial instruments existed",
+            "At March 31, 2004 and March 31, 2003, no such material financial instruments existed",
             True,
         ),
         (
             "ABSENCE",
             ABSENCE_REGEX,
-            "We have no foreign exchange, interest rate, or other contracts",
+            "We have no outstanding foreign exchange, interest rate, or other contracts",
+            True,
+        ),
+        (
+            "ABSENCE",
+            ABSENCE_REGEX,
+            "There were no open two million notional commodity swaps",
             True,
         ),
         ("ABSENCE", ABSENCE_REGEX, "We have swaps", False),
@@ -513,23 +551,23 @@ def run_tests():
         (
             "POTENTIAL",
             POTENTIAL_REGEX,
-            "We may continue to enter into interest rate swaps",
+            "We may continue to enter into three separate interest rate swaps",
             True,
         ),
         ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge our exposure", False),
         (
             "POTENTIAL",
             POTENTIAL_REGEX,
-            "We are planning to use currency contracts",
+            "We are planning to use approximately five million in currency contracts",
             True,
         ),
         (
             "POTENTIAL",
             POTENTIAL_REGEX,
-            "We may consider using oil swap contracts",
+            "We may consider using two million notional oil swap contracts",
             True,
         ),
-        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge with derivatives", True),
+        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge with financial derivatives", True),
         ("POTENTIAL", POTENTIAL_REGEX, "We entered into swaps", False),
         # VAGUE_TIMING
         ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps from time to time", True),
@@ -538,14 +576,14 @@ def run_tests():
         (
             "PRIOR",
             PRIOR_INDICATOR,
-            "In the prior year, we had interest rate swaps",
+            "In the prior year, we had two million in interest rate swaps",
             True,
         ),
         ("PRIOR", PRIOR_INDICATOR, "During previous reporting periods", True),
         ("PRIOR", PRIOR_INDICATOR, "Historically", True),
         # TERMINATION
-        ("TERMINATION", TERMINATION_REGEX, "The swaps expired", True),
-        ("TERMINATION", TERMINATION_REGEX, "We terminated the agreement", True),
+        ("TERMINATION", TERMINATION_REGEX, "The two million notional swaps expired", True),
+        ("TERMINATION", TERMINATION_REGEX, "We terminated the interest rate swap agreement", True),
         ("TERMINATION", TERMINATION_REGEX, "The swaps matured", True),
         ("TERMINATION", TERMINATION_REGEX, "The swaps settles weekly", False),
         ("TERMINATION", TERMINATION_REGEX, "The swaps weekly settles", False),
@@ -638,7 +676,7 @@ def run_tests():
         (
             "STRICT_TERM: Verb-Target",
             STRICT_TERMINATION_REGEXES,
-            "We terminated the three month interest rate swap",
+            "We terminated the three month two million notional interest rate swap",
             True,
         ),
         (
