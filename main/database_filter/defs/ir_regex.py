@@ -53,7 +53,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     pay_receive_pattern_string = build_pay_receive_structure()
 
     # --- 4. Build Core Terms and Specific Phrases ---
-    ir_regex_adjectives = RATE_ADJECTIVES + ["interest"]
+    ir_regex_adjectives = RATE_ADJECTIVES + [r"(?<!currency[- ])interest"]
     rate_alternation = build_alternation(ir_regex_adjectives, sort_longest_first=True)
     rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
 
@@ -365,7 +365,7 @@ EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [
-        r"(?<!foreign[- ])interest\s+rates?",
+        r"(?<!foreign[- ])(?<!currency[- ])interest\s+rates?",
         r"yield\s+curves?",
     ] + BENCHMARK_RATES
 )

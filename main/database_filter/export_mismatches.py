@@ -17,7 +17,7 @@ from typing import Optional
 # =============================================================================
 
 GROUND_TRUTH_FILE = "data_check.csv"  # Ensure this file exists!
-PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
+PREDICTED_FILE = "analysis_output/classified_data.csv"
 COLUMNS_TO_VALIDATE = ["ir_user"]  # Can add "ir_user", "fx_user"
 
 # =============================================================================

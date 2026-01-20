@@ -21,7 +21,7 @@ from pathlib import Path
 
 # Now pointing to the CLEANED ground truth file
 GROUND_TRUTH_FILE = "data_check.csv"
-PREDICTED_FILE = "analysis_output/classified_data_active_users.csv"
+PREDICTED_FILE = "analysis_output/classified_data.csv"
 COLUMNS_TO_VALIDATE = ["cp_user", "ir_user", "fx_user"]
 
 # =============================================================================
