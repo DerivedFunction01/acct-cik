@@ -1290,7 +1290,7 @@ def process_row(row: Tuple) -> Tuple:
 
     final_categories = strict_categories.union(valid_soft_cats)
 
-    if mentions_venue and not attributes["is_hedger"]:
+    if mentions_venue and (not attributes["is_hedger"] or attributes["is_explicit_trader"]):
         attributes["is_trader"] = True
 
     # Add valid instruments as category -> list mapping
