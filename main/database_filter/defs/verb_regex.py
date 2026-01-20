@@ -79,7 +79,7 @@ VERB_MAP = {
         r"us(?:e(?:s|d)?|ing)",
         r"utiliz(?:e|es|ed|ing)",
         r"employ(?:s|ed|ing)?",
-        r"apply(?:ies|ied|ying)?",
+        r"appl(?:ies|ied|ying|y)",
         r"participat(?:es?|ed|ing)",
     ],
     "ACT": [
