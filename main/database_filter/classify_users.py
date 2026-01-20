@@ -11,7 +11,7 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
-from defs.cp_regex import TRADING_VENUE_REGEX
+from defs.cp_regex import NPNS_REGEX, TRADING_VENUE_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context, GLUE_MAP
 from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
@@ -22,9 +22,9 @@ from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleane
 from defs.ir_regex import IR_DO_NOT_MITIGATE_REGEX
 from defs.fx_regex import FX_DO_NOT_MITIGATE_REGEX
 from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
+from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
 from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
 from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
-from defs.verb_regex import STRICT_DO_NOT_MITIGATE_REGEX
 
 # =============================================================================
 # INSTRUMENT EVIDENCE STRUCTURES
@@ -205,6 +205,22 @@ class GlobalExclusionTracker:
         for match in CP_DO_NOT_MITIGATE_REGEX.finditer(text):
             match_text = match.group(0)
             commodities = COMMODITY_REGEX.findall(match_text)
+            
+            generics = [c for c in commodities if c.lower() in ("commodity", "commodities")]
+            specifics = [c for c in commodities if c.lower() not in ("commodity", "commodities")]
+            
+            if specifics:
+                for c in specifics:
+                    self.excluded_commodities.add(c.lower())
+            
+            if generics and not specifics:
+                self.excluded_categories.add("cp")
+            elif not commodities:
+                self.excluded_categories.add("cp")
+
+        # Check NPNS
+        if NPNS_REGEX.search(text):
+            commodities = COMMODITY_REGEX.findall(text)
             
             generics = [c for c in commodities if c.lower() in ("commodity", "commodities")]
             specifics = [c for c in commodities if c.lower() not in ("commodity", "commodities")]
@@ -1073,7 +1089,7 @@ def process_row(row: Tuple) -> Tuple:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
         for sent in sentences:
             _, tag_reason, sent_content = parse_tags(sent)
-            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value, NoiseReason.POT.value):
+            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value, NoiseReason.POT.value, NoiseReason.NPNS):
                 exclusion_tracker.add_exclusion(sent_content, tag_reason)
 
     # --- SINGLE PASS Processing ---

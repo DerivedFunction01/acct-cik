@@ -574,19 +574,24 @@ CP_UNITS = [
 ] + CP_UNITS_STRICT
 COMMODITY_UNIT_PATTERN = build_alternation(CP_UNITS)
 
-NON_DERIVATIVE_COMMERCIAL_KEYWORDS = [
+NPNS_KEYWORDS = [
     # The "NPNS" Exemption (Physical Contracts)
     r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
     r"NPNS",
     r"own[- ]use\s+exemption",
+]
+
+COMMERCIAL_KEYWORDS = [
     # Unconditional Obligations (ASC 440)
     r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
     r"take[- ]or[- ]pay",
-    r"throughput\s+agreements?",
+    r"throughput\s+(?:agreements?|contracts?)",
     # General Supply Chain (If not caught by Physical Inventory)
-    r"supply\s+arrangements?",
-    r"procurement\s+contracts?",
+    r"supply\s+(?:arrangements?|agreements?)",
+    r"procurement\s+(?:agreements?|contracts?|arrangements)",
 ]
+
+NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS
 
 def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
     # Context terms specific to commodity categories
@@ -778,6 +783,8 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
+NPNS_REGEX = build_regex(NPNS_KEYWORDS)
+COMMERCIAL_CONTRACT_REGEX = build_regex(COMMERCIAL_KEYWORDS)
 CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS + CP_RISK_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_RISK_REGEX = build_regex(CP_RISK_TERMS)

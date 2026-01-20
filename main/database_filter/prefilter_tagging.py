@@ -48,7 +48,7 @@ from defs.derivative_lib import SOFT_CATEGORY_REGEX, SOFT_REGEX
 from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX, IR_DO_NOT_MITIGATE_REGEX
-from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, CP_DO_NOT_MITIGATE_REGEX
+from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, CP_DO_NOT_MITIGATE_REGEX, NPNS_REGEX
 from defs.fx_regex import FX_DO_NOT_MITIGATE_REGEX
 from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
 from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
@@ -453,6 +453,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # --- STRICT WE DID NOT HEDGE/MITIGATE ---
         if not reason and not YEAR_REGEX.search(masked):
             reason = get_no_mitigation(masked)
+            
+        if NPNS_REGEX.search(masked):
+            reason = NoiseReason.NPNS
 
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
@@ -525,7 +528,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
             elif DEFINITION_INDICATORS.search(masked):
                 reason = NoiseReason.DEF
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
-                reason = NoiseReason.NPNS
+                reason = NoiseReason.CTX
             elif NON_DER_CAP_FLOOR_REGEX.search(masked):
                 reason = NoiseReason.FLR_CAP
 
