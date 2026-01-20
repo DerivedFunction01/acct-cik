@@ -390,8 +390,35 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
     # Clean up empty categories
     return {cat: kw for cat, kw in instruments.items() if kw}
 
-# In classify_users.py
+fv_year = {
+    EvidenceReason.ACT_FV_YEAR.value,
+    EvidenceReason.MAT_FUT_FV.value,
+    EvidenceReason.FVY.value,  # Fair Value was $X at Year
+    EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
+}
+fv_tags =  fv_year | { 
+    EvidenceReason.FVNY.value,  # Fair Value is $X
+    EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
+}
+notional_year = {
+    EvidenceReason.NVY.value,  # Notional was $X at Year
+    EvidenceReason.ACT_NV_YEAR.value,
+    EvidenceReason.MAT_FUT_NV.value,
+}
+notional_tags = notional_year | {
+    EvidenceReason.NVNY.value,  # Notional is $X 
+}
+value_year = {
+    EvidenceReason.VY.value,  # Value was $X at Year
+    EvidenceReason.ACT_V_YEAR.value,
+    EvidenceReason.MAT_FUT_V.value,
+}
 
+value_tags = value_year | {
+    EvidenceReason.VNY.value,  # Value is $X  
+}
+
+year_tags = fv_year | notional_year | value_year
 
 def extract_instrument_evidence(
     sentence: str,
@@ -461,26 +488,6 @@ def extract_instrument_evidence(
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
     val_type = "value"
 
-    fv_tags = {
-        EvidenceReason.FVY.value,  # Fair Value was $X at Year
-        EvidenceReason.FVNY.value,  # Fair Value is $X
-        EvidenceReason.ACT_FV_YEAR.value,
-        EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
-        EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
-        EvidenceReason.MAT_FUT_FV.value,
-    }
-    notional_tags = {
-        EvidenceReason.NVY.value,  # Notional was $X at Year
-        EvidenceReason.NVNY.value,  # Notional is $X
-        EvidenceReason.ACT_NV_YEAR.value,
-        EvidenceReason.MAT_FUT_NV.value,
-    }
-    value_tags = {
-        EvidenceReason.VY.value,  # Value was $X at Year
-        EvidenceReason.VNY.value,  # Value is $X
-        EvidenceReason.ACT_V_YEAR.value,
-        EvidenceReason.MAT_FUT_V.value,
-    }
 
     if evidence_tags.intersection(fv_tags):
         val_type = "fv"
@@ -538,6 +545,8 @@ def extract_instrument_evidence(
         mapped_year = (
             reporting_year if reporting_year in years else (years[0] if years else None)
         )
+        if not mapped_year and evidence_tags.intersection(year_tags):
+            mapped_year = reporting_year
 
         amounts.append(
             InstrumentAmount(
