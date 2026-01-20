@@ -174,7 +174,7 @@ SOFT_GEN_TERMS = [
     # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
     rf"(?:hedg(?:es?|ing)|derivatives?)\s+{hedge_phrases}",
     r"derivative expenses?",
-    r"designated as (?:a )?hedg(?:es?|ing)",
+    r"designat(?:ed|tion)\s+(?:as\s+)?(?:a\s+|the\s+)?(hedg(?:es?|ing)",
     r"(?:gain|loss) on derivatives?",
     r"value of derivatives?",
     r"notional"
