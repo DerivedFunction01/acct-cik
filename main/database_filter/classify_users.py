@@ -454,20 +454,22 @@ def extract_instrument_evidence(
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
     val_type = "value"
 
-    # Map evidence tags to accounting types
     fv_tags = {
         EvidenceReason.FVY.value,  # Fair Value was $X at Year
         EvidenceReason.FVNY.value,  # Fair Value is $X
+        EvidenceReason.ACT_FV_YEAR.value,
         EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
         EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
     }
     notional_tags = {
         EvidenceReason.NVY.value,  # Notional was $X at Year
         EvidenceReason.NVNY.value,  # Notional is $X
+        EvidenceReason.ACT_NV_YEAR.value
     }
     value_tags = {
         EvidenceReason.VY.value,  # Value was $X at Year
         EvidenceReason.VNY.value,  # Value is $X
+        EvidenceReason.ACT_V_YEAR.value
     }
 
     if evidence_tags.intersection(fv_tags):

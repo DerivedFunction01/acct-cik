@@ -596,6 +596,9 @@ class EvidenceReason(Reason):
 
     # Special Survives history but dies to termination only
     ACT_YEAR = "TRANSACTION_YEAR"  # "Entered into Swaps in 2024" 
+    ACT_NV_YEAR = "TRANSACTION_NOTIONAL_YEAR"  # "Entered into Swaps in with notional 2024
+    ACT_FV_YEAR = "TRANSACTION_FAIR_VALUE_YEAR" 
+    ACT_V_YEAR = "TRANSACTION_VALUE_YEAR"
     TABLE = "TABLE" # Table usually refers to current usage
 
     # =========================================================
@@ -683,6 +686,9 @@ STRONG_EVIDENCE = {
 # Logic: "Entered in 2024" overrides "2019 history" or no POLICY "oustanding positions", but dies if "Terminated" in same breath.
 FLOW_EVIDENCE = {
     EvidenceReason.ACT_YEAR,  # "Entered into Swaps in 2024"
+    EvidenceReason.ACT_NV_YEAR,  # "Entered into Swaps in with notional 2024"
+    EvidenceReason.ACT_FV_YEAR,  # "Entered into Swaps in with fair value 2024"
+    EvidenceReason.ACT_V_YEAR,  # "Entered into Swaps in with value 2024"
 }
 
 # TIER 2: MEDIUM EVIDENCE (Standard State)

@@ -228,7 +228,7 @@ def check_quantitative_evidence(
         if not verbs.has_transaction:
             return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
         else:
-            return EvidenceReason.ACT_YEAR if has_relevant_year else EvidenceReason.NVNY
+            return EvidenceReason.ACT_NV_YEAR if has_relevant_year else EvidenceReason.NVNY
 
     # 2. FAIR VALUE LOGIC
     if is_fair_value:
@@ -243,7 +243,10 @@ def check_quantitative_evidence(
 
         # 3. VALID EVIDENCE
         if is_strict_derivative:
-            return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
+            if not verbs.has_transaction:
+                return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
+            else:
+                return EvidenceReason.ACT_FV_YEAR if has_relevant_year else EvidenceReason.FVNY
         else:
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
@@ -258,7 +261,7 @@ def check_quantitative_evidence(
                     EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
                 )
             else:
-                return EvidenceReason.ACT_YEAR if has_relevant_year else EvidenceReason.VNY
+                return EvidenceReason.ACT_V_YEAR if has_relevant_year else EvidenceReason.VNY
 
     return None
 
@@ -290,11 +293,8 @@ def check_future_maturity(
         return NoiseReason.PNL
 
     if verbs.has_transaction:
-        return (
-            EvidenceReason.ACT_YEAR
-            if is_strict_derivative
-            else EvidenceReason.ACT_AMB_YEAR
-        )
+        # Skip
+        return None
     else:
         return (
             EvidenceReason.MAT_FUT
