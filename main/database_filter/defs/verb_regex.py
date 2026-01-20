@@ -185,7 +185,8 @@ _DENIAL_MODIFIERS = [
     "billions?",
     "trillions?",
     "forward[- ]starting",
-    "month",
+    "months?",
+    "years?",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
