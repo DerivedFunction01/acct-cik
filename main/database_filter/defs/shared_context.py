@@ -312,7 +312,7 @@ def build_risk_managment_phrase(
     strict_verbs: bool = False,
 ) -> str:
     verbs = build_alternation(MITIGATION_STRICT_VERBS if strict_verbs else MITIGATION_VERBS)
-    glue = build_alternation(GENERIC_RISK_GLUE)
+    glue = build_alternation(GENERIC_RISK_GLUE, sort_longest_first=True)
     filler = r"(?:\S+\s+){0,3}"
     
     if required_glue:
@@ -326,8 +326,24 @@ def build_risk_managment_phrase(
         glue_unit = rf"(?:{filler}{glue})"
         gap = rf"(?:{glue_unit}\s+){{0,6}}"
 
-    final_filler = r"(?:\S+\s+){0,3}"
-    return rf"{verbs}\s+{gap}{final_filler}{_RISK_ALTERNATION}"
+    # Original pattern: [verbs] [gap] [final_filler] [_RISK_ALTERNATION]
+    final_filler = r"(?:\S+\s+){0,3}" # Allows a few words before the final risk term
+    original_pattern_str = rf"{verbs}\s+{gap}{final_filler}{_RISK_ALTERNATION}"
+
+    # New requested pattern: [verbs] [risk_alternation] [required qlue]?
+    new_pattern_parts = []
+    # Allow a very small gap (e.g. "the", "its", "our") between verb and risk
+    tiny_gap = r"(?:\S+\s+){0,3}"
+    if required_glue:
+        req_alt = build_alternation(required_glue, sort_longest_first=True)
+        new_pattern_parts.append(rf"{verbs}\s+{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})?")
+    else:
+        new_pattern_parts.append(rf"{verbs}\s+{tiny_gap}{_RISK_ALTERNATION}")
+
+    new_pattern_str = build_alternation(new_pattern_parts, sort_longest_first=True)
+
+    # Combine both patterns, ensuring longest matches are tried first
+    return build_alternation([original_pattern_str, new_pattern_str], sort_longest_first=True)
 
 
 # --- MONTHS (for date boilerplate) ---
