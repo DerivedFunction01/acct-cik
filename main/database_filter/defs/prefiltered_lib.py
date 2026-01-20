@@ -520,7 +520,8 @@ class NoiseReason(Reason):
     STL_MECH = "STL_MECH" # Settlement mechanics
 
     # --- Business Logic / Signals ---
-    TRADING = "TRADING"  # Trading Denial ("We do not trade")
+    NO_TRADING = "NO_TRADING"  # Trading Denial ("We do not trade")
+    TRADING = "TRADING" # Trading activity ("We engage in limited trading activity")
     DOC = "DOC"  # Hedge Documentation ("Formal Documentation of a hedge")
     CREDIT = "CREDIT"  # Counterparty Risk ("Credit exposure, counterparty risk")
 
@@ -766,7 +767,7 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.DEF,  # "Swap shall mean..."
     NoiseReason.ACCT_STD,  # "FASB ASU..."
     NoiseReason.REF,  # "See Note 5"
-    NoiseReason.TRADING,  # "We do not trade"
+    NoiseReason.NO_TRADING,  # "We do not trade"
     NoiseReason.PNL,  # An unrealized gain
     NoiseReason.TRANSACT,  # Entered into a derivative in the past
     NoiseReason.IMM,
@@ -919,8 +920,8 @@ def mark_as_deadweight(
         # "We manage risk via cash reserves" OR "We may hedge in the future"
         final_reason = NoiseReason.DEAD_RISK_GEN
     # --- TIER 2: EXPLICIT FIRM STATUS ---
-    elif NoiseReason.TRADING in noise:
-        final_reason = NoiseReason.TRADING  # "We do not trade"
+    elif NoiseReason.NO_TRADING in noise:
+        final_reason = NoiseReason.NO_TRADING  # "We do not trade"
     # --- TIER 5: FINANCIAL MECHANICS (Policy without Numbers) ---
     elif NoiseReason.ZERO in noise:
         final_reason = NoiseReason.DEAD_FLOW_NIL  # "Immaterial amount"

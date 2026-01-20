@@ -365,34 +365,35 @@ TRADING_DENIAL_SIMPLE = re.compile(
 )
 
 
-def is_trading_statement(text: str) -> bool:
+def is_trading_statement(text: str) -> Optional[NoiseReason]:
     """
     Simplified Multi-Gate Trading Denial Check.
     Logic: (Quant Veto) -> (Keyword Gate) -> (Path Checks)
     """
     # GATE 0: Quantitative Veto (Actual trades have numbers/currencies)
     if QUANT_REGEX.search(text):
-        return False
+        return None
 
     # GATE 1: Core Keyword Check
     if not TRADING_CORE_REGEX.search(text):
-        return False
+        return None
 
     # GATE 2: Path-Based Logical Matching
     # Path A: Policy-based (Not permitted / Prohibited)
     if TRADING_NOT_AUTH_REGEX.search(text) or TRADING_NOT_AUTH_REGEX2.search(text):
-        return True
+        return NoiseReason.NO_TRADING
 
     # Path B: Direct Denial (e.g., "We do not speculate")
     if TRADING_DENIAL_SIMPLE.search(text):
-        return True
+        return NoiseReason.NO_TRADING
 
     # Path C: Structural Denial (Instrument required, e.g. "No trading swaps")
     # Note: Ensure build_absence_regex includes "trading" in its modifiers
     if DID_NOT_HOLD_REGEX.search(text) or ABSENCE_REGEX.search(text):
-        return True
-    
-    return False
+        return NoiseReason.NO_TRADING
+
+    # Path D: They engage in speculative trading
+    return NoiseReason.TRADING
 
 """
 All derivatives are recognized on the balance sheet at their fair value.  
@@ -453,7 +454,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         # --- STRICT WE DID NOT HEDGE/MITIGATE ---
         if not reason and not YEAR_REGEX.search(masked):
             reason = get_no_mitigation(masked)
-            
+
         if NPNS_REGEX.search(masked):
             reason = NoiseReason.NPNS
 
@@ -498,10 +499,10 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
         if not reason:
             if EXCLUDE_PLAN_ASSETS_REGEX.search(text):
                 reason = NoiseReason.PLAN
-            elif is_trading_statement(masked):
+            if not reason:
                 # "We do not trade..." -> Critical End User Signal
-                reason = NoiseReason.TRADING
-            elif is_gen_hedge_doc(masked):
+                reason = is_trading_statement(masked)
+            if not reason and is_gen_hedge_doc(masked):
                 reason = NoiseReason.DOC
 
             # 1. Strict Termination (Anchored) - High Confidence

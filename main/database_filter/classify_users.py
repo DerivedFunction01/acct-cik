@@ -608,7 +608,7 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     # Maps Tag Reason -> Attribute Key
     TAG_MAP = {
         # --- NOISE (Identity Signals) ---
-        NoiseReason.TRADING.value: "is_hedger",
+        NoiseReason.NO_TRADING.value: "is_hedger",
         NoiseReason.DOC.value: "documents_hedge_accounting",
         NoiseReason.AOCI.value: "has_aoci_activity",
         NoiseReason.CREDIT.value: "manages_credit_risk",
