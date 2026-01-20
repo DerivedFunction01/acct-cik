@@ -768,6 +768,7 @@ POLICY_KILLERS = TIME_KILLERS | {
     NoiseReason.ACCT_STD,  # "FASB ASU..."
     NoiseReason.REF,  # "See Note 5"
     NoiseReason.NO_TRADING,  # "We do not trade"
+    NoiseReason.TRADING,  # "We engage in limited trading activity"
     NoiseReason.PNL,  # An unrealized gain
     NoiseReason.TRANSACT,  # Entered into a derivative in the past
     NoiseReason.IMM,
