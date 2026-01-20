@@ -180,6 +180,12 @@ _DENIAL_MODIFIERS = [
     "volume",
     "price",
     "speculative",
+    "thousands?",
+    "millions?",
+    "billions?",
+    "trillions?",
+    "forward[- ]starting",
+    "month",
 ]
 
 # The "Glue": Small filler words that appear between modifiers

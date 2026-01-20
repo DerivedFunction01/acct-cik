@@ -338,11 +338,13 @@ def check_transaction_action(
     if not TRANS_VERB_REGEX.search(text):
         return None
 
+    if not ACTIVE_VERB_REGEX.search(text):
+        return None
+
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
     if not years:
         return EvidenceReason.ACT_GEN if is_strict_derivative else EvidenceReason.ACT_AMB_GEN
-
 
     if any(y >= reporting_year for y in years):
         return (
