@@ -219,7 +219,7 @@ class GlobalExclusionTracker:
                 self.excluded_categories.add("cp")
 
         # Check NEG logic (Specific Instrument Negation)
-        if reason in (NoiseReason.NEG.value, NoiseReason.POT.value):
+        if reason in (NoiseReason.NEG.value, NoiseReason.POT.value, NoiseReason.TERM.value, NoiseReason.ZERO.value):
             for cat, (strict_inst, soft_inst, _, _, weak_inst, _) in CATEGORY_MAP.items():
                 # Check all instrument patterns to capture what is being negated
                 for pat in [strict_inst, soft_inst, weak_inst]:
