@@ -133,6 +133,20 @@ def build_potential_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+def build_passive_verb_regex() -> re.Pattern:
+    """
+    Matches passive usage: "derivatives are used", "swaps were held"
+    Structure: Instrument + [Gap] + Aux + Verb
+    """
+    aux_verbs = r"(?:is|are|was|were|have\s+been|has\s+been|be)"
+    return re.compile(
+        rf"\b{_DENIAL_TARGET}\s+"
+        rf"{_DENIAL_FILLER}"
+        rf"{aux_verbs}\s+"
+        rf"(?:{INTENT_VERB_PATTERN})\b",
+        re.IGNORECASE,
+    )
+
 def build_active_verb_regex() -> re.Pattern:
     """
     Matches active usage: "use ... derivatives", "hold ... swaps"
@@ -448,6 +462,7 @@ ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
 ALL_VERB_REGEX = build_alternation(ALL_VERBS)
 
 ACTIVE_VERB_REGEX = build_active_verb_regex()
+PASSIVE_VERB_REGEX = build_passive_verb_regex()
 
 DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 ABSENCE_REGEX = build_absence_regex()
@@ -503,6 +518,25 @@ def run_tests():
             ACTIVE_VERB_REGEX,
             "We use significant estimates",
             False,
+        ),
+        # PASSIVE_VERB_REGEX
+        (
+            "PASSIVE: Simple",
+            PASSIVE_VERB_REGEX,
+            "Interest rate swaps are used to hedge risk",
+            True,
+        ),
+        (
+            "PASSIVE: Past",
+            PASSIVE_VERB_REGEX,
+            "Foreign currency contracts were entered into",
+            True,
+        ),
+        (
+            "PASSIVE: Gap",
+            PASSIVE_VERB_REGEX,
+            "Commodity contracts, which are held for trading",
+            True,
         ),
         # DID_NOT_HOLD_REGEX
         (

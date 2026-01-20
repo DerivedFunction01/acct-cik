@@ -14,6 +14,7 @@ from defs.verb_regex import (
     USAGE_VERB_REGEX,
     is_immaterial,
     ACTIVE_VERB_REGEX,
+    PASSIVE_VERB_REGEX,
 )
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
@@ -151,6 +152,7 @@ class VerbCheckResults(NamedTuple):
     """Cached results of all verb checks for a sentence."""
 
     has_active_verb: bool
+    has_passive_verb: bool
     has_transaction: bool
     has_poss_verb: bool
     has_usage_verb: bool
@@ -164,16 +166,19 @@ def check_verbs(text: str) -> VerbCheckResults:
     """
     has_poss = bool(POSS_VERB_REGEX.search(text))
     has_usage = bool(USAGE_VERB_REGEX.search(text))
+    has_transaction = bool(TRANS_VERB_REGEX.search(text))
     has_active = bool(ACTIVE_VERB_REGEX.search(text))
+    has_passive = bool(PASSIVE_VERB_REGEX.search(text))
     is_specific = False
     if (STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)): # avoid false positives for equity options, natural gas contracts
         is_specific = True
     return VerbCheckResults(
         has_active_verb=has_active,
-        has_transaction=bool(TRANS_VERB_REGEX.search(text)),
+        has_passive_verb=has_passive,
+        has_transaction=has_transaction,
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
-        is_specific= is_specific and has_active,
+        is_specific=is_specific and (has_active or has_passive),
     )
 
 
@@ -255,7 +260,7 @@ def check_quantitative_evidence(
 
         # 2. STANDARD PNL CHECK (The Rescue Logic)
         if CHANGE_FV_REGEX.search(text):
-            if not verbs.has_active_verb:
+            if not (verbs.has_active_verb or verbs.has_passive_verb):
                 return NoiseReason.PNL
 
         # 3. VALID EVIDENCE
@@ -269,7 +274,7 @@ def check_quantitative_evidence(
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
-    if verbs.has_active_verb:
+    if verbs.has_active_verb or verbs.has_passive_verb:
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
@@ -351,7 +356,7 @@ def check_active_state_year(
     has_current_state = ACTIVE_STATE_REGEX.search(text)
 
     # Tightened Verb Check: Must have Possession verb AND Active Connection
-    has_valid_verb = verbs.has_poss_verb and verbs.has_active_verb
+    has_valid_verb = verbs.has_poss_verb and (verbs.has_active_verb or verbs.has_passive_verb)
 
     if not (has_prep or has_adj or has_current_state or has_valid_verb):
         return None
@@ -390,6 +395,8 @@ def check_active_state_general(
 
     if CHANGE_FV_REGEX.search(text):
         return NoiseReason.PNL
+    if verbs.has_passive_verb:
+        return EvidenceReason.ACT_GEN if is_strict_derivative or verbs.is_specific else EvidenceReason.ACT_AMB_GEN
     return None
 
 
@@ -422,7 +429,7 @@ def check_transaction_action(
     if not verbs.has_transaction or verbs.has_usage_verb:
         return None
 
-    if not verbs.has_active_verb:
+    if not (verbs.has_active_verb or verbs.has_passive_verb):
         return None
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
