@@ -183,15 +183,20 @@ def check_quantitative_evidence(
 
     has_relevant_year = any(y >= reporting_year for y in years_found)
     # "We hold interest rate swaps... with value of XX in 2025"
-    has_active_verb = (
-        POSS_VERB_REGEX.search(text)
-        or USAGE_VERB_REGEX.search(text)
-        or TRANS_VERB_REGEX.search(text)
-    )
+    # has_active_verb = (
+    #     POSS_VERB_REGEX.search(text)
+    #     or USAGE_VERB_REGEX.search(text)
+    #     or TRANS_VERB_REGEX.search(text)
+    # )
+    has_active_verb = ACTIVE_VERB_REGEX.search(text)
+    has_transaction = TRANS_VERB_REGEX.search(text)
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     # Logic: You don't have "Notional PnL". If "Notional" is there, it's a Position.
     if is_notional: # The notional value is... or we hold XX with notional of ...
-        return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
+        if not has_transaction:
+            return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
+        else:
+            return EvidenceReason.ACT_YEAR
 
     # 2. FAIR VALUE LOGIC
     if is_fair_value:
@@ -220,11 +225,15 @@ def check_quantitative_evidence(
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
     if has_active_verb:
+        if (has_transaction or POSS_VERB_REGEX.search(text) or USAGE_VERB_REGEX.search(text)):
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
-        if STRICT_REGEX.search(text):
-            return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
+            if STRICT_REGEX.search(text):
+                if not has_transaction:
+                    return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
+                else:
+                    return EvidenceReason.ACT_YEAR
     return None
 
 
