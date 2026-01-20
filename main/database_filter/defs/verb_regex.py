@@ -72,7 +72,7 @@ VERB_MAP = {
         r"maintain(?:s|ed|ing)?",
         r"possess(?:e|es|ed|ing)?",
         r"carr(?:y|ies|ied|ying)",
-        r"(?:remained|is|are)?\s+(?:open|outstanding|active)",
+        r"(?:remained|is|are|was|were)?\s+(?:open|outstanding|active)",
         r"(?:a\s+)?party\s+to",
     ],
     "PRU": [
@@ -84,7 +84,6 @@ VERB_MAP = {
         r"designat(?:e|es|ed|ing)(?![- ]as)",
         r"hedg(?:e|es|ed|ing)\s+(?:with|using|by)",
     ],
-    
     "ACT": [
         r"enter(?:s|ed|ing)?(?:\s+into)?",
         r"engag(?:e|es|ed|ing)(?:\s+in)?",
