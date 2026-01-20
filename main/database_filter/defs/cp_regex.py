@@ -36,6 +36,66 @@ TRADING_ENTITIES = [
     r"\bChicago\s+Board\s+Options\s+Exchange\b",
 ]
 
+
+def build_energy_dynamic_pattern() -> str:
+    prefixes = [
+        "bio",
+        "liquefied",
+    ]
+
+    bases = [
+        "fuels?",
+        "oils?",
+        "energy",
+        "coal",
+        "gas(?:oline)?",
+        "propane",
+        "power",
+        "petroleum",
+        "liquids?",
+        "diesel",
+        "butane",
+        "electricity",
+        "distillates",
+        "ethane",
+        "ethanol",
+        "kerosene",
+        "LNG",
+        "LPG",
+    ]
+
+    modifiers = [
+        "bunker",
+        "marine",
+        "jet",
+        "(?:air|aero)plane",
+        "helicopter",
+        "plane",
+        "aero",
+        "aviation",
+        "crude",
+        "heating",
+        "coking",
+        "natural",
+        "carbon",
+        "solar",
+        "wind",
+        "renewable",
+    ]
+
+    prefix_alt = build_alternation(prefixes, sort_longest_first=True)
+    modifier_alt = build_alternation(modifiers, sort_longest_first=True)
+    base_alt = build_alternation(bases, sort_longest_first=True)
+
+    # Optional prefix, optional modifier, required base, optional second base
+    return rf"""
+        (?:(?:{prefix_alt})[- ])?
+        (?:(?:{modifier_alt})[- ])?
+        (?:{base_alt})
+        (?:[- ](?:{base_alt}))?
+    """.strip()
+
+
 COMMODITY_MAP = {
     "crops": [
         # --- Fruits ---
@@ -139,13 +199,16 @@ COMMODITY_MAP = {
         "tea",
         "tobacco",
         # --- General Crop Categories ---
-        "horticultural crops?",
-        "row crops?",
+        "(?:horticultural|row) crops?",
         # -- Other ---
         "honey",
         "beeswax",
         "spices?",
-        "pepper",
+        "(?:(?:bell|spicy|sweet|green|red|chili|jalape[nñ]o|banana|ghost|cayenne)[- ])?peppers?",
+        # Certain peppers
+        "jalape[nñ]o?",
+        "california reapers?",
+        "paprika",
         "cinnamon",
         "cloves?",
         "nutmeg",
@@ -154,7 +217,7 @@ COMMODITY_MAP = {
         "vanilla",
         "saffron",
         "essential oils?",  # borderline but traded physically
-        "natural rubber",
+        "(?:natural[- ])?rubber",
         "latex",
         "gum arabic",
     ],
@@ -237,7 +300,7 @@ COMMODITY_MAP = {
         "trout",
         "bass",
         "catfish",
-        "(?:king|snow|blue) crab",
+        "(?:king|snow|blue) crabs?",
         "shellfish",
         "bivalve",
         "crustacean",
@@ -271,43 +334,9 @@ COMMODITY_MAP = {
     "energy": [
         "biodiesel",
         "biomass",
-        "bunker fuel",
-        "butane",
-        "coal",
-        "coking coal",
+        build_energy_dynamic_pattern(),
         "condensate",
-        "crude oil",
-        "diesel fuel",
-        "diesel",
-        "distillates",
-        "electricity",
-        "energy",
-        "ethane",
-        "ethanol",
-        "fuel",
-        "fuel oil",
-        "gas",
-        "gas oil",
-        "gasoline",
-        "heating oil",
-        "jet fuel",
-        "kerosene",
-        "liquefied natural gas",
-        "liquefied petroleum gas",
-        "LNG",
-        "LPG",
-        "marine fuel",
         "naphtha",
-        "natural gas",
-        "natural gas liquids",
-        "oil",
-        "petroleum",
-        "power",
-        "propane",
-        "renewable energy",
-        "solar power",
-        "thermal coal",
-        "wind power",
     ],
     "chemicals": [
         "chemical",
@@ -334,8 +363,8 @@ COMMODITY_MAP = {
         "iron",
         "gold",
         "silver",
-        "metal",
-        "ore",
+        "metals?",
+        "ores?",
         "(?:stainless[- ])?steel",
         "titanium",
         "uranium",
@@ -351,7 +380,6 @@ COMMODITY_MAP = {
         "chromium",
         "lithium",
         "magnesium",
-        "metal",
         "(?:precious|rare earth|base|scrap|silicon) metals?",
         "vanadium",
         "alumina",
