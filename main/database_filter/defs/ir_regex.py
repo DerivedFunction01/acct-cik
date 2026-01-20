@@ -379,10 +379,10 @@ def debt_feature_regex() -> re.Pattern:
     ]
     
     VERB = build_alternation(verbs)
-    targets = [r"caps?", r"floors?", r"locks?", r"limits?"]
+    targets = [r"caps?", r"floors?", r"locks?", r"limits?", r"collars?"]
     TARGET = build_alternation(targets)
-    rates = build_alternation(RATE_TYPES)
-    IR = rf"{rates}([- ]\s+rates?)?"
+    rates = build_alternation(RATE_TYPES + ["interest"])
+    IR = rf"{rates}(?:[- ]\s+rates?)?"
     ART = r"(?:the|a|an)\s+"
     cap_floor_pattern = (
         rf"{VERB}\s+(?:{ART})?{IR}\s+{TARGET}"
