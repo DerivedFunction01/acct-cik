@@ -340,16 +340,19 @@ def get_quantitative_noise_reason(
 # In prefilter_tagging.py
 
 # Core concept: What are they denying?
+_HEDGING_CORE = [
+    r"for\s+any\s+(?:other\s+)?purposes?",  # Not for any other (trading) purpose
+    r"(?:except(?:[ -]for)?|only\s+for)\s+hedging",  # Negation: Not (not) hedging -> not trading
+]
 _TRADING_CORE = [
     r"trad(?:ing|es?|ed)",
     r"speculat(?:ive|es?|ion)",
     r"proprietary",
     r"arbitrage",
-    r"for\s+any\s+(?:other\s+)?purposes?", # Not for any other (trading) purpose
-    r"(?:except(?:[ -]for)?|only\s+for)\s+hedging", # Negation: Not (not) hedging -> not trading
-]
+] + _HEDGING_CORE
 _TRADING_CORE_ALT = build_alternation(_TRADING_CORE)
 TRADING_CORE_REGEX = build_regex(_TRADING_CORE)
+HEDGING_CORE_REGEX = build_regex(_HEDGING_CORE)
 
 # Veto/Authorization: For "not permitted/authorized" logic
 _AUTH = [r"authorize(?:d|s)?", r"permit(?:s|ted)?", r"allow(?:s|ed)?"]
@@ -393,7 +396,11 @@ def is_trading_statement(text: str) -> Optional[NoiseReason]:
         return NoiseReason.NO_TRADING
 
     # Path D: They engage in speculative trading
-    return NoiseReason.TRADING
+    if not HEDGING_CORE_REGEX.search(text):
+        return NoiseReason.TRADING
+
+    # Path E: Implicit Denial via Hedging Core (e.g. "only for hedging")
+    return NoiseReason.NO_TRADING
 
 """
 All derivatives are recognized on the balance sheet at their fair value.  
