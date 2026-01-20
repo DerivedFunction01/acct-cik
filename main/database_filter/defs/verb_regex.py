@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS, GENERIC_RISK_GLUE, _RISK_ALTERNATION
+from defs.shared_context import ALL_TERM_TERMS, MITIGATION_STRICT_VERBS, TERMINATION_VERBS, MITIGATION_VERBS, GENERIC_RISK_GLUE, _RISK_ALTERNATION
 
 # Speculative / Uncertain Timing Phrases
 SPECULATIVE_PHRASES = [
@@ -484,12 +484,12 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
     Inspired by build_risk_managment_phrase but negated.
     """
     neg_prefix = build_negation_prefix_pattern()
-    mitigation_verbs = build_alternation(MITIGATION_VERBS)
-    
+    mitigation_verbs = build_alternation(MITIGATION_STRICT_VERBS)
+
     # Gap logic from build_risk_managment_phrase
     glue = build_alternation(GENERIC_RISK_GLUE)
     filler = r"(?:\S+\s+){0,3}"
-    
+
     if required_glue:
         req_alt = build_alternation(required_glue)
         glue_unit = rf"(?:{filler}{glue})"
@@ -502,7 +502,7 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
         gap = rf"(?:{glue_unit}\s+){{0,6}}"
 
     final_filler = r"(?:\S+\s+){0,3}"
-    
+
     # Allow adverbs between negation and verb
     _pre_verb_gap = (
         r"[, ]"  # Mandatory space or comma after "not"

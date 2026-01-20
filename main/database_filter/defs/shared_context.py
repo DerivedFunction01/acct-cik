@@ -221,12 +221,12 @@ VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS)
 
 MITIGATION_STRICT_VERBS = [
     r"mitigat(?:e|es|ed|ing)",
-    r"offset(?:s|ting)?",
     r"hedg(?:e|es|ed|ing)",
     r"manag(?:e|es|ed|ing)",
 ]
 
 MITIGATION_VERBS = MITIGATION_STRICT_VERBS + [
+    r"offset(?:s|ting)?",
     r"reduc(?:e|es|ed|ing)",
     r"limit(?:s|ed|ing)?",
     r"control(?:s|led|ling)?",
