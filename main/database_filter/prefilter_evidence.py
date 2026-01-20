@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import re
 import sqlite3
-from typing import Optional, Set, NamedTuple
+from typing import Optional, Set, NamedTuple, List, Tuple
 
 from tqdm import tqdm
 from defs.verb_regex import (
@@ -209,6 +209,8 @@ def check_quantitative_evidence(
     is_strict_derivative: bool,
     verbs: VerbCheckResults,
     skip_year: bool = False,
+    has_active_context: bool = False,
+    force_transaction_context: bool = False,
 ) -> Optional[Reason]:
     """Check for Quantitative Evidence (NVY/FVY)."""
     from prefilter_tagging import extract_values_and_years
@@ -231,10 +233,13 @@ def check_quantitative_evidence(
     has_relevant_year = (
         any(y >= reporting_year for y in years_found) if not skip_year else True
     )
+    
+    if not has_relevant_year and has_active_context:
+        has_relevant_year = True
 
     # 1. NOTIONAL SAFETY: Notional always overrides PnL context.
     if is_notional:
-        if not verbs.has_transaction:
+        if not verbs.has_transaction and not force_transaction_context:
             return EvidenceReason.NVY if has_relevant_year else EvidenceReason.NVNY
         else:
             return EvidenceReason.ACT_NV_YEAR if has_relevant_year else EvidenceReason.NVNY
@@ -253,7 +258,7 @@ def check_quantitative_evidence(
         # 3. VALID EVIDENCE
         # Upgrade to Strict Evidence if we have a specific soft mention (e.g. "interest rate agreement")
         if is_strict_derivative or verbs.is_specific:
-            if not verbs.has_transaction:
+            if not verbs.has_transaction and not force_transaction_context:
                 return EvidenceReason.FVY if has_relevant_year else EvidenceReason.FVNY
             else:
                 return EvidenceReason.ACT_FV_YEAR if has_relevant_year else EvidenceReason.FVNY
@@ -266,7 +271,7 @@ def check_quantitative_evidence(
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
         if verbs.is_specific:
-            if not verbs.has_transaction:
+            if not verbs.has_transaction and not force_transaction_context:
                 return (
                     EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
                 )
@@ -487,6 +492,8 @@ def scan_sentence_for_evidence(
     reporting_year: int,
     is_strict_derivative: bool,
     verbs: VerbCheckResults,
+    has_active_context: bool = False,
+    force_transaction_context: bool = False,
 ) -> Optional[Reason]:
     """
     Scan a sentence and return the HIGHEST PRIORITY evidence tag.
@@ -499,7 +506,7 @@ def scan_sentence_for_evidence(
     if mat := check_future_maturity(text, reporting_year, is_strict_derivative, verbs):
         return mat
     if q := check_quantitative_evidence(
-        text, reporting_year, is_strict_derivative, verbs
+        text, reporting_year, is_strict_derivative, verbs, has_active_context=has_active_context, force_transaction_context=force_transaction_context
     ):
         return q
     if as_year := check_active_state_year(
@@ -595,15 +602,34 @@ def should_mark_deadweight(
 # =============================================================================
 # TAGGING ENGINE
 # =============================================================================
+active_context_reasons = {
+        EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT, 
+        EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V,
+        EvidenceReason.AS_YEAR,
+        EvidenceReason.ACT_YEAR, EvidenceReason.ACT_NV_YEAR, EvidenceReason.ACT_FV_YEAR, EvidenceReason.ACT_V_YEAR,
+        EvidenceReason.NVY, EvidenceReason.FVY, EvidenceReason.VY
+}
 
+transaction_reasons = {
+    EvidenceReason.ACT_YEAR, EvidenceReason.ACT_NV_YEAR, EvidenceReason.ACT_FV_YEAR, EvidenceReason.ACT_V_YEAR,
+    EvidenceReason.ACT_GEN, EvidenceReason.ACT_AMB_YEAR, EvidenceReason.ACT_AMB_GEN
+}
 
-def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
+possession_reasons = {
+    EvidenceReason.AS_YEAR, EvidenceReason.ASAIY,
+    EvidenceReason.CONT_USE, EvidenceReason.CONT_USE_AMB,
+    EvidenceReason.BS_LOC,
+    EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT,
+    EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V
+}
+
+def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> Tuple[str, List[str]]:
     """
     Tag untagged sentences with evidence and mark paragraph as deadweight if needed.
     """
     # If paragraph is already marked deadweight, leave it alone
     if text.startswith(DEADWEIGHT_TOKEN):
-        return text
+        return text, []
 
     # Parse any existing noise tags from the paragraph for dominance evaluation
     _, existing_paragraph_noise = parse_noise_tags(text)
@@ -623,20 +649,32 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     masked_text = " ".join(masked_sentences)
     is_strict_derivative = check_derivative_global(masked_text)
 
-    # === PRE-SCAN: Identify if paragraph contains an Active Maturity signal ===
-    has_active_maturity = False
-    mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT, EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V}
+    # === PRE-SCAN: Identify if paragraph contains an Active Context signal ===
+    has_active_context = False
+    has_transaction_context = False
+    has_possession_context = False
 
+    pre_scan_results = []
     for i, s in enumerate(masked_sentences):
         verbs = sentence_verbs[i]
-        res = check_future_maturity(s, reporting_year, is_strict_derivative, verbs)
-        if res in mat_reasons:
-            has_active_maturity = True
-            break
+        # Pass False to avoid circular dependency during scan
+        res = scan_sentence_for_evidence(s, reporting_year, is_strict_derivative, verbs, has_active_context=False)
+        pre_scan_results.append(res)
+        if res in active_context_reasons:
+            has_active_context = True
+        if res in transaction_reasons:
+            has_transaction_context = True
+        if res in possession_reasons:
+            has_possession_context = True
+
+    # Force transaction context for quants if we have transactions but NO possession signals
+    # This ensures "Entered... Notional... Terminated" dies, but "Held... Notional... Terminated" survives.
+    force_transaction_for_quants = has_transaction_context and not has_possession_context
 
     # Process sentences: tag untagged ones, collect evidence
     tagged_sentences = []
     all_evidence: Set[EvidenceReason] = set()
+    debug_events = []
 
     for i, (orig, masked) in enumerate(zip(original_sentences, masked_sentences)):
         # Parse existing tags from this sentence
@@ -644,8 +682,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
         verbs = sentence_verbs[i]
 
         # === PROMOTION LOGIC: Reclaim Historical Inception ===
-        if has_active_maturity and (
-            NoiseReason.TIME in existing_noise or NoiseReason.TRANSACT in existing_noise
+        if has_active_context and (
+            NoiseReason.TRANSACT in existing_noise
         ):
             if verbs.has_transaction:
                 # Promote to Active Transaction Evidence
@@ -658,21 +696,36 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
                 evidence2 = check_quantitative_evidence(
                     masked, reporting_year, is_strict_derivative, verbs, skip_year=True
                 )
-                
+
                 if evidence2:
                     evidence = evidence2.value
-                    
+
                 all_evidence.add(evidence)
-                tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} {clean_sent}"
+
+                # Debug info for upgrade
+                debug_tag = f"UPGRADE_{NoiseReason.TRANSACT}"
+                debug_events.append(debug_tag)
+
+                tagged_sent = f"{get_tag(EVIDENCE_TOKEN, evidence)} _M<{debug_tag}> {clean_sent} "
                 tagged_sentences.append(tagged_sent)
                 continue
 
         # Only scan and tag sentences that have NO existing tags
         if not existing_noise:
             # Scan for evidence - returns single tag or None
-            evidence = scan_sentence_for_evidence(
-                masked, reporting_year, is_strict_derivative, verbs
-            )
+            evidence = pre_scan_results[i]
+
+            needs_rescan = False
+            if has_active_context and evidence not in active_context_reasons:
+                needs_rescan = True
+            if force_transaction_for_quants and evidence in {EvidenceReason.NVY, EvidenceReason.FVY, EvidenceReason.VY}:
+                needs_rescan = True
+
+            if needs_rescan:
+                evidence = scan_sentence_for_evidence(
+                    masked, reporting_year, is_strict_derivative, verbs, has_active_context=True, force_transaction_context=force_transaction_for_quants
+                )
+
             if evidence:
                 evidence_type = isinstance(evidence, EvidenceReason)
                 if isinstance(evidence, EvidenceReason):
@@ -697,11 +750,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
     ):
         return mark_as_deadweight(
             tagged_paragraph, noise=existing_paragraph_noise, stage=Stage.PF_EV
-        )
+        ), debug_events
     else:
         return mark_as_evidence(
             tagged_paragraph, evidence=all_evidence, noise=existing_paragraph_noise
-        )
+        ), debug_events
 
 
 # =============================================================================
@@ -742,7 +795,7 @@ def process_row(row):
             continue
 
         local_is_nst = convertible_ir(p)
-        tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
+        tagged_p, _ = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)

@@ -60,6 +60,7 @@ TARGET_DB_PATH = "classified_data.db"
 # Tag Parsing
 TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
+METADATA_TAG_PARSER = re.compile(r"_M<([^>]+)>")
 
 SAFEGUARD_EVIDENCE = {
     EvidenceReason.AS_YEAR.value,
@@ -1098,6 +1099,13 @@ def process_row(row: Tuple) -> Tuple:
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
                 attributes = mine_attributes(etag, attributes)
+            
+            # Extract Metadata Tags (Debug info)
+            meta_tags_found = METADATA_TAG_PARSER.findall(sent_content)
+            if meta_tags_found:
+                if "debug_events" not in attributes:
+                    attributes["debug_events"] = []
+                attributes["debug_events"].extend(meta_tags_found)
 
             is_active = not (is_para_deadweight or is_sent_deadweight)
 
@@ -1106,7 +1114,8 @@ def process_row(row: Tuple) -> Tuple:
             if is_sent_deadweight:
                 salvage_instruments(sent_content, valid_instruments, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
-            clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
+            sent_content_no_meta = METADATA_TAG_PARSER.sub(" ", sent_content_no_evidence)
+            clean_sent = _cleaner.clean(sent_content_no_meta, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
             
             # Check for Safeguard Evidence (Overrides Exclusions)
