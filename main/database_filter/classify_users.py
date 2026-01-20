@@ -168,8 +168,9 @@ class GlobalExclusionTracker:
     def __init__(self):
         self.excluded_categories = set()
         self.excluded_commodities = set()
+        self.negated_instruments = defaultdict(set)
 
-    def add_exclusion(self, text: str):
+    def add_exclusion(self, text: str, reason: Optional[str] = None):
         # Check categories
         if IR_DO_NOT_MITIGATE_REGEX.search(text):
             self.excluded_categories.add("ir")
@@ -197,15 +198,40 @@ class GlobalExclusionTracker:
             elif not commodities:
                 self.excluded_categories.add("cp")
 
-    def is_excluded(self, category: str, text_match: str = "") -> Tuple[bool, bool]:
-        """Returns (is_excluded, is_specific_commodity_block)."""
+        # Check NEG logic (Specific Instrument Negation)
+        if reason == NoiseReason.NEG.value:
+            for cat, (strict_inst, soft_inst, _, _, weak_inst, _) in CATEGORY_MAP.items():
+                # Check all instrument patterns to capture what is being negated
+                for pat in [strict_inst, soft_inst, weak_inst]:
+                    if pat:
+                        for m in pat.finditer(text):
+                            self.negated_instruments[cat].add(m.group(0).lower())
+
+    def is_excluded(self, category: str, text_match: str = "", match_type: str = "strict") -> Tuple[bool, bool]:
+        """Returns (is_excluded, is_blocked)."""
+        # 1. Global category exclusion (downgrade)
+        if category in self.excluded_categories:
+            return True, False
+
+        # 2. Specific Commodity Block
         if category == "cp" and text_match:
             text_lower = text_match.lower()
             for comm in self.excluded_commodities:
                 if comm in text_lower:
-                    return True, True # Excluded, Specific Block
+                    return True, True
         
-        return category in self.excluded_categories, False
+        # 3. Specific Instrument Negation
+        if text_match:
+            text_lower = text_match.lower()
+            if text_lower in self.negated_instruments[category]:
+                return True, True
+            
+            if match_type == "weak":
+                for neg_inst in self.negated_instruments[category]:
+                    if "derivative" in neg_inst:
+                        return True, True
+
+        return False, False
 
 # =============================================================================
 # HELPERS
@@ -729,7 +755,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 for m in matches:
                     is_excl, is_block = False, False
                     if exclusion_tracker:
-                        is_excl, is_block = exclusion_tracker.is_excluded(cat, m.group(0))
+                        is_excl, is_block = exclusion_tracker.is_excluded(cat, m.group(0), match_type="strict")
                     
                     if is_block:
                         continue # Blocked completely (Score 0 contribution)
@@ -743,11 +769,12 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 # (The += 2000 above handles it, but logic ensures mixed signals favor strict)
 
         elif soft_inst and soft_inst.search(text): # Interest rate cap
+            match_text = soft_inst.search(text).group(0)
             if notional_multiplier:
                 # Treat as strict, but check exclusion
                 is_excl, is_block = False, False
                 if exclusion_tracker:
-                    is_excl, is_block = exclusion_tracker.is_excluded(cat, soft_inst.search(text).group(0)) # type: ignore
+                    is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
                 
                 if is_block:
                     pass
@@ -756,10 +783,26 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 else:
                     scores[cat] += 2000
             else:
-                scores[cat] += 500
+                is_excl, is_block = False, False
+                if exclusion_tracker:
+                    is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
+                
+                if is_block:
+                    pass
+                elif is_excl:
+                    scores[cat] += 15
+                else:
+                    scores[cat] += 500
         elif weak_inst and weak_inst.search(text):  # Interest rate agreement
-            if sent_count == 1:
-                scores[cat] += 2000
+            match_text = weak_inst.search(text).group(0)
+            is_excl, is_block = False, False
+            if exclusion_tracker:
+                is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="weak")
+            
+            if is_block:
+                pass
+            elif sent_count == 1 or notional_multiplier:
+                scores[cat] += 6000
             else:
                 scores[cat] += 200
 
@@ -942,8 +985,8 @@ def process_row(row: Tuple) -> Tuple:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
         for sent in sentences:
             _, tag_reason, sent_content = parse_tags(sent)
-            if tag_reason == NoiseReason.NO_HEDGE.value:
-                exclusion_tracker.add_exclusion(sent_content)
+            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value):
+                exclusion_tracker.add_exclusion(sent_content, tag_reason)
 
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
