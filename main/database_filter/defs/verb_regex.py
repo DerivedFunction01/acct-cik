@@ -191,7 +191,10 @@ _DENIAL_MODIFIERS = [
     "aggregated?",
     "total",
     "notional",
-    "amounts?"
+    "amounts?",
+    "new",
+    "open",
+    "active",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
