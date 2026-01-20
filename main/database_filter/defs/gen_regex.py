@@ -56,8 +56,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # Pattern 4: Special bases (complete phrases)
     pattern4 = special_bases_alt
 
-    pattern5 = DOUBLE_BASE_REGEX.pattern
-
     # Combine with specific phrases first (highest priority)
     specific_phrases = [
         "(?:cash[- ]flow|fair[- ]value|net[- ]investment) hedges?",
@@ -73,7 +71,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
 
     # FINAL: Specific phrases FIRST, then combined+suffix patterns, then standalone
-    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern5}|{pattern1}|{pattern2}|{pattern3}"
+    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern1}|{pattern2}|{pattern3}"
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE

@@ -382,6 +382,7 @@ def extract_instrument_evidence(
     accumulated_cats: Optional[Set[str]] = None,
     global_cats: Optional[Set[str]] = None,
     sent_scores: Optional[Dict[str, int]] = None,
+    exclusion_tracker: Optional[GlobalExclusionTracker] = None,
 ) -> List[InstrumentDetail]:
     """
     Links detected instruments with their quantitative data found in the same sentence.
@@ -428,6 +429,12 @@ def extract_instrument_evidence(
 
         if resolved:
             target_category = resolved
+
+    # Check Global Exclusion for the Category
+    if exclusion_tracker:
+        is_excl, is_block = exclusion_tracker.is_excluded(target_category)
+        if is_block:
+            return []
 
     # 1. Determine Accounting Context from Evidence Tags (Primary)
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
@@ -477,6 +484,15 @@ def extract_instrument_evidence(
             m.group(0).strip() for m in PRECISE_BASE_REGEX.finditer(sentence)
         ]
         instrument_names = name_matches if name_matches else ["unresolved"]
+
+    # Filter specific instruments against exclusion tracker
+    if exclusion_tracker:
+        filtered_names = []
+        for name in instrument_names:
+            is_excl, is_block = exclusion_tracker.is_excluded(target_category, name, match_type="strict")
+            if not is_block:
+                filtered_names.append(name)
+        instrument_names = filtered_names
 
     # If no values, return empty list (no evidence to capture)
     if not values:
@@ -778,6 +794,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                         is_excl, is_block = exclusion_tracker.is_excluded(cat, m.group(0), match_type="strict")
                     
                     if is_block:
+                        scores['gen'] = -1
                         continue # Blocked completely (Score 0 contribution)
                     elif is_excl:
                         scores[cat] += 60 # Downgrade to soft count equivalent
@@ -797,7 +814,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                     is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
                 
                 if is_block:
-                    pass
+                    scores['gen'] = -1
                 elif is_excl:
                     scores[cat] += 60
                 else:
@@ -808,7 +825,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                     is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="soft")
                 
                 if is_block:
-                    pass
+                    scores['gen'] = -1
                 elif is_excl:
                     scores[cat] += 15
                 else:
@@ -820,7 +837,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="weak")
             
             if is_block:
-                pass
+                scores['gen'] = -1
             elif sent_count == 1 or notional_multiplier:
                 scores[cat] += 6000
             else:
@@ -927,6 +944,7 @@ def process_confirmed_evidence(
     valid_instruments: Dict[str, Set[str]],
     evidence_details: List[InstrumentDetail],
     sent_scores: Optional[Dict[str, int]] = None,
+    exclusion_tracker: Optional[GlobalExclusionTracker] = None,
 ) -> None:
     """Helper to process confirmed evidence (strict matches or promoted soft matches)."""
     # Capture instruments from valid evidence
@@ -935,6 +953,10 @@ def process_confirmed_evidence(
         valid_instruments[kw_cat].update(keywords)
 
     for cat in categories:
+        if exclusion_tracker:
+            is_excl, is_block = exclusion_tracker.is_excluded(cat)
+            if is_block:
+                continue
         strict_categories.add(cat)
         strict_counts[cat] += 1
 
@@ -948,6 +970,7 @@ def process_confirmed_evidence(
             accumulated_cats=accumulated_cats,
             global_cats=strict_categories,
             sent_scores=sent_scores,
+            exclusion_tracker=exclusion_tracker,
         )
         evidence_details.extend(details)
 
@@ -1060,6 +1083,12 @@ def process_row(row: Tuple) -> Tuple:
 
             sent_scores = get_text_categories(clean_sent, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
 
+            # Handle explicit block signal
+            explicit_block = sent_scores.get('gen', 0) == -1
+            if explicit_block:
+                if 'gen' in sent_scores:
+                    del sent_scores['gen']
+
             # Derive Strict Categories (Score >= 2000)
             strict_cats = derive_strict_categories(sent_scores, clean_sent)
 
@@ -1071,7 +1100,7 @@ def process_row(row: Tuple) -> Tuple:
 
             # Derive Soft Categories
             soft_cats = set(sent_scores.keys())
-            if not soft_cats:
+            if not soft_cats and not explicit_block:
                 if GEN_REGEX.search(clean_sent) or GEN_STRICT_CONTEXT_REGEX.search(clean_sent):
                     soft_cats.add("gen")
                 elif PRECISE_LOOSE_GEN_REGEX.search(clean_sent) and HEDGING_CONTEXT_REGEX.search(clean_sent):
@@ -1120,6 +1149,7 @@ def process_row(row: Tuple) -> Tuple:
                         valid_instruments,
                         evidence_details,
                         sent_scores=sent_scores,
+                        exclusion_tracker=exclusion_tracker,
                     )
                     continue
 
