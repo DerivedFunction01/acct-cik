@@ -77,6 +77,20 @@ UNAMBIGUOUS_EVIDENCE = {
     EvidenceReason.ACT_GEN.value,
 }
 
+# Evidence that overrides Global Exclusions (Safeguard)
+# If these tags are present, we ignore "No Hedge" or "Potential" blocks for this sentence.
+SAFEGUARD_EVIDENCE = {
+    EvidenceReason.AS_YEAR.value,
+    EvidenceReason.MAT_FUT.value,
+    EvidenceReason.NVY.value,
+    EvidenceReason.FVY.value,
+    EvidenceReason.VY.value,
+    EvidenceReason.ACT_YEAR.value,
+    EvidenceReason.NVNY.value,
+    EvidenceReason.FVNY.value,
+    EvidenceReason.VNY.value,
+}
+
 _cleaner = MinimalTextCleaner()
 
 # =============================================================================
@@ -199,7 +213,7 @@ class GlobalExclusionTracker:
                 self.excluded_categories.add("cp")
 
         # Check NEG logic (Specific Instrument Negation)
-        if reason == NoiseReason.NEG.value:
+        if reason in (NoiseReason.NEG.value, NoiseReason.POT.value):
             for cat, (strict_inst, soft_inst, _, _, weak_inst, _) in CATEGORY_MAP.items():
                 # Check all instrument patterns to capture what is being negated
                 for pat in [strict_inst, soft_inst, weak_inst]:
@@ -1039,7 +1053,7 @@ def process_row(row: Tuple) -> Tuple:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
         for sent in sentences:
             _, tag_reason, sent_content = parse_tags(sent)
-            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value):
+            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value, NoiseReason.POT.value):
                 exclusion_tracker.add_exclusion(sent_content, tag_reason)
 
     # --- SINGLE PASS Processing ---
@@ -1091,8 +1105,15 @@ def process_row(row: Tuple) -> Tuple:
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             clean_sent = _cleaner.clean(sent_content_no_evidence, effective_nst)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
+            
+            # Check for Safeguard Evidence (Overrides Exclusions)
+            evidence_tags_set = {tag for tag in evidence_tags_found}
+            is_safeguarded = not evidence_tags_set.isdisjoint(SAFEGUARD_EVIDENCE)
+            
+            # If safeguarded, disable exclusion tracker for this sentence
+            current_exclusion_tracker = None if is_safeguarded else exclusion_tracker
 
-            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
+            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst, exclusion_tracker=current_exclusion_tracker)
 
             # Handle explicit block signal
             explicit_block = sent_scores.get('gen', 0) == -1
@@ -1160,7 +1181,7 @@ def process_row(row: Tuple) -> Tuple:
                         valid_instruments,
                         evidence_details,
                         sent_scores=sent_scores,
-                        exclusion_tracker=exclusion_tracker,
+                        exclusion_tracker=current_exclusion_tracker,
                     )
                     continue
 
