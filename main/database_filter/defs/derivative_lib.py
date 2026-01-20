@@ -1,6 +1,6 @@
 import re
 from defs.ir_regex import IR_CONTEXT_REGEX, IR_REGEX, IR_SOFT_REGEX, IR_STRICT_CONTEXT_REGEX, IR_LOOSE_REGEX, IR_RISK_REGEX
-from defs.cp_regex import CP_CONTEXT_REGEX, CP_REGEX, CP_SOFT_REGEX, CP_STRICT_CONTEXT_REGEX, CP_LOOSE_REGEX, CP_RISK_REGEX
+from defs.cp_regex import CP_CONTEXT_REGEX, CP_REGEX, CP_SOFT_REGEX, CP_STRICT_CONTEXT_REGEX, CP_LOOSE_REGEX, CP_RISK_REGEX, COMMON_COMMODITIES
 from defs.cr_regex import CR_CONTEXT_REGEX, CR_REGEX, CR_SOFT_REGEX, CR_STRICT_CONTEXT_REGEX, CR_LOOSE_REGEX, CR_RISK_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX
 from defs.fx_regex import FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
@@ -86,6 +86,31 @@ def find_hedging_context(paragraph: str) -> bool:
                 if HEDGING_CONTEXT_REGEX.search(sent):
                     return True
     return False
+
+GLUE_MAP = {
+    "ir": [
+        r"(?:interest|fixed|variable|floating)[- ]rates?",
+        r"interest\s+exchange",
+    ],
+    "fx": [
+        r"(?:foreign|forward)[- ](?:forward|foreign)",
+        r"(?:foreign|forward|cross|multi)[- ](?:currency|exchange rate|exchange)",
+        r"(?<!single[- ])currency",
+        r"fx",
+        r"forex",
+        r"exchange\s+rate",
+    ],
+    "cp": COMMON_COMMODITIES,
+    "eq": [
+        r"equit(?:y|ies)",
+        r"stocks?",
+        r"shares?",
+    ],
+    "cr": [
+        r"credits?",
+        r"defaults?",
+    ],
+}
 
 def run_tests():
     from defs.ir_regex import run_tests as ir_run

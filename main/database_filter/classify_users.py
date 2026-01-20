@@ -13,7 +13,7 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.cp_regex import TRADING_VENUE_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
-from defs.derivative_lib import CATEGORY_MAP, find_hedging_context
+from defs.derivative_lib import CATEGORY_MAP, find_hedging_context, GLUE_MAP
 from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
@@ -739,6 +739,9 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     scores = defaultdict(int)
     notional_multiplier = NOTIONAL_REGEX.search(text)
     sent_count = len(SENTENCE_SPLIT_PATTERN.split(text))
+    
+    # Check for conjunctions for chained instrument logic
+    has_conjunction = bool(re.search(r"\b(?:and|or)\b", text, re.IGNORECASE))
 
     # ═══════════════════════════════════════════════════════════
     # PHASE 1: STRICT SIGNALS (Non-Destructive)
@@ -749,6 +752,24 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
         # A. Strict Instrument ("Interest Rate Swap")
         if strict_inst:
             matches = list(strict_inst.finditer(text))
+            
+            # --- Chained Instrument Logic ---
+            if not matches and has_conjunction:
+                # Attempt to reconstruct chained instruments
+                # 1. Remove conjunctions and commas
+                temp_text = re.sub(r"[,;]|\b(?:and|or)\b", " ", text, flags=re.IGNORECASE)
+                
+                # 2. Remove glue from other categories
+                for other_cat, glue_patterns in GLUE_MAP.items():
+                    if other_cat == cat:
+                        continue
+                    glue_regex = re.compile(r"\b(?:" + "|".join(glue_patterns) + r")\b", re.IGNORECASE)
+                    temp_text = glue_regex.sub(" ", temp_text)
+                
+                # 3. Normalize spaces and check strict_inst
+                temp_text = re.sub(r"\s+", " ", temp_text).strip()
+                matches = list(strict_inst.finditer(temp_text))
+            
             if matches:
                 # Check exclusions for each match
                 valid_match_found = False
@@ -794,7 +815,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 else:
                     scores[cat] += 500
         elif weak_inst and weak_inst.search(text):  # Interest rate agreement
-            match_text = weak_inst.search(text).group(0)
+            match_text = weak_inst.search(text).group(0) # type: ignore
             is_excl, is_block = False, False
             if exclusion_tracker:
                 is_excl, is_block = exclusion_tracker.is_excluded(cat, match_text, match_type="weak")
