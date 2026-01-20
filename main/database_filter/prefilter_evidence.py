@@ -397,7 +397,7 @@ def check_active_state_general(
             else EvidenceReason.CONT_USE_AMB
         )
 
-    if CHANGE_FV_REGEX.search(text):
+    if CHANGE_FV_REGEX.search(text) or HAD_CHANGE_REGEX.search(text):
         return NoiseReason.PNL
     if verbs.has_passive_verb:
         # "Were held" -> Fact. Treat as Medium Evidence (survives Policy, dies to Time)

@@ -1093,13 +1093,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
 PNL_CONTEXT_REGEX, PNL_CONTEXT_REGEX2 = pnl_regex()
 
 _prep_pattern = build_alternation([r"in", r"of", r"on"])
-CHANGE_FV_REGEX = build_regex(
-    [
-        # LOGIC:
-        # 1. Match "Change in fair value"
-        rf"\bchange(?:s)?\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value"
-    ]
-)
+
 
 # 1. Match auxiliary verbs: have, having, had, has
 # 2. Allow 0-2 filler words (e.g., "recorded a", "significant", "no", "a")
@@ -1144,6 +1138,14 @@ HAD_CHANGE_REGEX = re.compile(
     rf"(?:\s+\S+){{0,2}}"  # 0–2 filler words
     rf"\s+{fv_target_pattern}",  # fair value change target
     re.IGNORECASE,
+)
+
+CHANGE_FV_REGEX = build_regex(
+    [
+        # LOGIC:
+        # 1. Match "Change/ADJUSTments/etc in fair value"
+        rf"{change_verb_pattern}\s+{_prep_pattern}\s+(?:the\s+)?fair\s+value",
+    ]
 )
 
 def is_pnl(text, context_only = True):
