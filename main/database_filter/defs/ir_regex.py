@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from defs.derivatives_core import ALL_SUFFIXES, UNAMBIGUOUS_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_risk_managment_phrase
+from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
 BENCHMARK_RATES = [
@@ -353,6 +353,69 @@ def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
     return strict_terms, soft_terms, risk_terms
 
 
+def debt_feature_regex() -> re.Pattern:
+    # 1. Optional Prefix: "Changes in", "increase in", etc.
+    # 0-3 words like "changes in the" or "fluctuations in"
+    prefix_gap = r"(?:\b(?:changes?|fluctuations?|increase|decrease|impact)\s+(?:in|to)\s+(?:the\s+)?)?"
+
+    # 2. Mid Gap: "fair value of [the/our] debt"
+    mid_gap = r"(?:\s+(?:the|our|total|aggregate))?\s*"
+    
+    # setting the rates (reduces false IR caps as instruments)
+    verbs = [
+        r"set(?:s?|ting)?",
+        r"establish(?:es|ing)?",
+        r"(?:in|de)creas(?:es?|ed|ing)",
+        r"lower(?:s|ed|ing)?",
+        r"rais(?:es?|ed|ing)",
+        r"limit(?:s|ed|ing)?",
+        r"fix(?:es|ed|ing)?",
+        r"adjust(?:s|ed|ing)?",
+        r"target(?:s|ed|ing)?",
+        r"determin(?:e|es|ed|ing)?",
+        r"implement(?:s|ed|ing)?",
+        r"provid(?:e|es|ed|ing)",
+        r"contain(?:s|ed|ing)?"
+    ]
+    
+    VERB = build_alternation(verbs)
+    targets = [r"caps?", r"floors?", r"locks?", r"limits?"]
+    TARGET = build_alternation(targets)
+    rates = build_alternation(RATE_TYPES)
+    IR = rf"{rates}([- ]\s+rates?)?"
+    ART = r"(?:the|a|an)\s+"
+    cap_floor_pattern = (
+        rf"{VERB}\s+(?:{ART})?{IR}\s+{TARGET}"
+        rf"(?:\s+and\s+(?:{ART})?(?:{IR}\s+)?{TARGET})?"
+    )
+    # 3. Pattern Construction
+    # Matches: "fair value of debt", "change in the fair value of our facility"
+    # Also matches: secured debt/facility (no gap)
+    patterns = [
+        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facility)\b",
+        rf"secured\s+(?:{_DEBT_TERMS}|facility)\b",
+        cap_floor_pattern,
+    ]
+    pattern = build_alternation(patterns)
+    return re.compile(pattern, re.IGNORECASE)
+
+
+def debt_expiration_regex() -> re.Pattern:
+    # 1. We use a non-greedy gap (?:\s+\S+){0,3}?
+    # 2. We ensure the termination verb is checked at every step
+    WORD_GAP = r"(?:\s+\S+){0,3}?"
+
+    # We strip the \b from the alternation to allow it to match
+    # immediately after the gap
+    verbs = build_alternation(ALL_TERM_TERMS)
+
+    pattern = rf"\b(?:{_DEBT_TERMS}|facility)(?:,)?{WORD_GAP}\s+{verbs}\b"
+    return re.compile(pattern, re.IGNORECASE)
+
+
+DEBT_TOKEN = " debt "
+DEBT_EXP_REGEX = debt_expiration_regex()
+
 IR_STRICT_TERMS, IR_SOFT_TERMS, IR_RISK_TERMS = build_ir_context_terms()
 IR_CONTEXT_TERMS = IR_STRICT_TERMS + IR_SOFT_TERMS + IR_RISK_TERMS
 IR_CONTEXT_REGEX = build_regex(IR_CONTEXT_TERMS)
@@ -366,7 +429,7 @@ IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
         r"yield\s+curves?",
     ] + BENCHMARK_RATES
 )
-
+DEBT_FT_REGEX = debt_feature_regex()
 
 def run_tests():
     test_cases = [

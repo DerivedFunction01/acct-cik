@@ -8,14 +8,11 @@ from defs.exclusion_regex import ENTITY_EXCLUSION_REGEX, ENTITY_TOKEN, NON_DERIV
 from defs.shared_context import (
     _DEBT_TERMS,
     CURRENCY_SYMBOL_PATTERN,
-    DEBT_FV_REGEX,
     VALUATION_MODELS,
-    DEBT_EXP_REGEX,
-    DEBT_TOKEN,
 )
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
-from defs.ir_regex import IR_SOFT_REGEX
+from defs.ir_regex import IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
@@ -345,12 +342,12 @@ class MinimalTextCleaner:
         # Step 4: Neutralize Fair Value of Debt
         # We use a protected sub to ensure we don't kill "FV of Convertible Debt"
         # when it's part of a protected hedge.
-        def safe_debt_fv_sub(match):
+        def safe_debt_sub(match):
             if any(i in protected_ranges for i in range(match.start(), match.end())):
                 return match.group(0)
             return DEBT_TOKEN  # " debt "
 
-        text = DEBT_FV_REGEX.sub(safe_debt_fv_sub, text)
+        text = DEBT_FT_REGEX.sub(safe_debt_sub, text)
 
         text = self.normalize_whitespace(text)
         return text
