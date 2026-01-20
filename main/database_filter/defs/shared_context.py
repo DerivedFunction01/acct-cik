@@ -367,6 +367,48 @@ MONTHS_TERMS = [
 ]
 MONTHS_FRAGMENT = build_alternation(MONTHS_TERMS)
 
+NUMBERS = [
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+    "twenty",
+    "thirty",
+    "forty",
+    "fifty",
+    "sixty",
+    "seventy",
+    "eighty",
+    "ninety",
+    "hundred",
+    "thousand",
+    "millions?",
+    "billions?",
+    "trillions?",
+]
+
+def build_number_alternation() -> str:
+    # allow two numbers, first one optional
+    numbers = build_alternation(NUMBERS, sort_longest_first=True)
+    pattern = rf"(?:(?:{numbers})?[- ]{numbers})"
+    return pattern
+
+NUMBER_PATTERN = build_number_alternation()
 
 SUBJECTS = [
     # Simple pronouns

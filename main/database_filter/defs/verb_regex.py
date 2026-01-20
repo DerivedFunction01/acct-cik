@@ -6,7 +6,7 @@ from typing import List, Tuple, Optional
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS
+from defs.shared_context import ALL_TERM_TERMS, NUMBER_PATTERN, TERMINATION_VERBS, MITIGATION_VERBS
 from defs.verb_core import (
     build_negation_prefix_pattern,
     build_strict_do_not_mitigate_regex,
@@ -152,6 +152,7 @@ def build_vague_timing_regex() -> re.Pattern:
 
 
 # The "Meat": Keywords that define what is being denied
+
 _DENIAL_MODIFIERS = [
     "exchange",
     "rate",
@@ -182,10 +183,7 @@ _DENIAL_MODIFIERS = [
     "volume",
     "price",
     "speculative",
-    "thousands?",
-    "millions?",
-    "billions?",
-    "trillions?",
+    NUMBER_PATTERN,
     "forward[- ]starting",
     "months?",
     "years?",
@@ -198,6 +196,7 @@ _DENIAL_MODIFIERS = [
     "open",
     "active",
     "outstanding",
+    "separate",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
