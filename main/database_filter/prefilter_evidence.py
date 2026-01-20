@@ -15,6 +15,7 @@ from defs.verb_regex import (
     is_immaterial,
     ACTIVE_VERB_REGEX,
     PASSIVE_VERB_REGEX,
+    PASSIVE_PAST_VERB_REGEX,
 )
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
@@ -153,6 +154,7 @@ class VerbCheckResults(NamedTuple):
 
     has_active_verb: bool
     has_passive_verb: bool
+    has_passive_past: bool
     has_transaction: bool
     has_poss_verb: bool
     has_usage_verb: bool
@@ -169,12 +171,14 @@ def check_verbs(text: str) -> VerbCheckResults:
     has_transaction = bool(TRANS_VERB_REGEX.search(text))
     has_active = bool(ACTIVE_VERB_REGEX.search(text))
     has_passive = bool(PASSIVE_VERB_REGEX.search(text))
+    has_passive_past = bool(PASSIVE_PAST_VERB_REGEX.search(text))
     is_specific = False
     if (STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)): # avoid false positives for equity options, natural gas contracts
         is_specific = True
     return VerbCheckResults(
         has_active_verb=has_active,
         has_passive_verb=has_passive,
+        has_passive_past=has_passive_past,
         has_transaction=has_transaction,
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
@@ -396,6 +400,11 @@ def check_active_state_general(
     if CHANGE_FV_REGEX.search(text):
         return NoiseReason.PNL
     if verbs.has_passive_verb:
+        # "Were held" -> Fact. Treat as Medium Evidence (survives Policy, dies to Time)
+        if verbs.has_passive_past:
+            return EvidenceReason.CONT_USE if is_strict_derivative or verbs.is_specific else EvidenceReason.CONT_USE_AMB
+        
+        # "Are held" -> Policy. Treat as Weak Evidence (dies to Policy)
         return EvidenceReason.ACT_GEN if is_strict_derivative or verbs.is_specific else EvidenceReason.ACT_AMB_GEN
     return None
 
