@@ -62,7 +62,11 @@ TAG_PARSER_STRICT = re.compile(r"^\s*(_[SD])<([^>]+)>\s+(.*)", re.DOTALL)
 EVIDENCE_TAG_PARSER = re.compile(r"_E<([^>]+)>")
 METADATA_TAG_PARSER = re.compile(r"_M<([^>]+)>")
 
+# Evidence that overrides Global Exclusions (Safeguard)
+# We use ONLY the Strict (Year-Anchored) evidence here.
+# If a firm says "We do not use derivatives", we respect that unless we see a specific DATED transaction/position.
 SAFEGUARD_EVIDENCE = {
+    # active state for the current year
     EvidenceReason.AS_YEAR.value,
     EvidenceReason.MAT_FUT.value,
     EvidenceReason.MAT_FUT_NV.value,
@@ -72,15 +76,19 @@ SAFEGUARD_EVIDENCE = {
     EvidenceReason.FVY.value,
     EvidenceReason.VY.value,
     EvidenceReason.ACT_YEAR.value,
-    EvidenceReason.NVNY.value,
-    EvidenceReason.FVNY.value,
-    EvidenceReason.VNY.value,
-    EvidenceReason.ACT_NV_YEAR.value,
+    # IR swap of a different paragraph is a different transaction (provided it survived)
+    # even if one of them is terminated, they plainly state they have potential usage, or no swaps for a different subsidiary.
+    EvidenceReason.ACT_NV_YEAR.value, 
     EvidenceReason.ACT_FV_YEAR.value,
     EvidenceReason.ACT_V_YEAR.value,
 }
 
+# Evidence that promotes Soft matches to Strict (Unambiguous)
+# This includes No-Year values because they are strong indicators of type if not excluded.
 UNAMBIGUOUS_EVIDENCE = SAFEGUARD_EVIDENCE | {
+    EvidenceReason.NVNY.value,
+    EvidenceReason.FVNY.value,
+    EvidenceReason.VNY.value,
     EvidenceReason.CONT_USE.value,
     EvidenceReason.BS_LOC.value,
     EvidenceReason.ACT_GEN.value,
