@@ -625,7 +625,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> str:
 
     # === PRE-SCAN: Identify if paragraph contains an Active Maturity signal ===
     has_active_maturity = False
-    mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT}
+    mat_reasons = {EvidenceReason.MAT_FUT, EvidenceReason.MAT_AMB_FUT, EvidenceReason.MAT_FUT_NV, EvidenceReason.MAT_FUT_FV, EvidenceReason.MAT_FUT_V}
 
     for i, s in enumerate(masked_sentences):
         verbs = sentence_verbs[i]
