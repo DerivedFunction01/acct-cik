@@ -74,15 +74,19 @@ def build_double_base_alternation() -> str:
 
 double_base_alternation = build_double_base_alternation()
 DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
-SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?|{double_base_alternation})"]
+SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 
-UNAMBIGUOUS_BASE_TYPES = [
-    r"swaps?(?![- ]rates?)",
-    rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
-    "collars?",
-    "derivatives?",
-    "futures",  # plural form
-] + SPECIAL_BASE
+UNAMBIGUOUS_BASE_TYPES = (
+    [
+        r"swaps?(?![- ]rates?)",
+        rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+        "collars?",
+        "derivatives?",
+        "futures",  # plural form
+    ]
+    + SPECIAL_BASE
+    + [double_base_alternation]
+)
 ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
 
