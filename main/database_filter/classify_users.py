@@ -769,7 +769,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                 # (The += 2000 above handles it, but logic ensures mixed signals favor strict)
 
         elif soft_inst and soft_inst.search(text): # Interest rate cap
-            match_text = soft_inst.search(text).group(0)
+            match_text = soft_inst.search(text).group(0) # type: ignore
             if notional_multiplier:
                 # Treat as strict, but check exclusion
                 is_excl, is_block = False, False
