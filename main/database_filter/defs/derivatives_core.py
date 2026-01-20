@@ -67,7 +67,7 @@ def build_double_base_alternation() -> str:
     e.g. "caps and floors", "options and futures"
     """
     bases = build_alternation(AMBIGUOUS_BASE_TYPES, sort_longest_first=True)
-    sep = r"(?:\s+(?:and|or)\s+|[\s,]+)"
+    sep = r"(?:\s*,?\s*(?:and|or)\s+|[\s,]+)"
     string = rf"(?:{bases}){sep}(?:{bases})"
     return string
 
