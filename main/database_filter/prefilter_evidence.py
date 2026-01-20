@@ -476,8 +476,8 @@ def mark_sentence_as_other(text: str, verbs: VerbCheckResults) -> Optional[Reaso
     """Determine if sentence is noise/other category."""
     if AOCI_NOISE_REGEX.search(text):
         return NoiseReason.AOCI
-    if is_pnl(text, False):
-        return NoiseReason.PNL
+    # if is_pnl(text, False): # Already checked
+    #     return NoiseReason.PNL
     if TABLE_ANCHOR in text and not is_sophisticated_content(text):
         return EvidenceReason.TABLE
     if HEDGE_DOC_REGEX.search(text):
