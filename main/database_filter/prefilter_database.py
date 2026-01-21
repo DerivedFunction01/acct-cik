@@ -78,70 +78,28 @@ def count_information(text: str) -> dict:
             "commodity_total": 3
         }
     """
-    result = {
-        "currencies": {},
-        "commodities": {},
-        "currency_total": 0,
-        "commodity_total": 0,
-        "venues": {},
-        "venues_total": 0,
-        "clearing": {},
-        "clearing_total": 0,
-        "valuation_models": {},
-        "valuation_models_total": 0,
-        "keyword_hits": {},
-        "keyword_hits_total": 0,
-        "context_hits": {},
-        "context_hits_total": 0,    
-        "der_std_hits": {},
-        "der_std_hits_total": 0,
-    }
+    # Configuration: (regex, dict_key, total_key, transform_func)
+    configs = [
+        (CURRENCY_NAMES_REGEX, "currencies", "currency_total", str.upper),
+        (COMMODITY_REGEX, "commodities", "commodity_total", str.lower),
+        (TRADING_VENUE_REGEX, "venues", "venues_total", str.lower),
+        (DERIVATIVE_CLEARING_REGEX, "clearing", "clearing_total", str.lower),
+        (VALUATION_MODELS_REGEX, "valuation_models", "valuation_models_total", str.lower),
+        (ALL_REGEX, "keyword_hits", "keyword_hits_total", str.lower),
+        (GEN_STRICT_CONTEXT_REGEX, "context_hits", "context_hits_total", str.lower),
+        (DER_STD_REGEX, "der_std_hits", "der_std_hits_total", str.lower),
+    ]
 
-    # Count currencies
-    if CURRENCY_NAMES_REGEX:
-        for match in CURRENCY_NAMES_REGEX.finditer(text):
-            currency = match.group().upper()
-            result["currencies"][currency] = result["currencies"].get(currency, 0) + 1
-            result["currency_total"] += 1
-
-    # Count commodities
-    if COMMODITY_REGEX:
-        for match in COMMODITY_REGEX.finditer(text):
-            commodity = match.group().lower()
-            result["commodities"][commodity] = result["commodities"].get(commodity, 0) + 1
-            result["commodity_total"] += 1
-
-    if TRADING_VENUE_REGEX:
-        for match in TRADING_VENUE_REGEX.finditer(text):
-            venue = match.group().lower()
-            result["venues"][venue] = result["venues"].get(venue, 0) + 1
-            result["venues_total"] += 1
-
-    if DERIVATIVE_CLEARING_REGEX:
-        for match in DERIVATIVE_CLEARING_REGEX.finditer(text):
-            venue = match.group().lower()
-            result["clearing"][venue] = result["clearing"].get(venue, 0) + 1
-            result["clearing_total"] += 1
-    if VALUATION_MODELS_REGEX:
-        for match in VALUATION_MODELS_REGEX.finditer(text):
-            model = match.group().lower()
-            result["valuation_models"][model] = result["valuation_models"].get(model, 0) + 1
-            result["valuation_models_total"] += 1
-    if ALL_REGEX:
-        for match in ALL_REGEX.finditer(text):
-            inst = match.group().lower()
-            result["keyword_hits"][inst] = result["keyword_hits"].get(inst, 0) + 1
-            result["keyword_hits_total"] += 1
-    if GEN_STRICT_CONTEXT_REGEX:
-        for match in GEN_STRICT_CONTEXT_REGEX.finditer(text):
-            inst = match.group().lower()
-            result["context_hits"][inst] = result["context_hits"].get(inst, 0) + 1
-            result["context_hits"] += 1
-    if DER_STD_REGEX:
-        for match in DER_STD_REGEX.finditer(text):
-            inst = match.group().lower()
-            result["der_std_hits"][inst] = result["der_std_hits"].get(inst, 0) + 1
-            result["der_std_hits_total"] += 1
+    result = {}
+    for regex, dict_key, total_key, transform in configs:
+        result[dict_key] = {}
+        result[total_key] = 0
+        
+        if regex:
+            for match in regex.finditer(text):
+                val = transform(match.group())
+                result[dict_key][val] = result[dict_key].get(val, 0) + 1
+                result[total_key] += 1
 
     return result
 
