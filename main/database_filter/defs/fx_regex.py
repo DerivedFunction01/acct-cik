@@ -100,7 +100,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
         # Specific Exchange Agreements (Valid because of "Exchange")
         # Matches: "foreign exchange agreement", "currency exchange arrangement"
-        rf"(?:foreign|currency|forward|cross[- ]currency)\s+exchange\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
+        rf"(?:foreign|currency|forward|cross[- ]currency)\s+(?:forward|exchange)\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
         rf"exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
         rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
         rf"(?:foreign|forward|cross)[- ]currency\s+hedges",
