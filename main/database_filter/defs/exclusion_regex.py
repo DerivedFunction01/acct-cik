@@ -263,6 +263,10 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         r"hedge\s+(?:funds?|banks?|providers?)",
         r"swap\s+(?:dealers?|participants?)",
         r"derivative\s+counterpart(?:y|ies)",
+        r"(?:the|an)\s+options?\s+(?:to|for)"
+        r"to\s+(?:swap|forward)",
+        r"carr(?:ing|y|ied)\s+forward",
+        r"swap(?:ped|ping)",
     ]
 
     suffixes.extend(additional_suffixes)
