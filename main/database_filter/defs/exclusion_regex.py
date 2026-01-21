@@ -6,33 +6,18 @@ from typing import List, Tuple
 
 from defs.regex_lib import build_alternation, build_regex
 from defs.derivatives_core import ALL_SUFFIXES
+from defs.shared_context import TRADING_ENTITIES
 
 def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
     """
     Matches official entity names AND their acronyms that contain trigger words
     (Futures, Swaps, Options, Derivatives, Exchange) to prevent false positive classification.
+    However, it allows Derivative context
     """
-    entities = [
-        # --- 1. Regulators & Standard Setters ---
-        r"\b(?:U\.?S\.?\s+)?Commodity\s+Futures\s+Trading\s+Commission\b",
-        r"\bNational\s+Futures\s+Association\b",
-        # --- 2. Associations (Master Agreements) ---
-        r"\bInternational\s+Swaps\s+(?:[Aa]nd|&)\s+Derivatives\s+Association\b",
-        r"\bFutures\s+Industry\s+Association\b",
-        # --- 3. Exchanges (The "Option/Future/Swap" Triggers) ---
-        # Chicago Group
-        r"\bChicago\s+Board\s+Options\s+Exchange\b",
-        r"\bChicago\s+Board\s+of\s+Trade\b",
-        r"\bCommodity\s+Exchange(?:,?\s+Inc\.?)?\b",
-        # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
-        r"\bOptions\s+Clearing\s+Corporation\b",
-    ]
-
-    all_patterns = entities
 
     # Use build_alternation to ensure longest matches (e.g., full name) are prioritized
     # Note: We enforce word boundaries \b for short acronyms inside the list above
-    pattern = build_alternation(all_patterns)
+    pattern = build_alternation(TRADING_ENTITIES)
     return re.compile(pattern), " E_ "
 
 # =============================================================================

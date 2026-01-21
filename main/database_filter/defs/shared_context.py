@@ -544,3 +544,57 @@ TERMINATION_NOUNS = [
 ]
 
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
+
+
+DERIVATIVE_EXCHANGES = [
+    r"\bNYMEX\b",
+    r"\bNew\s+York\s+Mercantile\s+Exchange\b",
+    r"\bCOMEX\b",
+    r"\bCommodity\s+Exchange\b",
+    r"\bCBOT\b",
+    r"\bChicago\s+Board\s+of\s+Trade\b",
+    r"\bCME\b",
+    r"\bChicago\s+Mercantile\s+Exchange\b",
+    r"\bICE\b",
+    r"\bIntercontinental\s+Exchange\b",
+    r"\bLME\b",
+    r"\bLondon\s+Metal\s+Exchange\b",
+    r"\bCBOE\b",
+    r"\bChicago\s+Board\s+Options\s+Exchange\b",
+    r"\bICE\s+Futures\b",
+    r"\bNYBOT\b",
+    r"\bNew\s+York\s+Board\s+of\s+Trade\b",
+    r"\bKCBT\b",
+    r"\bKansas\s+City\s+Board\s+of\s+Trade\b",
+    r"\bMGEX\b",
+    r"\bMinneapolis\s+Grain\s+Exchange\b",
+    r"\bEurex\b",
+    r"\bLIFFE\b",
+    r"\bLondon\s+International\s+Financial\s+Futures\s+and\s+Options\s+Exchange\b",
+    r"\bTOCOM\b",
+    r"\bTokyo\s+Commodity\s+Exchange\b",
+    r"\bMontreal\s+Exchange\b",
+    r"\bMX\b",
+    r"\bBM&F\b",
+    r"\bDME\b",
+    r"\bDubai\s+Mercantile\s+Exchange\b",
+]
+
+DERIVATIVE_ENTITIES = [
+    r"\bCFTC\b",
+    r"\bCommodity\s+Futures\s+Trading\s+Commission\b",
+    r"\bISDA\b",
+    r"\bInternational\s+Swaps\s+(?:[Aa]nd|&)\s+Derivatives\s+Association\b",
+    r"\bNFA\b",
+    r"\bNational\s+Futures\s+Association\b",
+    r"\bFIA\b",
+    r"\bFutures\s+Industry\s+Association\b",
+    r"\bOptions\s+Clearing\s+Corporation\b",
+    r"\bSIFMA\b",
+    r"\bSecurities\s+Industry\s+and\s+Financial\s+Markets\s+Association\b",
+    r"\bLCH\b",
+    r"\bLondon\s+Clearing\s+House\b",
+]
+
+TRADING_ENTITIES = DERIVATIVE_EXCHANGES + DERIVATIVE_ENTITIES
+TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES, ignore_case=False)
