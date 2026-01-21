@@ -537,6 +537,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     sophisticated_buffer_masked = []
     local_discards = []
     all_text_parts = []  # Track all text for metadata counting (even if discarded)
+    explicit_non_derivative = False
     paragraphs = split_mega_paragraph(paragraphs)
     for idx, p in enumerate(paragraphs):
         try:
@@ -571,6 +572,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 continue
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p)
+            if exclusion_reason == NoiseReason.NON_DERIV.value:
+                if is_sophisticated_content(p_masked):
+                    explicit_non_derivative = True
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
             # Reasons we want to drop, UNLESS they contain specific definitions
@@ -697,7 +701,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         soph_masked_texts = [text for _, text in sophisticated_buffer_masked]
         std_masked_texts = [text for _, text in clean_buffer_masked]
 
-        if validate_sophisticated_buffer(soph_masked_texts, std_masked_texts):
+        if not explicit_non_derivative and validate_sophisticated_buffer(soph_masked_texts, std_masked_texts):
             final_results.extend(sophisticated_buffer_orig)
         else: 
             is_nst = True
