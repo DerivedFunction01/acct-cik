@@ -70,9 +70,8 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
-    soph_pattern = re.compile(
-        r"\b(?:convertibles?|warrants?)\b", re.IGNORECASE
-    )
+    warrant_pattern = re.compile(r"\b(?:warrants?)\b", re.IGNORECASE)
+    convertible_pattern = re.compile(r"\b(?:convertibles?)\b", re.IGNORECASE)
 
     # Standard IDs: ASC 815-20, IFRS 9, etc.
     standard_id_pattern = STANDARD_ID_REGEX
@@ -314,7 +313,7 @@ class MinimalTextCleaner:
         text = self.normalize_whitespace(text)
         return text
 
-    def clean_non_derivatives(self, text: str, is_nst: bool = True) -> str:
+    def clean_non_derivatives(self, text: str, is_nst_warr: bool = True, is_nst_conv: bool = True) -> str:
         # Step 1: Protect genuine Equity Derivatives (EQ_REGEX)
         # We move this to the top so we have a 'map' of what to never touch
         eq_matches = list(EQ_REGEX.finditer(text))
@@ -327,17 +326,18 @@ class MinimalTextCleaner:
         text = NON_DERIVATIVE_REGEX.sub(" ", text)
 
         # Step 3: Handle Sophisticated Term Stripping (is_nst=True)
-        if is_nst:
+        def safe_soph_sub(match):
+            if any(
+                i in protected_ranges for i in range(match.start(), match.end())
+            ):
+                return match.group(0)
+            return " "
 
-            def safe_soph_sub(match):
-                if any(
-                    i in protected_ranges for i in range(match.start(), match.end())
-                ):
-                    return match.group(0)
-                return " "
-
-            # Strips standalone "warrants" or "convertibles"
-            text = self.soph_pattern.sub(safe_soph_sub, text)
+        if is_nst_warr:
+            text = self.warrant_pattern.sub(safe_soph_sub, text)
+        
+        if is_nst_conv:
+            text = self.convertible_pattern.sub(safe_soph_sub, text)
 
         # Step 4: Neutralize Fair Value of Debt
         # We use a protected sub to ensure we don't kill "FV of Convertible Debt"
@@ -353,7 +353,8 @@ class MinimalTextCleaner:
         return text
 
     def clean_soph_targets(self, text: str) -> str:
-        text = self.soph_pattern.sub(" ", text)
+        text = self.warrant_pattern.sub(" ", text)
+        text = self.convertible_pattern.sub(" ", text)
         text = self.normalize_whitespace(text)
         return text
 
@@ -373,7 +374,7 @@ class MinimalTextCleaner:
             text = regex.sub(" ", text)
         return text
 
-    def clean(self, text: str, remove_years: bool = False, is_nst: bool = True) -> str:
+    def clean(self, text: str, remove_years: bool = False, is_nst_warr: bool = True, is_nst_conv: bool = True) -> str:
         texts = []
         for sent in SENTENCE_SPLIT_PATTERN.split(text):
             if not sent.strip():
@@ -386,7 +387,7 @@ class MinimalTextCleaner:
 
             sent = self.clean_for_quant_analysis(sent, remove_years)
             sent = self.clean_entities(sent)
-            sent = self.clean_non_derivatives(sent, is_nst)
+            sent = self.clean_non_derivatives(sent, is_nst_warr, is_nst_conv)
             sent = self.clean_other_regexes(sent, self.other_regexes)
             sent = self.add_punctuation(sent, punctuation)
             texts.append(sent)
@@ -416,7 +417,7 @@ class MinimalTextCleaner:
         print(test_paragraph)
         print("\n" + "=" * 60 + "\n")
 
-        cleaned_text = self.clean(test_paragraph, remove_years=False, is_nst=True)
+        cleaned_text = self.clean(test_paragraph, remove_years=False, is_nst_warr=True, is_nst_conv=True)
 
         print("-" * 60)
         print("CLEANED OUTPUT:")
@@ -477,6 +478,18 @@ class MinimalTextCleaner:
         print(
             f"NST Stripped (warrant)?                  {'SUCCESS' if 'warrant' not in cleaned_text.lower() else 'FAIL'}"
         )
+        
+        # 5b. Split Logic Verification
+        print("\nSPLIT LOGIC VERIFICATION:")
+        split_text = "We issued warrants and convertible notes."
+        
+        # Case 1: Keep Warrants, Strip Convertibles
+        clean_warr = self.clean(split_text, is_nst_warr=False, is_nst_conv=True)
+        print(f"Keep Warrants Only:                      {'SUCCESS' if 'warrants' in clean_warr and 'convertible' not in clean_warr else 'FAIL'}")
+
+        # Case 2: Strip Warrants, Keep Convertibles
+        clean_conv = self.clean(split_text, is_nst_warr=True, is_nst_conv=False)
+        print(f"Keep Convertibles Only:                  {'SUCCESS' if 'warrants' not in clean_conv and 'convertible' in clean_conv else 'FAIL'}")
 
         # 6. Neutralization & Expiration
         # Replaces 'Debentures maturing in 2030' -> 'debt'

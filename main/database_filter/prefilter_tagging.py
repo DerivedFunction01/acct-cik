@@ -74,14 +74,14 @@ _cleaner = MinimalTextCleaner()
 # =============================================================================
 
 
-def mask_text(text: str, is_nst: bool = True) -> str:
+def mask_text(text: str, is_nst_warr: bool = True, is_nst_conv: bool = True) -> str:
     """
     Prepares text for logic checks.
     1. Normalizes whitespace.
     2. Masks entities (JPM -> _E) to prevent overfitting on names.
     3. DOES NOT remove years (critical for temporal checks).
     """
-    return _cleaner.clean(text, is_nst=is_nst)
+    return _cleaner.clean(text, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv)
 
 def get_temporal_noise_reason(text: str, reporting_year: int) -> Optional[NoiseReason]:
     """Returns NoiseReason.TIME if sentence is purely historical."""
@@ -438,7 +438,7 @@ def is_value(text: str) -> bool:
 # =============================================================================
 
 
-def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
+def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_nst_conv: bool = False) -> str:
 
     # 3. Dual Split (Original vs Masked)
     original_sentences = [
@@ -452,7 +452,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
 
     for orig in original_sentences:
         reason: Optional[NoiseReason] = None
-        masked = mask_text(orig, is_nst=is_nst)
+        masked = mask_text(orig, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv)
 
         # --- TIER 0: STRICT IMMATERIALITY ---
         if is_immaterial(masked):
@@ -585,16 +585,16 @@ def process_row(row):
         return None
 
     new_paragraphs = []
-    is_nst = False  # Default to False unless metadata says otherwise
+    is_nst_warr = False
+    is_nst_conv = False
 
     # 1. Extract and Handle Metadata
     if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
         try:
             metadata_str = paragraphs.pop(0)  # Remove it so it isn't tagged as text
             metadata = json.loads(metadata_str)
-            is_nst = metadata.get(
-                "NST", False
-            )  # Use the key "NST" from your earlier plan
+            is_nst_warr = metadata.get("NST_WARR", False)
+            is_nst_conv = metadata.get("NST_CONV", False)
 
             # Re-add the metadata to the top of the NEW list
             # so it persists for the next stage (Phase 2/3)
@@ -610,7 +610,7 @@ def process_row(row):
             continue
         # Pass the is_nst flag to the tagger to inform its logic
         local_is_nst = convertible_ir(p)
-        tagged_p = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
+        tagged_p = tag_paragraph(p, year, is_nst_warr=is_nst_warr or local_is_nst, is_nst_conv=is_nst_conv or local_is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)

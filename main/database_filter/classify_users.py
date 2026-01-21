@@ -969,7 +969,7 @@ def derive_strict_categories(scores: Dict[str, int], text: str) -> Set[str]:
 def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst_warr: bool = True, is_nst_conv: bool = True, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> None:
     """Helper to salvage instruments from deadweight text if hedging context exists."""
     if find_hedging_context(text):
-        clean_text = _cleaner.clean(text, is_nst=is_nst_warr and is_nst_conv)
+        clean_text = _cleaner.clean(text, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv)
         clean_text = _cleaner.clean_gen_hedges(clean_text)
         scores = get_text_categories(clean_text, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv, exclusion_tracker=exclusion_tracker)
         strict_salvage_cats = derive_strict_categories(scores, clean_text)
@@ -1072,7 +1072,7 @@ def process_row(row: Tuple) -> Tuple:
         "curr_termination": False,
         "is_explicit_trader": False,
     }
-
+    
     tracker = GlobalInstrumentTracker()
     is_nst_warr = True
     is_nst_conv = True
@@ -1085,7 +1085,7 @@ def process_row(row: Tuple) -> Tuple:
             attributes["metadata"] = metadata
         except (json.JSONDecodeError, KeyError):
             pass
-
+    
     # --- PRE-PASS: Build Exclusion Tracker ---
     exclusion_tracker = GlobalExclusionTracker()
     for p in paragraphs:
@@ -1136,7 +1136,7 @@ def process_row(row: Tuple) -> Tuple:
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
                 attributes = mine_attributes(etag, attributes)
-
+            
             # Extract Metadata Tags (Debug info)
             meta_tags_found = METADATA_TAG_PARSER.findall(sent_content)
             if meta_tags_found:
@@ -1152,13 +1152,13 @@ def process_row(row: Tuple) -> Tuple:
                 salvage_instruments(sent_content, valid_instruments, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             sent_content_no_meta = METADATA_TAG_PARSER.sub(" ", sent_content_no_evidence)
-            clean_sent = _cleaner.clean(sent_content_no_meta, effective_nst_warr and effective_nst_conv)
+            clean_sent = _cleaner.clean(sent_content_no_meta, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
-
+            
             # Check for Safeguard Evidence (Overrides Exclusions)
             evidence_tags_set = {tag for tag in evidence_tags_found}
             is_safeguarded = not evidence_tags_set.isdisjoint(SAFEGUARD_EVIDENCE)
-
+            
             # If safeguarded, disable exclusion tracker for this sentence
             current_exclusion_tracker = None if is_safeguarded else exclusion_tracker
 

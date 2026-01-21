@@ -644,7 +644,7 @@ possession_reasons = _POSS_ACTIVE_SET | {
     EvidenceReason.BS_LOC,
 }
 
-def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> Tuple[str, List[str]]:
+def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = True, is_nst_conv: bool = True) -> Tuple[str, List[str]]:
     """
     Tag untagged sentences with evidence and mark paragraph as deadweight if needed.
     """
@@ -661,7 +661,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = True) -> Tuple[
     ]
 
     # Mask each sentence individually
-    masked_sentences = [_cleaner.clean(s, is_nst=is_nst) for s in original_sentences]
+    masked_sentences = [_cleaner.clean(s, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv) for s in original_sentences]
 
     # Pre-compute verb checks for all sentences
     sentence_verbs = [check_verbs(s) for s in masked_sentences]
@@ -797,14 +797,16 @@ def process_row(row):
         return None
 
     new_paragraphs = []
-    is_nst = False
+    is_nst_warr = False
+    is_nst_conv = False
 
     # 1. Extract and Handle Metadata
     if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
         try:
             metadata_str = paragraphs.pop(0)
             metadata = json.loads(metadata_str)
-            is_nst = metadata.get("NST", False)
+            is_nst_warr = metadata.get("NST_WARR", False)
+            is_nst_conv = metadata.get("NST_CONV", False)
             new_paragraphs.append(metadata_str)
         except (json.JSONDecodeError, KeyError):
             pass
@@ -816,7 +818,7 @@ def process_row(row):
             continue
 
         local_is_nst = convertible_ir(p)
-        tagged_p, _ = tag_paragraph(p, year, is_nst=is_nst or local_is_nst)
+        tagged_p, _ = tag_paragraph(p, year, is_nst_warr=is_nst_warr or local_is_nst, is_nst_conv=is_nst_conv or local_is_nst)
         new_paragraphs.append(tagged_p)
 
     return (url, json.dumps(new_paragraphs), cik, year)
