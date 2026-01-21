@@ -768,7 +768,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
     
-    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False)
+    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False, full_alternation=True)
     
     loose_pattern = build_smart_regex(
         [strict_core_alternation],

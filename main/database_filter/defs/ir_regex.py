@@ -122,6 +122,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             unsafe=True,
             exclude_standalone_suffixes=False,
             additional_bases=["protection"],
+            full_alternation=True,
         ),
         specific_phrases,
     )

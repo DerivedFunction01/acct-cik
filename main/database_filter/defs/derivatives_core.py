@@ -163,7 +163,7 @@ def build_smart_regex(
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(BASE_TYPES, True)
-BASE_REGEX = build_regex(BASE_TYPES)
+BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
 standalone_alternation = build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
