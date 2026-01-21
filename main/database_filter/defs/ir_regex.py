@@ -89,6 +89,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         f"treasury locks?(?:[- ]{suffix_alternation})",
         "treasury locks",
         "overnight index swaps?",
+        r"forward\s+rate\s+agreements?",
     ]
 
     # --- 5. Final Build and Compile ---
