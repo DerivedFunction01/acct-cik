@@ -106,7 +106,7 @@ DERIVATIVE_STDS = [
     # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
     r"ASC\s+815[-–—\s]?40",
     # Masked standards token
-    STD_TOKEN,
+    STD_TOKEN.strip(),
 ]
 RISK_MANAGEMENT_TERMS = [
     r"to\s+hedge",
