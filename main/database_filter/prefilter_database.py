@@ -32,6 +32,7 @@ from defs.exclusion_regex import (
     EXCLUDE_COMPETITOR_REGEX,
     EXCLUDE_NON_FINANCIAL_REGEX,
     EXCLUDE_BANKRUPTCY_REGEX,
+    NON_DERIVATIVE_TREATMENT_REGEX,
     aggregate_discards,
 )
 from defs.acct_std import EXCLUDE_REGEX_ACCOUNTING_STD
@@ -161,6 +162,9 @@ def check_hard_exclusions(text: str) -> Optional[str]:
 
     if EXCLUDE_COMPETITOR_REGEX.search(text):
         return NoiseReason.COMP.value
+
+    if NON_DERIVATIVE_TREATMENT_REGEX.search(text):
+        return NoiseReason.NON_DERIV.value
 
     if VALUATION_MODELS_REGEX.search(text):  # To save for convertibles
         return None

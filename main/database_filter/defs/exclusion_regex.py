@@ -295,6 +295,8 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
     neg = [
         "not",
         "no longer",
+        "does not",
+        "did not",
     ]
     verbs = [
         "qualif(?:ied|y)",
@@ -303,18 +305,25 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         "designate(?:d)?",
         "treat(?:ed)?",
         "elect(?:ed)?",
+        "apply",
+        "require(?:d)?",
+        "meet",
     ]
 
     prepositions = [
         "for",
         "as",
         "under",
+        "to",
     ]
 
     targets = [
         "derivatives?",
         "hedges?",
         "hedging",
+        "bifurcation",
+        r"derivative\s+accounting",
+        "criteria",
     ]
 
     contexts = [
@@ -329,6 +338,10 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
     phrases = [
         rf"{neg_pat}\s+{verb_pat}\s+{prep_pat}\s+(?:an?\s+)?{target_pat}\s+{context_pat}",
         rf"{neg_pat}\s+a\s+derivative",
+        r"derivative\s+accounting\s+(?:does|did)\s+not\s+apply",
+        r"no\s+bifurcation\s+is\s+(?:required|needed)",
+        r"accounted\s+for\s+as\s+debt",
+        r"meet(?:s)?\s+the\s+criteria\s+for\s+classification\s+in\s+(?:stock|share)holders['’]?\s+equity",
     ]
     return build_regex(phrases)
 
