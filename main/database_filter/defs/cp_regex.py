@@ -11,7 +11,7 @@ from defs.shared_context import (
     _RISK_ALTERNATION,
     build_risk_managment_phrase,
 )
-from defs.verb_core import build_strict_do_not_mitigate_regex
+from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 # 3. COMMODITY (Strict)
 # Focus: Physical assets and specific commodity names

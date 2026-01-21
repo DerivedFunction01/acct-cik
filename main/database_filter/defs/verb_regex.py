@@ -2,114 +2,23 @@
 # VERB MAPS & PRECOMPILED REGEXES
 # =============================================================================
 import re
-from typing import List, Tuple, Optional
-from defs.gen_regex import LOOSE_GEN_REGEX
-from defs.derivative_lib import STRICT_REGEX
+from typing import List, Optional
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, NUMBER_PATTERN, TERMINATION_VERBS, MITIGATION_VERBS, SUBJ
+from defs.shared_context import _RISK_ALTERNATION, ALL_TERM_TERMS, GENERIC_RISK_GLUE, MITIGATION_STRICT_VERBS, TERMINATION_VERBS, MITIGATION_VERBS
 from defs.verb_core import (
+    _DENIAL_FILLER,
+    _DENIAL_TARGET,
+    GAP_CHAIN,
+    INTENT_VERB_PATTERN,
+    POTENTIAL_INDICATORS,
+    POTENTIAL_SUFFIX_ADVERBS,
+    NEGATIVE_AUXILIARY,
+    PRE_VERB_GAP,
+    SPECULATIVE_PHRASES,
     build_negation_prefix_pattern,
-    build_strict_do_not_mitigate_regex,
-    ACTIVE_PATTERN,
-    ACTIVE_INDICATORS,
     NEGATIVE_AUXILIARY
 )
 
-# Speculative / Uncertain Timing Phrases
-SPECULATIVE_PHRASES = [
-    r"from\s+time\s+to\s+time",
-    r"periodically",
-    r"in\s+future\s+periods",
-    r"upon\s+occurrence",
-    r"when\s+(?:deemed\s+)?necessary",
-    r"when\s+(?:chosen|choosed)",
-]
-
-POTENTIAL_SUFFIX_ADVERBS = [
-    r"occasionally",
-    r"selectively",
-    r"typically",
-    r"generally",
-    r"routinely",
-    r"customarily",
-    r"regularly",
-    r"normally",
-    r"often",
-    r"frequently",
-    r"sometimes",
-    r"rarely",
-]
-
-# Potential / Hypothetical Modals & Phrases
-POTENTIAL_INDICATORS = [
-    r"may",
-    r"might",
-    r"(?:may|might|are|were)\s+(?:consider|plann?)(?:ing)?",
-    r"could",
-    r"would",
-    r"will",
-    r"seek\s+to",
-    r"intend\s+to",
-    r"plan(?:s|ned)?\s+to",
-    r"if",
-    r"whether",
-    r"limited", # limited use
-    # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
-    r"expect(?:s|ed)?\s+to(?![- ]continue)",
-] + POTENTIAL_SUFFIX_ADVERBS
-
-_ABSENCE_NOUNS = [
-    r"positions?",
-    r"obligations?",
-    r"activit(?:ies|y)",  # "no derivative activity"
-    r"involvements?",  # "no involvement with derivatives"
-    r"holdings?",  # "no holdings"
-]
-
-VERB_MAP = {
-    "POSS": [
-        r"hold(?:s|ing)?|held",
-        r"(?:hav(?:e|ing)|had)(?![- ]designat(?:e|es|ed|ing))",
-        r"maintain(?:s|ed|ing)?",
-        r"possess(?:e|es|ed|ing)?",
-        r"carr(?:y|ies|ied|ying)",
-        r"(?:remained|is|are|was|were)?\s+(?:open|outstanding|active)",
-        r"(?:a\s+)?party\s+to",
-    ],
-    "PRU": [
-        r"us(?:e(?:s|d)?|ing)",
-        r"utiliz(?:e|es|ed|ing)",
-        r"employ(?:s|ed|ing)?",
-        r"appl(?:ies|ied|ying|y)",
-        r"participat(?:es?|ed|ing)",
-        r"designat(?:e|es|ed|ing)(?![- ]as)",
-        r"hedg(?:e|es|ed|ing)\s+(?:with|using|by)",
-        r"trad(?:e|es|ed|ing)",
-    ],
-    "ACT": [
-        r"enter(?:s|ed|ing)?(?:\s+into)?",
-        r"engag(?:e|es|ed|ing)(?:\s+in)?",
-        r"execut(?:e|es|ed|ing)",
-        r"transact(?:s|ed|ing)?",
-        r"purchas(?:e|es|ed|ing)",
-        r"issu(?:e|es|ed|ing)?",
-        r"convert(?:s|ed|ing)?",
-        r"secur(?:e|es|ed|ing)",
-    ],
-    "ACCT": [
-        r"designat(?:e|es|ed|ing)",
-        r"chose(?:\s+to)",
-        r"choos(?:e|es|ing)(?:\s+to)",
-        r"retain(?:s|ed|ing)?",
-    ],
-}
-
-ALL_VERBS = list(
-    VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"] + VERB_MAP["ACCT"]
-)
-
-INTENT_VERB_PATTERN = build_alternation(ALL_VERBS)
-VERB_REGEX = build_regex(VERB_MAP["POSS"] + VERB_MAP["PRU"] + VERB_MAP["ACT"])
 
 def build_potential_regex() -> re.Pattern:
     """
@@ -158,7 +67,7 @@ def build_active_verb_regex() -> re.Pattern:
     """
     return re.compile(
         rf"\b(?:{INTENT_VERB_PATTERN})\s+"
-        rf"{gap_chain}"
+        rf"{GAP_CHAIN}"
         rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
@@ -168,68 +77,6 @@ def build_vague_timing_regex() -> re.Pattern:
     """Matches: "from time to time", "in future periods" """
     return re.compile(rf"\b{build_alternation(SPECULATIVE_PHRASES)}\b", re.IGNORECASE)
 
-
-# The "Meat": Keywords that define what is being denied
-
-_DENIAL_MODIFIERS = [
-    "exchange",
-    "rate",
-    "currency",
-    "interest",
-    "foreign",
-    "commodity",
-    "equity",
-    "credit",
-    "market",
-    "forward",
-    "future",
-    "option",
-    "swap",
-    "purchase",
-    "sale",
-    "cash",
-    "fair",
-    "value",
-    "material",
-    "significant",
-    "hedging",
-    "derivative",
-    "financial",
-    "trading",
-    "proprietary",
-    "contracted",
-    "volume",
-    "price",
-    "speculative",
-    NUMBER_PATTERN,
-    "forward[- ]starting",
-    "months?",
-    "years?",
-    "net",
-    "aggregated?",
-    "total",
-    "notional",
-    "amounts?",
-    "new",
-    "open",
-    "active",
-    "outstanding",
-    "separate",
-    "more",
-]
-
-# The "Glue": Small filler words that appear between modifiers
-_DENIAL_FILLER = r"(?:\S+\s+){0,3}"
-
-# The "Chain": A single unit of [Filler] + [Modifier]
-# Supports lists like "interest rate, foreign exchange, or commodity..."
-_DENIAL_SEMANTIC_MOD = (
-    rf"(?:{build_alternation(_DENIAL_MODIFIERS)}|{LOOSE_GEN_REGEX.pattern})"
-)
-_DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
-gap_chain = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
-# The "Target": The final noun in the sequence
-_DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
 
 def build_potential_mitigation_regex() -> re.Pattern:
     """
@@ -242,7 +89,7 @@ def build_potential_mitigation_regex() -> re.Pattern:
         r"(?:\w+\s+){0,15}"
         r"by\s+"
         rf"(?:{INTENT_VERB_PATTERN})\s+"
-        rf"{gap_chain}"
+        rf"{GAP_CHAIN}"
         rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
@@ -321,20 +168,12 @@ def build_did_not_hold_regex() -> re.Pattern:
     # Matches: "do not currently use" OR "do not, as a routine matter, use"
     # Logic: Optional (ActiveAdverb + Space) OR (Comma + AnyText + Comma + Space)
     # Also handles inversion: "nor did the company use"
-    _pre_verb_gap = (
-        r"(?:"
-        rf"\s+(?:{aux})\s+{SUBJ}\s+|"  # Inversion: " did the company "
-        r"[, ](?:"  # Mandatory space or comma after "not"
-        rf"{ACTIVE_PATTERN}\s+|"  # "currently "
-        r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
-        r")?)"
-    )
 
     return re.compile(
         rf"{neg_prefix}"  # "do not"
-        rf"{_pre_verb_gap}"  # <--- ", in any case, "
+        rf"{PRE_VERB_GAP}"  # <--- ", in any case, "
         rf"(?:to\s+)?(?:{INTENT_VERB_PATTERN})\s+"  # "use"
-        rf"{gap_chain}"  # Optional: "hedging", "foreign exchange"
+        rf"{GAP_CHAIN}"  # Optional: "hedging", "foreign exchange"
         rf"{_DENIAL_FILLER}"  # Optional: "any such"
         rf"{_DENIAL_TARGET}\b",  # "instruments"
         re.IGNORECASE,
@@ -361,7 +200,7 @@ def build_absence_regex() -> re.Pattern:
 
     return re.compile(
         rf"\b{triggers}\b\s+"
-        rf"{gap_chain}"
+        rf"{GAP_CHAIN}"
         rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b",
         re.IGNORECASE,
@@ -379,7 +218,7 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     # "terminated [the] [interest rate] swap"
     pat_verb_target = (
         rf"\b{verbs}\s+"
-        rf"{gap_chain}"
+        rf"{GAP_CHAIN}"
         rf"{_DENIAL_FILLER}"
         rf"{_DENIAL_TARGET}\b"
     )
@@ -388,7 +227,7 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     # "swap [was] terminated", "swap expired"
     pat_target_verb = (
         rf"\b{_DENIAL_TARGET}\s+"
-        rf"{gap_chain}"
+        rf"{GAP_CHAIN}"
         rf"{_DENIAL_FILLER}"
         rf"{verbs}\b"
     )
@@ -462,12 +301,53 @@ def build_prior_statement_pattern_2() -> re.Pattern:
     # --- 4. COMBINE ---
     return re.compile(rf"(?:{pat_compositional}|{pat_catchall})", re.IGNORECASE)
 
-# Export
-POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
-USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
-TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
-ACCT_VERB_REGEX = build_regex(VERB_MAP["ACCT"])
-ALL_VERB_REGEX = build_alternation(ALL_VERBS)
+
+def build_strict_do_not_mitigate_regex(
+    required_glue: Optional[List[str]] = None,
+) -> re.Pattern:
+    """
+    Matches: "do not hedge [risk]", "did not mitigate [exposure]"
+    Inspired by build_risk_managment_phrase but negated.
+    """
+    neg_prefix = build_negation_prefix_pattern()
+    mitigation_verbs = build_alternation(MITIGATION_STRICT_VERBS)
+
+    # Gap logic from build_risk_managment_phrase
+    glue = build_alternation(GENERIC_RISK_GLUE)
+    filler = r"(?:\S+\s+){0,3}"
+
+    tiny_gap = r"(?:\S+\s+){0,3}"
+
+    if required_glue:
+        req_alt = build_alternation(required_glue)
+        glue_unit = rf"(?:{filler}{glue})"
+        req_unit = rf"(?:{filler}{req_alt})"
+        pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})?"
+    else:
+        glue_unit = rf"(?:{filler}{glue})"
+        gap = rf"(?:{glue_unit}\s+){{0,6}}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}"
+
+    final_filler = r"(?:\S+\s+){0,3}"
+
+    # Pattern A: Verb ... Gap ... Risk (Existing)
+    pattern_a = rf"{gap}{final_filler}{_RISK_ALTERNATION}"
+
+    combined_suffix = build_alternation([pattern_a, pattern_b], sort_longest_first=True)
+
+    return re.compile(
+        rf"{neg_prefix}"
+        rf"{PRE_VERB_GAP}"
+        rf"{mitigation_verbs}\s+"
+        rf"{combined_suffix}\b",
+        re.IGNORECASE,
+    )
+
 
 ACTIVE_VERB_REGEX = build_active_verb_regex()
 PASSIVE_VERB_REGEX = build_passive_verb_regex(past_only=False)

@@ -1,9 +1,8 @@
 import re
-from typing import Tuple
 
-from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES, DOUBLE_BASE_REGEX
+from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
+from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import STD_TOKEN
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
