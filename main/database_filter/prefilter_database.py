@@ -809,10 +809,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "type": "metadata",
             "NST": is_nst,
             "is_empty": True,  # Fallback means filtering failed or no results
-            "currencies": counts["currencies"],
-            "commodities": counts["commodities"],
-            "currency_total": counts["currency_total"],
-            "commodity_total": counts["commodity_total"]
+            **counts,
         }
         return (url, json.dumps([json.dumps(metadata)]), cik, year, aggregate_discards(local_discards))
     except:
