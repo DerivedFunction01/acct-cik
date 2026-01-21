@@ -80,7 +80,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     return INSTRUMENT_REGEX, NOTIONAL_REGEX
 
 
-
 DERIVATIVE_STDS = [
     # US GAAP - Derivatives & Hedging
     r"ASC\s+815",  # The big one (Derivatives and Hedging)
@@ -157,12 +156,12 @@ SOFT_GEN_TERMS = [
     r"(?:gain|loss) on derivatives?",
     r"value of derivatives?",
     r"notional",
+    r"bifurcat(?:ed|ion|ing)",
 ]
 
 
 HEDGING_CONTEXT_TERMS = (
-    [
-        r"bifurcat(?:ed|ion|ing)",
+    [ 
         ENTITY_TOKEN.strip(),
     ]
     + SOFT_GEN_TERMS
