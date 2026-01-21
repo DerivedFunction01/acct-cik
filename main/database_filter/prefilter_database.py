@@ -720,10 +720,6 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         soph_masked_texts = [text for _, text in sophisticated_buffer_masked]
         std_masked_texts = [text for _, text in clean_buffer_masked]
 
-        # Check content of buffer
-        has_warr = any("warrant" in t.lower() for _, t in sophisticated_buffer_masked)
-        has_conv = any("convertible" in t.lower() or "conversion" in t.lower() for _, t in sophisticated_buffer_masked)
-
         is_valid = validate_sophisticated_buffer(soph_masked_texts, std_masked_texts)
 
         # Determine NST status per category
