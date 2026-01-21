@@ -5,6 +5,7 @@ from defs.shared_context import (
     MITIGATION_STRICT_VERBS,
     GENERIC_RISK_GLUE,
     _RISK_ALTERNATION,
+    SUBJ,
 )
 
 # Add this alongside your other lists
@@ -111,14 +112,15 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
         pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}"
 
     final_filler = r"(?:\S+\s+){0,3}"
-
+    aux = build_alternation(NEGATIVE_AUXILIARY)
     # Allow adverbs between negation and verb
     _pre_verb_gap = (
-        r"[, ]"  # Mandatory space or comma after "not"
         r"(?:"
+        rf"\s+(?:{aux})\s+{SUBJ}\s+|"  # Inversion: " did the company "
+        r"[, ](?:"  # Mandatory space or comma after "not"
         rf"{ACTIVE_PATTERN}\s+|"  # "currently "
         r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
-        r")?"
+        r")?)"
     )
 
     # Pattern A: Verb ... Gap ... Risk (Existing)
