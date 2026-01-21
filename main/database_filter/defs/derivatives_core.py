@@ -62,12 +62,14 @@ UNAMBIGUOUS_SUFFIXES = [
     r"(?<!to\s)contracts?",
     "instruments?",
 ]
-
+WARRANT = (
+    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))",
+)
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
-    r"(?<!an\s)(?<!the\s)options?",  # prevent prevent an/the option
-    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
+    r"(?<!an\s)(?<!the\s)options?(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)warrants?)",  # prevent prevent an/the option
+    WARRANT,  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
     "commitments?",
