@@ -108,7 +108,7 @@ def count_information(text: str) -> dict:
             venue = match.group().lower()
             result["venues"][venue] = result["venues"].get(venue, 0) + 1
             result["venues_total"] += 1
-            
+
     if DERIVATIVE_CLEARING_REGEX:
         for match in DERIVATIVE_CLEARING_REGEX.finditer(text):
             venue = match.group().lower()
@@ -119,6 +119,11 @@ def count_information(text: str) -> dict:
             model = match.group().lower()
             result["valuation_models"][model] = result["valuation_models"].get(model, 0) + 1
             result["valuation_models_total"] += 1
+    if STRICT_REGEX:
+        for match in STRICT_REGEX.finditer(text):
+            inst = match.group().lower()
+            result["strict_hits"][inst] = result["strict_hits"].get(inst, 0) + 1
+            result["strict_hits_total"] += 1
 
     return result
 
