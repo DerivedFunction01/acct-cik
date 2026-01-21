@@ -252,6 +252,7 @@ MITIGATION_VERBS = MITIGATION_STRICT_VERBS + [
     r"address(?:es|ed|ing)?",
     r"respond(?:s|ed|ing)?\s+to",
     r"to\s+(?:deal|cope)\s+with",
+    r"(?:lock|capp?)(?:s|ed|ing)?\s+(?:in|the)", # required verb + article/prep
 ]
 
 GENERIC_RISK_GLUE = [
@@ -259,7 +260,7 @@ GENERIC_RISK_GLUE = [
     r"(?:ris|aris|declin|increas|decreas)(?:es?|ed|ing)?",
     r"result(?:ed|ing)?",
     r"falling",
-    r"drop\s+in",
+    r"drops?\s+in",
     r"movements?",
     r"chang(?:e|es|ing)?",
     r"fluctuat(?:ions?|ing)?",
