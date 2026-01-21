@@ -3,7 +3,7 @@ import re
 from defs.derivatives_core import SPECIAL_BASE
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
-from defs.acct_std import STD_TOKEN
+from defs.acct_std import DERIVATIVE_STDS
 from defs.exclusion_regex import ENTITY_TOKEN
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
@@ -80,33 +80,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     return INSTRUMENT_REGEX, NOTIONAL_REGEX
 
 
-DERIVATIVE_STDS = [
-    # US GAAP - Derivatives & Hedging
-    r"ASC\s+815",  # The big one (Derivatives and Hedging)
-    r"SFAS\s+133",  # The legacy big one
-    r"FAS\s+133",
-    r"Statement\s+133",
-    # US GAAP - Fair Value (Strong signal when combined with "Option/Warrant")
-    r"ASC\s+820",
-    r"SFAS\s+157",
-    # US GAAP - Distinguishing Liabilities from Equity (Crucial for Warrants)
-    r"ASC\s+480",  # Distinguishing Liabilities from Equity
-    r"SFAS\s+150",
-    # International (IFRS)
-    r"IFRS\s+9",  # Financial Instruments
-    r"IAS\s+39",  # Legacy Financial Instruments
-    r"IAS\s+32",  # Presentation (Liability vs Equity)
-    r"SFAS\s+150",
-    # --- NEW: EITF 00-19 (The "Warrant Liability" Key) ---
-    # Matches: "EITF 00-19", "EITF Issue No. 00-19", "EITF 0019"
-    # Note: We allow flexible separators between '00' and '19'
-    r"EITF\s+(?:Issue\s+)?(?:No\.?\s+)?00[-–—\s]?19",
-    # --- NEW: The Codified Version (ASC 815-40) ---
-    # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
-    r"ASC\s+815[-–—\s]?40",
-    # Masked standards token
-    STD_TOKEN.strip(),
-]
 RISK_MANAGEMENT_TERMS = [
     r"to\s+hedge",
     r"exposures?",
@@ -171,7 +144,6 @@ HEDGING_CONTEXT_TERMS = (
 )
 
 
-DER_STD_REGEX = build_regex(DERIVATIVE_STDS)
 HEDGING_CONTEXT_REGEX = build_regex(HEDGING_CONTEXT_TERMS)
 RISK_MANAGEMENT_REGEX = build_regex(RISK_MANAGEMENT_TERMS)
 

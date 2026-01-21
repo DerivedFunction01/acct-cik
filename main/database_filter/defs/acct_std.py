@@ -1,5 +1,6 @@
 # --- STANDARD TYPES & ACRONYMS ---
 import re
+from typing import List, Optional, Union
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import MONTHS_FRAGMENT
 
@@ -384,6 +385,57 @@ ACCOUNTING_STANDARDS_SOFT = [
 ACCOUNTING_STANDARDS_KEYWORDS = ACCOUNTING_STANDARDS_STRICT + ACCOUNTING_STANDARDS_SOFT
 EXCLUDE_REGEX_ACCOUNTING_STD = build_regex(ACCOUNTING_STANDARDS_KEYWORDS)
 STD_TOKEN = " S_TD "
+
+def register_standard(
+    issuers: Union[List[str], str],
+    number: str,
+    sub: Optional[str] = None,
+) -> str:
+    if isinstance(issuers, str):
+        issuers = [issuers]
+
+    issuer_alt = build_alternation(issuers, sort_longest_first=True)
+
+    # Optional filler: "Statement", "No.", "Issue", "Standard"
+    # e.g. "FASB Statement No. 133", "EITF Issue 00-19"
+    filler = r"(?:\s+(?:Statement|Standard|Issue|No\.?))*"
+
+    # Separator for sub-part (e.g. 815-40)
+    # Matches: "-", "–", "—", " ", "."
+    sub_sep = r"[-–—\s\.]?"
+
+    if sub:
+        return rf"{issuer_alt}{filler}\s+{number}{sub_sep}{sub}"
+
+    return rf"{issuer_alt}{filler}\s+{number}"
+
+
+DERIVATIVE_STDS = [
+    # US GAAP - Derivatives & Hedging
+    register_standard("ASC", "815"),  # The big one (Derivatives and Hedging)
+    register_standard(["SFAS", "FAS", "Statement"], "133"),  # The legacy big one
+    # US GAAP - Fair Value (Strong signal when combined with "Option/Warrant")
+    register_standard("ASC", "820"),
+    register_standard(["SFAS", "FAS", "Statement"], "157"),
+    # US GAAP - Distinguishing Liabilities from Equity (Crucial for Warrants)
+    register_standard("ASC", "480"),  # Distinguishing Liabilities from Equity
+    register_standard(["SFAS", "FAS", "Statement"], "150"),
+    # International (IFRS)
+    register_standard("IFRS", "9"),  # Financial Instruments
+    register_standard("IAS", "39"),  # Legacy Financial Instruments
+    register_standard("IAS", "32"),  # Presentation (Liability vs Equity)
+    # --- NEW: EITF 00-19 (The "Warrant Liability" Key) ---
+    # Matches: "EITF 00-19", "EITF Issue No. 00-19", "EITF 0019"
+    # Note: We allow flexible separators between '00' and '19'
+    register_standard("EITF", "00", "19"),
+    # --- NEW: The Codified Version (ASC 815-40) ---
+    # EITF 00-19 was codified into ASC 815-40 "Contracts in Entity's Own Equity"
+    register_standard("ASC", "815", "40"),
+    # Masked standards token
+    STD_TOKEN.strip(),
+]
+
+DER_STD_REGEX = build_regex(DERIVATIVE_STDS)
 
 def run_test():
     ids = [

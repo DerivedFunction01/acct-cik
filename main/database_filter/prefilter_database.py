@@ -25,7 +25,7 @@ from defs.prefiltered_lib import (
 from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
-from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
+from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
 from defs.shared_context import (
     CURRENCY_NAMES_REGEX,
     VALUATION_MODELS_REGEX,
@@ -45,7 +45,7 @@ from defs.exclusion_regex import (
     NON_DERIVATIVE_TREATMENT_REGEX,
     aggregate_discards,
 )
-from defs.acct_std import EXCLUDE_REGEX_ACCOUNTING_STD
+from defs.acct_std import DER_STD_REGEX, EXCLUDE_REGEX_ACCOUNTING_STD
 from defs.contract import is_contractual_noise
 from defs.hypo import is_hypothetical_noise
 from defs.regul import is_regulatory_noise
