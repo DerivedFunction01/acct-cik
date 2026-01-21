@@ -4,6 +4,7 @@ from defs.derivatives_core import SPECIAL_BASE
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import STD_TOKEN
+from main.database_filter.defs.exclusion_regex import ENTITY_TOKEN
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
@@ -163,6 +164,7 @@ SOFT_GEN_TERMS = [
 HEDGING_CONTEXT_TERMS = (
     [
         r"bifurcat(?:ed|ion|ing)",
+        ENTITY_TOKEN,
     ]
     + SOFT_GEN_TERMS
     + RISK_MANAGEMENT_TERMS
