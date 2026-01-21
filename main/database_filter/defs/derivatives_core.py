@@ -50,16 +50,25 @@ AMBIGUOUS_BASE_TYPES = [
 
 UNAMBIGUOUS_SUFFIXES = [
     "contracts?",
-    "instruments?",
 ]
 
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
-    "commitments?",
     "arrangements?",
+    "options?",
+    "hedges?",
+    "instruments?",
 ]
-ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
-suffix_alternation = build_alternation(ALL_SUFFIXES, True)
+OTHER_SUFFIXES = [
+    "commitments?",
+    "transactions?",
+    "positions?",
+]
+
+SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
+ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES + OTHER_SUFFIXES
+suffix_alternation = build_alternation(SUFFIXES, True)
+all_suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 
 def build_double_base_alternation() -> str:
     """
@@ -156,10 +165,9 @@ base_alternation = build_alternation(ALL_BASE_TYPES, True)
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
-unsafe_standalone_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+unsafe_standalone_alternation = build_alternation(SUFFIXES + ALL_BASE_TYPES, True)
 
 # ----------------------------------------------------------------------------------
-
 
 def expand_instruments(
     unsafe: bool = True,
@@ -177,7 +185,7 @@ def expand_instruments(
     # Default: If unsafe (Soft), exclude suffixes to prevent "Corn Agreement" (Context).
     # If safe (Strict), include suffixes to allow "Interest Rate Contract" (Instrument).
     if exclude_standalone_suffixes is None:
-        exclude_standalone_suffixes = unsafe
+        exclude_standalone_suffixes = not unsafe
 
     # 1. Construct the Base Component for the Combined PatternW
     # We wrap (Existing | New) together so the suffix applies to BOTH.
@@ -222,7 +230,7 @@ def build_loose_gen_regex() -> re.Pattern:
     plurals = [
         "warrants",
     ]
-    return build_regex(ALL_BASE_TYPES + plurals + ALL_SUFFIXES)
+    return build_regex(ALL_BASE_TYPES + plurals + SUFFIXES)
 
 
 def build_loose_gen_regex_precise() -> re.Pattern:
