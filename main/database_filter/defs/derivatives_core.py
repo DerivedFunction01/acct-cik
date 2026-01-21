@@ -53,6 +53,7 @@ spec_base_alternation = build_alternation(
 )
 SPECIAL_BASE = [
     f"{spec_base_alternation}[- ](?:options?|contracts?)",
+    r"forward\s+agreements?"
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ] + STANDALONE_BASES

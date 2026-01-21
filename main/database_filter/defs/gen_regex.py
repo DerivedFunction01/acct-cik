@@ -64,7 +64,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         # Derivative/Swap Balance Sheet Items
         "(?:derivative|swap) (?:liabilit(?:y|ies)|assets?)",
         # Explicit "Safe" Variants for Ambiguous Bases
-        "(?:forward|cap|floor|collar|lock|option) contracts?",
         "zero[- ]cost collars?",
     ]
     specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
