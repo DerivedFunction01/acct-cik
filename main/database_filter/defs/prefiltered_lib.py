@@ -403,7 +403,8 @@ class MinimalTextCleaner:
             "Furthermore, interest expense was increased by $5.2 million due to amortization. (iii) Equity: We also "
             "entered into convertible note hedge transactions to limit dilution, alongside separate warrant transactions "
             "which we bifurcated as embedded derivatives. (iv) Neutralization: The fair value of the facility "
-            "and the change in fair value of debt were excluded. Note that the 2012 Stock Incentive Plan and "
+            "and the change in fair value of debt were excluded. The agreement sets the interest rate cap and floor at "
+            "10% and 5%, respectively. Note that the 2012 Stock Incentive Plan and "
             "the 2018 Performance Share Plan include options expiring 2026. (4) Distress: Due to liquidity issues, "
             "the Company filed a voluntary petition for relief under Chapter 11 of the Bankruptcy Code. "
             "See Exhibit 10.1 and Schedule 14A for additional 'fair value' hedges and debt documentation."
@@ -486,6 +487,9 @@ class MinimalTextCleaner:
         )
         print(
             f"FV of Debt neutralized?                  {'SUCCESS' if 'fair value of the facility' not in cleaned_text.lower() else 'FAIL'}"
+        )
+        print(
+            f"Interest Rate Cap neutralized?           {'SUCCESS' if 'sets the interest rate cap' not in cleaned_text else 'FAIL'}"
         )
 
         # 7. Bullet protection for years
