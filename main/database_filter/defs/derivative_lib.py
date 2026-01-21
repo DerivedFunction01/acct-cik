@@ -5,8 +5,8 @@ from defs.cr_regex import CR_CONTEXT_REGEX, CR_REGEX, CR_SOFT_REGEX, CR_STRICT_C
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX
 from defs.fx_regex import FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex
-from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
+from defs.derivatives_core import LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
 
 STRICT_REGEX = re.compile(
@@ -88,6 +88,7 @@ def find_hedging_context(paragraph: str) -> bool:
                     return True
     return False
 
+
 GLUE_MAP = {
     "ir": build_regex([
         r"(?:interest|fixed|variable|floating)[- ]rates?",
@@ -112,6 +113,17 @@ GLUE_MAP = {
         r"defaults?",
     ]),
 }
+def create_target() -> str:
+    _ABSENCE_NOUNS = [
+        r"positions?",
+        r"obligations?",
+        r"activit(?:ies|y)",  # "no derivative activity"
+        r"involvements?",  # "no involvement with derivatives"
+        r"holdings?",  # "no holdings"
+    ]
+    _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+    return _DENIAL_TARGET
+
 
 def run_tests():
     from defs.ir_regex import run_tests as ir_run

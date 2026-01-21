@@ -3,7 +3,6 @@ from typing import List, Tuple
 from defs.derivatives_core import build_smart_regex, expand_instruments, suffix_alternation
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies, build_risk_managment_phrase
-from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 
 def build_fx_dynamic_pattern() -> str:
@@ -327,6 +326,8 @@ FX_CONTEXT_REGEX = build_regex(FX_CONTEXT_TERMS)
 FX_STRICT_CONTEXT_REGEX = build_regex(FX_STRICT_TERMS + FX_RISK_TERMS)
 FX_RISK_REGEX = build_regex(FX_RISK_TERMS)
 FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX = build_fx_regex()
+from defs.verb_core import build_strict_do_not_mitigate_regex
+
 FX_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [
         r"foreign\s+currency",

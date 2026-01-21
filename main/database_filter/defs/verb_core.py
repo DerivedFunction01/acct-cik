@@ -1,9 +1,13 @@
+import re
+from typing import List, Optional
 from defs.derivatives_core import LOOSE_GEN_REGEX
-from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (
     NUMBER_PATTERN,
     SUBJ,
+    MITIGATION_STRICT_VERBS,
+    GENERIC_RISK_GLUE,
+    _RISK_ALTERNATION,
 )
 
 # Add this alongside your other lists
@@ -96,13 +100,6 @@ POTENTIAL_INDICATORS = [
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
 
-_ABSENCE_NOUNS = [
-    r"positions?",
-    r"obligations?",
-    r"activit(?:ies|y)",  # "no derivative activity"
-    r"involvements?",  # "no involvement with derivatives"
-    r"holdings?",  # "no holdings"
-]
 
 VERB_MAP = {
     "POSS": [
@@ -208,8 +205,6 @@ _DENIAL_SEMANTIC_MOD = (
 _DENIAL_GAP_UNIT = rf"(?:{_DENIAL_FILLER}{_DENIAL_SEMANTIC_MOD})"
 GAP_CHAIN = rf"(?:{_DENIAL_GAP_UNIT}\s+){{0,5}}"
 # The "Target": The final noun in the sequence
-_DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
-
 POSS_VERB_REGEX = build_regex(VERB_MAP["POSS"])
 USAGE_VERB_REGEX = build_regex(VERB_MAP["PRU"])
 TRANS_VERB_REGEX = build_regex(VERB_MAP["ACT"])
@@ -254,3 +249,50 @@ PRE_VERB_GAP = (
     r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
     r")?)"
 )
+
+
+def build_strict_do_not_mitigate_regex(
+    required_glue: Optional[List[str]] = None,
+) -> re.Pattern:
+    """
+    Matches: "do not hedge [risk]", "did not mitigate [exposure]"
+    Inspired by build_risk_managment_phrase but negated.
+    """
+    neg_prefix = build_negation_prefix_pattern()
+    mitigation_verbs = build_alternation(MITIGATION_STRICT_VERBS)
+
+    # Gap logic from build_risk_managment_phrase
+    glue = build_alternation(GENERIC_RISK_GLUE)
+    filler = r"(?:\S+\s+){0,3}"
+
+    tiny_gap = r"(?:\S+\s+){0,3}"
+
+    if required_glue:
+        req_alt = build_alternation(required_glue)
+        glue_unit = rf"(?:{filler}{glue})"
+        req_unit = rf"(?:{filler}{req_alt})"
+        pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
+        gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})?"
+    else:
+        glue_unit = rf"(?:{filler}{glue})"
+        gap = rf"(?:{glue_unit}\s+){{0,6}}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}"
+
+    final_filler = r"(?:\S+\s+){0,3}"
+
+    # Pattern A: Verb ... Gap ... Risk (Existing)
+    pattern_a = rf"{gap}{final_filler}{_RISK_ALTERNATION}"
+
+    combined_suffix = build_alternation([pattern_a, pattern_b], sort_longest_first=True)
+
+    return re.compile(
+        rf"{neg_prefix}"
+        rf"{PRE_VERB_GAP}"
+        rf"{mitigation_verbs}\s+"
+        rf"{combined_suffix}\b",
+        re.IGNORECASE,
+    )

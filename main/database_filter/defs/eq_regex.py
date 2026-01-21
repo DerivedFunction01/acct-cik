@@ -1,10 +1,9 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
+from defs.derivatives_core import  build_smart_regex, expand_instruments
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
-from defs.verb_regex import build_strict_do_not_mitigate_regex
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
@@ -219,11 +218,19 @@ EQ_STRICT_CONTEXT_REGEX = build_regex(EQ_STRICT_TERMS + EQ_RISK_TERMS)
 EQ_RISK_REGEX = build_regex(EQ_RISK_TERMS)
 EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
+
+from defs.verb_core import build_strict_do_not_mitigate_regex
 EQ_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [rf"(?:stock|share|equity)\s+{stock_alt}"]
 )
 
 def run_tests():
+    from defs.derivatives_core import (
+        MatchLevel,
+        run_category_tests,
+        run_category_tests_counter,
+    )
+
     test_cases = [
         ("equity swap", MatchLevel.STRICT),
         ("equity option", MatchLevel.SOFT),
