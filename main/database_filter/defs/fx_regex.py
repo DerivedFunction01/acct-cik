@@ -93,7 +93,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Specific Exchange Agreements (Valid because of "Exchange")
         # Matches: "foreign exchange agreement", "currency exchange arrangement"
         rf"(?:foreign|currency|forward|cross[- ]currency)\s+(?:forward|exchange)\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
-        rf"exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
+        rf"(?<!interest[- ])exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
         rf"(?:foreign|forward|cross)[- ]currency\s+hedges",
     ]
 
@@ -156,7 +156,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?"],
+        additional_standalone_suffixes=["contracts?", "options?"],
     )
 
     # 1. Substitute the dynamic fragment into the templates
