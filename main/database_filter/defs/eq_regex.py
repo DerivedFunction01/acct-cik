@@ -221,7 +221,7 @@ EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 
 from defs.verb_core import build_strict_do_not_mitigate_regex
 EQ_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
-    [rf"(?:stock|share|equity)\s+{stock_alt}"]
+    [rf"(?:stock|share|equity|treasury)\s+{stock_alt}"]
 )
 
 def run_tests():
