@@ -14,7 +14,7 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipments?",
     "receipts?",
     "inventor(?:y|ies)",
-    "liabilit(:?y|ies)",  # Forward liability
+    "liabilit(?:y|ies)",  # Forward liability
     "stocks?",
     "looking",  # Just added it here against forward-looking
 ]
@@ -53,7 +53,7 @@ spec_base_alternation = build_alternation(
 )
 SPECIAL_BASE = [
     f"{spec_base_alternation}[- ](?:options?|contracts?)",
-    r"forward\s+agreements?"
+    r"forward\s+agreements?",
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ] + STANDALONE_BASES
@@ -88,24 +88,20 @@ def build_double_base_alternation() -> str:
     e.g. "caps and floors", "options and futures"
     Also matches: "contracts such as swaps, collars"
     """
-    bases = build_alternation(AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE, sort_longest_first=True)
-    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+    base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE
+    bases = build_alternation(base_terms, sort_longest_first=True)
 
-    # 1. Standalone Double Base (2 to N items)
-    # Matches: "swaps and options", "caps, floors, and collars"
-    multi_base = rf"(?:{bases})(?:{sep}(?:{bases}))+"
-
-    # 2. Prefixed Base (1 to N items)
-    # Matches: "contracts such as options", "derivatives including swaps and futures"
     prefix_terms = STANDALONE_BASES + SUFFIXES + ["hedges?"]
-    prefix_alt = build_alternation(prefix_terms, sort_longest_first=True)
+    # Start terms can be either a prefix (contract) or a base (swap)
+    start_terms = list(set(prefix_terms + base_terms))
+    start_alt = build_alternation(start_terms, sort_longest_first=True)
 
-    connectors = [r"such\s+as", r"includ(?:e|es|ed|ing)", r"compris(?:e|es|ed|ing)(?:\s+(?:of|in))?"]
-    connector_alt = build_alternation(connectors, sort_longest_first=True)
+    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+    # Gap allows 0-2 words between the first and second term
+    # e.g. "swaps, options" (0 words), "contracts such as options" (2 words)
+    gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
-    prefixed_base = rf"(?:{prefix_alt})\s+(?:{connector_alt})\s+(?:{bases})(?:{sep}(?:{bases}))*"
-
-    return rf"{prefixed_base}|{multi_base}"
+    return rf"(?:{start_alt}){gap}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
 double_base_alternation = build_double_base_alternation()
