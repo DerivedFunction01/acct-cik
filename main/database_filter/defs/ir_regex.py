@@ -257,9 +257,9 @@ def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
 def build_embedded_cap_floor_regex() -> re.Pattern:
     # 1. Connectors (The "Filler")
     connectors = [
-        r"subject\s+to",
+        r"subject(?:ed|s)?\s+to",
         r"contain(?:s|ed|ing)?",
-        r"include(?:s|d|ing)?",
+        r"includ(?:es?|ed|ing)",
         r"have",
         r"has",
         r"had",
@@ -375,7 +375,8 @@ def debt_feature_regex() -> re.Pattern:
         r"determin(?:e|es|ed|ing)?",
         r"implement(?:s|ed|ing)?",
         r"provid(?:e|es|ed|ing)",
-        r"contain(?:s|ed|ing)?"
+        r"contain(?:s|ed|ing)?",
+        r"subject(?:ed|s)?\s+to",
     ]
 
     VERB = build_alternation(verbs)
