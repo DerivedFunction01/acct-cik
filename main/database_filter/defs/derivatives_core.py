@@ -66,7 +66,8 @@ UNAMBIGUOUS_SUFFIXES = [
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
-    "options?",
+    r"(?<!an\s)(?<!the\s)options?(?![, ]?(?:and\s+|or\s+)?(?:warrants?))",  # prevent options and warrants =/= equity derivative. Also prevent an/the option
+    r"(?<!to\s)warrants?(?! (?:the|a|an))(?![, ]?(?:and\s+|or\s+)?(?:options?))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
     "commitments?",
@@ -91,17 +92,22 @@ def build_double_base_alternation() -> str:
     base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE
     bases = build_alternation(base_terms, sort_longest_first=True)
 
-    prefix_terms = STANDALONE_BASES + SUFFIXES + ["hedges?"]
+    prefix_terms = (
+        STANDALONE_BASES
+        + SUFFIXES
+        + [
+            r"(?<!to\s)hedges?",
+        ]
+    )
     # Start terms can be either a prefix (contract) or a base (swap)
     start_terms = list(set(prefix_terms + base_terms))
     start_alt = build_alternation(start_terms, sort_longest_first=True)
 
     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
     # Gap allows 0-2 words between the first and second term
-    # e.g. "swaps, options" (0 words), "contracts such as options" (2 words)
+    # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
-
-    return rf"(?:{start_alt}){gap}(?:{bases})(?:{sep}(?:{bases}))*"
+    return rf"(?:{start_alt})(?!\s+to){gap}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
 double_base_alternation = build_double_base_alternation()
