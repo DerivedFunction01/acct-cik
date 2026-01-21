@@ -177,7 +177,8 @@ TABLE_HINT_PATTERN = re.compile(
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)\n(?!\n)")
 SPACE_PATTERN = re.compile(r"\s+")
-
+DOC_PATTERN = re.compile(r'<document>\s*(.*?)\s*</document>', re.DOTALL | re.IGNORECASE)
+HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
 # %%
 # =============================================================================
 # LOAD DATA
@@ -689,22 +690,6 @@ def fetch_url(
         print(f"Error fetching {url}: {e}")
         return None
 
-
-def process_url(url: str):
-    raw_text = fetch_url(url)
-    if not raw_text:
-        debug_print(f"Error fetching {url}: No text found")
-        return ""
-
-    if url.endswith("htm") or raw_text.lower().find("html") != -1:
-        debug_print("Processing as html")
-        content = extract_content(raw_text, True)
-    else:
-        debug_print("Processing as text")
-        content = extract_content(raw_text, False)
-    return content
-
-
 # =============================================================================
 # KEYWORD FILTERING (OPTIMIZED VERSION)
 # =============================================================================
@@ -1048,114 +1033,6 @@ def adjust_rate_in_background(
             )
             last_sleep = current_sleep
 
-
-# class ThreadSafeRateLimiter: # Old version for process-report fully
-#     """
-#     A thread-safe class to manage a shared rate limit value using atomic
-#     update methods to prevent race conditions.
-#     """
-
-#     def __init__(self, initial_rate_limit: float):
-#         self._rate_limit = initial_rate_limit
-#         self._lock = threading.Lock()
-#         self._last_429_time = 0
-#         self._recovery_mode = False
-#         self._initial_rate_limit = float(initial_rate_limit)
-
-#     @property
-#     def value(self) -> float:
-#         """Get the current rate limit value."""
-#         with self._lock:
-#             return self._rate_limit
-
-#     def signal_429(self):
-#         """Signal that a 429 response was received."""
-#         with self._lock:
-#             self._last_429_time = time.time()
-#             self._recovery_mode = True
-#             # Increase sleep time by 50%, capped at 60s
-#             self._rate_limit = min(self._rate_limit * 1.5, 60.0)
-
-#     def adjust(self, current_rate: float, target_rate: float):
-#         """Atomically adjust the rate limit based on performance."""
-#         with self._lock:
-#             time_since_last_429 = time.time() - self._last_429_time
-
-#             # Exit recovery mode if no 429s for 30 seconds
-#             if self._recovery_mode and time_since_last_429 > 30:
-#                 self._recovery_mode = False
-
-#             # Determine target rate based on recovery status
-#             target_rate_adjusted = (
-#                 target_rate * 0.5 if self._recovery_mode else target_rate
-#             )
-
-#             # --- Main Adjustment Logic ---
-#             if current_rate > target_rate_adjusted * 1.05:  # Over target
-#                 # Multiplicatively increase sleep time to slow down
-#                 increase_factor = (
-#                     1.0
-#                     + min(
-#                         (current_rate - target_rate_adjusted) / target_rate_adjusted,
-#                         1.0,
-#                     )
-#                     * 0.1
-#                 )
-#                 self._rate_limit *= increase_factor
-
-#             elif current_rate < target_rate_adjusted * 0.95:  # Under target
-#                 if not self._recovery_mode:
-#                     # Only decrease sleep time if not in recovery
-#                     self._rate_limit = max(0, self._rate_limit * 0.98)
-
-#             # --- Gradual Recovery Logic ---
-#             # Always try to decay back towards the initial rate limit
-#             if self._rate_limit > self._initial_rate_limit:
-#                 # If we've been clear of 429s for a while, recover faster
-#                 step = 0.05 if time_since_last_429 > 15 else 0.01
-#                 gap = self._rate_limit - self._initial_rate_limit
-#                 self._rate_limit -= gap * step
-
-#             return self._rate_limit, self._recovery_mode, target_rate_adjusted
-
-
-# def adjust_rate_in_background(
-#     tqdm_bar: tqdm,
-#     rate_limiter: ThreadSafeRateLimiter,
-#     target_rate: float,
-#     stop_event: threading.Event,
-# ):
-#     """A background thread to dynamically adjust the sleep rate."""
-#     prev_count = getattr(tqdm_bar, "n", 0)
-#     prev_time = time.time()
-
-#     while not stop_event.is_set():
-#         time.sleep(0.25)  # Check 4 times per second
-
-#         # Estimate current rate (requests/sec) from progress increments
-#         try:
-#             now = time.time()
-#             current_count = getattr(tqdm_bar, "n", prev_count)
-#             elapsed = now - prev_time if now - prev_time > 0 else 1e-6
-#             current_rate = (current_count - prev_count) / elapsed
-#             prev_count = current_count
-#             prev_time = now
-#         except Exception:
-#             current_rate = 0.0
-
-#             # Not in recovery: always decay back toward initial value slowly
-#         # Atomically adjust the rate and get the current state
-#         current_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(
-#             current_rate, target_rate
-#         )
-#         mode = "Recovery" if in_recovery else "Normal"
-
-#         tqdm_bar.set_postfix(
-#             rate=f"{current_rate:.1f} req/s",
-#             sleep=f"{current_sleep*1000:.1f}ms",
-#             mode=mode,
-#             target=f"{target_rate_adjusted:.1f} req/s",
-#         )
 def should_retry_with_plaintext(url: str, raw_text: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None) -> Optional[tuple]:
     """
     Checks if a pre-2011 filing should be retried with plain text URL.
@@ -1254,43 +1131,66 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
     return None
 
 
-# def parse_and_save_content(data):
-#     """
-#     Parses raw HTML/text, filters for keywords, and saves to the database.
-#     This is a CPU-bound task.
-#     """
-#     if data is None:
-#         return None
-
-#     url, raw_text = data
-
-#     try:
-#         # 1. Extract clean content from raw text (CPU-intensive)
-#         if url.endswith("htm"):
-#             content = extract_content(raw_text, True)
-#         else:
-#             content = extract_content(raw_text, False)
-
-#         if not content:
-#             return None
-
-#         # 2. Filter for keywords to get relevant sentences (CPU-intensive)
-#         # CPU-intensive parsing
-#         categorized_sentences = filter_by_keywords(content)
-#         # 3. Save the result to the database
-#         result_row = pd.Series({"url": url, "matches": categorized_sentences})
-
-#         save_process_result(result_row)
-#         return True
-#     except Exception as e:
-#         print(f"Parse error for {url}: {e}")
-#         return None
-
+def parse_multi_document_content(raw_text: str) -> List[str]:
+    """
+    Splits a multi-document .txt file (from SEC EDGAR) into individual documents.
+    Each document is wrapped in <document></document> tags.
+    
+    For each document:
+    - If it contains HTML, parse as HTML
+    - Otherwise, parse as plain text
+    
+    Returns list of cleaned content strings (one per document).
+    """
+    if not raw_text:
+        return []
+    
+    # Split by <document> tags (exact match, no attributes)
+    
+    documents = DOC_PATTERN.findall(raw_text)
+    
+    if not documents:
+        # No document tags found, treat entire content as single document
+        documents = [raw_text]
+    
+    parsed_contents = []
+    
+    for i, doc_content in enumerate(documents):
+        doc_content = doc_content.strip()
+        
+        if not doc_content:
+            continue
+        
+        # Detect if this document is HTML (only check for html/body tags)
+        is_html = bool(HTML_REGEX.search(doc_content))
+        
+        try:
+            if is_html:
+                debug_print(f"  📄 Document {i+1}: Parsing as HTML")
+                content = extract_content(doc_content, asHTML=True)
+            else:
+                debug_print(f"  📄 Document {i+1}: Parsing as plain text")
+                content = extract_content(doc_content, asHTML=False)
+            
+            if content and len(content.strip()) > 0:
+                parsed_contents.append(content)
+        
+        except Exception as e:
+            print(f"  ⚠️  Error parsing document {i+1}: {e}")
+            continue
+    
+    return parsed_contents
 
 def parse_content(data):
     """
-    Parses raw HTML/text, filters for keywords, and saves to the database.
-    This is a CPU-bound task.
+    Parses raw HTML/text, handles multi-document files, filters for keywords, 
+    and saves to the database. This is a CPU-bound task.
+    
+    Handles:
+    - Multi-document .txt files (split by <document> tags)
+    - HTML and plain text documents
+    - Keyword filtering per document
+    - Returns aggregated results across all documents
     """
     if data is None:
         return None
@@ -1298,22 +1198,48 @@ def parse_content(data):
     url, raw_text = data
 
     try:
-        # 1. Extract clean content from raw text (CPU-intensive)
-        if url.endswith("htm"):
-            content = extract_content(raw_text, True)
-        else:
-            content = extract_content(raw_text, False)
-
-        if not content:
+        # 1. Parse multi-document content
+        # This splits by <document> tags and extracts/parses each document
+        parsed_documents = parse_multi_document_content(raw_text)
+        
+        if not parsed_documents:
+            debug_print(f"No documents parsed from {url}")
             return None
 
-        # 2. Filter for keywords to get relevant sentences (CPU-intensive)
-        # CPU-intensive parsing
-        categorized_sentences = filter_by_keywords(content)
-        # 3. Save the result to the database
-        result_row = pd.Series({"url": url, "matches": categorized_sentences})
+        # 2. Filter each document for keywords and aggregate results
+        all_matches = []
+        
+        for doc_idx, content in enumerate(parsed_documents):
+            if not content or len(content.strip()) < 50:
+                debug_print(f"  Skipping document {doc_idx + 1}: too short")
+                continue
+            
+            try:
+                # Filter this document for keywords (CPU-intensive)
+                doc_matches = filter_by_keywords(content)
+                
+                if doc_matches:
+                    debug_print(f"  Document {doc_idx + 1}: Found {len(doc_matches)} matches")
+                    all_matches.extend(doc_matches)
+                else:
+                    debug_print(f"  Document {doc_idx + 1}: No matches found")
+                    
+            except Exception as e:
+                print(f"  ⚠️  Error filtering document {doc_idx + 1} from {url}: {e}")
+                continue
+        
+        # 3. If we found any matches across all documents, save the result
+        if all_matches:
+            result_row = pd.Series({
+                "url": url, 
+                "matches": all_matches,
+            })
+            debug_print(f"✓ Successfully parsed {len(parsed_documents)} documents from {url}")
+            return result_row
+        else:
+            debug_print(f"No keyword matches found in any document from {url}")
+            return None
 
-        return result_row
     except Exception as e:
         print(f"Parse error for {url}: {e}")
         return None
