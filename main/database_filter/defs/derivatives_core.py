@@ -95,6 +95,7 @@ UNAMBIGUOUS_BASE_TYPES = (
 )
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
 BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
+ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
 
 DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
@@ -168,7 +169,7 @@ standalone_alternation = build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
 )
 unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
-full_suffix_alternation = build_alternation(ALL_SUFFIXES + BASE_TYPES, True)
+full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
 def expand_instruments(
