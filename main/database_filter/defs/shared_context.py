@@ -214,10 +214,10 @@ VALUATION_MODELS = [
     r"Black[- ]Scholes(?:[- ]Merton)?",
     r"\bBSM\b",  # Abbreviation for Black-Scholes-Merton
     # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
-    r"Monte[- ]Carlo(?:[- ]simulations?)?",
+    r"Monte[- ]Carlo(?:[- ][sS]imulations?)?",
     # Used for American options (exercisable early) and Convertibles
     r"[Bb]inomial(?:[- ][Ll]attice)?\s+[mM]odels?",
-    r"[Ll]attice\s+models?",
+    r"[Ll]attice\s+[mM]odels?",
     # General descriptive
     r"[Oo]ption[- ][Pp]ricing\s+[Mm]odels?",
 ]
