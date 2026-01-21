@@ -50,6 +50,11 @@ SOFT_CATEGORY_REGEX = re.compile(
 ALL_REGEX = re.compile(
     r"|".join(
         [
+            IR_REGEX.pattern,
+            FX_REGEX.pattern,
+            CP_REGEX.pattern,
+            EQ_REGEX.pattern,
+            CR_REGEX.pattern,
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
