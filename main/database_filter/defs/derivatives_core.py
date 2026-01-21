@@ -169,7 +169,7 @@ standalone_alternation = build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
 )
 unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
-full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES + ["hedging"], True)
 # ----------------------------------------------------------------------------------
 
 def expand_instruments(

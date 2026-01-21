@@ -800,6 +800,7 @@ def run_tests():
         ("commodity swap agreement", MatchLevel.STRICT),
         ("crude oil swap", MatchLevel.STRICT),
         ("natural gas forward", MatchLevel.STRICT),
+        ("natural gas derivative", MatchLevel.STRICT),
         ("fixed price swap", MatchLevel.STRICT),
         ("weather derivative", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),

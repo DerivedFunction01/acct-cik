@@ -146,6 +146,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 3. Final pattern build
     soft_instrument_fragment = expand_instruments(
         unsafe=True, 
+        additional_standalone_suffixes=["hedges?"]
     )
 
     soft_pattern = build_smart_regex(
