@@ -66,8 +66,8 @@ UNAMBIGUOUS_SUFFIXES = [
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
-    r"(?<!an\s)(?<!the\s)options?(?![, ]?(?:and\s+|or\s+)?(?:warrants?))",  # prevent options and warrants =/= equity derivative. Also prevent an/the option
-    r"(?<!to\s)warrants?(?! (?:the|a|an))(?![, ]?(?:and\s+|or\s+)?(?:options?))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
+    r"(?<!an\s)(?<!the\s)options?",  # prevent prevent an/the option
+    r"(?<!to\s)warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
     "commitments?",
@@ -107,6 +107,7 @@ def build_double_base_alternation() -> str:
     # Gap allows 0-2 words between the first and second term
     # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
+    # to captured a list of derivatives, so no action "to"
     return rf"(?:{start_alt})(?!\s+to){gap}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
