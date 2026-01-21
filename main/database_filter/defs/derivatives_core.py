@@ -36,8 +36,9 @@ STANDALONE_BASES = [
     r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
+OPTION = r"(?<!an\s)(?<!the\s)(?<!equity[- ])(?<!stock[- ])options?"
 AMBIGUOUS_BASE_TYPES = [
-    r"(?<!an\s)(?<!the\s)options?",
+    OPTION,
     r"(?<!to\s)locks?",
     r"(?<!to\s)caps?",
     "derivatives?",
@@ -63,12 +64,12 @@ UNAMBIGUOUS_SUFFIXES = [
     "instruments?",
 ]
 WARRANT = (
-    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))",
+    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))"
 )
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
-    r"(?<!an\s)(?<!the\s)options?(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)warrants?)",  # prevent prevent an/the option
+    rf"{OPTION}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT})",  # prevent prevent an/the option
     WARRANT,  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
