@@ -182,6 +182,7 @@ def build_eq_context_terms() -> Tuple[List[str], List[str], List[str]]:
         r"initial\s+public\s+offering|IPO",
         r"(?:primary|secondary)\s+markets?",
         r"acquisition date",
+        r"series\s+(?:A|B|C|D|E|F|G|H|I|J)",
     ]
 
     # 6. Risk Integration
