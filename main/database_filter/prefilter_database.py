@@ -696,8 +696,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     # === FINAL GATEKEEPERS ===
     final_results = []
-    is_nst_warr = False
-    is_nst_conv = False
+    is_nst_warr = True
+    is_nst_conv = True
     try:
         # A. Validate Standard Buffer
         std_masked_texts = [text for _, text in clean_buffer_masked]
