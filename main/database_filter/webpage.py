@@ -1078,8 +1078,8 @@ def should_retry_with_plaintext(url: str, raw_text: str, rate_limiter: Optional[
                 is_xbrl = 'xbrl' in raw_text.lower() or 'xml' in raw_text.lower()[:1000]
                 
                 if not is_xbrl:
-                    # Check for derivative mentions
-                    if not ALL_REGEX.search(raw_text):
+                    # Check for strict derivative mentions
+                    if not STRICT_REGEX.search(raw_text):
                         # Construct plain text URL
                         accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
                         txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_part}/{accession}/{accession_dashed}.txt"
