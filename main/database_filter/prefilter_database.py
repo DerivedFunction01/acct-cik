@@ -749,17 +749,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         # Always prepare metadata, even if final_results is empty
         # Use final_results text if available, otherwise use all collected text
         if final_results:
-            text_for_counting = final_results
             is_empty = False
         elif all_text_parts:
-            text_for_counting = [(0, text) for text in all_text_parts]
             is_empty = True  # Content exists but all filtered out
         else:
-            # Document had no derivative content at all
-            text_for_counting = []
             is_empty = True
 
-        combined_text = " ".join([text for _, text in text_for_counting]) if text_for_counting else ""
+        combined_text = " ".join(paragraphs)
         counts = count_information(combined_text)
 
         # Prepend the Metadata Paragraph
@@ -770,11 +766,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "url": url,
             "NST": is_nst,
             "is_empty": is_empty,
-            "currencies": counts["currencies"],
-            "commodities": counts["commodities"],
-            "venues": counts["venue"],
-            "currency_total": counts["currency_total"],
-            "commodity_total": counts["commodity_total"]
+            **counts,
         }
 
         if final_results:
