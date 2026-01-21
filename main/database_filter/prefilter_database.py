@@ -9,10 +9,12 @@ from tqdm import tqdm
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.prefiltered_lib import (
+    CONVERTIBLE_TARGETS,
     DEADWEIGHT_TOKEN,
     SKIP_TOKEN, 
     SOPHISTICATED_CONTEXT_REGEX, 
     SOPHISTICATED_TARGETS,
+    WARRANT_TARGETS,
     MinimalTextCleaner, 
     Stage, 
     is_sophisticated_content, 
@@ -585,9 +587,13 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p)
             if exclusion_reason == NoiseReason.NON_DERIV.value:
-                if is_warrant_target(p_masked) or (is_sophisticated_content(p_masked) and "warrant" in p_masked.lower()):
+                if is_warrant_target(p_masked) or (
+                    is_sophisticated_content(p_masked) and WARRANT_TARGETS.search(p_masked)
+                ):
                     explicit_non_derivative_warr = True
-                if is_convertible_target(p_masked) or (is_sophisticated_content(p_masked) and ("convertible" in p_masked.lower() or "conversion" in p_masked.lower())):
+                if is_convertible_target(p_masked) or (
+                    is_sophisticated_content(p_masked) and CONVERTIBLE_TARGETS.search(p_masked)
+                ):
                     explicit_non_derivative_conv = True
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
