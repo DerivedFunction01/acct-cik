@@ -333,7 +333,7 @@ FX_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
         r"foreign\s+currency",
         r"currency",
         r"exchange\s+rates?",
-        r"foreign\s+exchange",
+        r"(?:foreign|forward|currency|cross[- ]currency)\s+exchange",
         r"fx",
     ]
 )
