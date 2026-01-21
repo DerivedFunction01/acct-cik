@@ -11,7 +11,7 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 
 # --- IMPORTS ---
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
-from defs.cp_regex import NPNS_REGEX, TRADING_VENUE_REGEX
+from defs.cp_regex import NPNS_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context, GLUE_MAP
 from defs.derivatives_core import (
@@ -410,35 +410,6 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
     # Clean up empty categories
     return {cat: kw for cat, kw in instruments.items() if kw}
 
-fv_year = {
-    EvidenceReason.ACT_FV_YEAR.value,
-    EvidenceReason.MAT_FUT_FV.value,
-    EvidenceReason.FVY.value,  # Fair Value was $X at Year
-    EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
-}
-fv_tags =  fv_year | { 
-    EvidenceReason.FVNY.value,  # Fair Value is $X
-    EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
-}
-notional_year = {
-    EvidenceReason.NVY.value,  # Notional was $X at Year
-    EvidenceReason.ACT_NV_YEAR.value,
-    EvidenceReason.MAT_FUT_NV.value,
-}
-notional_tags = notional_year | {
-    EvidenceReason.NVNY.value,  # Notional is $X 
-}
-value_year = {
-    EvidenceReason.VY.value,  # Value was $X at Year
-    EvidenceReason.ACT_V_YEAR.value,
-    EvidenceReason.MAT_FUT_V.value,
-}
-
-value_tags = value_year | {
-    EvidenceReason.VNY.value,  # Value is $X  
-}
-
-year_tags = fv_year | notional_year | value_year
 
 def extract_instrument_evidence(
     sentence: str,
@@ -468,7 +439,7 @@ def extract_instrument_evidence(
     # Resolve generic category if possible
     if target_category == "gen":
         resolved = None
-        
+
         # 1. Sentence Level (New)
         if sent_scores:
             specific_sent = {k: v for k, v in sent_scores.items() if k not in ("gen", "other")}
@@ -506,7 +477,6 @@ def extract_instrument_evidence(
 
     # 1. Determine Accounting Context from Evidence Tags (Primary)
     evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
-
 
     if evidence_tags.intersection(fv_tags):
         val_type = "fv"
@@ -590,6 +560,62 @@ def extract_instrument_evidence(
     return details
 
 
+fv_year = {
+    EvidenceReason.ACT_FV_YEAR.value,
+    EvidenceReason.MAT_FUT_FV.value,
+    EvidenceReason.FVY.value,  # Fair Value was $X at Year
+    EvidenceReason.FVAIY.value,  # Fair Value at inception was $X
+}
+fv_tags = fv_year | {
+    EvidenceReason.FVNY.value,  # Fair Value is $X
+    EvidenceReason.FVAINY.value,  # Fair Value at inception is $X
+}
+notional_year = {
+    EvidenceReason.NVY.value,  # Notional was $X at Year
+    EvidenceReason.ACT_NV_YEAR.value,
+    EvidenceReason.MAT_FUT_NV.value,
+}
+notional_tags = notional_year | {
+    EvidenceReason.NVNY.value,  # Notional is $X
+}
+value_year = {
+    EvidenceReason.VY.value,  # Value was $X at Year
+    EvidenceReason.ACT_V_YEAR.value,
+    EvidenceReason.MAT_FUT_V.value,
+}
+
+value_tags = value_year | {
+    EvidenceReason.VNY.value,  # Value is $X
+}
+
+flow_tags = {
+    EvidenceReason.ACT_YEAR,
+    EvidenceReason.ACT_FV_YEAR,
+    EvidenceReason.ACT_NV_YEAR,
+    EvidenceReason.ACT_V_YEAR,
+    EvidenceReason.ACT_AMB_YEAR,
+    EvidenceReason.ACT_GEN,
+}
+maturity_tags = {
+    EvidenceReason.MAT_FUT,
+    EvidenceReason.MAT_AMB_FUT,
+    EvidenceReason.MAT_FUT_NV,
+    EvidenceReason.MAT_FUT_FV,
+    EvidenceReason.MAT_FUT_V,
+}
+TAG_MAP = {
+    # --- NOISE (Identity Signals) ---
+    NoiseReason.NO_TRADING.value: "no_trading_statement",
+    NoiseReason.TRADING.value: "mentions_trading",
+    NoiseReason.DOC.value: "documents_hedge_accounting",
+    NoiseReason.AOCI.value: "has_aoci_activity",
+    NoiseReason.CREDIT.value: "manages_credit_risk",
+    NoiseReason.TERM.value: "is_terminated",
+    NoiseReason.ZERO.value: "reports_zero",
+    NoiseReason.NEG.value: "has_none",
+    NoiseReason.POT.value: "potential_limited",
+}
+year_tags = fv_year | notional_year | value_year
 def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     """
     Extract user attributes from tags using a mapped lookup.
@@ -597,51 +623,17 @@ def mine_attributes(tag_reason: Optional[str], attributes: Dict) -> Dict:
     """
     if not tag_reason:
         return attributes
-
-    # 1. Historical Special Case (Group of Noise Tags)
-    if tag_reason in {
-        NoiseReason.TIME.value,
-        NoiseReason.TERM.value,
-        NoiseReason.HIST_BLOCK.value,
-    }:
-        attributes["is_historical"] = True
-        return attributes
-
-
-    # 2. Attribute Mapping
-    # Maps Tag Reason -> Attribute Key
-    TAG_MAP = {
-        # --- NOISE (Identity Signals) ---
-        NoiseReason.NO_TRADING.value: "is_hedger",
-        NoiseReason.TRADING.value: "is_explicit_trader",
-        NoiseReason.DOC.value: "documents_hedge_accounting",
-        NoiseReason.AOCI.value: "has_aoci_activity",
-        NoiseReason.CREDIT.value: "manages_credit_risk",
-        # --- EVIDENCE (Reporting Signals) ---
-        # A. POSITIONS (The "We Have It" Merge)
-        # Merges: Active State (Anchored), Continuous Usage (General), and Location (Accounting)
-        EvidenceReason.AS_YEAR.value: "reports_positions",
-        EvidenceReason.ASAIY.value: "reports_positions",
-        EvidenceReason.CONT_USE.value: "reports_positions",
-        EvidenceReason.CONT_USE_AMB.value: "reports_positions",
-        EvidenceReason.BS_LOC.value: "reports_positions",
-        # B. TRANSACTIONS (The "Flow" Merge)
-        EvidenceReason.ACT_YEAR.value: "reports_transactions",
-        EvidenceReason.ACT_AMB_YEAR.value: "reports_transactions",
-        EvidenceReason.ACT_GEN.value: "reports_transactions",
-        # C. QUANTITATIVE (Kept distinct for granularity)
-        EvidenceReason.NVY.value: "reports_notional",
-        EvidenceReason.NVNY.value: "reports_notional",
-        EvidenceReason.FVY.value: "reports_fair_value",
-        EvidenceReason.FVNY.value: "reports_fair_value",
-        EvidenceReason.FVAIY.value: "reports_fair_value",
-        EvidenceReason.FVAINY.value: "reports_fair_value",
-        # D. DETAILS
-        EvidenceReason.MAT_FUT.value: "reports_maturity",
-        EvidenceReason.MAT_AMB_FUT.value: "reports_maturity",
-        EvidenceReason.VAL_MODEL.value: "eq_valuation_model",
-    }
-
+    tags = set({tag_reason})
+    if tags.intersection(notional_tags):
+        attributes["notional"] = True
+    if tags.intersection(fv_tags):
+        attributes["fair_value"] = True
+    if tags.intersection(value_tags):
+        attributes["value"] = True
+    if tags.intersection(flow_tags):
+        attributes["transactions"] = True
+    if tags.intersection(maturity_tags):
+        attributes["maturity"] = True
     # 3. Apply
     if target_attr := TAG_MAP.get(tag_reason):
         attributes[target_attr] = True
@@ -1067,14 +1059,14 @@ def process_row(row: Tuple) -> Tuple:
     valid_instruments = defaultdict(set)  # Track instrument keywords by category
     evidence_details: List[InstrumentDetail] = []  # Track detailed instrument evidence
     attributes: Dict[str, Any] = {
-        "is_hedger": False,
+        "no_trading_statement": False,
         "documents_hedge_accounting": False,
         "has_aoci_activity": False,
         "manages_credit_risk": False,
-        "is_historical": False,
+        "curr_termination": False,
         "is_explicit_trader": False,
     }
-    mentions_venue = False
+    
     tracker = GlobalInstrumentTracker()
     is_nst = True
     if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
@@ -1103,8 +1095,6 @@ def process_row(row: Tuple) -> Tuple:
         effective_nst = is_nst
         if convertible_ir(p):
             effective_nst = True
-        if not mentions_venue and TRADING_VENUE_REGEX.search(p):
-            mentions_venue = True
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         attributes = mine_attributes(para_tag_reason, attributes)
@@ -1293,9 +1283,6 @@ def process_row(row: Tuple) -> Tuple:
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
-
-    if mentions_venue and (not attributes["is_hedger"] or attributes["is_explicit_trader"]):
-        attributes["is_trader"] = True
 
     # Add valid instruments as category -> list mapping
     attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}
