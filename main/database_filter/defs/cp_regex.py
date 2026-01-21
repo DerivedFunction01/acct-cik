@@ -468,7 +468,7 @@ COMMODITY_MAP = {
         "(?:hardwood|softwood) lumber",
         "log",
         "lumber",
-        "plywood",
+        "(?:ply|hard|soft|sawn)wood",
         "timber",
         "wood",
         "wood (?:chips?|pellets?|fibers?|panels?|pulp)",
@@ -477,7 +477,6 @@ COMMODITY_MAP = {
         r"cartons?",
         "pulp",
         # --- Added ---
-        "sawnwood",
         "veneer",
         "kraft paper",
         "newsprint",
