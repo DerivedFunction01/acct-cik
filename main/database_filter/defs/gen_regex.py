@@ -154,8 +154,7 @@ hedging_terms = [
     r"polic(?:y|ies)",
     r"transactions?",
     r"designations?",
-    r"effectiveness",
-    r"ineffectiveness",
+    r"(?:in)?effectiveness",
     r"objectives?",
     r"instruments?",
     r"arrangements?",
@@ -163,7 +162,7 @@ hedging_terms = [
     r"derivatives?",
     r"items?",
     r"horizons?",
-    r"document(?:s|ations?)",
+    r"document(?:s|ations?)?",
     r"terms?",
     r"accounting",
 ]
@@ -174,10 +173,10 @@ SOFT_GEN_TERMS = [
     # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
     rf"(?:hedg(?:es?|ing)|derivatives?)\s+{hedge_phrases}",
     r"derivative expenses?",
-    r"designat(?:ed|tion)\s+(?:as\s+)?(?:a\s+|the\s+)?(hedg(?:es?|ing)",
+    r"designat(?:ed?|es|ion)\s+(?:as\s+)?(?:a\s+|the\s+)?(?:hedg(?:es?|ing))",
     r"(?:gain|loss) on derivatives?",
     r"value of derivatives?",
-    r"notional"
+    r"notional",
 ]
 
 
