@@ -26,9 +26,6 @@ def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
         r"\bCommodity\s+Exchange(?:,?\s+Inc\.?)?\b",
         # --- 4. Clearing Houses (Critical for "Cleared Swaps" noise) ---
         r"\bOptions\s+Clearing\s+Corporation\b",
-        r"\b[hH]edge\s+(?:[fF]unds?|[bB]anks?|[Pp]roviders?)\b",
-        r"\b[Ss]wap\s+(?:[dD]ealers?|[pP]articipants?)\b",
-        r"derivative\s+counterpart(?:y|ies)",
     ]
 
     all_patterns = entities
@@ -277,11 +274,19 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         r"holdings?",
         r"assets?",
     ]
+    other_terms = [
+        r"hedge\s+(?:funds?|banks?|providers?)",
+        r"swap\s+(?:sealers?|participants?)",
+        r"derivative\s+counterpart(?:y|ies)",
+    ]
+
     suffixes.extend(additional_suffixes)
     suffix_alternation = build_alternation(suffixes)
     placeholder_alternation = build_alternation(placeholders)
+    other_alternation = build_alternation(other_terms)
     return re.compile(
-        rf"\b{placeholder_alternation}\s+{suffix_alternation}\b", re.IGNORECASE
+        rf"\b(?:{placeholder_alternation}\s+{suffix_alternation}|{other_alternation})\b",
+        re.IGNORECASE,
     )
 
 # Use build_regex for consistency
