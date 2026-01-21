@@ -8,6 +8,7 @@ from defs.derivatives_core import (
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (
     _RISK_ALTERNATION,
+    DERIVATIVE_EXCHANGES,
     build_risk_managment_phrase,
 )
 
@@ -17,23 +18,6 @@ from defs.shared_context import (
 # =============================================================================
 # STRICT CONTEXT DEFINITIONS (Updated)
 # =============================================================================
-
-TRADING_ENTITIES = [
-    r"\bNYMEX\b",
-    r"\bNew\s+York\s+Mercantile\s+Exchange\b",
-    r"\bCOMEX\b",
-    r"\bCommodity\s+Exchange\b",
-    r"\bCBOT\b",
-    r"\bChicago\s+Board\s+of\s+Trade\b",
-    r"\bCME\b",
-    r"\bChicago\s+Mercantile\s+Exchange\b",
-    r"\bICE\b",
-    r"\bIntercontinental\s+Exchange\b",
-    r"\bLME\b",
-    r"\bLondon\s+Metal\s+Exchange\b",
-    r"\bCBOE\b",
-    r"\bChicago\s+Board\s+Options\s+Exchange\b",
-]
 
 
 def build_energy_dynamic_pattern() -> str:
@@ -661,7 +645,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
         # Financial Modifier + Specific Commodity
         # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
         rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
-    ] + TRADING_ENTITIES
+    ] + DERIVATIVE_EXCHANGES
 
     soft_terms = (
         all_context_terms +
@@ -787,7 +771,7 @@ CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS + CP_RISK_TERMS)
 CP_CONTEXT_REGEX = build_regex(CP_CONTEXT_TERMS)
 CP_RISK_REGEX = build_regex(CP_RISK_TERMS)
 CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
-TRADING_VENUE_REGEX = build_regex(TRADING_ENTITIES)
+
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
 CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES)

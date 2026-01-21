@@ -44,7 +44,7 @@ from defs.regul import is_regulatory_noise
 from defs.derivative_lib import SOFT_CATEGORY_REGEX, SOFT_REGEX
 from defs.gen_regex import RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
-from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX, IR_DO_NOT_MITIGATE_REGEX
+from defs.ir_regex import IR_DO_NOT_MITIGATE_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, CP_DO_NOT_MITIGATE_REGEX, NPNS_REGEX
 from defs.fx_regex import FX_DO_NOT_MITIGATE_REGEX
 from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
@@ -537,8 +537,6 @@ def tag_paragraph(text: str, reporting_year: int, is_nst: bool = False) -> str:
                 reason = NoiseReason.DEF
             elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
                 reason = NoiseReason.CTX
-            elif NON_DER_CAP_FLOOR_REGEX.search(masked):
-                reason = NoiseReason.FLR_CAP
 
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
         if not reason:

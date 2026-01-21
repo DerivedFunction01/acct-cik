@@ -12,7 +12,8 @@ from defs.prefiltered_lib import (
     DEADWEIGHT_TOKEN,
     SKIP_TOKEN, 
     SOPHISTICATED_CONTEXT_REGEX, 
-    SOPHISTICATED_TARGETS, 
+    SOPHISTICATED_TARGETS,
+    MinimalTextCleaner, 
     Stage, 
     is_sophisticated_content, 
     is_sophisticated_target
@@ -501,7 +502,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
             else:
                 output.append(part)
     return output
-
+_cleaner = MinimalTextCleaner()
 def process_item(item: Tuple) -> Optional[Tuple]:
     """
     Process a single document item through the filtering pipeline.
@@ -546,7 +547,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if not p.startswith('{"type": "metadata"'):
                 all_text_parts.append(p)
 
-            p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
+            p_masked = _cleaner.clean(p, is_nst=False)
 
             # === TABLE HANDLING ===
             if "<TABLE>" in p.upper():

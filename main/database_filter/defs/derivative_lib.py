@@ -6,7 +6,7 @@ from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_C
 from defs.fx_regex import FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
-from defs.derivatives_core import LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
+from defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
 
 STRICT_REGEX = re.compile(
@@ -83,6 +83,8 @@ def find_hedging_context(paragraph: str) -> bool:
         return True
     else:  # perform hard sentence by sentence verification
         for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
+            if DOUBLE_BASE_REGEX.search(sent): # "swaps, locks", "cap and floor"
+                return True
             if PRECISE_LOOSE_GEN_REGEX.search(sent):
                 if HEDGING_CONTEXT_REGEX.search(sent):
                     return True

@@ -260,54 +260,6 @@ def is_bank_list_noise(text: str, threshold: int = 3) -> bool:
     return len(hits) >= threshold
 
 
-def build_embedded_cap_floor_regex() -> re.Pattern:
-    # 1. Connectors (The "Filler")
-    connectors = [
-        r"subject(?:ed|s)?\s+to",
-        r"contain(?:s|ed|ing)?",
-        r"includ(?:es?|ed|ing)",
-        r"have",
-        r"has",
-        r"had",
-        r"with",
-        r"bears?\s+interest",
-        r"features?",
-        r"sets?",
-        r"provisions?",
-        r"terms?",
-    ]
-    conn_pat = build_alternation(connectors)
-
-    # 2. Build Suffix Logic
-    full_suffix_alt = build_alternation(UNAMBIGUOUS_SUFFIXES + ["options?"])
-    # B. Safe Suffix List (For Short-Form Instruments)
-    # Remove "agreement" so "Cap Agreement" is caught and checked for debt context.
-    # We explicitly keep strong terms like "Contract" and "Option".
-    safe_list = set(UNAMBIGUOUS_SUFFIXES) # Arrangements also vague
-    safe_suffix_alt = build_alternation(list(safe_list))
-
-    # 3. Targets (Caps/Floors only)
-    targets = [
-        rf"rate\s+(?:caps?|floors?)(?!\s+{full_suffix_alt})" # Skips interest rate cap contract, rate floor option
-        # "Cap Agreement" or "rate Arrangement" will MATCH here (and risk discard)
-        rf"(?:caps?|floors?|rates?)(?!\s+{safe_suffix_alt})",
-    ]
-    target_pat = build_alternation(targets)
-
-    # 4. Pattern A: Debt... [gap] ... Cap/Floor
-    pat_a = rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat}\b"
-
-    # 5. Pattern B: Cap/Floor... [gap] ... Percentage
-    percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
-    pat_b = rf"\b{target_pat}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
-
-    # 6. Pattern C: Explicit "Feature" Nouns
-    noun_indicators = r"(?:features?|provisions?|terms?)"
-    pat_c = rf"\b{target_pat}\s+{noun_indicators}\b"
-
-    return re.compile(rf"(?:{pat_a}|{pat_b}|{pat_c})", re.IGNORECASE)
-
-
 def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
     context_adjectives = RATE_ADJECTIVES
 
@@ -395,6 +347,40 @@ def debt_feature_regex() -> re.Pattern:
         rf"{VERB}\s+{GAP}{IR}\s+{GAP}{TARGET}"
         rf"(?:\s+(?:and|or)\s+{GAP}(?:{IR}\s+)?{TARGET})?"
     )
+
+    # --- Embedded Cap/Floor Logic ---
+    connectors = [
+        r"subject(?:ed|s)?\s+to",
+        r"contain(?:s|ed|ing)?",
+        r"includ(?:es?|ed|ing)",
+        r"have",
+        r"has",
+        r"had",
+        r"with",
+        r"bears?\s+interest",
+        r"features?",
+        r"sets?",
+        r"provisions?",
+        r"terms?",
+    ]
+    conn_pat = build_alternation(connectors)
+
+    full_suffix_alt = build_alternation(UNAMBIGUOUS_SUFFIXES + ["options?"])
+    safe_list = set(UNAMBIGUOUS_SUFFIXES)
+    safe_suffix_alt = build_alternation(list(safe_list))
+
+    targets_embedded = [
+        rf"rate\s+(?:caps?|floors?)(?!\s+{full_suffix_alt})",
+        rf"(?:caps?|floors?|rates?)(?!\s+{safe_suffix_alt})",
+    ]
+    target_pat_embedded = build_alternation(targets_embedded)
+
+    pat_a = rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat_embedded}\b"
+    percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
+    pat_b = rf"\b{target_pat_embedded}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
+    noun_indicators = r"(?:features?|provisions?|terms?)"
+    pat_c = rf"\b{target_pat_embedded}\s+{noun_indicators}\b"
+
     # 3. Pattern Construction
     # Matches: "fair value of debt", "change in the fair value of our facility"
     # Also matches: secured debt/facility (no gap)
@@ -402,6 +388,9 @@ def debt_feature_regex() -> re.Pattern:
         rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
         rf"secured\s+(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
         cap_floor_pattern,
+        pat_a,
+        pat_b,
+        pat_c,
     ]
     pattern = build_alternation(patterns)
     return re.compile(pattern, re.IGNORECASE)
@@ -429,7 +418,6 @@ IR_CONTEXT_REGEX = build_regex(IR_CONTEXT_TERMS)
 IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS + IR_RISK_TERMS)
 IR_RISK_REGEX = build_regex(IR_RISK_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
-NON_DER_CAP_FLOOR_REGEX = build_embedded_cap_floor_regex()
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
 IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
