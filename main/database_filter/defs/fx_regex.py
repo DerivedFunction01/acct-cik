@@ -140,14 +140,14 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         strict_instrument_fragment,  # Safe bases only
         strict_specific_phrases,  # Final list of specific phrases
     )
-    
+
     strict_fx_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
 
     # 3. Final pattern build
     soft_instrument_fragment = expand_instruments(
-        unsafe=True
+        unsafe=True, 
     )
-    
+
     soft_pattern = build_smart_regex(
         [fx_dynamic_pattern],  # Broad prefixes
         soft_instrument_fragment,  # Unsafe bases included
@@ -170,10 +170,10 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
 
     loose_instrument_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=False
+        unsafe=True, exclude_standalone_suffixes=False, full_alternation=True
     )
     loose_pattern = build_smart_regex(
-        [fx_dynamic_pattern],
+        [fx_dynamic_pattern, r"(?<!single[- ])currency"],
         loose_instrument_fragment,
         loose_specific_phrases,
     )
@@ -336,7 +336,7 @@ def run_tests():
         ("forward foreign exchange contract", MatchLevel.STRICT),
         ("currency agreement", MatchLevel.LOOSE),
         ("foreign currency contract", MatchLevel.STRICT),
-        ("foreign currency hedges", MatchLevel.STRICT),
+        ("foreign currency hedges", MatchLevel.SOFT),
         ("currency hedging", MatchLevel.LOOSE),
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
@@ -346,17 +346,18 @@ def run_tests():
         ("exchange rate contract", MatchLevel.STRICT),
         ("Japanese Yen option", MatchLevel.STRICT),
         ("exchange rate agreement", MatchLevel.STRICT),
-        ("currency agreement", MatchLevel.SOFT),
-        ("exchange rate hedge", MatchLevel.LOOSE),
+        ("exchange rate hedge", MatchLevel.SOFT),
         ("foreign currency commitment", MatchLevel.LOOSE),
+        ("currency transaction", MatchLevel.LOOSE),
+        ("Japanese Yen contract", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
     counter_cases = [
         ("foreign currency commitments", MatchLevel.SOFT),
         ("currency rate", MatchLevel.STRICT),
-        ("exchange rate", MatchLevel.STRICT),
+        ("exchange rate", MatchLevel.LOOSE),
+        
         ("foreign currency transaction", MatchLevel.STRICT), # Transaction is not a derivative suffix
-        ("currency transaction", MatchLevel.LOOSE),
     ]
     run_category_tests_counter(counter_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)

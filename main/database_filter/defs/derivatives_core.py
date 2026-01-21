@@ -56,13 +56,13 @@ AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
     "options?",
-    "hedges?",
     "instruments?",
 ]
 OTHER_SUFFIXES = [
     "commitments?",
     "transactions?",
     "positions?",
+    "hedges?",
 ]
 
 SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
@@ -166,7 +166,7 @@ BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
 unsafe_standalone_alternation = build_alternation(SUFFIXES + ALL_BASE_TYPES, True)
-
+full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
 def expand_instruments(
@@ -174,6 +174,7 @@ def expand_instruments(
     exclude_standalone_suffixes: Optional[bool] = None,
     additional_standalone_suffixes: Optional[List[str]] = None,
     additional_bases: Optional[List[str]] = None,
+    full_alternation: bool = False,
 ) -> str:
     """
     Creates an optimized alternation pattern.
@@ -221,9 +222,11 @@ def expand_instruments(
         final_standalone = rf"{base_standalone}|{extras_pattern}"
     else:
         final_standalone = base_standalone
-
-    # 5. Final Assembly (Max Munch: Combined first)
-    return rf"{combined_pattern}|{final_standalone}"
+    if full_alternation:
+        return rf"{combined_pattern}|{final_standalone}|{full_suffix_alternation}"
+    else:
+        # 5. Final Assembly (Max Munch: Combined first)
+        return rf"{combined_pattern}|{final_standalone}"
 
 
 def build_loose_gen_regex() -> re.Pattern:
