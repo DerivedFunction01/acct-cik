@@ -360,7 +360,7 @@ def debt_feature_regex() -> re.Pattern:
 
     # 2. Mid Gap: "fair value of [the/our] debt"
     mid_gap = r"(?:\s+(?:the|our|total|aggregate))?\s*"
-    
+
     # setting the rates (reduces false IR caps as instruments)
     verbs = [
         r"set(?:s?|ting)?",
@@ -377,7 +377,7 @@ def debt_feature_regex() -> re.Pattern:
         r"provid(?:e|es|ed|ing)",
         r"contain(?:s|ed|ing)?"
     ]
-    
+
     VERB = build_alternation(verbs)
     targets = [r"caps?", r"floors?", r"locks?", r"limits?", r"collars?"]
     TARGET = build_alternation(targets)
@@ -392,8 +392,8 @@ def debt_feature_regex() -> re.Pattern:
     # Matches: "fair value of debt", "change in the fair value of our facility"
     # Also matches: secured debt/facility (no gap)
     patterns = [
-        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facility)\b",
-        rf"secured\s+(?:{_DEBT_TERMS}|facility)\b",
+        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
+        rf"secured\s+(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
         cap_floor_pattern,
     ]
     pattern = build_alternation(patterns)
