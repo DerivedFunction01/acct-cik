@@ -36,7 +36,7 @@ STANDALONE_BASES = [
     r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
-OPTION = r"(?<!an\s)(?<!the\s)(?<!equity[- ])(?<!stock[- ])options?"
+OPTION = r"(?<!an\s)(?<!the\s)(?<!equity[- ])(?<!stock[- ])(?<!share[- ])(?<!treasury[- ])(?<!restricted[- ])options?"
 AMBIGUOUS_BASE_TYPES = [
     OPTION,
     r"(?<!to\s)locks?",
@@ -63,9 +63,7 @@ UNAMBIGUOUS_SUFFIXES = [
     r"(?<!to\s)contracts?",
     "instruments?",
 ]
-WARRANT = (
-    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))"
-)
+WARRANT = r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!share[- ])(?<!treasury[- ])(?<!restricted[- ])warrants?(?! (?:the|a|an))"
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
