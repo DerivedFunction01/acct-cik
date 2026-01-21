@@ -710,10 +710,18 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"weather derivatives?",  # raw string for regex
         r"power purchase agreements?",  # raw string for regex
     ]
+    soft_specific_phrases = [
+        r"fixed[- ]price(?: purchase)\s+commitments?",
+    ] + specific_phrases
 
     # Pre-sort longest-first for Max Munch precedence
     sorted_specific_phrases = sorted(
         specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    )
+
+    sorted_soft_specific_phrases = sorted(
+        soft_specific_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
 
     # -------------------------------------------------------------------------
@@ -723,7 +731,9 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Fragment used for attachment to core terms: Requires an instrument base, excludes standalones.
     # This maintains the high precision of the original function's core logic.
     strict_attachment_fragment = expand_instruments(
-        unsafe=False, exclude_standalone_suffixes=True
+        unsafe=False,
+        exclude_standalone_suffixes=True,
+        additional_bases=[r"forward\s+purchase"],
     )
 
     strict_pattern = build_smart_regex(
@@ -742,22 +752,23 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         unsafe=True,
         exclude_standalone_suffixes=True,
         additional_standalone_suffixes=["contracts?", "options?"],
+        additional_bases=[r"forward\s+purchase"]
     )
 
     # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
     soft_pattern = build_smart_regex(
         [strict_core_alternation],  # Simple prefixes
         soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'futures')
-        sorted_specific_phrases,  # All high-priority explicit phrases
+        sorted_soft_specific_phrases,  # All high-priority explicit phrases
     )
     soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    
+
     loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False, full_alternation=True)
-    
+
     loose_pattern = build_smart_regex(
         [strict_core_alternation],
         loose_instrument_fragment,
-        sorted_specific_phrases,
+        sorted_soft_specific_phrases,
     )
     loose_cp_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
 
