@@ -437,7 +437,7 @@ def run_tests():
         ("interest rate swap agreement", MatchLevel.STRICT),
         ("interest rate agreement", MatchLevel.LOOSE),
         ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
-        ("floating rate cap", MatchLevel.LOOSE),
+        ("floating rate cap", MatchLevel.SOFT),
         ("treasury rate locks", MatchLevel.SOFT),
         ("fixed rate swap", MatchLevel.STRICT),
         ("pay fixed receive floating swap", MatchLevel.STRICT),
@@ -454,7 +454,7 @@ def run_tests():
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 
     counter_cases = [
-        ("interest rate cap", MatchLevel.SOFT),  # Should NOT be strict
+        ("interest rate cap", MatchLevel.STRICT),  # Should NOT be strict
         ("treasury rate floor", MatchLevel.SOFT),
         ("interest rate protection", MatchLevel.LOOSE),
         ("fixed rate agreement", MatchLevel.SOFT),
