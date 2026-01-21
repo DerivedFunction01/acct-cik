@@ -383,10 +383,10 @@ def debt_feature_regex() -> re.Pattern:
     TARGET = build_alternation(targets)
     rates = build_alternation(RATE_TYPES + ["interest"])
     IR = rf"{rates}(?:[- ]rates?)?"
-    ART = r"(?:the|a|an)\s+"
+    GAP = r"(?:\S+\s+){0,2}"
     cap_floor_pattern = (
-        rf"{VERB}\s+(?:{ART})?{IR}\s+{TARGET}"
-        rf"(?:\s+and\s+(?:{ART})?(?:{IR}\s+)?{TARGET})?"
+        rf"{VERB}\s+{GAP}{IR}\s+{GAP}{TARGET}"
+        rf"(?:\s+(?:and|or)\s+{GAP}(?:{IR}\s+)?{TARGET})?"
     )
     # 3. Pattern Construction
     # Matches: "fair value of debt", "change in the fair value of our facility"
