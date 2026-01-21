@@ -283,7 +283,7 @@ GENERIC_RISK_GLUE = [
     # --- Adjectival risk qualifiers ---
     r"adverse",
     r"(?:negative|detrimental)",
-    r"(?:un(?:favorable|anticipated|expected|foreseen))",
+    r"(?:un)?(?:favorable|anticipated|expected|foreseen)",
     r"(?:significant|substantial|severe|considerable)",
     r"(?:elevated|heightened)",
     r"(?:in|un)stab(?:ilit(?:y|ies)|le)",
