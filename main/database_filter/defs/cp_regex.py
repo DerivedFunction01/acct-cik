@@ -677,7 +677,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
     # Optimized modifiers (Max Munch applied internally)
     modifier_terms = [
-        "prices?",
+        "(?:fixed[- ])?prices?",
         "costs?",
         "related",
         "based",
