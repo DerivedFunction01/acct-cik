@@ -721,8 +721,12 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         is_valid = validate_sophisticated_buffer(soph_masked_texts, std_masked_texts)
 
         # Determine NST status per category
-        is_nst_warr = has_warr and (explicit_non_derivative_warr or not is_valid)
-        is_nst_conv = has_conv and (explicit_non_derivative_conv or not is_valid)
+        is_nst_warr = has_warr and (explicit_non_derivative_warr or not is_valid) if has_warr else True # default true to avoid future matches
+        is_nst_conv = (
+            has_conv and (explicit_non_derivative_conv or not is_valid)
+            if has_conv
+            else True
+        )  # default true to avoid future matches
 
         # Keep buffer if at least one category is valid (i.e., present and NOT nst)
         if (has_warr and not is_nst_warr) or (has_conv and not is_nst_conv):
