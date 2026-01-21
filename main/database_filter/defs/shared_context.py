@@ -216,12 +216,12 @@ VALUATION_MODELS = [
     # Used for path-dependent equity features (e.g., Market conditions, TSR awards)
     r"Monte[- ]Carlo(?:[- ]simulations?)?",
     # Used for American options (exercisable early) and Convertibles
-    r"Binomial(?:[- ]Lattice)?\s+models?",
-    r"Lattice\s+models?",
+    r"[Bb]inomial(?:[- ][Ll]attice)?\s+[mM]odels?",
+    r"[Ll]attice\s+models?",
     # General descriptive
-    r"option[- ]pricing\s+models?",
+    r"[Oo]ption[- ][Pp]ricing\s+[Mm]odels?",
 ]
-VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS)
+VALUATION_MODELS_REGEX = build_regex(VALUATION_MODELS, ignore_case=False)
 
 MITIGATION_STRICT_VERBS = [
     r"mitigat(?:e|es|ed|ing)",
