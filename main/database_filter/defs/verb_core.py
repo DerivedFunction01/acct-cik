@@ -94,6 +94,7 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
     glue = build_alternation(GENERIC_RISK_GLUE)
     filler = r"(?:\S+\s+){0,3}"
 
+    tiny_gap = r"(?:\S+\s+){0,3}"
     if required_glue:
         req_alt = build_alternation(required_glue)
         glue_unit = rf"(?:{filler}{glue})"
@@ -101,9 +102,13 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
         pre_chain = rf"(?:{glue_unit}\s+){{0,3}}"
         post_chain = rf"(?:{glue_unit}\s+){{0,3}}"
         gap = rf"{pre_chain}{req_unit}\s+{post_chain}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})?"
     else:
         glue_unit = rf"(?:{filler}{glue})"
         gap = rf"(?:{glue_unit}\s+){{0,6}}"
+        # Pattern B: Verb ... Risk ... [Required Glue]? (New)
+        pattern_b = rf"{tiny_gap}{_RISK_ALTERNATION}"
 
     final_filler = r"(?:\S+\s+){0,3}"
 
@@ -116,12 +121,15 @@ def build_strict_do_not_mitigate_regex(required_glue: Optional[List[str]] = None
         r")?"
     )
 
+    # Pattern A: Verb ... Gap ... Risk (Existing)
+    pattern_a = rf"{gap}{final_filler}{_RISK_ALTERNATION}"
+
+    combined_suffix = build_alternation([pattern_a, pattern_b], sort_longest_first=True)
+
     return re.compile(
         rf"{neg_prefix}"
         rf"{_pre_verb_gap}"
         rf"{mitigation_verbs}\s+"
-        rf"{gap}"
-        rf"{final_filler}"
-        rf"{_RISK_ALTERNATION}\b",
+        rf"{combined_suffix}\b",
         re.IGNORECASE
     )
