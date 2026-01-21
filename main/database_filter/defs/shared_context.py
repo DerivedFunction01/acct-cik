@@ -550,7 +550,7 @@ DERIVATIVE_EXCHANGES = [
     r"\bNYMEX\b",
     r"\bNew\s+York\s+Mercantile\s+Exchange\b",
     r"\bCOMEX\b",
-    r"\bCommodity\s+Exchange\b",
+    r"\bCommodity\s+Exchange(?!\s+Act)\b",
     r"\bCBOT\b",
     r"\bChicago\s+Board\s+of\s+Trade\b",
     r"\bCME\b",
