@@ -22,7 +22,7 @@ from defs.derivatives_core import (
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
 from table_processor import TABLE_ANCHOR
-from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target
+from defs.prefiltered_lib import DEADWEIGHT_TOKEN, SKIP_TOKEN, MinimalTextCleaner, NoiseReason, EvidenceReason, convertible_ir, is_sophisticated_content, is_sophisticated_target, is_warrant_target, is_convertible_target
 from defs.ir_regex import IR_DO_NOT_MITIGATE_REGEX
 from defs.fx_regex import FX_DO_NOT_MITIGATE_REGEX
 from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
@@ -805,15 +805,18 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     scores = defaultdict(int)
     notional_multiplier = NOTIONAL_REGEX.search(text)
     sent_count = len(SENTENCE_SPLIT_PATTERN.split(text))
-    
+
     # Check for conjunctions for chained instrument logic
     has_conjunction = bool(CONJ.search(text))
 
     # Special Handling for Equity -> Warrants (Moved to top)
     if is_sophisticated_content(text) and not is_nst:
-        scores["warr"] += 6000
+        if is_warrant_target(text):
+            scores["warr"] += 6000
+        if is_convertible_target(text):
+            scores["conv"] += 6000
         text = _cleaner.clean_soph_targets(text)
-    
+
     def check_exclusion(cat, text_match, match_type):
         if exclusion_tracker:
             return exclusion_tracker.is_excluded(cat, text_match, match_type)
@@ -831,33 +834,33 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
         # A. Strict Instrument ("Interest Rate Swap")
         if strict_inst:
             matches = list(strict_inst.finditer(text))
-            
+
             # --- Chained Instrument Logic ---
             if not matches and has_conjunction:
                 # Attempt to reconstruct chained instruments
                 # 1. Remove conjunctions and commas
                 temp_text = FULL_CONJ.sub(" ", text)
-                
+
                 # 2. Remove glue from other categories
                 for other_cat, glue_regex in GLUE_MAP.items():
                     if other_cat == cat:
                         continue
                     temp_text = glue_regex.sub(" ", temp_text)
-                
+
                 # 3. Normalize spaces and check strict_inst
                 temp_text = WHITESPACE.sub(" ", temp_text).strip()
                 matches = list(strict_inst.finditer(temp_text))
-            
+
             if matches:
                 # Check exclusions for each match
                 for m in matches:
                     is_excl, is_block = check_exclusion(cat, m.group(0), "strict")
-                    
+
                     if is_block:
                         scores['gen'] = -1
                         cat_blocked = True
                         continue # Blocked completely (Score 0 contribution)
-                    
+
                     score = 60 if is_excl else 2000
                     inst_score = max(inst_score, score)
 
@@ -867,7 +870,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
             if match:
                 match_text = match.group(0)
                 is_excl, is_block = check_exclusion(cat, match_text, "soft")
-                
+
                 if is_block:
                     scores['gen'] = -1
                     cat_blocked = True
@@ -883,7 +886,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
             if match:
                 match_text = match.group(0)
                 is_excl, is_block = check_exclusion(cat, match_text, "weak")
-            
+
                 if is_block:
                     scores['gen'] = -1
                     cat_blocked = True
@@ -894,7 +897,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
                     if is_excl:
                         base = 15
                     inst_score = max(inst_score, base)
-        
+
         scores[cat] += inst_score
 
         if cat_blocked:
@@ -910,7 +913,7 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
         elif strict_ctx and strict_ctx.search(text):
             is_excl, _ = check_exclusion(cat, "", "strict")
             ctx_score = max(ctx_score, 60 if is_excl else 800)
-        
+
         scores[cat] += ctx_score
 
     # ═══════════════════════════════════════════════════════════
@@ -954,9 +957,12 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
 def derive_strict_categories(scores: Dict[str, int], text: str) -> Set[str]:
     """Derive strict categories from scores and text checks, updating scores for 'warr'."""
     strict_cats = {c for c, s in scores.items() if s >= 2000}
-    if is_sophisticated_target(text):
+    if is_warrant_target(text):
         strict_cats.add("warr")
         scores["warr"] = max(scores.get("warr", 0), 2000)
+    if is_convertible_target(text):
+        strict_cats.add("conv")
+        scores["conv"] = max(scores.get("conv", 0), 2000)
     return strict_cats
 
 

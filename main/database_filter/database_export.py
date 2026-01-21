@@ -61,6 +61,7 @@ def process_batch(batch):
                 1 if "eq" in doc_cat_set else 0,
                 1 if "cr" in doc_cat_set else 0,
                 1 if "warr" in doc_cat_set else 0,
+                1 if "conv" in doc_cat_set else 0,
                 1 if "gen" in doc_cat_set else 0,
             )
         )
@@ -181,6 +182,7 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
             "eq_user",
             "cr_user",
             "warr_user",
+            "conv_user",
             "gen_user",
         ]
         outfile.write(",".join(headers) + "\n")

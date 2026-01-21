@@ -1196,10 +1196,15 @@ CONVERSION = (
     r"conversion"
 )
 
+WARRANT_TERMS = r"warrants?"
+CONVERTIBLE_TERMS = rf"(?:convertibles?|{CONVERSION})"
+
 SOPHISTICATED_TARGETS = re.compile(
-    rf"\b(?:convertibles?|warrants?|{CONVERSION})\b",
+    rf"\b(?:{WARRANT_TERMS}|{CONVERTIBLE_TERMS})\b",
     re.IGNORECASE,
 )
+WARRANT_TARGETS = re.compile(rf"\b{WARRANT_TERMS}\b", re.IGNORECASE)
+CONVERTIBLE_TARGETS = re.compile(rf"\b{CONVERTIBLE_TERMS}\b", re.IGNORECASE)
 
 # 2. Sophisticated Context (The "Why/How")
 # Used to validate the sophisticated buffer.
@@ -1237,6 +1242,24 @@ def is_sophisticated_target(text: str) -> bool:
     if EQ_SOFT_REGEX.search(text):
         return True
 
+    return False
+
+def is_warrant_target(text: str) -> bool:
+    if not WARRANT_TARGETS.search(text):
+        return False
+    if IR_SOFT_REGEX.search(text):
+        return False
+    if EQ_SOFT_REGEX.search(text):
+        return True
+    return False
+
+def is_convertible_target(text: str) -> bool:
+    if not CONVERTIBLE_TARGETS.search(text):
+        return False
+    if IR_SOFT_REGEX.search(text):
+        return False
+    if EQ_SOFT_REGEX.search(text):
+        return True
     return False
 
 def convertible_ir(p):
