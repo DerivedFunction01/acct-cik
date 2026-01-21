@@ -578,6 +578,7 @@ DERIVATIVE_EXCHANGES = [
     r"\bBM&F\b",
     r"\bDME\b",
     r"\bDubai\s+Mercantile\s+Exchange\b",
+    r"[Dd]erivative\s+[Mm]arkets?"
 ]
 
 DERIVATIVE_ENTITIES = [
