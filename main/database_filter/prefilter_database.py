@@ -549,6 +549,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     explicit_non_derivative_warr = False
     explicit_non_derivative_conv = False
     paragraphs = split_mega_paragraph(paragraphs)
+    has_warr = False
+    has_conv = False
     for idx, p in enumerate(paragraphs):
         try:
             # Track all text for metadata (before any filtering)
@@ -680,6 +682,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             is_soph_target = is_sophisticated_target(p_masked)
             is_soph_context = SOPHISTICATED_CONTEXT_REGEX.search(p_masked)
             if is_soph_target:
+                if is_convertible_target(p_masked):
+                    has_conv = True
+                elif is_warrant_target(p_masked):
+                    has_warr = True
                 append_to_buffer("sophisticated", idx, p, p_masked)
             elif is_soph_context:
                 append_to_buffer("sophisticated", idx, p, p_masked)
@@ -722,11 +728,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
         # Determine NST status per category
         is_nst_warr = has_warr and (explicit_non_derivative_warr or not is_valid) if has_warr else True # default true to avoid future matches
-        is_nst_conv = (
-            has_conv and (explicit_non_derivative_conv or not is_valid)
-            if has_conv
-            else True
-        )  # default true to avoid future matches
+        is_nst_conv = has_conv and (explicit_non_derivative_conv or not is_valid) if has_conv else True # default true to avoid future matches
 
         # Keep buffer if at least one category is valid (i.e., present and NOT nst)
         if (has_warr and not is_nst_warr) or (has_conv and not is_nst_conv):

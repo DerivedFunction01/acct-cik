@@ -1224,7 +1224,7 @@ CONVERTIBLE_TARGETS = re.compile(rf"\b{CONVERTIBLE_TERMS}\b", re.IGNORECASE)
 SOPHISTICATED_CONTEXT_TERMS = [
     # REFINED: "embedded" must be followed by a relevant noun to be a self-validating signal
     r"embedded\s+derivatives?",
-    r"bifurcat(?:e|ion|ed)",
+    r"bifurcat(?:e|ion|ed|ing)",
     r"derivative\s+(?:liabilit(?:y|ies)|assets?)",
     r"host\s+contracts?",
     r"conversion\s+(?:options?|features?)",
