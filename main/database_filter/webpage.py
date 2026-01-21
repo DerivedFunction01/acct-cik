@@ -1156,7 +1156,70 @@ def adjust_rate_in_background(
 #             mode=mode,
 #             target=f"{target_rate_adjusted:.1f} req/s",
 #         )
+def should_retry_with_plaintext(url: str, raw_text: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None) -> Optional[tuple]:
+    """
+    Checks if a pre-2011 filing should be retried with plain text URL.
+    Returns:
+      - ("RETRY", new_txt_url) if retry needed
+      - None if no retry needed
+      - (url, new_content) if retry succeeded
+    """
+    try:
+        # Check if URL looks like an EDGAR filing
+        if "Archives/edgar/data" not in url:
+            return None
+        
+        parts = url.split('/')
+        accession = None
+        cik_part = None
+        
+        # Find the part that looks like an accession (18 digits)
+        for i, part in enumerate(parts):
+            if len(part) == 18 and part.isdigit():
+                accession = part
+                if i > 0:
+                    cik_part = parts[i-1]
+                break
+        
+        if not accession or not cik_part:
+            return None
+        
+        # Extract year from accession (digits 10-12)
+        year_str = accession[10:12]
+        year = int(year_str)
+        is_pre_2011 = (0 <= year <= 10) or (90 <= year <= 99)
+        
+        if not is_pre_2011:
+            return None
+        
+        # Check length (alphanumeric only)
+        if len(raw_text) < 2000000:  # 2MB limit for check
+            clean_len = len(re.sub(r'[^a-zA-Z0-9]', '', raw_text))
+            
+            if clean_len < 100000:
+                # Check for XBRL
+                is_xbrl = 'xbrl' in raw_text.lower() or 'xml' in raw_text.lower()[:1000]
+                
+                if not is_xbrl:
+                    # Check for derivative mentions
+                    if not ALL_REGEX.search(raw_text):
+                        # Construct plain text URL
+                        accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
+                        txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_part}/{accession}/{accession_dashed}.txt"
+                        
+                        if txt_url != url:
+                            debug_print(f"  🔄 Retry with plain text for {url} (Len: {clean_len})")
+                            # Return signal to re-queue the new URL
+                            return "RETRY", txt_url
+    except Exception as e:
+        print(f"Error in retry logic for {url}: {e}")
+    
+    return None
 
+
+# ============================================================================
+# UPDATE fetch_raw_content() - Replace the retry block with this:
+# ============================================================================
 
 def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
@@ -1174,7 +1237,14 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
     raw_text = fetch_url(url, rate_limiter=rate_limiter)
 
     if raw_text:
-        # Successfully fetched
+        # Try retry logic for short pre-2011 reports
+        retry_result = should_retry_with_plaintext(url, raw_text, rate_limiter)
+        if retry_result:
+            if retry_result[0] == "RETRY":
+                # Return signal to re-queue the new .txt URL
+                return "RETRY", retry_result[1]
+        
+        # Successfully fetched (no retry needed)
         return url, raw_text
     elif raw_text is None and url:
         # fetch_url returned None - could be 429, timeout, or other error
@@ -1730,6 +1800,9 @@ def fetch_worker_adaptive(
 
             # 4. Put into Queue
             if result:
+                if result[0] == "RETRY":
+                    # Re-queue the new .txt URL
+                    url_queue.put(result[1])
                 if result[0] == "RATE_LIMITED":
                     # Explicit rate limit - signal the rate limiter
                     rate_limiter.signal_429()
