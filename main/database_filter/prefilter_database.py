@@ -114,6 +114,11 @@ def count_information(text: str) -> dict:
             venue = match.group().lower()
             result["clearing"][venue] = result["clearing"].get(venue, 0) + 1
             result["clearing_total"] += 1
+    if VALUATION_MODELS_REGEX:
+        for match in VALUATION_MODELS_REGEX.finditer(text):
+            model = match.group().lower()
+            result["valuation_models"][model] = result["valuation_models"].get(model, 0) + 1
+            result["valuation_models_total"] += 1
 
     return result
 
