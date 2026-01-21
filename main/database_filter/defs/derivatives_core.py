@@ -100,7 +100,7 @@ def build_double_base_alternation() -> str:
     prefix_terms = STANDALONE_BASES + SUFFIXES + ["hedges?"]
     prefix_alt = build_alternation(prefix_terms, sort_longest_first=True)
 
-    connectors = [r"such\s+as", r"includ(?:e|es|ed|ing)", r"compris(?:e|es|ed|ing)(?:of\s+|in\s+)"]
+    connectors = [r"such\s+as", r"includ(?:e|es|ed|ing)", r"compris(?:e|es|ed|ing)(?:\s+(?:of|in))?"]
     connector_alt = build_alternation(connectors, sort_longest_first=True)
 
     prefixed_base = rf"(?:{prefix_alt})\s+(?:{connector_alt})\s+(?:{bases})(?:{sep}(?:{bases}))*"
