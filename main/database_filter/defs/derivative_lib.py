@@ -62,7 +62,6 @@ ALL_REGEX = re.compile(
             CR_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
             GEN_STRICT_CONTEXT_REGEX.pattern,
-            NOTIONAL_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,

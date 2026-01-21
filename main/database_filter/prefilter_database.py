@@ -88,7 +88,6 @@ def count_information(text: str) -> dict:
         (DERIVATIVE_CLEARING_REGEX, "clearing", "clearing_total", str.lower),
         (VALUATION_MODELS_REGEX, "valuation_models", "valuation_models_total", str.lower),
         (ALL_REGEX, "keyword_hits", "keyword_hits_total", str.lower),
-        (GEN_STRICT_CONTEXT_REGEX, "context_hits", "context_hits_total", str.lower),
         (DER_STD_REGEX, "der_std_hits", "der_std_hits_total", str.lower),
     ]
 
