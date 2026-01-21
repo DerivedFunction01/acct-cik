@@ -370,8 +370,8 @@ def debt_feature_regex() -> re.Pattern:
     safe_suffix_alt = build_alternation(list(safe_list))
 
     targets_embedded = [
-        rf"rate\s+(?:caps?|floors?)(?!\s+{full_suffix_alt})",
-        rf"(?:caps?|floors?|rates?)(?!\s+{safe_suffix_alt})",
+        rf"rate\s+(?:caps?|floors?|locks?|options?)(?!\s+{full_suffix_alt})",
+        rf"(?:caps?|floors?|locks?|options?|rates?)(?!\s+{safe_suffix_alt})",
     ]
     target_pat_embedded = build_alternation(targets_embedded)
 

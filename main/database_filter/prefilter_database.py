@@ -22,7 +22,12 @@ from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
-from defs.shared_context import CURRENCY_NAMES_REGEX, VALUATION_MODELS_REGEX
+from defs.shared_context import (
+    CURRENCY_NAMES_REGEX,
+    VALUATION_MODELS_REGEX,
+    TRADING_VENUE_REGEX,
+    DERIVATIVE_CLEARING_REGEX,
+)
 from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise
 from defs.exclusion_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
@@ -57,7 +62,7 @@ from defs.prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
 # =============================================================================
 # CURRENCY & COMMODITY COUNTING
 # =============================================================================
-def count_currencies_and_commodities(text: str) -> dict:
+def count_information(text: str) -> dict:
     """
     Count occurrences of currencies and commodities in text.
     
@@ -76,24 +81,40 @@ def count_currencies_and_commodities(text: str) -> dict:
     result = {
         "currencies": {},
         "commodities": {},
+        "venues": {},
+        "clearing": {},
         "currency_total": 0,
-        "commodity_total": 0
+        "commodity_total": 0,
+        "venues_total": 0,
+        "clearing_total": 0,
     }
-    
+
     # Count currencies
     if CURRENCY_NAMES_REGEX:
         for match in CURRENCY_NAMES_REGEX.finditer(text):
             currency = match.group().upper()
             result["currencies"][currency] = result["currencies"].get(currency, 0) + 1
             result["currency_total"] += 1
-    
+
     # Count commodities
     if COMMODITY_REGEX:
         for match in COMMODITY_REGEX.finditer(text):
             commodity = match.group().lower()
             result["commodities"][commodity] = result["commodities"].get(commodity, 0) + 1
             result["commodity_total"] += 1
-    
+
+    if TRADING_VENUE_REGEX:
+        for match in TRADING_VENUE_REGEX.finditer(text):
+            venue = match.group().lower()
+            result["venues"][venue] = result["venues"].get(venue, 0) + 1
+            result["venues_total"] += 1
+            
+    if DERIVATIVE_CLEARING_REGEX:
+        for match in DERIVATIVE_CLEARING_REGEX.finditer(text):
+            venue = match.group().lower()
+            result["clearing"][venue] = result["clearing"].get(venue, 0) + 1
+            result["clearing_total"] += 1
+
     return result
 
 
@@ -728,7 +749,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             is_empty = True
 
         combined_text = " ".join([text for _, text in text_for_counting]) if text_for_counting else ""
-        currency_commodity_counts = count_currencies_and_commodities(combined_text)
+        counts = count_information(combined_text)
 
         # Prepend the Metadata Paragraph
         metadata = {
@@ -738,10 +759,11 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "url": url,
             "NST": is_nst,
             "is_empty": is_empty,
-            "currencies": currency_commodity_counts["currencies"],
-            "commodities": currency_commodity_counts["commodities"],
-            "currency_total": currency_commodity_counts["currency_total"],
-            "commodity_total": currency_commodity_counts["commodity_total"]
+            "currencies": counts["currencies"],
+            "commodities": counts["commodities"],
+            "venues": counts["venue"],
+            "currency_total": counts["currency_total"],
+            "commodity_total": counts["commodity_total"]
         }
 
         if final_results:
@@ -779,15 +801,15 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             combined_text = " ".join(all_text_parts)
         else:
             combined_text = ""
-        currency_commodity_counts = count_currencies_and_commodities(combined_text)
+        counts = count_information(combined_text)
         metadata = {
             "type": "metadata",
             "NST": is_nst,
             "is_empty": True,  # Fallback means filtering failed or no results
-            "currencies": currency_commodity_counts["currencies"],
-            "commodities": currency_commodity_counts["commodities"],
-            "currency_total": currency_commodity_counts["currency_total"],
-            "commodity_total": currency_commodity_counts["commodity_total"]
+            "currencies": counts["currencies"],
+            "commodities": counts["commodities"],
+            "currency_total": counts["currency_total"],
+            "commodity_total": counts["commodity_total"]
         }
         return (url, json.dumps([json.dumps(metadata)]), cik, year, aggregate_discards(local_discards))
     except:
