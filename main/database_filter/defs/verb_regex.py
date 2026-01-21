@@ -6,12 +6,13 @@ from typing import List, Tuple, Optional
 from defs.gen_regex import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, NUMBER_PATTERN, TERMINATION_VERBS, MITIGATION_VERBS
+from defs.shared_context import ALL_TERM_TERMS, NUMBER_PATTERN, TERMINATION_VERBS, MITIGATION_VERBS, SUBJ
 from defs.verb_core import (
     build_negation_prefix_pattern,
     build_strict_do_not_mitigate_regex,
     ACTIVE_PATTERN,
-    ACTIVE_INDICATORS
+    ACTIVE_INDICATORS,
+    NEGATIVE_AUXILIARY
 )
 
 # Speculative / Uncertain Timing Phrases
@@ -313,16 +314,20 @@ def build_did_not_hold_regex() -> re.Pattern:
     neg_prefix = (
         build_negation_prefix_pattern()
     )  # Matches "do not", "did not", "no", etc.
+    
+    aux = build_alternation(NEGATIVE_AUXILIARY)
 
     # The Fix: Allow an intervening comma-phrase or adverb between "Not" and "Verb"
     # Matches: "do not currently use" OR "do not, as a routine matter, use"
     # Logic: Optional (ActiveAdverb + Space) OR (Comma + AnyText + Comma + Space)
+    # Also handles inversion: "nor did the company use"
     _pre_verb_gap = (
-        r"[, ]"  # Mandatory space or comma after "not"
         r"(?:"
+        rf"\s+(?:{aux})\s+{SUBJ}\s+|"  # Inversion: " did the company "
+        r"[, ](?:"  # Mandatory space or comma after "not"
         rf"{ACTIVE_PATTERN}\s+|"  # "currently "
         r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
-        r")?"
+        r")?)"
     )
 
     return re.compile(
@@ -578,6 +583,12 @@ def run_tests():
             DID_NOT_HOLD_REGEX,
             "We possess foreign exchange, interest rate, and commodity contracts",
             False,
+        ),
+        (
+            "DID_NOT_HOLD_INVERSION",
+            DID_NOT_HOLD_REGEX,
+            "Nor did the company use any such interest rate swaps",
+            True,
         ),
         # ABSENCE_REGEX
         (

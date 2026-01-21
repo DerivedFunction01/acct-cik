@@ -410,26 +410,25 @@ def build_number_alternation() -> str:
 
 NUMBER_PATTERN = build_number_alternation()
 
+DET_OPT = r"(?:the\s+|our\s+)?"
 SUBJECTS = [
     # Simple pronouns
     r"we",
     r"us",
     # Generic entity terms
-    r"(?:the\s+)?(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
-    r"(?:our\s+)(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?)",
-    # Management references
-    r"(?:the\s+)?(?:our\s+)?management",
+    rf"{DET_OPT}(?:company|firm|partnership|group|trust|entity|issuer|registrant|organization|association|co\.?|management)",
     # LLC / LP / GP structures
-    r"(?:the\s+|our\s+)?(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
+    rf"{DET_OPT}(?:llc|l\.l\.c\.|lp|l\.p\.|gp|g\.p\.)",
     # Partnership (general/limited)
-    r"(?:the\s+|our\s+)?(?:general\s+partner|limited\s+partner|partnership)",
+    rf"{DET_OPT}(?:general\s+partner|limited\s+partner|partnership)",
     # Corporate forms
-    r"(?:the\s+|our\s+)?(?:corporation|corp\.|co\.|inc\.|incorporated)",
-    # Parent entity references
-    r"(?:the\s+|our\s+)?(?:parent(?:\s+company)?)",
-    # Subsidiary references
-    r"(?:the\s+|our\s+)?(?:wholly[-\s]+owned\s+)?(?:subsidiary|subsidiaries)",
+    rf"{DET_OPT}(?:corporation|corp\.|co\.|inc\.|incorporated)",
+    # Parent entity
+    rf"{DET_OPT}parent(?:\s+company)?",
+    # Subsidiaries
+    rf"{DET_OPT}(?:wholly[-\s]+owned\s+)?(?:subsidiar(?:y|ies))",
 ]
+
 SUBJ = build_alternation(SUBJECTS)
 
 
@@ -545,4 +544,3 @@ TERMINATION_NOUNS = [
 ]
 
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
-
