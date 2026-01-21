@@ -261,7 +261,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
     ]
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
-        r"swap\s+(?:sealers?|participants?)",
+        r"swap\s+(?:dealers?|participants?)",
         r"derivative\s+counterpart(?:y|ies)",
     ]
 
