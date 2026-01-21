@@ -67,7 +67,7 @@ AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
     r"(?<!an\s)(?<!the\s)options?",  # prevent prevent an/the option
-    r"(?<!to\s)warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
+    r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!treasury[- ])warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
     "commitments?",
@@ -89,7 +89,7 @@ def build_double_base_alternation() -> str:
     e.g. "caps and floors", "options and futures"
     Also matches: "contracts such as swaps, collars"
     """
-    base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE
+    base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE + ["warrants?"]
     bases = build_alternation(base_terms, sort_longest_first=True)
 
     prefix_terms = (
