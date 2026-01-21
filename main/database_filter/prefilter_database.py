@@ -16,7 +16,9 @@ from defs.prefiltered_lib import (
     MinimalTextCleaner, 
     Stage, 
     is_sophisticated_content, 
-    is_sophisticated_target
+    is_sophisticated_target,
+    is_warrant_target,
+    is_convertible_target
 )
 from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
@@ -545,7 +547,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     sophisticated_buffer_masked = []
     local_discards = []
     all_text_parts = []  # Track all text for metadata counting (even if discarded)
-    explicit_non_derivative = False
+    explicit_non_derivative_warr = False
+    explicit_non_derivative_conv = False
     paragraphs = split_mega_paragraph(paragraphs)
     for idx, p in enumerate(paragraphs):
         try:
@@ -581,8 +584,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             # === EXCLUSIONS ===
             exclusion_reason = check_hard_exclusions(p)
             if exclusion_reason == NoiseReason.NON_DERIV.value:
-                if is_sophisticated_content(p_masked):
-                    explicit_non_derivative = True
+                if is_warrant_target(p_masked) or (is_sophisticated_content(p_masked) and "warrant" in p_masked.lower()):
+                    explicit_non_derivative_warr = True
+                if is_convertible_target(p_masked) or (is_sophisticated_content(p_masked) and ("convertible" in p_masked.lower() or "conversion" in p_masked.lower())):
+                    explicit_non_derivative_conv = True
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
             # Reasons we want to drop, UNLESS they contain specific definitions
@@ -692,7 +697,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
 
     # === FINAL GATEKEEPERS ===
     final_results = []
-    is_nst = False
+    is_nst_warr = False
+    is_nst_conv = False
     try:
         # A. Validate Standard Buffer
         std_masked_texts = [text for _, text in clean_buffer_masked]
@@ -709,10 +715,20 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         soph_masked_texts = [text for _, text in sophisticated_buffer_masked]
         std_masked_texts = [text for _, text in clean_buffer_masked]
 
-        if not explicit_non_derivative and validate_sophisticated_buffer(soph_masked_texts, std_masked_texts):
+        # Check content of buffer
+        has_warr = any("warrant" in t.lower() for _, t in sophisticated_buffer_masked)
+        has_conv = any("convertible" in t.lower() or "conversion" in t.lower() for _, t in sophisticated_buffer_masked)
+
+        is_valid = validate_sophisticated_buffer(soph_masked_texts, std_masked_texts)
+
+        # Determine NST status per category
+        is_nst_warr = has_warr and (explicit_non_derivative_warr or not is_valid)
+        is_nst_conv = has_conv and (explicit_non_derivative_conv or not is_valid)
+
+        # Keep buffer if at least one category is valid (i.e., present and NOT nst)
+        if (has_warr and not is_nst_warr) or (has_conv and not is_nst_conv):
             final_results.extend(sophisticated_buffer_orig)
         else: 
-            is_nst = True
             if sophisticated_buffer_orig:
                 discarded = "\n\n".join([text for _, text in sophisticated_buffer_orig])
                 local_discards.append((url, discarded, NoiseReason.NO_SOPH.value))
@@ -739,7 +755,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "cik": cik,
             "year": year,
             "url": url,
-            "NST": is_nst,
+            "NST_WARR": is_nst_warr,
+            "NST_CONV": is_nst_conv,
             "is_empty": is_empty,
             **counts,
         }
@@ -782,7 +799,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         counts = count_information(combined_text)
         metadata = {
             "type": "metadata",
-            "NST": is_nst,
+            "NST_WARR": is_nst_warr,
+            "NST_CONV": is_nst_conv,
             "is_empty": True,  # Fallback means filtering failed or no results
             **counts,
         }

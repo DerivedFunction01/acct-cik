@@ -792,7 +792,7 @@ PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
 CONJ = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
 FULL_CONJ = re.compile(r"[,;]|\b(?:and|or)\b", re.IGNORECASE)
 WHITESPACE = re.compile(r"\s+", re.IGNORECASE)
-def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> Dict[str, int]:
+def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -810,10 +810,10 @@ def get_text_categories(text: str, is_nst: bool, exclusion_tracker: Optional[Glo
     has_conjunction = bool(CONJ.search(text))
 
     # Special Handling for Equity -> Warrants (Moved to top)
-    if is_sophisticated_content(text) and not is_nst:
-        if is_warrant_target(text):
+    if is_sophisticated_content(text):
+        if is_warrant_target(text) and not is_nst_warr:
             scores["warr"] += 6000
-        if is_convertible_target(text):
+        if is_convertible_target(text) and not is_nst_conv:
             scores["conv"] += 6000
         text = _cleaner.clean_soph_targets(text)
 
@@ -966,12 +966,12 @@ def derive_strict_categories(scores: Dict[str, int], text: str) -> Set[str]:
     return strict_cats
 
 
-def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst: bool = True, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> None:
+def salvage_instruments(text: str, valid_instruments: Dict[str, Set[str]], is_nst_warr: bool = True, is_nst_conv: bool = True, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> None:
     """Helper to salvage instruments from deadweight text if hedging context exists."""
     if find_hedging_context(text):
-        clean_text = _cleaner.clean(text, is_nst=is_nst)
+        clean_text = _cleaner.clean(text, is_nst=is_nst_warr and is_nst_conv)
         clean_text = _cleaner.clean_gen_hedges(clean_text)
-        scores = get_text_categories(clean_text, is_nst=is_nst, exclusion_tracker=exclusion_tracker)
+        scores = get_text_categories(clean_text, is_nst_warr=is_nst_warr, is_nst_conv=is_nst_conv, exclusion_tracker=exclusion_tracker)
         strict_salvage_cats = derive_strict_categories(scores, clean_text)
 
         if strict_salvage_cats:
@@ -1072,18 +1072,20 @@ def process_row(row: Tuple) -> Tuple:
         "curr_termination": False,
         "is_explicit_trader": False,
     }
-    
+
     tracker = GlobalInstrumentTracker()
-    is_nst = True
+    is_nst_warr = True
+    is_nst_conv = True
     if paragraphs and paragraphs[0].startswith('{"type": "metadata"'):
         try:
             metadata_str = paragraphs.pop(0)  # Safely remove the first element
             metadata = json.loads(metadata_str)
-            is_nst = metadata.get("NST", False)
+            is_nst_warr = metadata.get("NST_WARR", False)
+            is_nst_conv = metadata.get("NST_CONV", False)
             attributes["metadata"] = metadata
         except (json.JSONDecodeError, KeyError):
             pass
-    
+
     # --- PRE-PASS: Build Exclusion Tracker ---
     exclusion_tracker = GlobalExclusionTracker()
     for p in paragraphs:
@@ -1098,9 +1100,11 @@ def process_row(row: Tuple) -> Tuple:
     # --- SINGLE PASS Processing ---
     for p in paragraphs:
         local_tracker = GlobalInstrumentTracker()
-        effective_nst = is_nst
+        effective_nst_warr = is_nst_warr
+        effective_nst_conv = is_nst_conv
         if convertible_ir(p):
-            effective_nst = True
+            effective_nst_warr = True
+            effective_nst_conv = True
 
         is_para_deadweight, para_tag_reason, para_content = parse_tags(p)
         attributes = mine_attributes(para_tag_reason, attributes)
@@ -1109,13 +1113,13 @@ def process_row(row: Tuple) -> Tuple:
         # Even if this paragraph is tagged as noise, if it contains strict instrument mentions
         # with hedging context, we still want to record those instruments as known.
         if is_para_deadweight:
-            salvage_instruments(para_content, valid_instruments, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
+            salvage_instruments(para_content, valid_instruments, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker)
 
         # 1. PARAGRAPH PRE-SCAN (Contextual Dominance)
         # Use the scoring classifier to determine what this paragraph is ABOUT.
         context_scores = get_text_categories(
-            para_content, is_nst=effective_nst, exclusion_tracker=exclusion_tracker
-        )  # Allow full original text, while stripping convertible debt as standard debt if it is not a derivative
+            para_content, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker
+        )
 
         # We allow multiple contexts if they are strong enough to survive get_text_categories
         local_contexts = set(context_scores.keys())
@@ -1132,7 +1136,7 @@ def process_row(row: Tuple) -> Tuple:
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
                 attributes = mine_attributes(etag, attributes)
-            
+
             # Extract Metadata Tags (Debug info)
             meta_tags_found = METADATA_TAG_PARSER.findall(sent_content)
             if meta_tags_found:
@@ -1145,20 +1149,20 @@ def process_row(row: Tuple) -> Tuple:
             # --- SENTENCE-LEVEL INSTRUMENT SALVAGE ---
             # Even if sentence is deadweight, capture instruments if it has strict matches + hedging context
             if is_sent_deadweight:
-                salvage_instruments(sent_content, valid_instruments, is_nst=effective_nst, exclusion_tracker=exclusion_tracker)
+                salvage_instruments(sent_content, valid_instruments, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker)
             sent_content_no_evidence = EVIDENCE_TAG_PARSER.sub(" ", sent_content)
             sent_content_no_meta = METADATA_TAG_PARSER.sub(" ", sent_content_no_evidence)
-            clean_sent = _cleaner.clean(sent_content_no_meta, effective_nst)
+            clean_sent = _cleaner.clean(sent_content_no_meta, effective_nst_warr and effective_nst_conv)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
-            
+
             # Check for Safeguard Evidence (Overrides Exclusions)
             evidence_tags_set = {tag for tag in evidence_tags_found}
             is_safeguarded = not evidence_tags_set.isdisjoint(SAFEGUARD_EVIDENCE)
-            
+
             # If safeguarded, disable exclusion tracker for this sentence
             current_exclusion_tracker = None if is_safeguarded else exclusion_tracker
 
-            sent_scores = get_text_categories(clean_sent, is_nst=effective_nst, exclusion_tracker=current_exclusion_tracker)
+            sent_scores = get_text_categories(clean_sent, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=current_exclusion_tracker)
 
             # Handle explicit block signal
             explicit_block = sent_scores.get('gen', 0) == -1
