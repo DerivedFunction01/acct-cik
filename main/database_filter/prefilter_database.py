@@ -18,7 +18,7 @@ from defs.prefiltered_lib import (
     is_sophisticated_content, 
     is_sophisticated_target
 )
-from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
+from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
@@ -110,11 +110,16 @@ def count_information(text: str) -> dict:
             model = match.group().lower()
             result["valuation_models"][model] = result["valuation_models"].get(model, 0) + 1
             result["valuation_models_total"] += 1
-    if STRICT_REGEX:
-        for match in STRICT_REGEX.finditer(text):
+    if ALL_REGEX:
+        for match in ALL_REGEX.finditer(text):
             inst = match.group().lower()
-            result["strict_hits"][inst] = result["strict_hits"].get(inst, 0) + 1
-            result["strict_hits_total"] += 1
+            result["keyword_hits"][inst] = result["keyword_hits"].get(inst, 0) + 1
+            result["keyword_hits_total"] += 1
+    if GEN_STRICT_CONTEXT_REGEX:
+        for match in GEN_STRICT_CONTEXT_REGEX.finditer(text):
+            inst = match.group().lower()
+            result["context_hits"][inst] = result["context_hits"].get(inst, 0) + 1
+            result["context_hits"] += 1
 
     return result
 
