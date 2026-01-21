@@ -688,6 +688,10 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     has_warr = True
                 append_to_buffer("sophisticated", idx, p, p_masked)
             elif is_soph_context:
+                if is_convertible_target(p_masked):
+                    has_conv = True
+                elif is_warrant_target(p_masked):
+                    has_warr = True
                 append_to_buffer("sophisticated", idx, p, p_masked)
                 append_to_buffer("clean", idx, p, p_masked)
             else:
