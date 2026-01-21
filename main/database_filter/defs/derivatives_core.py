@@ -33,7 +33,7 @@ STANDALONE_BASES = [
     rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives",
-    "futures",
+    r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
 AMBIGUOUS_BASE_TYPES = [
