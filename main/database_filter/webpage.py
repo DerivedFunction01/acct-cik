@@ -113,7 +113,7 @@ from defs.exclusion_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
 )
 from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX
-from defs.shared_context import VALUATION_MODELS
+from defs.shared_context import VALUATION_MODELS_REGEX
 
 # New Header and Structural Cleanup Patterns
 HEADER_CLEANUP_PATTERNS = [
@@ -736,7 +736,7 @@ def filter_by_keywords(content: str) -> list[str]:
                         STRICT_REGEX.search(part)
                         or GEN_STRICT_CONTEXT_REGEX.search(part)
                         or DER_STD_REGEX.search(part)
-                        or VALUATION_MODELS.search(part)
+                        or VALUATION_MODELS_REGEX.search(part)
                         
                     ):
                         continue
