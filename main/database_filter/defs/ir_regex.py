@@ -409,7 +409,7 @@ def debt_expiration_regex() -> re.Pattern:
     # immediately after the gap
     verbs = build_alternation(ALL_TERM_TERMS)
 
-    pattern = rf"\b(?:{_DEBT_TERMS}|facility)(?:,)?{WORD_GAP}\s+{verbs}\b"
+    pattern = rf"\b(?:{_DEBT_TERMS}|facilit(?:y|ies))(?:,)?{WORD_GAP}\s+{verbs}\b"
     return re.compile(pattern, re.IGNORECASE)
 
 
