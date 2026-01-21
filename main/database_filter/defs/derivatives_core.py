@@ -86,11 +86,26 @@ def build_double_base_alternation() -> str:
     """
     Matches combinations of ambiguous bases which together strongly imply derivatives.
     e.g. "caps and floors", "options and futures"
+    Also matches: "contracts such as swaps, collars"
     """
     bases = build_alternation(AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE, sort_longest_first=True)
-    sep = r"(?:\s*,?\s*(?:and|or)\s+|[\s,]+)"
-    string = rf"(?:{bases}){sep}(?:{bases})"
-    return string
+    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+
+    # 1. Standalone Double Base (2 to N items)
+    # Matches: "swaps and options", "caps, floors, and collars"
+    multi_base = rf"(?:{bases})(?:{sep}(?:{bases}))+"
+
+    # 2. Prefixed Base (1 to N items)
+    # Matches: "contracts such as options", "derivatives including swaps and futures"
+    prefix_terms = STANDALONE_BASES + SUFFIXES + ["hedges?"]
+    prefix_alt = build_alternation(prefix_terms, sort_longest_first=True)
+
+    connectors = [r"such\s+as", r"includ(?:e|es|ed|ing)", r"compris(?:e|es|ed|ing)(?:of\s+|in\s+)"]
+    connector_alt = build_alternation(connectors, sort_longest_first=True)
+
+    prefixed_base = rf"(?:{prefix_alt})\s+(?:{connector_alt})\s+(?:{bases})(?:{sep}(?:{bases}))*"
+
+    return rf"{prefixed_base}|{multi_base}"
 
 
 double_base_alternation = build_double_base_alternation()
