@@ -146,14 +146,14 @@ hedging_terms = [
     r"document(?:s|ations?)?",
     r"terms?",
     r"accounting",
+    r"expenses?",
 ]
 hedge_phrases = build_alternation(hedging_terms, sort_longest_first=True)
 SOFT_GEN_TERMS = [
-    r"(?:ineffective|effective) portions?",
+    r"(?:in)?effective portions?",
     # Expanded Hedging Noun Contexts (Strategy, Activity, Program, etc.)
     rf"(?:hedg(?:es?|ing)|derivatives?)\s+{hedge_phrases}",
-    r"derivative expenses?",
-    r"(?:not\s+)designat(?:ed?|es|ion)\s+(?:as\s+)?(?:a\s+|the\s+)?(?:hedg(?:es?|ing))",
+    r"(?:not\s+)?designat(?:ed?|es|ion)\s+(?:as\s+)?(?:a\s+|the\s+)?(?:hedg(?:es?|ing))",
     r"(?:gain|loss) on derivatives?",
     r"value of derivatives?",
     r"notional",
