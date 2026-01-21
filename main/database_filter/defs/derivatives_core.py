@@ -32,31 +32,35 @@ SPECIAL_BASE = [
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "swaptions?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
+    r"swaps?(?![- ]rates?)",
+    rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    "collars?",
+    "derivatives",
+    "futures",
 ]
 
 AMBIGUOUS_BASE_TYPES = [
-    "futures?",
     "options?",
-    "hedging",
     "locks?",
     "caps?",
+    "derivatives?",
     "floors?",
-    "hedges?",
+]
+OTHER_BASES = [
     "puts?",
     "calls?",
-    "straddles?",
-    "strangles?",
+    "hedges?",
 ]
 
 UNAMBIGUOUS_SUFFIXES = [
     "contracts?",
+    "instruments?",
 ]
 
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
     "options?",
-    "instruments?",
 ]
 OTHER_SUFFIXES = [
     "commitments?",
@@ -70,33 +74,29 @@ ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES + OTHER_SUFFIXES
 suffix_alternation = build_alternation(SUFFIXES, True)
 all_suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 
+SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
+
 def build_double_base_alternation() -> str:
     """
     Matches combinations of ambiguous bases which together strongly imply derivatives.
     e.g. "caps and floors", "options and futures"
     """
-    bases = build_alternation(AMBIGUOUS_BASE_TYPES, sort_longest_first=True)
+    bases = build_alternation(AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE, sort_longest_first=True)
     sep = r"(?:\s*,?\s*(?:and|or)\s+|[\s,]+)"
     string = rf"(?:{bases}){sep}(?:{bases})"
     return string
 
 
 double_base_alternation = build_double_base_alternation()
-DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
-SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 
 UNAMBIGUOUS_BASE_TYPES = (
-    [
-        r"swaps?(?![- ]rates?)",
-        rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
-        "collars?",
-        "derivatives?",
-        "futures",  # plural form
-    ]
-    + SPECIAL_BASE
+    SPECIAL_BASE
     + [double_base_alternation]
 )
-ALL_BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
+UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
+BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
+
+DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
 
 # =============================================================================
@@ -161,12 +161,14 @@ def build_smart_regex(
 
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
-base_alternation = build_alternation(ALL_BASE_TYPES, True)
-BASE_REGEX = build_regex(ALL_BASE_TYPES)
-safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
-standalone_alternation = build_alternation(UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True)
-unsafe_standalone_alternation = build_alternation(SUFFIXES + ALL_BASE_TYPES, True)
-full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
+base_alternation = build_alternation(BASE_TYPES, True)
+BASE_REGEX = build_regex(BASE_TYPES)
+safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
+standalone_alternation = build_alternation(
+    UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
+)
+unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
+full_suffix_alternation = build_alternation(ALL_SUFFIXES + BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
 def expand_instruments(
@@ -233,7 +235,7 @@ def build_loose_gen_regex() -> re.Pattern:
     plurals = [
         "warrants",
     ]
-    return build_regex(ALL_BASE_TYPES + plurals + SUFFIXES)
+    return build_regex(BASE_TYPES + plurals + SUFFIXES)
 
 
 def build_loose_gen_regex_precise() -> re.Pattern:
@@ -246,7 +248,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
         "contracts?",
         "instruments?",
     ]
-    return build_regex(UNAMBIGUOUS_BASE_TYPES + plurals)
+    return build_regex(UNAMBIGUOUS_BASE_ENDING + plurals)
 
 
 LOOSE_GEN_REGEX = build_loose_gen_regex()

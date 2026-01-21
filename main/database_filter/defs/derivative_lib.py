@@ -121,7 +121,7 @@ def create_target() -> str:
         r"involvements?",  # "no involvement with derivatives"
         r"holdings?",  # "no holdings"
     ]
-    _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+    _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{PRECISE_LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
     return _DENIAL_TARGET
 
 
