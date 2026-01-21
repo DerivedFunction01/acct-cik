@@ -27,18 +27,15 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 
 # Negative lookahead: forward NOT followed by physical keywords
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
-SPECIAL_BASE = [
-    "(?:call|put|swap|cap) (?:options?|contracts?)",
-    "(?:basis|variance|volatility|total[- ]return) swaps?",
-    "swaptions?",
-    "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
+
+STANDALONE_BASES = [
     r"swaps?(?![- ]rates?)",
     rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives",
     "futures",
+    "swaptions?",
 ]
-
 AMBIGUOUS_BASE_TYPES = [
     "options?",
     "locks?",
@@ -50,6 +47,14 @@ OTHER_BASES = [
     "puts?",
     "calls?",
     "hedges?",
+]
+spec_base_alternation = build_alternation(
+    STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
+)
+SPECIAL_BASE = [
+    f"{spec_base_alternation}[- ](?:options?|contracts?)",
+    "(?:basis|variance|volatility|total[- ]return) swaps?",
+    "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ]
 
 UNAMBIGUOUS_SUFFIXES = [
