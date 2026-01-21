@@ -64,7 +64,7 @@ from defs.prefiltered_lib import NoiseReason, get_tag, QUANT_REGEX
 # =============================================================================
 def count_information(text: str) -> dict:
     """
-    Count occurrences of currencies and commodities in text.
+    Count occurrences in text.
     
     Args:
         text: Combined text from all paragraphs
@@ -78,16 +78,7 @@ def count_information(text: str) -> dict:
             "commodity_total": 3
         }
     """
-    result = {
-        "currencies": {},
-        "commodities": {},
-        "venues": {},
-        "clearing": {},
-        "currency_total": 0,
-        "commodity_total": 0,
-        "venues_total": 0,
-        "clearing_total": 0,
-    }
+    result = {}
 
     # Count currencies
     if CURRENCY_NAMES_REGEX:
