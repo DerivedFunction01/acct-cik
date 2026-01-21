@@ -78,7 +78,24 @@ def count_information(text: str) -> dict:
             "commodity_total": 3
         }
     """
-    result = {}
+    result = {
+        "currencies": {},
+        "commodities": {},
+        "currency_total": 0,
+        "commodity_total": 0,
+        "venues": {},
+        "venues_total": 0,
+        "clearing": {},
+        "clearing_total": 0,
+        "valuation_models": {},
+        "valuation_models_total": 0,
+        "keyword_hits": {},
+        "keyword_hits_total": 0,
+        "context_hits": {},
+        "context_hits_total": 0,    
+        "der_std_hits": {},
+        "der_std_hits_total": 0,
+    }
 
     # Count currencies
     if CURRENCY_NAMES_REGEX:
