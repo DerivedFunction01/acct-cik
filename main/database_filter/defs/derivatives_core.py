@@ -30,18 +30,18 @@ FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 
 STANDALONE_BASES = [
     r"(?<!to\s)swaps?(?![- ]rates?)",
-    rf"(?<!carry\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    rf"(?<!carry\s)(?<!to\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives",
     r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
 AMBIGUOUS_BASE_TYPES = [
-    "options?",
+    r"(?<!an\s)(?<!the\s)options?",
     r"(?<!to\s)locks?",
     r"(?<!to\s)caps?",
     "derivatives?",
-    "floors?",
+    r"(?<!to\s)floors?",
 ]
 OTHER_BASES = [
     r"(?<!to\s)puts?",
@@ -59,7 +59,7 @@ SPECIAL_BASE = [
 ] + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
-    "contracts?",
+    r"(?<!to\s)contracts?",
     "instruments?",
 ]
 
