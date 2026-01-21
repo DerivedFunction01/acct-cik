@@ -25,7 +25,7 @@ def build_fx_dynamic_pattern() -> str:
     )
     word2_alt = build_alternation(
         [
-            r"(?<!single[- ])currency",
+            r"(?<!single[- ])(?<!crypto[- ])currency",
             r"(?<!interest[- ])exchange",
             r"(?<!interest[- ])exchange[- ]rate",
         ],
@@ -84,7 +84,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     dynamic_templates = [
         rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
         rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
-        r"(?<!single[- ])currency[- ](?:__DYNAMIC__)", # dynamic currency includes swaps and options, but not contracts, agreements, or instruments
+        r"(?<!single[- ])(?<!crypto[- ])currency[- ](?:__DYNAMIC__)", # dynamic currency includes swaps and options, but not contracts, agreements, or instruments
     ]
 
     # Fixed (non-dynamic) specific phrases
@@ -92,7 +92,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Explicitly safe Forward Types
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
         rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
-        rf"(?<!single[- ])currency\s+contracts?", # currency contracts
+        rf"(?<!single[- ])(?<!crypto[- ])currency\s+contracts?", # currency contracts
     ]
 
     # -------------------------------------------------------------------------
@@ -174,7 +174,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         unsafe=True, exclude_standalone_suffixes=False, full_alternation=True
     )
     loose_pattern = build_smart_regex(
-        [fx_dynamic_pattern, r"(?<!single[- ])currency"],
+        [fx_dynamic_pattern, r"(?<!single[- ])(?<!crypto[- ])currency"],
         loose_instrument_fragment,
         loose_specific_phrases,
     )

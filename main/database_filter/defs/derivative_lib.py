@@ -110,7 +110,7 @@ GLUE_MAP = {
     "fx": build_regex([
         r"(?:foreign|forward)[- ](?:forward|foreign)",
         r"(?:foreign|forward|cross|multi)[- ](?:currency|exchange rate|exchange)",
-        r"(?<!single[- ])currency",
+        r"(?<!single[- ])(?<!crypto[- ])currency",
         r"fx",
         r"forex",
         r"exchange\s+rate",
