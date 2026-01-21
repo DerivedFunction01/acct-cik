@@ -21,7 +21,7 @@ from defs.prefiltered_lib import (
 from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
-from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
+from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
 from defs.shared_context import (
     CURRENCY_NAMES_REGEX,
     VALUATION_MODELS_REGEX,
@@ -120,6 +120,11 @@ def count_information(text: str) -> dict:
             inst = match.group().lower()
             result["context_hits"][inst] = result["context_hits"].get(inst, 0) + 1
             result["context_hits"] += 1
+    if DER_STD_REGEX:
+        for match in DER_STD_REGEX.finditer(text):
+            inst = match.group().lower()
+            result["der_std_hits"][inst] = result["der_std_hits"].get(inst, 0) + 1
+            result["der_std_hits_total"] += 1
 
     return result
 
