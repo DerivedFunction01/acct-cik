@@ -16,9 +16,18 @@ def build_fx_dynamic_pattern() -> str:
     # Note: These components are simple alternations (no Max Munch needed here)
     word1 = build_alternation([r"forward", r"foreign", r"currency"], sort_longest_first=True)
     compound = build_alternation(
-        [r"cross[- ]currency", r"multi[- ]currency", r"currency"], sort_longest_first=True
+        [
+            r"cross[- ]currency",
+            r"multi[- ]currency",
+            r"(?<!single[- ])currency",
+            r"cross[- ]currency\s+interest[- ]rate",
+        ],
+        sort_longest_first=True,
     )
-    word2_alt = build_alternation([r"currency", r"exchange"], sort_longest_first=True)
+    word2_alt = build_alternation(
+        [r"(?<!single[- ])currency", r"(?<!interest[- ])exchange"],
+        sort_longest_first=True,
+    )
     word3 = r"rate"
 
     # List all necessary descriptive fragments/combinations
@@ -34,6 +43,7 @@ def build_fx_dynamic_pattern() -> str:
         # Two-word descriptive terms
         rf"(?:{word1})[- ](?:{word2_alt})",  # forward exchange, foreign currency, currency exchange
         rf"(?:{compound})",  # cross currency
+        rf"(?:{word2_alt})[- ]{word3}",  # currency rate, exchange rate
         # Single-word descriptive terms (low priority, included for completeness)
         r"FX",
         r"forex",
@@ -55,24 +65,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     currency_name_alternation = build_currency_descriptor_pattern()
     fx_dynamic_pattern = build_fx_dynamic_pattern()
-
-    # --- 2. Build Core Terms (Prefixes) ---
-    # Precise prefixes (e.g., 'forward foreign currency')
-    strict_core_terms = [
-        rf"(?:{fx_dynamic_pattern})",
-        r"(?:cross[- ])?currency\s+interest\s+rate",
-        r"(?:cross[- ])?currency\s+interest",
-        r"exchange\s+rate",
-    ]
-    # Broad prefixes (e.g., 'currency', 'fx')
-    soft_core_terms = [
-        r"(?:foreign|currency|forward)\s+exchange",  # Needed for "foreign exchange hedge" (not covered by 'currency')
-        r"(?<!single[- ])currency",
-        r"fx",
-        r"forex",
-        r"exchange\s+rate",
-    ]
-    soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
 
     forward_types = [
         "non[- ]deliverable",
@@ -102,7 +94,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Matches: "foreign exchange agreement", "currency exchange arrangement"
         rf"(?:foreign|currency|forward|cross[- ]currency)\s+(?:forward|exchange)\s+(?:rate\s+)?(?:agreements?|arrangements?|commitments?)",
         rf"exchange\s+rate\s+(?:agreements?|arrangements?|commitments?)",
-        rf"(?<!single[- ])currency[- ](?:contracts?|options?|forwards?)",
         rf"(?:foreign|forward|cross)[- ]currency\s+hedges",
     ]
 
@@ -118,7 +109,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         exclude_standalone_suffixes=True,
         additional_standalone_suffixes=["contracts?", "options?"],
     )
-    
+
     loose_dynamic_fragment = expand_instruments(
         unsafe=True,
         exclude_standalone_suffixes=False,
@@ -143,6 +134,13 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         unsafe=False,
         additional_standalone_suffixes=["options?"],
     )
+    # --- 2. Build Core Terms (Prefixes) ---
+    # Precise prefixes (e.g., 'forward foreign currency')
+    strict_core_terms = [
+        rf"(?:{fx_dynamic_pattern})",
+    ]
+    soft_core_terms = strict_core_terms
+    soft_core_alternation = build_alternation(soft_core_terms, sort_longest_first=True)
     strict_pattern = build_smart_regex(
         strict_core_terms,  # Precise prefixes
         strict_instrument_fragment,  # Safe bases only
@@ -165,7 +163,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_dynamic_phrases = _replace_dynamic_placeholder(
         dynamic_templates, soft_dynamic_fragment
     )
-    
+
     loose_dynamic_phrases = _replace_dynamic_placeholder(
         dynamic_templates, loose_dynamic_fragment
     )
@@ -175,7 +173,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         soft_dynamic_phrases + fixed_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
-    
+
     loose_specific_phrases = sorted(
         loose_dynamic_phrases + fixed_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
@@ -192,7 +190,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         soft_specific_phrases,  # Final list of specific phrases
     )
     soft_fx_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    
+
     loose_instrument_fragment = expand_instruments(
         unsafe=True, exclude_standalone_suffixes=False
     )
