@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter
+from defs.derivatives_core import build_smart_regex, expand_instruments
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, build_risk_managment_phrase
 from defs.verb_regex import build_strict_do_not_mitigate_regex
@@ -146,6 +146,12 @@ CR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 
 
 def run_tests():
+    from defs.derivatives_core import (
+        MatchLevel,
+        run_category_tests,
+        run_category_tests_counter,
+    )
+
     test_cases = [
         ("credit default swap", MatchLevel.STRICT),
         ("credit default swap agreement", MatchLevel.STRICT),

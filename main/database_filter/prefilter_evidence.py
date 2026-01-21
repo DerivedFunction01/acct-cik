@@ -7,22 +7,19 @@ from typing import Optional, Set, NamedTuple, List, Tuple
 
 from tqdm import tqdm
 from defs.verb_regex import (
-    ACCT_VERB_REGEX,
-    POSS_VERB_REGEX,
     TERMINATION_ALL_REGEX,
-    TRANS_VERB_REGEX,
-    USAGE_VERB_REGEX,
-    is_immaterial,
     ACTIVE_VERB_REGEX,
     PASSIVE_VERB_REGEX,
     PASSIVE_PAST_VERB_REGEX,
 )
 from defs.derivative_lib import SOFT_REGEX, STRICT_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
-from defs.gen_regex import NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
+from defs.gen_regex import NOTIONAL_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.shared_context import SETTLEMENT_MECHANICS_REGEX, VALUATION_MODELS_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX
+from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX
+from defs.verb_core import POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
 from table_processor import TABLE_ANCHOR
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.prefiltered_lib import (

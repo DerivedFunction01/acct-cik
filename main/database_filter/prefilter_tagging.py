@@ -11,10 +11,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_rege
 from defs.verb_regex import (
     ABSENCE_REGEX,
     DID_NOT_HOLD_REGEX,
-    POSS_VERB_REGEX,
     STRICT_DO_NOT_MITIGATE_REGEX,
-    TRANS_VERB_REGEX,
-    USAGE_VERB_REGEX,
     VAGUE_TIMING_REGEX,
     POTENTIAL_REGEX,
     POT_MITIGATION_REGEX,
@@ -45,7 +42,7 @@ from defs.contract import is_contractual_noise
 from defs.hypo import is_hypothetical_noise
 from defs.regul import is_regulatory_noise
 from defs.derivative_lib import SOFT_CATEGORY_REGEX, SOFT_REGEX
-from defs.gen_regex import PRECISE_LOOSE_GEN_REGEX, RISK_MANAGEMENT_REGEX
+from defs.gen_regex import RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import NON_DER_CAP_FLOOR_REGEX, IR_DO_NOT_MITIGATE_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, CP_DO_NOT_MITIGATE_REGEX, NPNS_REGEX
@@ -54,6 +51,8 @@ from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
 from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
 from defs.exclusion_regex import AOCI_NOISE_REGEX, EXCLUDE_PLAN_ASSETS_REGEX, NON_DERIVATIVE_TREATMENT_REGEX
 from defs.shared_context import COMPARISON_PHRASES
+from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX
+from defs.verb_core import POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
 from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX, BS_LOC_REGEX
 
 

@@ -1,7 +1,12 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import ALL_SUFFIXES, UNAMBIGUOUS_SUFFIXES, MatchLevel, build_smart_regex, expand_instruments, run_category_tests, run_category_tests_counter, suffix_alternation
+from defs.derivatives_core import (
+    UNAMBIGUOUS_SUFFIXES,
+    build_smart_regex,
+    expand_instruments,
+    suffix_alternation,
+)
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 from defs.verb_regex import build_strict_do_not_mitigate_regex
@@ -434,6 +439,7 @@ IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 DEBT_FT_REGEX = debt_feature_regex()
 
 def run_tests():
+    from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
         ("interest rate swap agreement", MatchLevel.STRICT),

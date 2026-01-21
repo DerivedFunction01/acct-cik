@@ -1,6 +1,6 @@
 import re
 
-from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES, SPECIAL_BASE, UNAMBIGUOUS_BASE_TYPES
+from defs.derivatives_core import SPECIAL_BASE
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import STD_TOKEN
@@ -79,24 +79,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
 
     return INSTRUMENT_REGEX, NOTIONAL_REGEX
 
-def build_loose_gen_regex_precise() -> re.Pattern:
-    plurals = [
-        "caps",
-        "floors",
-        "warrants",
-        "puts",
-        "calls",
-        "contracts?",
-        "instruments?",
-    ]
-    return build_regex(UNAMBIGUOUS_BASE_TYPES + plurals)
-
-
-def build_loose_gen_regex() -> re.Pattern:
-    plurals = [
-        "warrants",
-    ]
-    return build_regex(ALL_BASE_TYPES + plurals + ALL_SUFFIXES)
 
 
 DERIVATIVE_STDS = [
@@ -193,8 +175,7 @@ HEDGING_CONTEXT_TERMS = (
 DER_STD_REGEX = build_regex(DERIVATIVE_STDS)
 HEDGING_CONTEXT_REGEX = build_regex(HEDGING_CONTEXT_TERMS)
 RISK_MANAGEMENT_REGEX = build_regex(RISK_MANAGEMENT_TERMS)
-LOOSE_GEN_REGEX = build_loose_gen_regex()
-PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()
+
 GEN_REGEX, NOTIONAL_REGEX = build_strict_gen_regex()
 GEN_STRICT_CONTEXT_REGEX = build_regex(SOFT_GEN_TERMS)
 GEN_HEDGES = build_regex(

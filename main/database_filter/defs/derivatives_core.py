@@ -218,6 +218,29 @@ def expand_instruments(
     return rf"{combined_pattern}|{final_standalone}"
 
 
+def build_loose_gen_regex() -> re.Pattern:
+    plurals = [
+        "warrants",
+    ]
+    return build_regex(ALL_BASE_TYPES + plurals + ALL_SUFFIXES)
+
+
+def build_loose_gen_regex_precise() -> re.Pattern:
+    plurals = [
+        "caps",
+        "floors",
+        "warrants",
+        "puts",
+        "calls",
+        "contracts?",
+        "instruments?",
+    ]
+    return build_regex(UNAMBIGUOUS_BASE_TYPES + plurals)
+
+
+LOOSE_GEN_REGEX = build_loose_gen_regex()
+PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()
+
 class MatchLevel(Enum):
     STRICT = auto()
     SOFT = auto()

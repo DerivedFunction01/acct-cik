@@ -12,9 +12,13 @@ from typing import Any, Tuple, Dict, Set, Optional, List
 # --- IMPORTS ---
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.cp_regex import NPNS_REGEX, TRADING_VENUE_REGEX
-from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX, PRECISE_LOOSE_GEN_REGEX
+from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, NOTIONAL_REGEX
 from defs.derivative_lib import CATEGORY_MAP, find_hedging_context, GLUE_MAP
-from defs.derivatives_core import BASE_REGEX, PRECISE_BASE_REGEX
+from defs.derivatives_core import (
+    BASE_REGEX,
+    PRECISE_BASE_REGEX,
+    PRECISE_LOOSE_GEN_REGEX,
+)
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from prefilter_tagging import extract_values_and_years
 from table_processor import TABLE_ANCHOR

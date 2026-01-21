@@ -1,4 +1,4 @@
-from defs.gen_regex import LOOSE_GEN_REGEX
+from defs.derivatives_core import LOOSE_GEN_REGEX
 from defs.derivative_lib import STRICT_REGEX
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (

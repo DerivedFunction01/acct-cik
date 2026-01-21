@@ -1,7 +1,6 @@
 import re
 from typing import List, Tuple
 from defs.derivatives_core import (
-    MatchLevel,
     PHYSICAL_DELIVERY_PATTERN,
     build_smart_regex,
     expand_instruments,
@@ -793,6 +792,7 @@ CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES
 
 
 def run_tests():
+    from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
     test_cases = [
         ("commodity swap", MatchLevel.STRICT),
         ("commodity swap agreement", MatchLevel.STRICT),
@@ -809,7 +809,7 @@ def run_tests():
         ("commodity arrangement", MatchLevel.LOOSE),
         ("commodity options", MatchLevel.SOFT),
     ]
-    from defs.derivatives_core import run_category_tests, run_category_tests_counter
+
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
 
     counter_cases = [
