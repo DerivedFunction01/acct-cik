@@ -55,7 +55,7 @@ SPECIAL_BASE = [
     f"{spec_base_alternation}[- ](?:options?|contracts?)",
     "(?:basis|variance|volatility|total[- ]return) swaps?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
-]
+] + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
     "contracts?",
