@@ -547,7 +547,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             if not p.startswith('{"type": "metadata"'):
                 all_text_parts.append(p)
 
-            p_masked = _cleaner.clean(p, is_nst=False)
+            p_masked = ENTITY_EXCLUSION_REGEX.sub(ENTITY_TOKEN, p)
 
             # === TABLE HANDLING ===
             if "<TABLE>" in p.upper():
