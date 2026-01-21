@@ -788,7 +788,7 @@ def remove_outlier_categories(
     return valid_soft_cats
 
 
-PRIORITY_ORDER = ["fx", "cp", "eq", "cr", "ir"]
+PRIORITY_ORDER = ["crypto", "fx", "cp", "eq", "cr", "ir"]
 CONJ = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
 FULL_CONJ = re.compile(r"[,;]|\b(?:and|or)\b", re.IGNORECASE)
 WHITESPACE = re.compile(r"\s+", re.IGNORECASE)

@@ -5,6 +5,7 @@ from defs.cr_regex import CR_CONTEXT_REGEX, CR_REGEX, CR_SOFT_REGEX, CR_STRICT_C
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX
 from defs.fx_regex import FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
+from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
@@ -17,6 +18,7 @@ STRICT_REGEX = re.compile(
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
             CR_REGEX.pattern,
+            CRYPTO_REGEX.pattern,
             GEN_REGEX.pattern
         ]
     ),
@@ -30,6 +32,7 @@ SOFT_REGEX = re.compile(
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
+            CRYPTO_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
         ]
     ),
@@ -43,6 +46,7 @@ SOFT_CATEGORY_REGEX = re.compile(
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
+            CRYPTO_SOFT_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -55,11 +59,13 @@ ALL_REGEX = re.compile(
             CP_REGEX.pattern,
             EQ_REGEX.pattern,
             CR_REGEX.pattern,
+            CRYPTO_REGEX.pattern,
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
             IR_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
+            CRYPTO_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
             GEN_STRICT_CONTEXT_REGEX.pattern,
         ]
@@ -73,6 +79,7 @@ CATEGORY_MAP = {
     "cp": (CP_REGEX, CP_SOFT_REGEX, CP_STRICT_CONTEXT_REGEX, CP_CONTEXT_REGEX, CP_LOOSE_REGEX, CP_RISK_REGEX),
     "eq": (EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX),
     "cr": (CR_REGEX, CR_SOFT_REGEX, CR_STRICT_CONTEXT_REGEX, CR_CONTEXT_REGEX, CR_LOOSE_REGEX, CR_RISK_REGEX),
+    "crypto": (CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX),
  
 }
 
@@ -114,6 +121,10 @@ GLUE_MAP = {
         r"stocks?",
         r"shares?",
     ]),
+    "crypto": build_regex([
+        r"crypto",
+        r"digital\s+assets?",
+    ]),
     "cr": build_regex([
         r"credits?",
         r"defaults?",
@@ -137,9 +148,11 @@ def run_tests():
     from defs.cp_regex import run_tests as cp_run
     from defs.eq_regex import run_tests as eq_run
     from defs.cr_regex import run_tests as cr_run
+    from defs.crypto_regex import run_tests as crypto_run
     
     ir_run()
     fx_run()
     cp_run()
     eq_run()
     cr_run()
+    crypto_run()
