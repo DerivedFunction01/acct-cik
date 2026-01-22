@@ -98,23 +98,58 @@ COLLAR = register_base(
     + [r"blue[- ]", r"white[- ]"],
 )
 
+AGREEMENT_LOOKBEHINDS = [
+    r"equity[- ]",
+    r"stock[- ]",
+    r"shares[- ]",
+    r"share[- ]",
+    r"(?:stock|share)[- ]purchase",
+    r"shares[- ]purchase",
+    r"treasury[- ]",
+    r"credit[- ]",
+    r"loan[- ]",
+    r"debt[- ]",
+    r"bond[- ]",
+    r"note[- ]",
+    r"mortage[- ]",
+    r"sales[- ]",
+    r"sale[- ]",
+    r"lease[- ]",
+    r"license[- ]",
+    r"licensing[- ]",
+    r"employment[- ]",
+    r"service[- ]",
+    r"consulting[- ]",
+    r"insurance[- ]",
+]
 OPTION = register_base(
     "options?",
     lookbehinds=[
         r"an\s",
         r"the\s",
-        r"equity[- ]",
-        r"stock[- ]",
-        r"share[- ]",
-        r"treasury[- ]",
         r"restricted[- ]",
-    ],
+    ] + AGREEMENT_LOOKBEHINDS,
 )
 OPTION_UNRESTRICTED = register_base(
     "options?",
     lookbehinds=[
         r"an\s",
         r"the\s",
+        r"credit[- ]",
+        r"loan[- ]",
+        r"debt[- ]",
+        r"bond[- ]",
+        r"note[- ]",
+        r"mortage[- ]",
+        r"sales[- ]",
+        r"sale[- ]",
+        r"lease[- ]",
+        r"license[- ]",
+        r"licensing[- ]",
+        r"employment[- ]",
+        r"service[- ]",
+        r"consulting[- ]",
+        r"insurance[- ]",
     ],
 )
 LOCK = register_base(
@@ -196,29 +231,6 @@ WARRANT_UNRESTRICTED = register_base(
     ],
 )
 
-AGREEMENT_LOOKBEHINDS = [
-    r"equity[- ]",
-    r"stock[- ]",
-    r"shares[- ]",
-    r"share[- ]",
-    r"(?:stock|share)[- ]purchase",
-    r"shares[- ]purchase",
-    r"treasury[- ]",
-    r"credit[- ]",
-    r"loan[- ]",
-    r"debt[- ]",
-    r"bond[- ]",
-    r"note[- ]",
-    r"mortage[- ]",
-    r"sales[- ]",
-    r"sale[- ]",
-    r"lease[- ]",
-    r"license[- ]",
-    r"licensing[- ]",
-    r"employment[- ]",
-    r"service[- ]",
-    r"consulting[- ]",
-]
 
 CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND + AGREEMENT_LOOKBEHINDS, lookaheads=VERB_LOOKAHEAD)
 AGREEMENT = register_base("agreements?", lookbehinds=AGREEMENT_LOOKBEHINDS)
