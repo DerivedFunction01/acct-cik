@@ -250,6 +250,7 @@ def run_tests():
     counter_cases = [
         ("stock option", MatchLevel.LOOSE),
         ("share option", MatchLevel.LOOSE),
+        ("equity option and warrants", MatchLevel.STRICT),
         ("equity compensation", MatchLevel.LOOSE),
         ("equity award", MatchLevel.LOOSE),
         ("warrants", MatchLevel.LOOSE),
