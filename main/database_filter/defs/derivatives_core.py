@@ -21,15 +21,15 @@ VERB_LOOKBEHIND = [r"to\s"]
 VERB_LOOKAHEAD = [r"\s+(?:the|an|a)"]
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
-    "deliver(?:y|ies)",
-    "orders?",
-    "sales?",
-    "suppl(?:y|ies)",
-    "confirmation",
-    "invoices?",
-    "shipments?",
-    "receipts?",
-    "inventor(?:y|ies)",
+    r"\sdeliver(?:y|ies)",
+    r"\sorders?",
+    r"\ssales?",
+    r"\ssuppl(?:y|ies)",
+    r"\sconfirmation",
+    r"\sinvoices?",
+    r"\sshipments?",
+    r"\sreceipts?",
+    r"\sinventor(?:y|ies)",
 ]
 
 STANDALONE_BASES = [
