@@ -13,8 +13,8 @@ def register_base(
         for lb in lookbehinds:
             pattern = f"(?<!{lb}){pattern}"
     if lookaheads:
-        for la in lookaheads:
-            pattern = f"{pattern}(?!{la})"
+        la_pattern = build_alternation(lookaheads)
+        pattern = f"{pattern}(?!{la_pattern})"
     return pattern
 
 VERB_LOOKBEHIND = [r"to\s"]
@@ -31,48 +31,50 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipments?",
     "receipts?",
     "inventor(?:y|ies)",
-    "liabilit(?:y|ies)",  # Forward liability
-    "stocks?",
-    "looking",  # Just added it here against forward-looking
+    
 ]
 
-PHYSICAL_DELIVERY_PATTERN = build_alternation(
-    PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
-)
-
-PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
-
-# Negative lookahead: forward NOT followed by physical keywords
-FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 
 STANDALONE_BASES = [
     register_base(
         "swaps?",
         lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND,
+        lookbehinds=VERB_LOOKBEHIND + [r"sim\s", r"engine\s", r"face\s"],
     ),
     register_base(
         "forwards?",
-        lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?", r"\s+looking?", r"\s+stocks?"]
+        + VERB_LOOKAHEAD
+        + PHYSICAL_COMMERCIAL_TERMS,
         lookbehinds=[
             r"carry\s",
             r"carrying\s",
-            r"carried" r"to\s",
+            r"carried\s",
             r"look\s",
             r"looking\s",
-            r"looked",
+            r"looked\s",
+            r"straight\s",
+            r"fast\s",
+            r"brought\s",
+            r"step\s",
+            r"go\s",
+            r"move\s",
+            r"put\s",
+            r"push\s",
+            r"set\s",
         ],
-    )
-    + FORWARD_NOT_PHYSICAL_AHEAD,
+    ),
     register_base(
         "collars?",
         lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND,
+        lookbehinds=VERB_LOOKBEHIND
+        + [r"blue\s", r"white\s", r"dog\s", r"shirt\s", r"cervical\s", r"white\s"],
     ),
     register_base(
         "derivatives",
         lookaheads=VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s"], # its derivatives, etc
+        lookbehinds=VERB_LOOKBEHIND
+        + [r"its\s", r"their\s", r"plasma\s", r"chemical\s", r"cellulose\s"],
     ),
     r"(?:perpetual\s+)?futures",
     "swaptions?",
@@ -107,7 +109,7 @@ AMBIGUOUS_BASE_TYPES = [
 OTHER_BASES = [
     register_base("puts?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
     register_base("calls?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
-    register_base("hedges?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
+    register_base("hedges?", lookaheads=VERB_LOOKAHEAD + [r"\s+for", r"\s+with", r"\s+by", r"\s+(?:of\s+hedge\s+)?funds?", r"\s+banks?"], lookbehinds=VERB_LOOKBEHIND),
 ]
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
