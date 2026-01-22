@@ -3,269 +3,101 @@ from enum import Enum, auto
 from typing import List, Optional, Tuple
 from defs.regex_lib import build_alternation, build_regex
 
-def register_base(
-    base: str,
-    lookaheads: Optional[List[str]] = None,
-    lookbehinds: Optional[List[str]] = None,
-) -> str:
-    pattern = base
-    if lookbehinds:
-        for lb in lookbehinds:
-            pattern = f"(?<!{lb}){pattern}"
-    if lookaheads:
-        la_pattern = build_alternation(lookaheads)
-        pattern = f"{pattern}(?!{la_pattern})"
-    return pattern
-
-VERB_LOOKBEHIND = [r"to\s"]
-VERB_LOOKAHEAD = [r"\s+(?:the|an|a|its|forward)"]
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
-    r"\sdeliver(?:y|ies)",
-    r"\sorders?",
-    r"\ssales?",
-    r"\ssuppl(?:y|ies)",
-    r"\sconfirmation",
-    r"\sinvoices?",
-    r"\sshipments?",
-    r"\sreceipts?",
-    r"\sinventor(?:y|ies)",
-    r"\sstocks?",
+    r"deliver(?:y|ies)",
+    r"orders?",
+    r"sales?",
+    r"suppl(?:y|ies)",
+    r"confirmation",
+    r"invoices?",
+    r"shipments?",
+    r"receipts?",
+    r"inventor(?:y|ies)",
+    r"stocks?",
 ]
 
 COMMODITY_COMMERICIAL_PATTERN = build_alternation(
-    PHYSICAL_COMMERCIAL_TERMS + [r"\spurchases?"], sort_longest_first=True
-)
-SWAP = register_base(
-    "swaps?",
-    lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [
-        r"asset\s",
-        r"debt[- ]for[- ]equity\s",
-        r"debt[- ]for[- ]debt\s",
-        r"like[- ]kind\s",
-    ],
+    PHYSICAL_COMMERCIAL_TERMS + [r"purchases?"], sort_longest_first=True
 )
 
-SWAPS = register_base(
-    "swaps",
-    lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [
-        r"asset\s",
-        r"debt[- ]for[- ]equity\s",
-        r"debt[- ]for[- ]debt\s",
-        r"like[- ]kind\s",
-    ],
-)
 
-DERIVATIVES =  register_base(
-    "derivatives?",
-    lookaheads=VERB_LOOKAHEAD + [r"\s+counterpart(?:y|ies)", r"\s+markets?"],
-    lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s"],
-)
+def register_base(
+    base: str | List[str],
+    lookaheads: Optional[List[str]] = None,
+    lookbehinds: Optional[List[str]] = None,
+) -> str:
+    if isinstance(base, list):
+        base = build_alternation(base)
+    pattern = base
+    if lookbehinds:
+        for lb in lookbehinds:
+            pattern = f"(?<!{lb}[- ]){pattern}"
+    if lookaheads:
+        la_pattern = build_alternation(lookaheads)
+        pattern = f"{pattern}(?![- ]{la_pattern})"
+    return pattern
 
-FUTURES = register_base(r"(?:perpetual\s+)?futures", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND)
-FORWARD = register_base(
-    "forwards?",
-    lookaheads=[
-        r"[- ]rates?",
-        r"\s+participants?",
-        r"\s+dealers?",
-        r"[- ]looking?",
-        r"[- ]split", r"\s+earnings", r"\s+guidance", r"\s+multiple", r"\s+P/E", r"\s+auction"
-    ] 
-    + VERB_LOOKAHEAD
-    + PHYSICAL_COMMERCIAL_TERMS,
-    lookbehinds=[
-        r"carry\s",
-        r"carrying\s",
-        r"carried\s",
-        r"look\s",
-        r"looking\s",
-        r"looked\s",
-        r"brought\s",
-        r"put\s",
-        r"push\s",
-        r"set\s",
-    ],
-)
-COLLAR = register_base(
+VERB_LOOKBEHIND = [r"to"]
+VERB_LOOKAHEAD = [r"the", r"a", r"an", r"forward", r"rate", r"its"]
+
+_STANDALONE_BASES = [
+    r"swaps?",
+    register_base("forwards?", lookaheads=PHYSICAL_COMMERCIAL_TERMS),
     "collars?",
-    lookaheads=[r"[- ]rates?", r"[- ]workers?"] + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [r"blue[- ]", r"white[- ]"],
-)
-
-AGREEMENT_LOOKBEHINDS = [
-    r"equity[- ]",
-    r"stock[- ]",
-    r"shares[- ]",
-    r"share[- ]",
-    r"(?:stock|share)[- ]purchase",
-    r"shares[- ]purchase",
-    r"treasury[- ]",
-    r"credit[- ]",
-    r"loan[- ]",
-    r"debt[- ]",
-    r"bond[- ]",
-    r"note[- ]",
-    r"mortage[- ]",
-    r"sales[- ]",
-    r"sale[- ]",
-    r"lease[- ]",
-    r"license[- ]",
-    r"licensing[- ]",
-    r"employment[- ]",
-    r"service[- ]",
-    r"consulting[- ]",
-    r"insurance[- ]",
-]
-OPTION = register_base(
-    "options?",
-    lookbehinds=[
-        r"an\s",
-        r"the\s",
-        r"restricted[- ]",
-    ] + AGREEMENT_LOOKBEHINDS,
-)
-OPTION_UNRESTRICTED = register_base(
-    "options?",
-    lookbehinds=[
-        r"an\s",
-        r"the\s",
-        r"credit[- ]",
-        r"loan[- ]",
-        r"debt[- ]",
-        r"bond[- ]",
-        r"note[- ]",
-        r"mortage[- ]",
-        r"sales[- ]",
-        r"sale[- ]",
-        r"lease[- ]",
-        r"license[- ]",
-        r"licensing[- ]",
-        r"employment[- ]",
-        r"service[- ]",
-        r"consulting[- ]",
-        r"insurance[- ]",
-    ],
-)
-LOCK = register_base(
-    "locks?",
-    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]up",  r"[- ]in"]
-    + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [r"grid\s", r"inter\s"],
-)
-CAP = register_base(
-    "caps?",
-    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]ex"]
-    + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [
-        r"market\s",
-        r"equity\s",
-    ],
-)
-FLOOR = register_base(
-    "floors?",
-    lookaheads=[r"\s+interest", r"[- ]rates?"]
-    + VERB_LOOKAHEAD,
-    lookbehinds=VERB_LOOKBEHIND
-    + [
-        r"trading\s",
-    ],
-)
-PUT = register_base("puts?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND)
-
-CALL = register_base(
-    "calls?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND
-)
-
-HEDGE = register_base(
-    "hedges?",
-    lookaheads=VERB_LOOKAHEAD
-    + [r"\s+for", r"\s+with", r"\s+by", r"\s+(?:of\s+hedge\s+)?funds?", r"\s+banks?"],
-    lookbehinds=VERB_LOOKBEHIND,
-)
-
-STANDALONE_BASES = [
-    SWAP,
-    COLLAR,
-    DERIVATIVES,
-    FUTURES,
-    FORWARD,
+    "derivatives?",
+    r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
+STANDALONE_BASES = [
+    register_base(
+        _STANDALONE_BASES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD
+    )
+]
 
+_AMBIGUOUS_BASE_TYPES = [
+    r"options?",
+    r"locks?",
+    r"caps?",
+    r"floors?",
+]
 AMBIGUOUS_BASE_TYPES = [
-    OPTION,
-    LOCK,
-    CAP,
-    FLOOR,
+    r"(?<!an\s)(?<!the\s)options?",
+    r"(?<!to\s)locks?",
+    r"(?<!to\s)caps?",
+    r"(?<!to\s)floors?",
 ]
 OTHER_BASES = [
-    PUT,
-    CALL,
-    HEDGE
+    r"(?<!to\s)puts?",
+    r"(?<!to\s)calls?",
+    r"(?<!to\s)hedges?",
 ]
-WARRANT = register_base(
-    "warrants?",
-    lookaheads=[r" (?:the|a|an)"],
-    lookbehinds=[
-        r"to\s",
-        r"equity[- ]",
-        r"stock[- ]",
-        r"share[- ]",
-        r"treasury[- ]",
-        r"restricted[- ]",
-    ],
-)
-WARRANT_UNRESTRICTED = register_base(
-    "warrants?",
-    lookaheads=[r" (?:the|a|an)"],
-    lookbehinds=[
-        r"to\s",
-    ],
-)
-
-
-CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND + AGREEMENT_LOOKBEHINDS, lookaheads=VERB_LOOKAHEAD)
-AGREEMENT = register_base("agreements?", lookbehinds=AGREEMENT_LOOKBEHINDS)
-ARRANGEMENT = register_base("arrangements?", lookbehinds=AGREEMENT_LOOKBEHINDS)
-INSTRUMENT = register_base("instruments?", lookbehinds=AGREEMENT_LOOKBEHINDS)
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
 )
-
-EXTRA_BASE_COMBOS = [
+SPECIAL_BASE = [
     f"{spec_base_alternation}[- ](?:options?|contracts?)",
     r"forward\s+agreements?",
-    "(?:basis|variance|volatility|total[- ]return|index) swaps?",
+    "(?:basis|variance|volatility|total[- ]return) swaps?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
-]
-
-SPECIAL_BASE =  EXTRA_BASE_COMBOS + STANDALONE_BASES
+] + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
-    CONTRACT,
-    INSTRUMENT,
+    r"(?<!to\s)contracts?",
+    "instruments?",
 ]
 
 AMBIGUOUS_SUFFIXES = [
-    AGREEMENT,
-    ARRANGEMENT,
-    rf"{OPTION}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT})",  # prevent prevent an/the option
-    WARRANT,  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
+    "agreements?",
+    "arrangements?",
+    r"(?<!an\s)(?<!the\s)options?",  # prevent prevent an/the option
+    r"(?<!to\s)warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
-
 OTHER_SUFFIXES = [
     "commitments?",
     "transactions?",
     "positions?",
-    HEDGE
+    r"(?<!to\s)hedges?",
 ]
 
 SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
@@ -275,21 +107,22 @@ all_suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 
 SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 
-def build_double_base_alternation() -> Tuple[str, str]:
+
+def build_double_base_alternation() -> str:
     """
     Matches combinations of ambiguous bases which together strongly imply derivatives.
-    Double Base: Strict (excludes equity options/warrants)
-    Triple Base: Loose (allows equity options/warrants due to higher confidence from 3+ terms)
     e.g. "caps and floors", "options and futures"
     Also matches: "contracts such as swaps, collars"
     """
-    base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE + ["warrants?"]
+    base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE
     bases = build_alternation(base_terms, sort_longest_first=True)
 
     prefix_terms = (
         STANDALONE_BASES
         + SUFFIXES
-        + [HEDGE]
+        + [
+            r"(?<!to\s)hedges?",
+        ]
     )
     # Start terms can be either a prefix (contract) or a base (swap)
     start_terms = list(set(prefix_terms + base_terms))
@@ -299,47 +132,20 @@ def build_double_base_alternation() -> Tuple[str, str]:
     # Gap allows 0-2 words between the first and second term
     # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
-
-    # Forbidden fillers to prevent false positives like "agreement sets the cap"
-    # 1. Lookbehind: Gap must not end with articles or relative pronouns
-    forbidden_endings = r"(?<!\sa)(?<!\san)(?<!\s(?:the|who))(?<!\sthat)(?<!\swhich)"
-    # 2. Lookahead: Next term must not start with prepositions (unless consumed by gap)
-    forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
-
-    common_pattern = rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})"
-    
-    # 1. Double Base (Restricted)
-    double_base = rf"{common_pattern}(?:{sep}(?:{bases}))*"
-
-    # 2. Triple Base (Unrestricted)
-    ambiguous_bases_loose = [OPTION_UNRESTRICTED, LOCK, CAP, FLOOR]
-    base_terms_loose = ambiguous_bases_loose + OTHER_BASES + SPECIAL_BASE + ["warrants?"]
-    bases_loose = build_alternation(base_terms_loose, sort_longest_first=True)
-
-    ambiguous_suffixes_loose = [
-        AGREEMENT,
-        ARRANGEMENT,
-        rf"{OPTION_UNRESTRICTED}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT_UNRESTRICTED})",
-        WARRANT_UNRESTRICTED,
-    ]
-    suffixes_loose = UNAMBIGUOUS_SUFFIXES + ambiguous_suffixes_loose + OTHER_SUFFIXES
-    start_terms_loose = list(set(STANDALONE_BASES + suffixes_loose + [HEDGE] + base_terms_loose))
-    start_alt_loose = build_alternation(start_terms_loose, sort_longest_first=True)
-    common_pattern_loose = rf"(?:{start_alt_loose})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_loose})"
-    
-    triple_base = rf"{common_pattern_loose}(?:{sep}(?:{bases_loose}))+"
-    return double_base, triple_base
+    # to captured a list of derivatives, so no action "to"
+    return rf"(?:{start_alt})(?!\s+to){gap}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
-DOUBLE_BASE, TRIPLE_BASE = build_double_base_alternation()
+double_base_alternation = build_double_base_alternation()
 
-UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE]
+UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [double_base_alternation]
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
 BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
 ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
 
-DOUBLE_BASE_REGEX = re.compile(rf"\b{DOUBLE_BASE}\b", re.IGNORECASE)
+DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
+
 
 # =============================================================================
 # TABLE SPECIFIC REGEX
@@ -354,19 +160,16 @@ def build_table_regex() -> re.Pattern:
     # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
     # We add the others that are usually unsafe singular but safe plural.
     table_safe_plurals = [
-        FUTURES,
-        FORWARD,
-        COLLAR,
-        OPTION,
-        LOCK,
-        CAP,
-        FLOOR,
-        SWAP,
-        PUT,
-        CALL,
-        HEDGE,
-        WARRANT,
-    ] + UNAMBIGUOUS_BASE_TYPES
+        "futures",
+        rf"(?<!carry\s)forwards",
+        "hedges",
+        "collars",
+        "swaptions",
+        "derivatives",
+        "swaps",
+        "puts",
+        "calls",
+    ] + SPECIAL_BASE
 
     plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
 
@@ -413,8 +216,11 @@ standalone_alternation = build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
 )
 unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
-full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES + ["hedging"], True)
+full_suffix_alternation = build_alternation(
+    ALL_SUFFIXES + ALL_BASE_TYPES + ["hedging"], True
+)
 # ----------------------------------------------------------------------------------
+
 
 def expand_instruments(
     unsafe: bool = True,
@@ -499,6 +305,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
 LOOSE_GEN_REGEX = build_loose_gen_regex()
 PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()
 
+
 class MatchLevel(Enum):
     STRICT = auto()
     SOFT = auto()
@@ -506,8 +313,12 @@ class MatchLevel(Enum):
     NONE = auto()
 
 
-def run_category_tests(test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex):
-    print(f"{'Text':<40} | {'Exp':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}")
+def run_category_tests(
+    test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex
+):
+    print(
+        f"{'Text':<40} | {'Exp':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}"
+    )
     print("-" * 85)
     all_passed = True
     for text, expected in test_cases:
@@ -515,20 +326,34 @@ def run_category_tests(test_cases: List[Tuple[str, MatchLevel]], strict_regex, s
         so = bool(soft_regex.search(text))
         l = bool(loose_regex.search(text))
 
-        if s: actual = MatchLevel.STRICT
-        elif so: actual = MatchLevel.SOFT
-        elif l: actual = MatchLevel.LOOSE
-        else: actual = MatchLevel.NONE
+        if s:
+            actual = MatchLevel.STRICT
+        elif so:
+            actual = MatchLevel.SOFT
+        elif l:
+            actual = MatchLevel.LOOSE
+        else:
+            actual = MatchLevel.NONE
 
-        passed = (actual == expected)
-        if not passed: all_passed = False
-        print(f"{text:<40} | {expected.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}")
+        passed = actual == expected
+        if not passed:
+            all_passed = False
+        print(
+            f"{text:<40} | {expected.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}"
+        )
 
-    if not all_passed: print("\nSOME TESTS FAILED")
-    else: print("\nALL TESTS PASSED")
+    if not all_passed:
+        print("\nSOME TESTS FAILED")
+    else:
+        print("\nALL TESTS PASSED")
 
-def run_category_tests_counter(test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex):
-    print(f"{'Text (Counter)':<40} | {'Avoid':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}")
+
+def run_category_tests_counter(
+    test_cases: List[Tuple[str, MatchLevel]], strict_regex, soft_regex, loose_regex
+):
+    print(
+        f"{'Text (Counter)':<40} | {'Avoid':<8} | {'Strict':<6} | {'Soft':<6} | {'Loose':<6} | {'Pass':<4}"
+    )
     print("-" * 85)
     all_passed = True
     for text, avoid_level in test_cases:
@@ -537,12 +362,20 @@ def run_category_tests_counter(test_cases: List[Tuple[str, MatchLevel]], strict_
         l = bool(loose_regex.search(text))
 
         passed = True
-        if avoid_level == MatchLevel.STRICT and s: passed = False
-        elif avoid_level == MatchLevel.SOFT and so: passed = False
-        elif avoid_level == MatchLevel.LOOSE and l: passed = False
+        if avoid_level == MatchLevel.STRICT and s:
+            passed = False
+        elif avoid_level == MatchLevel.SOFT and so:
+            passed = False
+        elif avoid_level == MatchLevel.LOOSE and l:
+            passed = False
 
-        if not passed: all_passed = False
-        print(f"{text:<40} | {avoid_level.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}")
+        if not passed:
+            all_passed = False
+        print(
+            f"{text:<40} | {avoid_level.name:<8} | {str(s):<6} | {str(so):<6} | {str(l):<6} | {str(passed):<4}"
+        )
 
-    if not all_passed: print("\nSOME COUNTER TESTS FAILED")
-    else: print("\nALL COUNTER TESTS PASSED")
+    if not all_passed:
+        print("\nSOME COUNTER TESTS FAILED")
+    else:
+        print("\nALL COUNTER TESTS PASSED")

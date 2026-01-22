@@ -650,7 +650,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
         COMMON_COMMODITIES +
         CP_UNITS_STRICT +
         NON_DERIVATIVE_COMMERCIAL_KEYWORDS +
-        [rf"{_COMMODITY_NAMES}{COMMODITY_COMMERICIAL_PATTERN}"]
+        [rf"{_COMMODITY_NAMES}\s+{COMMODITY_COMMERICIAL_PATTERN}"]
     )
 
     return strict_terms, soft_terms, risk_terms
