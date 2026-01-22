@@ -90,11 +90,13 @@ def to_build_alternation(items: Any, sort_longest_first: bool = True) -> str:
     return build_alternation(to_list(items), sort_longest_first=sort_longest_first)
 
 
-def build_compound(prefix: Any, suffix: Any) -> str:
-    return f"{to_build_alternation(prefix)}[- ]{to_build_alternation(suffix)}"
+def build_compound(prefix: Any, core: Any, suffix: Optional[Any] = None) -> str:
+    return f"{to_build_alternation(prefix)}[- ]{to_build_alternation(core)}{'[- ]' + to_build_alternation(suffix) if suffix else ''}"
 
-
-def plural(string: str) -> str:
+def plural(string: str | Enum) -> str:
+    if isinstance(string, Enum):
+        string = string.value
+    assert isinstance(string, str)
     # Removes '?' only if it is at the end of the string
     return string.removesuffix("?")
 
