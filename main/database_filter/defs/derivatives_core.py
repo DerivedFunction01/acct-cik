@@ -207,6 +207,7 @@ AGREEMENT_LOOKBEHINDS = [
     r"loan[- ]",
     r"debt[- ]",
     r"bond[- ]",
+    r"note[- ]",
     r"mortage[- ]",
     r"sales?[- ]",
     r"lease[- ]",
