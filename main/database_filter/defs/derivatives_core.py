@@ -116,7 +116,6 @@ OPTION_UNRESTRICTED = register_base(
         r"an\s",
         r"the\s",
     ],
-    lookaheads=VERB_LOOKBEHIND,
 )
 LOCK = register_base(
     "locks?",
@@ -190,10 +189,32 @@ WARRANT = register_base(
     ],
 )
 WARRANT_UNRESTRICTED = register_base(
-    "warrants?", lookaheads=[r" (?:the|a|an)"], lookbehinds=VERB_LOOKBEHIND
+    "warrants?",
+    lookaheads=[r" (?:the|a|an)"],
+    lookbehinds=[
+        r"to\s",
+    ],
 )
 
-CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
+AGREEMENT_LOOKBEHINDS = [
+    r"equity[- ]",
+    r"stock[- ]",
+    r"shares?[- ]",
+    r"(?:stock|share)[- ]purchase",
+    r"treasury[- ]",
+    r"credit[- ]",
+    r"loan[- ]",
+    r"sales?[- ]",
+    r"lease[- ]",
+    r"license[- ]",
+    r"employment[- ]",
+    r"service[- ]",
+    r"consulting[- ]",
+]
+
+CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND + AGREEMENT_LOOKBEHINDS, lookaheads=VERB_LOOKAHEAD)
+AGREEMENT = register_base("agreements?", lookbehinds=AGREEMENT_LOOKBEHINDS)
+ARRANGEMENT = register_base("arrangements?", lookbehinds=AGREEMENT_LOOKBEHINDS),
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
 )
@@ -213,8 +234,8 @@ UNAMBIGUOUS_SUFFIXES = [
 ]
 
 AMBIGUOUS_SUFFIXES = [
-    "agreements?",
-    "arrangements?",
+    AGREEMENT,
+    ARRANGEMENT,
     rf"{OPTION}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT})",  # prevent prevent an/the option
     WARRANT,  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
@@ -275,8 +296,8 @@ def build_double_base_alternation() -> Tuple[str, str]:
     bases_loose = build_alternation(base_terms_loose, sort_longest_first=True)
 
     ambiguous_suffixes_loose = [
-        "agreements?",
-        "arrangements?",
+        AGREEMENT,
+        ARRANGEMENT,
         rf"{OPTION_UNRESTRICTED}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT_UNRESTRICTED})",
         WARRANT_UNRESTRICTED,
     ]
@@ -291,9 +312,7 @@ def build_double_base_alternation() -> Tuple[str, str]:
 
 DOUBLE_BASE, TRIPLE_BASE = build_double_base_alternation()
 
-# TRIPLE_BASE allows unrestricted options/warrants (e.g. "equity options")
-# because the presence of 3+ terms provides sufficient context to override the exclusion.
-UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE, TRIPLE_BASE]
+UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE]
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
 BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
 ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
