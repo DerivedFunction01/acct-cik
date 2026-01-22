@@ -214,6 +214,7 @@ AGREEMENT_LOOKBEHINDS = [
     r"sale[- ]",
     r"lease[- ]",
     r"license[- ]",
+    r"licensing[- ]",
     r"employment[- ]",
     r"service[- ]",
     r"consulting[- ]",
