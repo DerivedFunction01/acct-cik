@@ -103,7 +103,7 @@ FORWARD = register_base(
 )
 COLLAR = register_base(
     "collars?",
-    lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD,
+    lookaheads=[r"[- ]rates?", r"[- ]workers?"] + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
     + [r"blue[- ]", r"white\s", r"dog\s", r"shirt\s", r"cervical\s", r"white[- ]"],
 )
@@ -212,7 +212,7 @@ WARRANT = register_base(
     ],
 )
 
-CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND)
+CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
 )
