@@ -111,11 +111,12 @@ AMBIGUOUS_SUFFIXES = [
     rf"{OPTION}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT})",  # prevent prevent an/the option
     WARRANT,  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
+HEDGE = register_base("hedges?", lookaheads=VERB_LOOKAHEAD + [r"with", r"by", r"for"], lookbehinds=VERB_LOOKBEHIND)
 OTHER_SUFFIXES = [
     "commitments?",
     "transactions?",
     "positions?",
-    register_base("hedges?", lookaheads=VERB_LOOKAHEAD + [r"with", r"by", r"for"], lookbehinds=VERB_LOOKBEHIND),
+    HEDGE
 ]
 
 SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
@@ -137,9 +138,7 @@ def build_double_base_alternation() -> str:
     prefix_terms = (
         STANDALONE_BASES
         + SUFFIXES
-        + [
-            r"(?<!to\s)hedges?",
-        ]
+        + [HEDGE]
     )
     # Start terms can be either a prefix (contract) or a base (swap)
     start_terms = list(set(prefix_terms + base_terms))
