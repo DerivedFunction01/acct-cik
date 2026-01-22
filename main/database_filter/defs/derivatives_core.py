@@ -354,8 +354,7 @@ def build_table_regex() -> re.Pattern:
         CALL,
         HEDGE,
         WARRANT,
-        
-    ] + SPECIAL_BASE
+    ] + UNAMBIGUOUS_BASE_TYPES
 
     plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
 
