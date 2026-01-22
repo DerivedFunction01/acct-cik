@@ -186,27 +186,31 @@ class MULTI_BASE:
 @dataclass
 class DERIVATIVES:
     # Default groups
-    
+
     # What placeholder to use
     PREFIX: List[Any] = field(default_factory=list)
-    
+
     # Can add additional to this list (adds to _BASES)
     STANDALONE_BASES: List[Any] = field(default_factory=list)
     # Default fixed group (adds to the suffixes attribute)
     _BASES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_BASES)
-    
+
     # Fixed, for all categories (no suffix attachment)
-    MULTI_BASE: List[Any] = field(default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE])
-    
+    MULTI_BASE: Any = field(default_factory=lambda: MULTI_BASE.DOUBLE_BASE)
+
     # Can add additional to this list, or force the list to be empty or override it
-    AMBIGUOUS_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
-    
+    ADDITIONAL_BASES: List[Any] = field(default_factory=list)
+
+    _A_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
+
     # Standalone suffixes will not be a prefix for a base
     STANDALONE_SUFFIXES: List[Any] = field(default_factory=list)
-    
+
     # Adds suffixes (not standalone) to the pool to add to a base
     ADDITIONAL_SUFFIXES: List[Any] = field(default_factory=list)
     SUFFIXES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
+
+    LOOSE: bool = False
 
 
 @dataclass
@@ -226,21 +230,30 @@ class DerivativeGenerator:
     ):
         # 1. Determine Effective Lists
         # Start with defaults or overrides
-
         # Build the strict base set
-        eff_strict = self.config._BASES + self.config.STANDALONE_BASES 
+        eff_strict = self.config._BASES + self.config.STANDALONE_BASES + (
+            self.config._A_BASES if self.config.LOOSE else []
+        )
         # Allow ambigous to use the list from strict
-        eff_ambig = self.config.AMBIGUOUS_BASES + eff_strict
+        eff_ambig = set(self.config._A_BASES + eff_strict + self.config.ADDITIONAL_BASES)
         # Premake the suffix list (to attach to bases)
-        eff_suff = (
+        eff_suff = set(
             self.config.SUFFIXES
             + self.config.ADDITIONAL_SUFFIXES
             + self.config.STANDALONE_SUFFIXES
+            + (Groups.MISC_SUFFIXES if self.config.LOOSE else [])
         )
         # Strict pattern that requires no additional attachments (includes strict bases/suffixes/multibase)
-        eff_strict += self.config.STANDALONE_SUFFIXES
+        eff_strict = set(
+            self.config.STANDALONE_SUFFIXES
+            + eff_strict + ([eff_suff] if self.config.LOOSE else [])
+        )
 
         # 2. Build regex parts
+
+        # If loose, build the simple one and return early
+        if self.config.LOOSE:
+            return to_build_alternation(eff_strict, sort_longest_first=True)
 
         # Prepare combo base + suffix
         ambig_str = to_build_alternation(eff_ambig, sort_longest_first=True)
@@ -255,10 +268,10 @@ class DerivativeGenerator:
 
         full_suffix_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
         prefix_pattern = to_build_alternation(self.config.PREFIX, sort_longest_first=True)
-        
+
         # Create the final pattern
         full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
-        
+
         return full_pattern
 
 def build_smart_regex(

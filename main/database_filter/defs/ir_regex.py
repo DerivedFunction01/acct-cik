@@ -1,15 +1,10 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import (
-    UNAMBIGUOUS_SUFFIXES,
-    build_smart_regex,
-    expand_instruments,
-    suffix_alternation,
-)
-from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 
+from defs.regex_lib import add_restrictions, build_alternation, build_regex
+from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
+from defs.derivatives_core import BASE, DERIVATIVES, SUFFIX, DerivativeGenerator, Groups
 BENCHMARK_RATES = [
     "SOFR",
     "SONIA",
@@ -33,13 +28,18 @@ RATE_ADJECTIVES = [
     "treasury",
     "benchmark",
     "prime",
-    r"(?<!foreign[- ])(?<!currency[- ])(?<!exchange[- ])(?:interest|forward)",
+    add_restrictions(
+        r"(?:interest|forward)",
+        lookbehinds=[r"foreign", r"currency", r"exchange"],
+    ),
     r"fed(?:eral)?[- ]funds",
 ] + RATE_TYPES
 
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
+    ir_regex_adjectives = RATE_ADJECTIVES
+    rate_alternation = build_alternation(ir_regex_adjectives, sort_longest_first=True)
+    rate_adjective_phrases = rf"{rate_alternation}[- ]rate"
     # --- 1. Helper Definitions ---
-
     def build_pay_receive_structure() -> str:
         """Constructs the core pay/receive structure pattern."""
         rate_alternation = build_alternation(RATE_TYPES, sort_longest_first=False)
@@ -47,54 +47,54 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
         return (
             r"pay[- ]"
-            rf"(?:{rate_alternation})"
+            rf"(?:{rate_alternation}(?:[- ]rate)?)"
             rf"{FLEXIBLE_SEPARATOR}"
             r"receive[- ]"
-            rf"(?:{rate_alternation})"
+            rf"(?:{rate_alternation}(?:[- ]rate)?)"
+            rf"(?:{rate_adjective_phrases})?"
         )
 
     # --- 2. Build Instrument Alternations ---
     pay_receive_pattern_string = build_pay_receive_structure()
 
     # --- 4. Build Core Terms and Specific Phrases ---
-    ir_regex_adjectives = RATE_ADJECTIVES
-    rate_alternation = build_alternation(ir_regex_adjectives, sort_longest_first=True)
-    rate_adjective_phrases = [rf"{rate_alternation}[- ]rate"]
-
-    # This pattern enforces the sequence: [P/R] + [Optional Adjectives] + [Mandatory Instrument Base]
-    aggressive_capture_pattern = (
-        rf"(?:{pay_receive_pattern_string})"  # 1. Start with 'pay fixed, receive fixed'
-        r"(?:"  # Start of Optional Adjective Group
-        r"\s+"  # Mandatory space
-        rf"(?:{rate_adjective_phrases[0]})"  # 2. Optional: 'interest rate'
-        r")?"
-        r"(?:\s+"  # Mandatory space before the base instrument
-        rf"(?:{expand_instruments(unsafe=True)})"  # 3. Mandatory: 'derivatives contracts' or 'swap'
-        r")"  # This group is mandatory for this specific phrase match
-    )
 
     benchmark_alternation = build_alternation(BENCHMARK_RATES, sort_longest_first=True)
-    brate_adjective_phrases = [
-        rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))?"
+    brate_adjective_phrases = rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))?"
+
+    core_terms = [
+        "single[- ]currency",
+        "interest(?:[ -]rate)?[- ]exchange",
+        pay_receive_pattern_string,
+        rate_adjective_phrases,
+        brate_adjective_phrases,
+        "treasury locks?",
     ]
-    core_terms = (
-        [
-            "single[- ]currency",
-            "interest(?:[ -]rate)?[- ]exchange"
-        ]
-        + rate_adjective_phrases
-        + brate_adjective_phrases
-    )
 
     specific_phrases = [
-        # CRITICAL: This pattern is prioritized for Max Munch
-        aggressive_capture_pattern,
         "zero[- ]coupon swaps?",
-        f"treasury locks?(?:[- ]{suffix_alternation})",
-        "treasury locks",
         "overnight index swaps?",
         r"forward\s+rate\s+agreements?",
     ]
+
+    _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=core_terms,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+    )
+    _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=core_terms,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT] + Groups.AMBIGUOUS_BASES,
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+    )
+    _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=core_terms,
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+    )
+
+    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG)
+    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG)
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG)
 
     # --- 5. Final Build and Compile ---
     strict_pattern = build_smart_regex(
@@ -429,7 +429,7 @@ IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 DEBT_FT_REGEX = debt_feature_regex()
 
 def run_tests():
-    from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
+    from main.database_filter.defs.derivatives_core_old import MatchLevel, run_category_tests, run_category_tests_counter
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
         ("interest rate swap agreement", MatchLevel.STRICT),
