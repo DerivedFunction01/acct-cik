@@ -342,15 +342,19 @@ def build_table_regex() -> re.Pattern:
     # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
     # We add the others that are usually unsafe singular but safe plural.
     table_safe_plurals = [
-        "futures",
-        rf"(?<!carry\s)forwards",
-        "hedges",
-        "collars",
-        "swaptions",
-        "derivatives",
-        "swaps",
-        "puts",
-        "calls",
+        FUTURES,
+        FORWARD,
+        COLLAR,
+        OPTION,
+        LOCK,
+        CAP,
+        FLOOR,
+        SWAP,
+        PUT,
+        CALL,
+        HEDGE,
+        WARRANT,
+        
     ] + SPECIAL_BASE
 
     plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
