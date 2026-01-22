@@ -201,6 +201,7 @@ AGREEMENT_LOOKBEHINDS = [
     r"stock[- ]",
     r"shares?[- ]",
     r"(?:stock|share)[- ]purchase",
+    r"shares[- ]purchase",
     r"treasury[- ]",
     r"credit[- ]",
     r"loan[- ]",
