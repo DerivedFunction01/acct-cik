@@ -59,7 +59,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     # Combine with specific phrases first (highest priority)
     specific_phrases = [
         "(?:cash[- ]flow|fair[- ]value|net[- ]investment) hedges?",
-        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+        r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?",
         "(?:embedded|financial|over[- ]the[- ]counter|otc) derivatives?",
         "(?:derivative[ -]financial|risk[ -]management) instruments?",
         # Derivative/Swap Balance Sheet Items
