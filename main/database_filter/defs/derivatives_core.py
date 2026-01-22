@@ -187,6 +187,9 @@ class MULTI_BASE:
 class DERIVATIVES:
     # Default groups
     
+    # What placeholder to use
+    PREFIX: List[Any] = field(default_factory=list)
+    
     # Can add additional to this list (adds to _BASES)
     STANDALONE_BASES: List[Any] = field(default_factory=list)
     # Default fixed group (adds to the suffixes attribute)
@@ -211,6 +214,10 @@ class DerivativeGenerator:
     """
     Generates regex patterns for derivative instruments based on configurable pools.
     Allows creating Strict, Soft, and Loose patterns dynamically.
+    Allows adding specific prefixes and suffixes.
+    Does not generate the full regex.
+    # So multiple instances are needed for specific phrases
+    # For example, setting multi_base to [] for certain phrases to avoid redundant computation
     """
     config: DERIVATIVES
 
@@ -245,8 +252,13 @@ class DerivativeGenerator:
             self.config.MULTI_BASE, sort_longest_first=True
         )
         standalone_str = to_build_alternation(eff_strict, sort_longest_first=True)
+
+        full_suffix_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
+        prefix_pattern = to_build_alternation(self.config.PREFIX, sort_longest_first=True)
         
-        full_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
+        # Create the final pattern
+        full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
+        
         return full_pattern
 
 def build_smart_regex(
