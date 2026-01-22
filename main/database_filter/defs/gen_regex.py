@@ -1,6 +1,6 @@
 import re
 
-from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX, UNAMBIGUOUS_BASE_TYPES
+from defs.derivatives_core import DERIVATIVES, EXTRA_BASE_COMBOS, FUTURES, PRECISE_LOOSE_GEN_REGEX, SWAPS
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
@@ -16,7 +16,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
 
     # SAFE BASES: Low false-positive risk
-    safe_bases = ["the derivative"]
+    safe_bases = [SWAPS, DERIVATIVES, FUTURES]
 
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
@@ -27,8 +27,8 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "futures",  # plural form
     ]
 
-    # SPECIAL BASES: safe as well (includes everything)
-    special_bases = UNAMBIGUOUS_BASE_TYPES
+    # SPECIAL BASES: safe as well
+    special_bases = EXTRA_BASE_COMBOS
 
     # SAFE SUFFIXES
     suffixes = [
