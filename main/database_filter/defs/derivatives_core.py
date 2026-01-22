@@ -1,25 +1,12 @@
 import re
 from enum import Enum, auto
-from typing import List, Optional, Union, Any, Tuple
-from defs.regex_lib import build_alternation, build_compound, plural, to_build_alternation
+from typing import List, Optional, Tuple
+from defs.regex_lib import build_alternation, build_compound, build_regex, add_restrictions, to_build_alternation
 
 
 # ============================================================================
 # HELPERS
 # ============================================================================
-def register_base(
-    base: str,
-    lookaheads: Optional[List[str]] = None,
-    lookbehinds: Optional[List[str]] = None,
-) -> str:
-    pattern = base
-    if lookbehinds:
-        for lb in lookbehinds:
-            pattern = f"(?<!{lb}[- ]){pattern}"
-    if lookaheads:
-        la_pattern = build_alternation(lookaheads)
-        pattern = f"{pattern}(?![- ]{la_pattern})"
-    return pattern
 
 
 VERB_LOOKBEHIND = [r"to"]
@@ -46,7 +33,7 @@ COMMODITY_COMMERICIAL_PATTERN = build_alternation(
 class BASE(Enum):
     SWAP = r"swaps?"
     FORWARD = (
-        r"forwards?"  # Note: register_base logic handled in final assembly if needed
+        r"forwards?"  # Note: add_restrictions logic handled in final assembly if needed
     )
     COLLAR = r"collars?"
     DERIVATIVE = r"derivatives?"
@@ -182,10 +169,10 @@ def build_double_base_pattern() -> Tuple[str, str]:
 
     # Block ONLY if partner is 'naked' (no suffix).
     # If partner has a suffix, the lookahead fails and the match proceeds.
-    _OPT_STRICT = register_base(
+    _OPT_STRICT = add_restrictions(
         BASE.OPTION.value, lookaheads=[rf"{sep}{BASE.WARRANT.value}\b(?!\s+{_SFX_ALT})"]
     )
-    _WARR_STRICT = register_base(
+    _WARR_STRICT = add_restrictions(
         BASE.WARRANT.value, lookaheads=[rf"{sep}{BASE.OPTION.value}\b(?!\s+{_SFX_ALT})"]
     )
 
@@ -197,7 +184,13 @@ def build_double_base_pattern() -> Tuple[str, str]:
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
     # 4. Assembly
-    _STARTERS = to_build_alternation(_SFX + [_OPT_STRICT, _WARR_STRICT])
+    # Starters must include:
+    # 1. Suffixes ("contracts", "agreements")
+    # 2. Strict Options/Warrants (to enforce the lookahead block)
+    # 3. All other bases ("swaps", "futures", "caps", etc.)
+    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in [BASE.OPTION, BASE.WARRANT]]
+    
+    _STARTERS = to_build_alternation(_SFX + [_OPT_STRICT, _WARR_STRICT] + _OTHER_BASES)
     start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
 
     double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
@@ -363,24 +356,34 @@ def expand_instruments(
 
 
 def build_loose_gen_regex() -> re.Pattern:
-    plurals = [
-        "warrants",
-    ]
-    return build_regex(BASE_TYPES + plurals + SUFFIXES)
+    # Matches any base or suffix
+    # Used for broad filtering/denial logic
+    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES)]
+    all_suffixes = [s.value for s in (Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)] + [SUFFIX.COMMITMENT.value, SUFFIX.TRANSACTION.value, SUFFIX.POSITION.value]
+    
+    return build_regex(all_bases + all_suffixes)
 
 
 def build_loose_gen_regex_precise() -> re.Pattern:
+    # Matches unambiguous bases + specific plurals of ambiguous ones
+    # Used for stricter context checks
+    unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES]
     plurals = [
-        "caps",
-        "floors",
-        "warrants",
-        "puts",
-        "calls",
-        "contracts?",
-        "instruments?",
+        "options", "warrants", "caps", "floors", "locks", 
+        "puts", "calls", "contracts", "instruments"
     ]
-    return build_regex(UNAMBIGUOUS_BASE_TYPES + plurals)
+    return build_regex(unambiguous + plurals)
 
+
+# --- Definitions for Export/Usage in other files ---
+BASE_TYPES = [b.value for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
+ALL_BASE_TYPES = BASE_TYPES + [b.value for b in Groups.OTHER_BASES]
+UNAMBIGUOUS_BASE_ENDING = [b.value for b in Groups.UNAMBIGUOUS_BASES]
+UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING # Alias
+
+UNAMBIGUOUS_SUFFIXES = [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
+SUFFIXES = UNAMBIGUOUS_SUFFIXES + [s.value for s in Groups.AMBIGUOUS_SUFFIXES]
+ALL_SUFFIXES = SUFFIXES + [SUFFIX.COMMITMENT.value, SUFFIX.TRANSACTION.value, SUFFIX.POSITION.value]
 
 LOOSE_GEN_REGEX = build_loose_gen_regex()
 PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()

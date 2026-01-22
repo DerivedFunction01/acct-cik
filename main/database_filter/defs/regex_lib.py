@@ -1,5 +1,6 @@
+from enum import Enum
 import re
-from typing import List
+from typing import Any, List, Optional
 
 def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
     """
@@ -47,11 +48,55 @@ def build_alternation(items: List[str], sort_longest_first: bool = True) -> str:
     return f'(?:{"|".join(items)})'
 
 
+def add_restrictions(
+    base: str,
+    lookaheads: Optional[List[str]] = None,
+    lookbehinds: Optional[List[str]] = None,
+) -> str:
+    pattern = base
+    if lookbehinds:
+        for lb in lookbehinds:
+            pattern = f"(?<!{lb}[- ]){pattern}"
+    if lookaheads:
+        la_pattern = build_alternation(lookaheads)
+        pattern = f"{pattern}(?![- ]{la_pattern})"
+    return pattern
+
+
 def build_regex(keywords: list, ignore_case: bool = True, use_sep: bool = True) -> re.Pattern:
     """Build regex for that also builds the alternation."""
     # Add word boundaries (\b) around each keyword to prevent partial matches
-    pattern = build_alternation(keywords)
+    pattern = to_build_alternation(keywords)
     return re.compile(rf"\b{pattern}\b" if use_sep else pattern, re.IGNORECASE if ignore_case else 0)
+
+
+def to_list(items: Any) -> List[str]:
+    """Flattens a mix of Enums, strings, and lists into a list of strings."""
+    if not isinstance(items, list):
+        items = [items]
+
+    out = []
+    for item in items:
+        if isinstance(item, Enum):
+            out.append(item.value)
+        elif isinstance(item, (list, tuple)):
+            out.extend(to_list(list(item)))
+        else:
+            out.append(str(item))
+    return out
+
+
+def to_build_alternation(items: Any, sort_longest_first: bool = True) -> str:
+    return build_alternation(to_list(items), sort_longest_first=sort_longest_first)
+
+
+def build_compound(prefix: Any, suffix: Any) -> str:
+    return f"{to_build_alternation(prefix)}[- ]{to_build_alternation(suffix)}"
+
+
+def plural(string: str) -> str:
+    # Removes '?' only if it is at the end of the string
+    return string.removesuffix("?")
 
 
 SENTENCE_SPLIT_PATTERN = re.compile(
