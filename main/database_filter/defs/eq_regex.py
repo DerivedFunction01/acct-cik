@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import  build_smart_regex, expand_instruments
+from defs.derivatives_core import  build_smart_regex, expand_instruments, TRIPLE_BASE
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 
@@ -46,6 +46,8 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
         r"margin\s+loans?",
+        # Triple Base with Equity Prefixes (overrides compensation logic due to list strength)
+        rf"(?:stock|shares?|treasury)\s+{TRIPLE_BASE}",
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
@@ -246,6 +248,7 @@ def run_tests():
         ("convertible debt hedge", MatchLevel.STRICT),
         ("equity option and warrants", MatchLevel.SOFT),
         ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE overrides equity exclusion
+        ("stock options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE with stock prefix
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
