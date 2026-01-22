@@ -30,7 +30,7 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     r"\sshipments?",
     r"\sreceipts?",
     r"\sinventor(?:y|ies)",
-    r"\s+stocks?",
+    r"\sstocks?",
 ]
 
 COMMODITY_COMMERICIAL_PATTERN = build_alternation(
