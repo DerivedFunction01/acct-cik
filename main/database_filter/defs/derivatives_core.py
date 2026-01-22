@@ -22,7 +22,6 @@ VERB_LOOKAHEAD = [r"\s+(?:the|an|a)"]
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
     "deliver(?:y|ies)",
-    "purchases?",
     "orders?",
     "sales?",
     "suppl(?:y|ies)",
@@ -31,19 +30,33 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     "shipments?",
     "receipts?",
     "inventor(?:y|ies)",
-    
 ]
-
 
 STANDALONE_BASES = [
     register_base(
         "swaps?",
         lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND + [r"sim\s", r"engine\s", r"face\s"],
+        lookbehinds=VERB_LOOKBEHIND
+        + [
+            r"sim\s",
+            r"engine\s",
+            r"face\s",
+            r"asset\s",
+            r"debt[- ]for[- ]equity\s",
+            r"debt[- ]for[- ]debt\s",
+            r"like[- ]kind\s",
+        ],
     ),
     register_base(
         "forwards?",
-        lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?", r"\s+looking?", r"\s+stocks?"]
+        lookaheads=[
+            r"[- ]rates?",
+            r"\s+participants?",
+            r"dealers?",
+            r"\s+looking?",
+            r"\s+stocks?",
+            r"[- ]split", r"\s+earnings", r"\s+guidance", r"\s+multiple", r"\s+P/E", r"\s+auction"
+        ] 
         + VERB_LOOKAHEAD
         + PHYSICAL_COMMERCIAL_TERMS,
         lookbehinds=[
@@ -72,7 +85,7 @@ STANDALONE_BASES = [
     ),
     register_base(
         "derivatives",
-        lookaheads=VERB_LOOKAHEAD,
+        lookaheads=VERB_LOOKAHEAD + [r"\s+markets?"],
         lookbehinds=VERB_LOOKBEHIND
         + [r"its\s", r"their\s", r"plasma\s", r"chemical\s", r"cellulose\s"],
     ),
@@ -81,19 +94,51 @@ STANDALONE_BASES = [
 ]
 OPTION = register_base(
     "options?",
-    lookbehinds=[r"an\s", r"the\s", r"equity[- ]", r"stock[- ]", r"share[- ]", r"treasury[- ]", r"restricted[- ]"],
+    lookbehinds=[
+        r"an\s",
+        r"the\s",
+        r"equity[- ]",
+        r"stock[- ]",
+        r"share[- ]",
+        r"treasury[- ]",
+        r"restricted[- ]",
+        r"strategic\s",
+        r"financing\s",
+        r"payment\s",
+        r"renewal\s",
+        r"lease\s",
+        r"purchase\s",
+        r"extension\s",
+        r"termination\s",
+        r"expansion\s",
+        r"default\s",
+    ],
 )
 AMBIGUOUS_BASE_TYPES = [
     OPTION,
     register_base(
         "locks?",
-        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND,
+        lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]up", r"[- ]box", r"[- ]in"]
+        + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND
+        + [r"door\s", r"grid\s", r"canal\s", r"zip\s", r"inter\s"],
     ),
     register_base(
         "caps?",
-        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND + [r"market", r"equity"],
+        lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]ex", r"\s+table", r"\s+space"]
+        + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND
+        + [
+            r"market\s",
+            r"equity\s",
+            r"small\s",
+            r"large\s",
+            r"mid\s",
+            r"micro\s",
+            r"nano\s",
+            r"salary\s",
+            r"bottle\s",
+        ],
     ),
     register_base(
         "derivatives?",
@@ -102,8 +147,19 @@ AMBIGUOUS_BASE_TYPES = [
     ),
     register_base(
         "floors?",
-        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND,
+        lookaheads=[r"\s+interest", r"[- ]rates?", r"\s+area", r"\s+space", r"\s+plan"]
+        + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND
+        + [
+            r"trading\s",
+            r"factory\s",
+            r"ground\s",
+            r"ocean\s",
+            r"sea\s",
+            r"shop\s",
+            r"dance\s",
+            r"construction\s",
+        ],
     ),
 ]
 OTHER_BASES = [
