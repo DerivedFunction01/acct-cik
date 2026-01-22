@@ -171,6 +171,7 @@ def run_tests():
         ("stock options and warrants", MatchLevel.LOOSE),
         ("options and warrants", MatchLevel.STRICT),
         ("swaps and futures", MatchLevel.STRICT),
+        ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE
         ("caps and floors", MatchLevel.STRICT),
         ("contracts such as swaps", MatchLevel.STRICT),
         ("contracts such as options", MatchLevel.STRICT),

@@ -291,7 +291,9 @@ def build_double_base_alternation() -> Tuple[str, str]:
 
 DOUBLE_BASE, TRIPLE_BASE = build_double_base_alternation()
 
-UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE]
+# TRIPLE_BASE allows unrestricted options/warrants (e.g. "equity options")
+# because the presence of 3+ terms provides sufficient context to override the exclusion.
+UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE, TRIPLE_BASE]
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
 BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
 ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES

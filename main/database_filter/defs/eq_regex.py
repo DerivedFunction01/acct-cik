@@ -245,6 +245,7 @@ def run_tests():
         ("convertible debt", MatchLevel.SOFT),
         ("convertible debt hedge", MatchLevel.STRICT),
         ("equity option and warrants", MatchLevel.SOFT),
+        ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE overrides equity exclusion
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 

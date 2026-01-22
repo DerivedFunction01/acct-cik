@@ -806,6 +806,7 @@ def run_tests():
         ("oil hedging", MatchLevel.LOOSE),
         ("commodity arrangement", MatchLevel.LOOSE),
         ("commodity options", MatchLevel.SOFT),
+        ("commodity options, swaps and futures", MatchLevel.STRICT), # TRIPLE_BASE
     ]
 
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
