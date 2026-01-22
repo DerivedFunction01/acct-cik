@@ -1,6 +1,7 @@
 import re
+from dataclasses import dataclass
 from enum import Enum, auto
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from defs.regex_lib import build_alternation, build_compound, build_regex, add_restrictions, to_build_alternation
 
 
@@ -43,10 +44,22 @@ class BASE(Enum):
     LOCK = r"locks?"
     CAP = r"caps?"
     FLOOR = r"floors?"
+    
+    
+    
+    # Other bases that are not used standalone
     PUT = r"puts?"
     CALL = r"calls?"
     HEDGE = r"hedg(?:es?|ing)"
     WARRANT = r"warrants?"
+    
+    # IR bases
+    PROTECTION = r"protections?"
+    
+    # CP bases
+    FORWARD_PURCHASE = r"forward\s+purchase"
+    STRADDLE = r"straddles?"
+    STRANGLE = r"strangles?"
 
 
 class SUFFIX(Enum):
@@ -62,31 +75,16 @@ class SUFFIX(Enum):
 # ============================================================================
 # COLLECTIONS (Logical groupings - Standard Lists)
 # ============================================================================
-class Groups:
-    UNAMBIGUOUS_BASES = [
-        BASE.SWAP,
-        BASE.FORWARD,
-        BASE.COLLAR,
-        BASE.DERIVATIVE,
-        BASE.FUTURES,
-        BASE.SWAPTION,
-    ]
-    AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR]
-    OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE, BASE.WARRANT]
-
-    # Suffix Sets
-    UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
-    AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
-
+class SPEC_BASE(Enum):
     # Modifiers
-    SPECIAL_SWAP_MODS = [
+    SPECIAL_SWAP = build_compound([
         r"basis",
         r"variance",
         r"volatility",
         r"total[- ]return",
         r"back[- ]to[- ]back",
-    ]
-    SPECIAL_OPTION_MODS = [
+    ], BASE.SWAP)
+    SPECIAL_OPTION = build_compound([
         r"asian",
         r"bermuda",
         r"basket",
@@ -96,53 +94,28 @@ class Groups:
         r"barrier",
         BASE.PUT,
         BASE.CALL,
+    ], BASE.OPTION)
+
+class Groups:
+    UNAMBIGUOUS_BASES = [
+        BASE.SWAP,
+        BASE.FORWARD,
+        BASE.COLLAR,
+        BASE.DERIVATIVE,
+        BASE.FUTURES,
+        BASE.SWAPTION,
+        SPEC_BASE.SPECIAL_SWAP,
+        SPEC_BASE.SPECIAL_OPTION,    
     ]
-    CONTRACT_MODS = UNAMBIGUOUS_BASES + AMBIGUOUS_BASES + OTHER_BASES
+    AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR]
+    # Bases that may not be used in a soft match
+    OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE]
+    MISC_BASES = [BASE.PROTECTION, BASE.FORWARD_PURCHASE, BASE.STRADDLE, BASE.STRANGLE, BASE.WARRANT]
 
-
-# ============================================================================
-# FINAL PRODUCTS (The actual patterns to match - Enums), fo
-# ============================================================================
-class DERIVATIVE_PATTERNS(Enum):
-    pass
-
-class DERIVATIVES(DERIVATIVE_PATTERNS):
-    # -------------------------------
-    # These stand alone as derivatives
-    # -------------------------------
-    SPECIAL_OPTION = build_compound(Groups.SPECIAL_OPTION_MODS, BASE.OPTION)
-    SPECIAL_SWAP = build_compound(Groups.SPECIAL_SWAP_MODS, BASE.SWAP)
-    # Optional: Include raw base patterns if needed elsewhere
-    UNAMBIGUOUS_BASES = build_alternation(
-        [b.value for b in Groups.UNAMBIGUOUS_BASES], sort_longest_first=True
-    )
-    AMBIGUOUS_BASES = build_alternation(
-        [b.value for b in Groups.AMBIGUOUS_BASES], sort_longest_first=True
-    )
-    OTHER_BASES = build_alternation(
-        [b.value for b in Groups.OTHER_BASES], sort_longest_first=True
-    )
-    DERIVATIVE_CONTRACT = build_compound(Groups.CONTRACT_MODS, SUFFIX.CONTRACT)
-
-    # Base + Suffix combinations
-    INSTRUMENT_COMPOUND = build_compound(
-        Groups.UNAMBIGUOUS_BASES,
-        [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
-    )
-
-    HEDGING_INSTRUMENT = build_compound(
-        [
-            SUFFIX.CONTRACT,
-            SUFFIX.INSTRUMENT,
-            BASE.DERIVATIVE,
-            SUFFIX.ARRANGEMENT,
-            SUFFIX.AGREEMENT,
-        ],
-        BASE.HEDGE,
-    )
-    ASSET_LIABILITY = build_compound(
-        [BASE.DERIVATIVE, BASE.SWAP], [r"liabilit(?:y|ies)", r"assets?"]
-    )
+    # Suffix Sets
+    UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
+    AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
+    MISC_SUFFIXES = [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION]
 
 
 def build_double_base_pattern() -> Tuple[str, str]:
@@ -158,7 +131,6 @@ def build_double_base_pattern() -> Tuple[str, str]:
             Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
         )
     ]
-    base_vals += [DERIVATIVES.SPECIAL_OPTION.value, DERIVATIVES.SPECIAL_SWAP.value]
     bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
 
     _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
@@ -211,48 +183,129 @@ def build_double_base_pattern() -> Tuple[str, str]:
 class MULTI_BASE:
     DOUBLE_BASE, TRIPLE_BASE = build_double_base_pattern()
 
+@dataclass
+class DERIVATIVES:
+    # Default groups
+    
+    # Can add additional to this list (adds to _BASES)
+    STANDALONE_BASES: List[Any] = []
+    # Default fixed group (adds to the suffixes attribute)
+    _BASES: List[Any] = Groups.UNAMBIGUOUS_BASES
+    
+    # Fixed, for all categories (no suffix attachment)
+    MULTI_BASE: List[Any] = [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
+    
+    # Can add additional to this list, or force the list to be empty or override it
+    AMBIGUOUS_BASES: List[Any] = Groups.AMBIGUOUS_BASES
+    
+    # Standalone suffixes will not be a prefix for a base
+    STANDALONE_SUFFIXES: List[Any] = []
+    
+    # Adds suffixes (not standalone) to the pool to add to a base
+    ADDITIONAL_SUFFIXES: List[Any] = []
+    SUFFIXES: List[Any] = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+    
 
-class DERIVATIVES_EXPORT(DERIVATIVE_PATTERNS):
+
+@dataclass
+class DerivativeGenerator:
     """
-    Export patterns: All derivative detection patterns.
-    Includes DERIVATIVES patterns plus multi-base patterns.
-
-    Usage:
-    - Standalone matching: SPECIAL_OPTION, SPECIAL_SWAP, TRIPLE_BASE, etc.
-    - Prefix matching: Use DOUBLE_BASE with "interest rate", "currency", etc.
+    Generates regex patterns for derivative instruments based on configurable pools.
+    Allows creating Strict, Soft, and Loose patterns dynamically.
     """
+    strict_bases: List[Any]
+    ambiguous_bases: List[Any]
+    suffixes: List[Any]
 
-    # From DERIVATIVES (already high-confidence)
-    SPECIAL_OPTION = DERIVATIVES.SPECIAL_OPTION
-    SPECIAL_SWAP = DERIVATIVES.SPECIAL_SWAP
-    DERIVATIVE_CONTRACT = DERIVATIVES.DERIVATIVE_CONTRACT
-    INSTRUMENT_COMPOUND = DERIVATIVES.INSTRUMENT_COMPOUND
-    HEDGING_INSTRUMENT = DERIVATIVES.HEDGING_INSTRUMENT
-    ASSET_LIABILITY = DERIVATIVES.ASSET_LIABILITY
-    UNAMBIGUOUS_BASES = DERIVATIVES.UNAMBIGUOUS_BASES
-    AMBIGUOUS_BASES = DERIVATIVES.AMBIGUOUS_BASES
-    OTHER_BASES = DERIVATIVES.OTHER_BASES
+    def generate(
+        self,
+        # Overrides for default pools
+        standalone_bases: Optional[List[Any]] = None,
+        ambiguous_bases: Optional[List[Any]] = None,
+        suffixes: Optional[List[Any]] = None,
+        
+        # Standalone Suffixes (Default: None/Empty)
+        standalone_suffixes: Optional[List[Any]] = None,
+        
+        # Additions to the pools
+        add_standalone_bases: Optional[List[Any]] = None,
+        add_ambiguous_bases: Optional[List[Any]] = None,
+        add_suffixes: Optional[List[Any]] = None,
+        add_standalone_suffixes: Optional[List[Any]] = None,
+        
+        # Exclusions (Applied to all lists)
+        exclude: Optional[List[Any]] = None,
+        
+        # Flags
+        disable_standalone_bases: bool = False,
+    ) -> str:
+        # 1. Determine Effective Lists
+        # Start with defaults or overrides
+        eff_strict = standalone_bases if standalone_bases is not None else self.strict_bases
+        eff_ambig = ambiguous_bases if ambiguous_bases is not None else self.ambiguous_bases
+        eff_suff = suffixes if suffixes is not None else self.suffixes
+        eff_stand_suff = standalone_suffixes if standalone_suffixes is not None else []
 
+        # Apply Additions
+        if add_standalone_bases: eff_strict = eff_strict + add_standalone_bases
+        if add_ambiguous_bases: eff_ambig = eff_ambig + add_ambiguous_bases
+        if add_suffixes: eff_suff = eff_suff + add_suffixes
+        if add_standalone_suffixes: eff_stand_suff = eff_stand_suff + add_standalone_suffixes
 
-    # Multi-base patterns
-    DOUBLE_BASE = MULTI_BASE.DOUBLE_BASE  # "puts and options" (attach to prefix)
-    TRIPLE_BASE = MULTI_BASE.TRIPLE_BASE  # "caps, floors, and collars" (standalone)
-
-    STRICT_PATTERN = to_build_alternation(
-        [
-            DERIVATIVES.SPECIAL_OPTION,
-            DERIVATIVES.SPECIAL_SWAP,
-            DERIVATIVES.DERIVATIVE_CONTRACT,
-            DERIVATIVES.INSTRUMENT_COMPOUND,
-            DERIVATIVES.HEDGING_INSTRUMENT,
-            DERIVATIVES.ASSET_LIABILITY,
-            DERIVATIVES.UNAMBIGUOUS_BASES,
-            MULTI_BASE.TRIPLE_BASE,
-            MULTI_BASE.DOUBLE_BASE,
+        # Apply Exclusions
+        if exclude:
+            # Helper to filter based on Enum value or string representation
+            exclude_vals = set(x.value if hasattr(x, "value") else str(x) for x in exclude)
+            def filter_list(lst):
+                return [x for x in lst if (x.value if hasattr(x, "value") else str(x)) not in exclude_vals]
             
-        ],
-        sort_longest_first=True,
-    )
+            eff_strict = filter_list(eff_strict)
+            eff_ambig = filter_list(eff_ambig)
+            eff_suff = filter_list(eff_suff)
+            eff_stand_suff = filter_list(eff_stand_suff)
+
+        # 2. Build Regex Parts
+        parts = []
+
+        # Part A: Combined Pattern (Strict + Ambiguous) + Suffix
+        # e.g. "interest rate swap agreement", "option contract"
+        combined_bases = eff_strict + eff_ambig
+        if combined_bases and eff_suff:
+            base_alt = to_build_alternation(combined_bases, sort_longest_first=True)
+            suff_alt = to_build_alternation(eff_suff, sort_longest_first=True)
+            parts.append(rf"(?:{base_alt}[- ]{suff_alt})")
+
+        # Part B: Standalone Bases
+        # e.g. "swaps", "futures" (but not "options" if strict)
+        if not disable_standalone_bases and eff_strict:
+            parts.append(to_build_alternation(eff_strict, sort_longest_first=True))
+
+        # Part C: Standalone Suffixes
+        # e.g. "contracts" (only if explicitly allowed)
+        if eff_stand_suff:
+            parts.append(to_build_alternation(eff_stand_suff, sort_longest_first=True))
+
+        return to_build_alternation(parts, sort_longest_first=True)
+
+# --- Pre-configured Generators ---
+STRICT_GENERATOR = DerivativeGenerator(
+    strict_bases=Groups.UNAMBIGUOUS_BASES,
+    ambiguous_bases=Groups.AMBIGUOUS_BASES,
+    suffixes=Groups.UNAMBIGUOUS_SUFFIXES
+)
+
+SOFT_GENERATOR = DerivativeGenerator(
+    strict_bases=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
+    ambiguous_bases=[], # In soft mode, ambiguous bases are usually allowed standalone (strict)
+    suffixes=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+)
+
+LOOSE_GENERATOR = DerivativeGenerator(
+    strict_bases=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
+    ambiguous_bases=[],
+    suffixes=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION]
+)
+
 
 def build_smart_regex(
     core_terms: List[str],
@@ -284,9 +337,10 @@ def build_smart_regex(
 
 
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
-base_alternation = build_alternation(BASE_TYPES, True)
+base_alternation = build_alternation(ALL_BASE_TYPES, True)
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
 safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
+suffix_alternation = build_alternation(SUFFIXES, True)
 standalone_alternation = build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
 )

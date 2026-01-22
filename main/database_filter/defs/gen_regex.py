@@ -1,10 +1,86 @@
+from enum import Enum
 import re
 
-from defs.derivatives_core import DERIVATIVES, EXTRA_BASE_COMBOS, FUTURES, PRECISE_LOOSE_GEN_REGEX, SWAPS, TRIPLE_BASE
-from defs.regex_lib import build_alternation, build_regex
+
+from defs.derivatives_core import BASE, MULTI_BASE, PHYSICAL_COMMERCIAL_TERMS, PRECISE_LOOSE_GEN_REGEX, SPEC_BASE, SUFFIX, VERB_LOOKAHEAD, VERB_LOOKBEHIND, Groups, build_compound
+from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
 from defs.exclusion_regex import ENTITY_TOKEN
+
+class GEN_DERIVATIVE_PATTERNS(Enum):
+    HEDGING_INSTRUMENT_ALONE = build_compound(
+        [
+            SUFFIX.CONTRACT,
+            SUFFIX.INSTRUMENT,
+            BASE.DERIVATIVE,
+        ],
+        BASE.HEDGE,
+    )
+    # Miscellaneous complex patterns
+    OTHER_INSTRUMENTS = build_alternation(
+        [
+            r"(?:derivative\s+financial|risk[- ]managment)\s+instruments?",
+            build_compound([r"zero[- ]cost"], BASE.COLLAR),
+            r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:for|in|at))",
+        ]
+    )
+    EMBEDDED_INSTRUMENT = build_compound([r"embedded", r"over[- ]the[- ]counter", r"otc"], BASE.DERIVATIVE)
+    HEDGES = build_compound([r"fair[- ]value", r"cash[- ]flow", r"net[- ]investment"], BASE.HEDGE)
+    # Base + Suffix combinations
+    INSTRUMENT_COMPOUND = build_compound(
+        Groups.UNAMBIGUOUS_BASES,
+        [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
+    )
+
+    DERIVATIVE_CONTRACT = build_compound(Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES, SUFFIX.CONTRACT)
+    ASSET_LIABILITY = build_compound(
+        [BASE.DERIVATIVE, BASE.SWAP], [r"liabilit(?:y|ies)", r"assets?"]
+    )
+
+
+# =============================================================================
+# TABLE SPECIFIC REGEX
+# =============================================================================
+def build_table_regex() -> re.Pattern:
+    """
+    A stricter regex for table filtering that eliminates singular noise
+    (future, option, forward) but keeps the plurals often found in headers.
+    """
+
+    # 1. Safe Plurals (Standalones that are safe in tables)
+    # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
+    # We add the others that are usually unsafe singular but safe plural.
+    table_safe_plurals = [
+        BASE.FUTURES,
+        add_restrictions(
+            plural(BASE.FORWARD.value),
+            lookaheads=PHYSICAL_COMMERCIAL_TERMS + VERB_LOOKAHEAD,
+            lookbehinds=VERB_LOOKBEHIND
+            + [
+                r"carry",
+                r"carrying",
+                r"carried",
+                r"look",
+                r"looking",
+                r"looked",
+                r"brought",
+                r"put",
+                r"push",
+                r"set",
+            ],
+        ),
+        plural(BASE.COLLAR.value),
+        BASE.SWAPTION,
+        plural(BASE.DERIVATIVE.value),
+        plural(BASE.SWAP.value),
+        plural(BASE.PUT.value),
+        plural(BASE.CALL.value),
+    ] # Rest will be caught by gen_regex
+    return build_regex(table_safe_plurals)
+
+
+TABLE_REGEX = build_table_regex()
 
 def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
@@ -15,65 +91,62 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     NOTIONAL_REGEX    → captures notional amount/principal/value phrases
     """
 
-    # SAFE BASES: Low false-positive risk
-    safe_bases = [SWAPS, DERIVATIVES, FUTURES, TRIPLE_BASE]
+    # # SAFE BASES: Low false-positive risk
+    # safe_bases = [SWAPS, DERIVATIVES, FUTURES, TRIPLE_BASE]
 
-    # UNSAFE STANDALONE: Require suffix
-    unsafe_alone = [
-        "swap",
-        "collar",
-        "hedge",
-        "hedging",
-        "futures",  # plural form
+    # # UNSAFE STANDALONE: Require suffix
+    # unsafe_alone = [
+    #     "swap",
+    #     "collar",
+    #     "hedge",
+    #     "hedging",
+    #     "futures",  # plural form
+    # ]
+
+    # # SPECIAL BASES: safe as well
+    # special_bases = EXTRA_BASE_COMBOS
+
+    # # SAFE SUFFIXES
+    # suffixes = [
+    #     "agreements?",
+    #     "contracts?",
+    #     "instruments?",
+    #     "arrangements?",
+    # ]
+
+    # safe_bases_alt = build_alternation(safe_bases, sort_longest_first=True)
+    # unsafe_alone_alt = build_alternation(unsafe_alone, sort_longest_first=True)
+    # special_bases_alt = build_alternation(special_bases, sort_longest_first=True)
+    # suffix_alt = build_alternation(suffixes, sort_longest_first=True)
+
+    # # CRITICAL FIX: Reorder to enforce MAX MUNCH
+    # # Pattern 1: Safe bases WITH suffix (HIGHEST PRIORITY - longest match first)
+    # pattern1 = rf"{safe_bases_alt}[- ]{suffix_alt}"
+
+    # # Pattern 2: Unsafe bases MUST have suffix
+    # pattern2 = rf"{unsafe_alone_alt}[- ]{suffix_alt}"
+
+    # # Pattern 3: Safe bases standalone (LOWER PRIORITY)
+    # pattern3 = safe_bases_alt
+
+    # # Pattern 4: Special bases (complete phrases)
+    # pattern4 = special_bases_alt
+    DERIVATIVE_PATTERNS = [
+        GEN_DERIVATIVE_PATTERNS.HEDGING_INSTRUMENT_ALONE,
+        GEN_DERIVATIVE_PATTERNS.OTHER_INSTRUMENTS,
+        GEN_DERIVATIVE_PATTERNS.EMBEDDED_INSTRUMENT,
+        GEN_DERIVATIVE_PATTERNS.HEDGES,
+        SPEC_BASE.SPECIAL_OPTION,
+        SPEC_BASE.SPECIAL_SWAP,
+        GEN_DERIVATIVE_PATTERNS.DERIVATIVE_CONTRACT,
+        GEN_DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
+        GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
+        MULTI_BASE.TRIPLE_BASE,
     ]
-
-    # SPECIAL BASES: safe as well
-    special_bases = EXTRA_BASE_COMBOS
-
-    # SAFE SUFFIXES
-    suffixes = [
-        "agreements?",
-        "contracts?",
-        "instruments?",
-        "arrangements?",
-    ]
-
-    safe_bases_alt = build_alternation(safe_bases, sort_longest_first=True)
-    unsafe_alone_alt = build_alternation(unsafe_alone, sort_longest_first=True)
-    special_bases_alt = build_alternation(special_bases, sort_longest_first=True)
-    suffix_alt = build_alternation(suffixes, sort_longest_first=True)
-
-    # CRITICAL FIX: Reorder to enforce MAX MUNCH
-    # Pattern 1: Safe bases WITH suffix (HIGHEST PRIORITY - longest match first)
-    pattern1 = rf"{safe_bases_alt}[- ]{suffix_alt}"
-
-    # Pattern 2: Unsafe bases MUST have suffix
-    pattern2 = rf"{unsafe_alone_alt}[- ]{suffix_alt}"
-
-    # Pattern 3: Safe bases standalone (LOWER PRIORITY)
-    pattern3 = safe_bases_alt
-
-    # Pattern 4: Special bases (complete phrases)
-    pattern4 = special_bases_alt
-
-    # Combine with specific phrases first (highest priority)
-    specific_phrases = [
-        "(?:cash[- ]flow|fair[- ]value|net[- ]investment) hedges?",
-        r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-        "(?:embedded|financial|over[- ]the[- ]counter|otc) derivatives?",
-        "(?:derivative[ -]financial|risk[ -]management) instruments?",
-        # Derivative/Swap Balance Sheet Items
-        "(?:derivative|swap) (?:liabilit(?:y|ies)|assets?)",
-        # Explicit "Safe" Variants for Ambiguous Bases
-        "zero[- ]cost collars?",
-    ]
-    specific_alt = build_alternation(specific_phrases, sort_longest_first=True)
-
-    # FINAL: Specific phrases FIRST, then combined+suffix patterns, then standalone
-    instrument_pattern = rf"{specific_alt}|{pattern4}|{pattern1}|{pattern2}|{pattern3}"
+    derivative_alt = build_alternation(DERIVATIVE_PATTERNS, sort_longest_first=True)
 
     INSTRUMENT_REGEX = re.compile(
-        rf"\b(?P<instrument>{instrument_pattern})\b", re.IGNORECASE
+        rf"\b(?P<instrument>{derivative_alt})\b", re.IGNORECASE
     )
     NOTIONAL_REGEX = build_regex(["notional"])
 
@@ -130,6 +203,7 @@ SOFT_GEN_TERMS = [
     r"value of derivatives?",
     r"notional",
     r"bifurcat(?:ed|ion|ing)",
+    r"hedges?\s+of\s+(?:the\s+)?net\s+investments?"
 ]
 
 
@@ -157,7 +231,7 @@ GEN_HEDGES = build_regex(
 )
 
 def run_tests():
-    from defs.derivatives_core import (
+    from main.database_filter.defs.derivatives_core_old import (
         LOOSE_GEN_REGEX,
         MatchLevel,
         run_category_tests,
