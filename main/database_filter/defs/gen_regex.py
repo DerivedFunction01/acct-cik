@@ -54,7 +54,7 @@ def build_table_regex() -> re.Pattern:
     table_safe_plurals = [
         BASE.FUTURES,
         add_restrictions(
-            plural(BASE.FORWARD.value),
+            plural(BASE.FORWARD),
             lookaheads=PHYSICAL_COMMERCIAL_TERMS + VERB_LOOKAHEAD,
             lookbehinds=VERB_LOOKBEHIND
             + [
@@ -70,12 +70,12 @@ def build_table_regex() -> re.Pattern:
                 r"set",
             ],
         ),
-        plural(BASE.COLLAR.value),
+        plural(BASE.COLLAR),
         BASE.SWAPTION,
-        plural(BASE.DERIVATIVE.value),
-        plural(BASE.SWAP.value),
-        plural(BASE.PUT.value),
-        plural(BASE.CALL.value),
+        plural(BASE.DERIVATIVE),
+        plural(BASE.SWAP),
+        plural(BASE.PUT),
+        plural(BASE.CALL),
     ] # Rest will be caught by gen_regex
     return build_regex(table_safe_plurals)
 

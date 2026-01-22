@@ -1,8 +1,8 @@
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple
-from defs.regex_lib import build_alternation, build_compound, build_regex, add_restrictions, to_build_alternation
+from defs.regex_lib import build_alternation, build_compound, build_regex, add_restrictions, plural, to_build_alternation
 
 
 # ============================================================================
@@ -188,23 +188,22 @@ class DERIVATIVES:
     # Default groups
     
     # Can add additional to this list (adds to _BASES)
-    STANDALONE_BASES: List[Any] = []
+    STANDALONE_BASES: List[Any] = field(default_factory=list)
     # Default fixed group (adds to the suffixes attribute)
-    _BASES: List[Any] = Groups.UNAMBIGUOUS_BASES
+    _BASES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_BASES)
     
     # Fixed, for all categories (no suffix attachment)
-    MULTI_BASE: List[Any] = [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
+    MULTI_BASE: List[Any] = field(default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE])
     
     # Can add additional to this list, or force the list to be empty or override it
-    AMBIGUOUS_BASES: List[Any] = Groups.AMBIGUOUS_BASES
+    AMBIGUOUS_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
     
     # Standalone suffixes will not be a prefix for a base
-    STANDALONE_SUFFIXES: List[Any] = []
+    STANDALONE_SUFFIXES: List[Any] = field(default_factory=list)
     
     # Adds suffixes (not standalone) to the pool to add to a base
-    ADDITIONAL_SUFFIXES: List[Any] = []
-    SUFFIXES: List[Any] = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
-    
+    ADDITIONAL_SUFFIXES: List[Any] = field(default_factory=list)
+    SUFFIXES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
 
 
 @dataclass
@@ -213,99 +212,42 @@ class DerivativeGenerator:
     Generates regex patterns for derivative instruments based on configurable pools.
     Allows creating Strict, Soft, and Loose patterns dynamically.
     """
-    strict_bases: List[Any]
-    ambiguous_bases: List[Any]
-    suffixes: List[Any]
+    config: DERIVATIVES
 
     def generate(
-        self,
-        # Overrides for default pools
-        standalone_bases: Optional[List[Any]] = None,
-        ambiguous_bases: Optional[List[Any]] = None,
-        suffixes: Optional[List[Any]] = None,
-        
-        # Standalone Suffixes (Default: None/Empty)
-        standalone_suffixes: Optional[List[Any]] = None,
-        
-        # Additions to the pools
-        add_standalone_bases: Optional[List[Any]] = None,
-        add_ambiguous_bases: Optional[List[Any]] = None,
-        add_suffixes: Optional[List[Any]] = None,
-        add_standalone_suffixes: Optional[List[Any]] = None,
-        
-        # Exclusions (Applied to all lists)
-        exclude: Optional[List[Any]] = None,
-        
-        # Flags
-        disable_standalone_bases: bool = False,
-    ) -> str:
+        self
+    ):
         # 1. Determine Effective Lists
         # Start with defaults or overrides
-        eff_strict = standalone_bases if standalone_bases is not None else self.strict_bases
-        eff_ambig = ambiguous_bases if ambiguous_bases is not None else self.ambiguous_bases
-        eff_suff = suffixes if suffixes is not None else self.suffixes
-        eff_stand_suff = standalone_suffixes if standalone_suffixes is not None else []
 
-        # Apply Additions
-        if add_standalone_bases: eff_strict = eff_strict + add_standalone_bases
-        if add_ambiguous_bases: eff_ambig = eff_ambig + add_ambiguous_bases
-        if add_suffixes: eff_suff = eff_suff + add_suffixes
-        if add_standalone_suffixes: eff_stand_suff = eff_stand_suff + add_standalone_suffixes
+        # Build the strict base set
+        eff_strict = self.config._BASES + self.config.STANDALONE_BASES 
+        # Allow ambigous to use the list from strict
+        eff_ambig = self.config.AMBIGUOUS_BASES + eff_strict
+        # Premake the suffix list (to attach to bases)
+        eff_suff = (
+            self.config.SUFFIXES
+            + self.config.ADDITIONAL_SUFFIXES
+            + self.config.STANDALONE_SUFFIXES
+        )
+        # Strict pattern that requires no additional attachments (includes strict bases/suffixes/multibase)
+        eff_strict += self.config.STANDALONE_SUFFIXES
 
-        # Apply Exclusions
-        if exclude:
-            # Helper to filter based on Enum value or string representation
-            exclude_vals = set(x.value if hasattr(x, "value") else str(x) for x in exclude)
-            def filter_list(lst):
-                return [x for x in lst if (x.value if hasattr(x, "value") else str(x)) not in exclude_vals]
-            
-            eff_strict = filter_list(eff_strict)
-            eff_ambig = filter_list(eff_ambig)
-            eff_suff = filter_list(eff_suff)
-            eff_stand_suff = filter_list(eff_stand_suff)
+        # 2. Build regex parts
 
-        # 2. Build Regex Parts
-        parts = []
+        # Prepare combo base + suffix
+        ambig_str = to_build_alternation(eff_ambig, sort_longest_first=True)
+        suffix_str = to_build_alternation(eff_suff, sort_longest_first=True)
 
-        # Part A: Combined Pattern (Strict + Ambiguous) + Suffix
-        # e.g. "interest rate swap agreement", "option contract"
-        combined_bases = eff_strict + eff_ambig
-        if combined_bases and eff_suff:
-            base_alt = to_build_alternation(combined_bases, sort_longest_first=True)
-            suff_alt = to_build_alternation(eff_suff, sort_longest_first=True)
-            parts.append(rf"(?:{base_alt}[- ]{suff_alt})")
-
-        # Part B: Standalone Bases
-        # e.g. "swaps", "futures" (but not "options" if strict)
-        if not disable_standalone_bases and eff_strict:
-            parts.append(to_build_alternation(eff_strict, sort_longest_first=True))
-
-        # Part C: Standalone Suffixes
-        # e.g. "contracts" (only if explicitly allowed)
-        if eff_stand_suff:
-            parts.append(to_build_alternation(eff_stand_suff, sort_longest_first=True))
-
-        return to_build_alternation(parts, sort_longest_first=True)
-
-# --- Pre-configured Generators ---
-STRICT_GENERATOR = DerivativeGenerator(
-    strict_bases=Groups.UNAMBIGUOUS_BASES,
-    ambiguous_bases=Groups.AMBIGUOUS_BASES,
-    suffixes=Groups.UNAMBIGUOUS_SUFFIXES
-)
-
-SOFT_GENERATOR = DerivativeGenerator(
-    strict_bases=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
-    ambiguous_bases=[], # In soft mode, ambiguous bases are usually allowed standalone (strict)
-    suffixes=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
-)
-
-LOOSE_GENERATOR = DerivativeGenerator(
-    strict_bases=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
-    ambiguous_bases=[],
-    suffixes=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION]
-)
-
+        # 3. All the three patterns
+        combo_str = rf"{ambig_str}[- ]{suffix_str}"
+        multi_str = to_build_alternation(
+            self.config.MULTI_BASE, sort_longest_first=True
+        )
+        standalone_str = to_build_alternation(eff_strict, sort_longest_first=True)
+        
+        full_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
+        return full_pattern
 
 def build_smart_regex(
     core_terms: List[str],
@@ -423,8 +365,9 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     # Used for stricter context checks
     unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES]
     plurals = [
-        "options", "warrants", "caps", "floors", "locks", 
-        "puts", "calls", "contracts", "instruments"
+        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
+        *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
+        plural(BASE.WARRANT)
     ]
     return build_regex(unambiguous + plurals)
 
