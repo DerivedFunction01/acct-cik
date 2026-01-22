@@ -205,6 +205,9 @@ AGREEMENT_LOOKBEHINDS = [
     r"treasury[- ]",
     r"credit[- ]",
     r"loan[- ]",
+    r"debt[- ]",
+    r"bond[- ]",
+    r"mortage[- ]",
     r"sales?[- ]",
     r"lease[- ]",
     r"license[- ]",
@@ -216,6 +219,7 @@ AGREEMENT_LOOKBEHINDS = [
 CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND + AGREEMENT_LOOKBEHINDS, lookaheads=VERB_LOOKAHEAD)
 AGREEMENT = register_base("agreements?", lookbehinds=AGREEMENT_LOOKBEHINDS)
 ARRANGEMENT = register_base("arrangements?", lookbehinds=AGREEMENT_LOOKBEHINDS),
+INSTRUMENT = register_base("instruments?", lookbehinds=AGREEMENT_LOOKBEHINDS)
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
 )
@@ -231,7 +235,7 @@ SPECIAL_BASE =  EXTRA_BASE_COMBOS + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
     CONTRACT,
-    "instruments?",
+    INSTRUMENT,
 ]
 
 AMBIGUOUS_SUFFIXES = [
