@@ -3,6 +3,23 @@ from enum import Enum, auto
 from typing import List, Optional, Tuple
 from defs.regex_lib import build_alternation, build_regex
 
+def register_base(
+    base: str,
+    lookaheads: Optional[List[str]] = None,
+    lookbehinds: Optional[List[str]] = None,
+) -> str:
+    pattern = base
+    if lookbehinds:
+        for lb in lookbehinds:
+            pattern = f"(?<!{lb}){pattern}"
+    if lookaheads:
+        for la in lookaheads:
+            pattern = f"{pattern}(?!{la})"
+    return pattern
+
+VERB_LOOKBEHIND = [r"to\s"]
+VERB_LOOKAHEAD = [r"\s+(?:the|an|a)"]
+
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
     "deliver(?:y|ies)",
     "purchases?",
@@ -29,25 +46,45 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 
 STANDALONE_BASES = [
-    r"(?<!to\s)swaps?(?![- ]rates?)",
-    rf"(?<!carry\s)(?<!carrying\s)(?<!to\s)(?<!look\s)(?<!looking\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    register_base("swaps?", lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
+    register_base(
+        "forwards?",
+        lookaheads=VERB_LOOKAHEAD,
+        lookbehinds=[r"carry\s", r"carrying\s", r"carried" r"to\s", r"look\s", r"looking\s", r"looked"],
+    )
+    + FORWARD_NOT_PHYSICAL_AHEAD,
     "collars?",
     "derivatives",
     r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
-OPTION = r"(?<!an\s)(?<!the\s)(?<!equity[- ])(?<!stock[- ])(?<!share[- ])(?<!treasury[- ])(?<!restricted[- ])options?"
+OPTION = register_base(
+    "options?",
+    lookbehinds=[r"an\s", r"the\s", r"equity[- ]", r"stock[- ]", r"share[- ]", r"treasury[- ]", r"restricted[- ]"],
+)
 AMBIGUOUS_BASE_TYPES = [
     OPTION,
-    r"(?<!to\s)locks?",
-    r"(?<!to\s)caps?(?!\s+interest)",  # prevent cap interest rate
+    register_base(
+        "locks?",
+        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
+    register_base(
+        "caps?",
+        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
     "derivatives?",
-    r"(?<!to\s)floors?(?!\s+interest)",  # prevent floor interest rate
+    register_base(
+        "floors?",
+        lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
 ]
 OTHER_BASES = [
-    r"(?<!to\s)puts?",
-    r"(?<!to\s)calls?",
-    r"(?<!to\s)hedges?",
+    register_base("puts?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
+    register_base("calls?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
+    register_base("hedges?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
 ]
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
@@ -60,10 +97,14 @@ SPECIAL_BASE = [
 ] + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
-    r"(?<!to\s)contracts?",
+    register_base("contracts?", lookbehinds=VERB_LOOKBEHIND),
     "instruments?",
 ]
-WARRANT = r"(?<!to\s)(?<!equity[- ])(?<!stock[- ])(?<!share[- ])(?<!treasury[- ])(?<!restricted[- ])warrants?(?! (?:the|a|an))"
+WARRANT = register_base(
+    "warrants?",
+    lookaheads=[r" (?:the|a|an)"],
+    lookbehinds=[r"to\s", r"equity[- ]", r"stock[- ]", r"share[- ]", r"treasury[- ]", r"restricted[- ]"],
+)
 AMBIGUOUS_SUFFIXES = [
     "agreements?",
     "arrangements?",
@@ -74,7 +115,7 @@ OTHER_SUFFIXES = [
     "commitments?",
     "transactions?",
     "positions?",
-    r"(?<!to\s)hedges?",
+    register_base("hedges?", lookaheads=VERB_LOOKAHEAD + [r"with", r"by", r"for"], lookbehinds=VERB_LOOKBEHIND),
 ]
 
 SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
