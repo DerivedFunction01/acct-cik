@@ -78,7 +78,7 @@ FORWARD = register_base(
         r"[- ]rates?",
         r"\s+participants?",
         r"dealers?",
-        r"\s+looking?",
+        r"[- ]looking?",
         r"[- ]split", r"\s+earnings", r"\s+guidance", r"\s+multiple", r"\s+P/E", r"\s+auction"
     ] 
     + VERB_LOOKAHEAD
