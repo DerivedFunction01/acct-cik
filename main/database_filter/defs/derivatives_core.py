@@ -254,17 +254,14 @@ def build_double_base_alternation() -> str:
     return rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
-double_base_alternation = build_double_base_alternation()
+DOUBLE_BASE = build_double_base_alternation()
 
-UNAMBIGUOUS_BASE_TYPES = (
-    SPECIAL_BASE
-    + [double_base_alternation]
-)
+UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE]
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
 BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
 ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
 
-DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
+DOUBLE_BASE_REGEX = re.compile(rf"\b{DOUBLE_BASE}\b", re.IGNORECASE)
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
 
 # =============================================================================
