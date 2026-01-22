@@ -110,6 +110,14 @@ OPTION = register_base(
         r"restricted[- ]",
     ],
 )
+OPTION_UNRESTRICTED = register_base(
+    "options?",
+    lookbehinds=[
+        r"an\s",
+        r"the\s",
+    ],
+    lookaheads=VERB_LOOKBEHIND,
+)
 LOCK = register_base(
     "locks?",
     lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]up",  r"[- ]in"]
@@ -181,6 +189,9 @@ WARRANT = register_base(
         r"restricted[- ]",
     ],
 )
+WARRANT_UNRESTRICTED = register_base(
+    "warrants?", lookaheads=[r" (?:the|a|an)"], lookbehinds=VERB_LOOKBEHIND
+)
 
 CONTRACT = register_base("contracts?", lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
 spec_base_alternation = build_alternation(
@@ -225,6 +236,8 @@ SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 def build_double_base_alternation() -> Tuple[str, str]:
     """
     Matches combinations of ambiguous bases which together strongly imply derivatives.
+    Double Base: Strict (excludes equity options/warrants)
+    Triple Base: Loose (allows equity options/warrants due to higher confidence from 3+ terms)
     e.g. "caps and floors", "options and futures"
     Also matches: "contracts such as swaps, collars"
     """
@@ -252,8 +265,27 @@ def build_double_base_alternation() -> Tuple[str, str]:
     forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
 
     common_pattern = rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})"
+    
+    # 1. Double Base (Restricted)
     double_base = rf"{common_pattern}(?:{sep}(?:{bases}))*"
-    triple_base = rf"{common_pattern}(?:{sep}(?:{bases}))+"
+
+    # 2. Triple Base (Unrestricted)
+    ambiguous_bases_loose = [OPTION_UNRESTRICTED, LOCK, CAP, FLOOR]
+    base_terms_loose = ambiguous_bases_loose + OTHER_BASES + SPECIAL_BASE + ["warrants?"]
+    bases_loose = build_alternation(base_terms_loose, sort_longest_first=True)
+
+    ambiguous_suffixes_loose = [
+        "agreements?",
+        "arrangements?",
+        rf"{OPTION_UNRESTRICTED}(?!(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+){WARRANT_UNRESTRICTED})",
+        WARRANT_UNRESTRICTED,
+    ]
+    suffixes_loose = UNAMBIGUOUS_SUFFIXES + ambiguous_suffixes_loose + OTHER_SUFFIXES
+    start_terms_loose = list(set(STANDALONE_BASES + suffixes_loose + [HEDGE] + base_terms_loose))
+    start_alt_loose = build_alternation(start_terms_loose, sort_longest_first=True)
+    common_pattern_loose = rf"(?:{start_alt_loose})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_loose})"
+    
+    triple_base = rf"{common_pattern_loose}(?:{sep}(?:{bases_loose}))+"
     return double_base, triple_base
 
 
