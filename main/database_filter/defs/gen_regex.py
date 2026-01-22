@@ -1,6 +1,6 @@
 import re
 
-from defs.derivatives_core import SPECIAL_BASE
+from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX, SPECIAL_BASE
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
@@ -155,3 +155,28 @@ GEN_HEDGES = build_regex(
         r"(?:[\"“\'])?(?:net investment|fair\s+value|cash\s+flow)(?:[\"“\'])?\s+hedges?",
     ]
 )
+
+def run_tests():
+    from defs.derivatives_core import (
+        LOOSE_GEN_REGEX,
+        MatchLevel,
+        run_category_tests,
+    )
+    test_cases = [
+        ("currency options and warrants", MatchLevel.STRICT),
+        (
+            "equity options and warrants",
+            MatchLevel.LOOSE,
+        ),  # Fails double base (equity exclusion), caught as Loose Generic (warrants)
+        ("stock options and warrants", MatchLevel.LOOSE),
+        ("options and warrants", MatchLevel.STRICT),
+        ("swaps and futures", MatchLevel.STRICT),
+        ("caps and floors", MatchLevel.STRICT),
+        ("contracts such as swaps", MatchLevel.STRICT),
+        ("contracts such as options", MatchLevel.STRICT),
+    ]
+    print("\nRunning Double Base Tests...")
+    run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
+
+if __name__ == "__main__":
+    run_tests()

@@ -244,6 +244,7 @@ def run_tests():
         ("equity hedges", MatchLevel.LOOSE),
         ("convertible debt", MatchLevel.SOFT),
         ("convertible debt hedge", MatchLevel.STRICT),
+        ("equity option and warrants", MatchLevel.SOFT),
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
