@@ -174,6 +174,7 @@ def run_tests():
         ("caps and floors", MatchLevel.STRICT),
         ("contracts such as swaps", MatchLevel.STRICT),
         ("contracts such as options", MatchLevel.STRICT),
+        ("contracts sets the cap", MatchLevel.STRICT),
     ]
     print("\nRunning Double Base Tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)

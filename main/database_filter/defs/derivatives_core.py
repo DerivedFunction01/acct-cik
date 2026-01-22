@@ -109,8 +109,8 @@ def build_double_base_alternation() -> str:
     # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
     # to captured a list of derivatives, so no action "to"
-    # Also prevents: [suffix] verb [filler] [base]
-    return rf"(?:{start_alt})(?!\s+to){gap}(?!\s+(?:the|an|a|to))(?:{bases})(?:{sep}(?:{bases}))*"
+    # Also prevents: [suffix] verb [filler] [base] such as agreement sets the cap; option for warrants, etc
+    return rf"(?:{start_alt})(?!\s+to){gap}(?!\s+(?:the|an|a|to|in|on|for))(?:{bases})(?:{sep}(?:{bases}))*"
 
 
 double_base_alternation = build_double_base_alternation()
