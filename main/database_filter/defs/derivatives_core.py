@@ -72,7 +72,7 @@ AMBIGUOUS_BASE_TYPES = [
     register_base(
         "caps?",
         lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
-        lookbehinds=VERB_LOOKBEHIND,
+        lookbehinds=VERB_LOOKBEHIND + [r"market", r"equity"],
     ),
     "derivatives?",
     register_base(

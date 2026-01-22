@@ -1,6 +1,6 @@
 import re
 
-from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX, SPECIAL_BASE
+from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX, UNAMBIGUOUS_BASE_TYPES
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
@@ -28,7 +28,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     ]
 
     # SPECIAL BASES: safe as well
-    special_bases = SPECIAL_BASE
+    special_bases = UNAMBIGUOUS_BASE_TYPES
 
     # SAFE SUFFIXES
     suffixes = [
