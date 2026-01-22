@@ -30,7 +30,7 @@ FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 
 STANDALONE_BASES = [
     r"(?<!to\s)swaps?(?![- ]rates?)",
-    rf"(?<!carry\s)(?<!to\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
+    rf"(?<!carry\s)(?<!carrying\s)(?<!to\s)(?<!look\s)(?<!looking\s)forwards?{FORWARD_NOT_PHYSICAL_AHEAD}",
     "collars?",
     "derivatives",
     r"(?:perpetual\s+)?futures",
@@ -40,9 +40,9 @@ OPTION = r"(?<!an\s)(?<!the\s)(?<!equity[- ])(?<!stock[- ])(?<!share[- ])(?<!tre
 AMBIGUOUS_BASE_TYPES = [
     OPTION,
     r"(?<!to\s)locks?",
-    r"(?<!to\s)caps?",
+    r"(?<!to\s)caps?(?!\s+interest)",  # prevent cap interest rate
     "derivatives?",
-    r"(?<!to\s)floors?",
+    r"(?<!to\s)floors?(?!\s+interest)",  # prevent floor interest rate
 ]
 OTHER_BASES = [
     r"(?<!to\s)puts?",
@@ -108,9 +108,14 @@ def build_double_base_alternation() -> str:
     # Gap allows 0-2 words between the first and second term
     # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
-    # to captured a list of derivatives, so no action "to"
-    # Also prevents: [suffix] verb [filler] [base] such as agreement sets the cap; option for warrants, etc
-    return rf"(?:{start_alt})(?!\s+to){gap}(?!\s+(?:the|an|a|to|in|on|for))(?:{bases})(?:{sep}(?:{bases}))*"
+
+    # Forbidden fillers to prevent false positives like "agreement sets the cap"
+    # 1. Lookbehind: Gap must not end with articles or relative pronouns
+    forbidden_endings = r"(?<!\s(?:the|an|a|that|which|who))"
+    # 2. Lookahead: Next term must not start with prepositions (unless consumed by gap)
+    forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
+
+    return rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})(?:{sep}(?:{bases}))*"
 
 
 double_base_alternation = build_double_base_alternation()
