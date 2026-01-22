@@ -107,12 +107,13 @@ def get_system_config():
 # =============================================================================
 from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX
 from defs.derivatives_core import TABLE_REGEX
+from defs.acct_std import DER_STD_REGEX
 from defs.eq_regex import EXCLUDE_REGEX_EQUITY_COMP
 from defs.exclusion_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
     EXCLUDE_REGEX_LEGAL_LITIGATION,
 )
-from defs.gen_regex import DER_STD_REGEX, GEN_STRICT_CONTEXT_REGEX
+from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX
 from defs.shared_context import VALUATION_MODELS_REGEX
 
 # New Header and Structural Cleanup Patterns

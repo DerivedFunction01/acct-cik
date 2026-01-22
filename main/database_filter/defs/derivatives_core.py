@@ -39,12 +39,12 @@ def register_base(
     return pattern
 
 VERB_LOOKBEHIND = [r"to"]
-VERB_LOOKAHEAD = [r"the", r"a", r"an", r"forward", r"rate", r"its"]
+VERB_LOOKAHEAD = [r"the", r"a", r"an", r"forward", r"rate", r"its", r"interest"]
 
 _STANDALONE_BASES = [
-    r"swaps?",
+    register_base(r"swaps?", lookaheads=[r"out"]),
     register_base("forwards?", lookaheads=PHYSICAL_COMMERCIAL_TERMS),
-    "collars?",
+    register_base("collars?", lookaheads=[r"workers?"]),
     "derivatives?",
     r"(?:perpetual\s+)?futures",
     "swaptions?",
@@ -56,21 +56,29 @@ STANDALONE_BASES = [
 ]
 
 _AMBIGUOUS_BASE_TYPES = [
-    r"options?",
-    r"locks?",
-    r"caps?",
-    r"floors?",
+    register_base(r"options?", lookbehinds=["the", "an"]),
+    register_base(r"locks?", lookaheads=["in", "up"]),
+    register_base(r"caps?", lookbehinds=["market", "equity"], lookaheads=[r"ex"]),
+    register_base(
+        r"floors?", lookbehinds=["construction", "trading"]
+    ),
 ]
 AMBIGUOUS_BASE_TYPES = [
-    r"(?<!an\s)(?<!the\s)options?",
-    r"(?<!to\s)locks?",
-    r"(?<!to\s)caps?",
-    r"(?<!to\s)floors?",
+    register_base(
+        _AMBIGUOUS_BASE_TYPES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD
+    )
+]
+_OTHER_BASES = [
+    r"puts?",
+    r"calls?",
+    register_base(
+        r"hedges?",
+        lookaheads=[r"(?:of\s+hedge\s+)?funds?", r"banks?"],
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
 ]
 OTHER_BASES = [
-    r"(?<!to\s)puts?",
-    r"(?<!to\s)calls?",
-    r"(?<!to\s)hedges?",
+    register_base(_OTHER_BASES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
 ]
 spec_base_alternation = build_alternation(
     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
@@ -83,21 +91,22 @@ SPECIAL_BASE = [
 ] + STANDALONE_BASES
 
 UNAMBIGUOUS_SUFFIXES = [
-    r"(?<!to\s)contracts?",
-    "instruments?",
+    r"contracts?"
+    r"instruments?"
 ]
 
 AMBIGUOUS_SUFFIXES = [
-    "agreements?",
-    "arrangements?",
-    r"(?<!an\s)(?<!the\s)options?",  # prevent prevent an/the option
-    r"(?<!to\s)warrants?(?! (?:the|a|an))",  # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
+    r"agreements?",
+    r"arrangements?",
+    register_base(r"options?", lookbehinds=["the", "an"]),  # prevent prevent an/the option
+    register_base(r"warrants?", lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
+    # warrant as a verb (warrant the/an/a) but not "derivative warrants for"
 ]
 OTHER_SUFFIXES = [
     "commitments?",
     "transactions?",
     "positions?",
-    r"(?<!to\s)hedges?",
+    register_base(r"hedges?", lookaheads=[r"(?:of\s+hedge\s+)?funds?", r"banks?"], lookbehinds=VERB_LOOKBEHIND),
 ]
 
 SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
@@ -139,8 +148,7 @@ def build_double_base_alternation() -> str:
 double_base_alternation = build_double_base_alternation()
 
 UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [double_base_alternation]
-UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
-BASE_TYPES = UNAMBIGUOUS_BASE_ENDING + AMBIGUOUS_BASE_TYPES
+BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
 ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
 
 DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
@@ -211,9 +219,9 @@ def build_smart_regex(
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
 base_alternation = build_alternation(BASE_TYPES, True)
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
-safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
+safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_TYPES, True)
 standalone_alternation = build_alternation(
-    UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
+    UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_TYPES, True
 )
 unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
 full_suffix_alternation = build_alternation(
@@ -299,7 +307,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
         "contracts?",
         "instruments?",
     ]
-    return build_regex(UNAMBIGUOUS_BASE_ENDING + plurals)
+    return build_regex(UNAMBIGUOUS_BASE_TYPES + plurals)
 
 
 LOOSE_GEN_REGEX = build_loose_gen_regex()
