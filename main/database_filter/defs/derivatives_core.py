@@ -365,7 +365,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     # Used for stricter context checks
     unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES]
     plurals = [
-        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
+        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES],
         *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
         plural(BASE.WARRANT)
     ]
