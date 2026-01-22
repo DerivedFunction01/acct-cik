@@ -230,7 +230,7 @@ spec_base_alternation = build_alternation(
 EXTRA_BASE_COMBOS = [
     f"{spec_base_alternation}[- ](?:options?|contracts?)",
     r"forward\s+agreements?",
-    "(?:basis|variance|volatility|total[- ]return) swaps?",
+    "(?:basis|variance|volatility|total[- ]return|index) swaps?",
     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
 ]
 
