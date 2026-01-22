@@ -1,7 +1,7 @@
 import re
-from enum import Enum
-from typing import List, Optional, Union, Any
-from defs.regex_lib import build_alternation
+from enum import Enum, auto
+from typing import List, Optional, Union, Any, Tuple
+from defs.regex_lib import build_alternation, build_compound, plural, to_build_alternation
 
 
 # ============================================================================
@@ -42,32 +42,6 @@ COMMODITY_COMMERICIAL_PATTERN = build_alternation(
     PHYSICAL_COMMERCIAL_TERMS + [r"purchases?"], sort_longest_first=True
 )
 
-def to_list(items: Any) -> List[str]:
-    """Flattens a mix of Enums, strings, and lists into a list of strings."""
-    if not isinstance(items, list):
-        items = [items]
-
-    out = []
-    for item in items:
-        if isinstance(item, Enum):
-            out.append(item.value)
-        elif isinstance(item, (list, tuple)):
-            out.extend(to_list(list(item)))
-        else:
-            out.append(str(item))
-    return out
-
-
-def to_build_alternation(items: Any, sort_longest_first: bool = True) -> str:
-    return build_alternation(to_list(items), sort_longest_first=sort_longest_first)
-
-
-def build_compound(prefix: Any, suffix: Any) -> str:
-    return f"{to_build_alternation(prefix)}[- ]{to_build_alternation(suffix)}"
-
-def plural(string: str) -> str:
-    # Removes '?' only if it is at the end of the string
-    return string.removesuffix('?')
 
 class BASE(Enum):
     SWAP = r"swaps?"
@@ -111,11 +85,11 @@ class Groups:
         BASE.SWAPTION,
     ]
     AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR]
-    OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE]
+    OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE, BASE.WARRANT]
 
     # Suffix Sets
-    UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, BASE.DERIVATIVE]
-    AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT, BASE.OPTION]
+    UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
+    AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
 
     # Modifiers
     SPECIAL_SWAP_MODS = [
@@ -136,17 +110,31 @@ class Groups:
         BASE.PUT,
         BASE.CALL,
     ]
-    OTC_MODS = [r"over[- ]the[- ]counter", r"otc"]
-    CONTRACT_MODS = UNAMBIGUOUS_BASES + AMBIGUOUS_BASES + OTHER_BASES + OTC_MODS
+    CONTRACT_MODS = UNAMBIGUOUS_BASES + AMBIGUOUS_BASES + OTHER_BASES
 
 
 # ============================================================================
-# FINAL PRODUCTS (The actual patterns to match - Enums)
+# FINAL PRODUCTS (The actual patterns to match - Enums), fo
 # ============================================================================
 class DERIVATIVE_PATTERNS(Enum):
+    pass
+
+class DERIVATIVES(DERIVATIVE_PATTERNS):
+    # -------------------------------
+    # These stand alone as derivatives
+    # -------------------------------
     SPECIAL_OPTION = build_compound(Groups.SPECIAL_OPTION_MODS, BASE.OPTION)
     SPECIAL_SWAP = build_compound(Groups.SPECIAL_SWAP_MODS, BASE.SWAP)
-
+    # Optional: Include raw base patterns if needed elsewhere
+    UNAMBIGUOUS_BASES = build_alternation(
+        [b.value for b in Groups.UNAMBIGUOUS_BASES], sort_longest_first=True
+    )
+    AMBIGUOUS_BASES = build_alternation(
+        [b.value for b in Groups.AMBIGUOUS_BASES], sort_longest_first=True
+    )
+    OTHER_BASES = build_alternation(
+        [b.value for b in Groups.OTHER_BASES], sort_longest_first=True
+    )
     DERIVATIVE_CONTRACT = build_compound(Groups.CONTRACT_MODS, SUFFIX.CONTRACT)
 
     # Base + Suffix combinations
@@ -155,14 +143,6 @@ class DERIVATIVE_PATTERNS(Enum):
         [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
     )
 
-    HEDGING_INSTRUMENT_ALONE = build_compound(
-        [
-            SUFFIX.CONTRACT,
-            SUFFIX.INSTRUMENT,
-            BASE.DERIVATIVE,
-        ],
-        BASE.HEDGE,
-    )
     HEDGING_INSTRUMENT = build_compound(
         [
             SUFFIX.CONTRACT,
@@ -173,204 +153,114 @@ class DERIVATIVE_PATTERNS(Enum):
         ],
         BASE.HEDGE,
     )
-
-    # Miscellaneous complex patterns
-    OTHER_INSTRUMENTS = build_alternation([
-        r"derivative\s+financial\s+instruments?",
-        build_compound([r"zero[- ]cost"], BASE.COLLAR)
-        ])
     ASSET_LIABILITY = build_compound(
         [BASE.DERIVATIVE, BASE.SWAP], [r"liabilit(?:y|ies)", r"assets?"]
     )
-    EMBEDDED_INSTRUMENT = build_compound([r"embedded"], BASE.DERIVATIVE)
-
-ALL_DERIVATIVE_PATTERNS = [
-    DERIVATIVE_PATTERNS.SPECIAL_OPTION,
-    DERIVATIVE_PATTERNS.SPECIAL_SWAP,
-    DERIVATIVE_PATTERNS.DERIVATIVE_CONTRACT,
-    DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
-    DERIVATIVE_PATTERNS.HEDGING_INSTRUMENT,
-    DERIVATIVE_PATTERNS.OTHER_INSTRUMENTS,
-    DERIVATIVE_PATTERNS.ASSET_LIABILITY,
-    DERIVATIVE_PATTERNS.EMBEDDED_INSTRUMENT,
-]
-
-# _STANDALONE_BASES = [
-#     register_base(BASE.SWAP.value, lookaheads=[r"out"]),
-#     register_base(BASE.FORWARD.value, lookaheads=PHYSICAL_COMMERCIAL_TERMS),
-#     register_base(BASE.COLLAR.value, lookaheads=[r"workers?"]),
-#     BASE.DERIVATIVE.value,
-#     BASE.FUTURES.value,
-#     BASE.SWAPTION.value,
-# ]
-# STANDALONE_BASES = [
-#     register_base(
-#         _STANDALONE_BASES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD
-#     )
-# ]
-
-# _AMBIGUOUS_BASE_TYPES = [
-#     register_base(r"options?", lookbehinds=["the", "an"]),
-#     register_base(r"locks?", lookaheads=["in", "up"]),
-#     register_base(r"caps?", lookbehinds=["market", "equity"], lookaheads=[r"ex"]),
-#     register_base(
-#         r"floors?", lookbehinds=["construction", "trading"]
-#     ),
-# ]
-# AMBIGUOUS_BASE_TYPES = [
-#     register_base(
-#         _AMBIGUOUS_BASE_TYPES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD
-#     )
-# ]
-# _OTHER_BASES = [
-#     r"puts?",
-#     r"calls?",
-#     register_base(
-#         r"hedges?",
-#         lookaheads=[r"(?:of\s+hedge\s+)?funds?", r"banks?"],
-#         lookbehinds=VERB_LOOKBEHIND,
-#     ),
-# ]
-# OTHER_BASES = [
-#     register_base(_OTHER_BASES, lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD)
-# ]
-# spec_base_alternation = build_alternation(
-#     STANDALONE_BASES + AMBIGUOUS_BASE_TYPES + OTHER_BASES
-# )
-# SPECIAL_BASE = [
-#     f"{spec_base_alternation}[- ](?:options?|contracts?)",
-#     r"forward\s+agreements?",
-#     "(?:basis|variance|volatility|total[- ]return) swaps?",
-#     "(?:asian|bermuda|basket|rainbow|lookback|exotic|barrier) options?",
-# ] + STANDALONE_BASES
-
-# UNAMBIGUOUS_SUFFIXES = [
-#     r"contracts?"  # equity will never match
-#     r"instruments?" # equity will never match
-# ]
-
-# EQ_OPT_WARR = [
-#     register_base(
-#         r"options?", lookbehinds=["the", "an"]
-#     ),  # prevent prevent an/the option
-#     register_base(r"warrants?", lookbehinds=VERB_LOOKBEHIND, lookaheads=VERB_LOOKAHEAD),
-# ]
-# AMBIGUOUS_SUFFIXES = [
-#     r"agreements?",  # equity, commodity will never match
-#     r"arrangements?",  # equity, commodity will never match
-#     register_base(
-#         EQ_OPT_WARR,
-#         lookbehinds=[  # We add a manual options in the suffix for eq_soft_regex
-#             r"equity",
-#             r"stock",
-#             r"share",
-#             r"treasury",
-#             r"restricted",
-#         ],
-#     ),
-# ]
-# # Never used
-# OTHER_SUFFIXES = [
-#     "commitments?",
-#     "transactions?",
-#     "positions?",
-#     register_base(
-#         r"hedges?",
-#         lookaheads=[r"(?:of\s+hedge\s+)?funds?", r"banks?"],
-#         lookbehinds=VERB_LOOKBEHIND
-#     ),
-# ]
-
-# SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES
-# ALL_SUFFIXES = UNAMBIGUOUS_SUFFIXES + AMBIGUOUS_SUFFIXES + OTHER_SUFFIXES
-# suffix_alternation = build_alternation(SUFFIXES, True)
-# all_suffix_alternation = build_alternation(ALL_SUFFIXES, True)
-
-# SPECIAL_BASE += [register_base(rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)")]
 
 
-# def build_double_base_alternation() -> str:
-#     """
-#     Matches combinations of ambiguous bases which together strongly imply derivatives.
-#     e.g. "caps and floors", "options and futures"
-#     Also matches: "contracts such as swaps, collars"
-#     """
-#     base_terms = AMBIGUOUS_BASE_TYPES + OTHER_BASES + SPECIAL_BASE
-#     bases = build_alternation(base_terms, sort_longest_first=True)
-
-#     prefix_terms = (
-#         STANDALONE_BASES
-#         + SUFFIXES
-#         + [
-#             r"(?<!to\s)hedges?",
-#         ]
-#     )
-#     # Start terms can be either a prefix (contract) or a base (swap)
-#     start_terms = list(set(prefix_terms + base_terms))
-#     start_alt = build_alternation(start_terms, sort_longest_first=True)
-
-#     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
-#     # Gap allows 0-2 words between the first and second term
-#     # e.g. "swaps, options" (0 words), "contracts such as options" (2 words) but not option to swap, etc
-#     gap = r"(?:\W+(?:\w+\W+){0,2}?)"
-#     # to captured a list of derivatives, so no action "to"
-#     return rf"(?:{start_alt})(?!\s+to){gap}(?:{bases})(?:{sep}(?:{bases}))*"
-
-
-# double_base_alternation = build_double_base_alternation()
-
-# UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [double_base_alternation]
-# BASE_TYPES = UNAMBIGUOUS_BASE_TYPES + AMBIGUOUS_BASE_TYPES
-# ALL_BASE_TYPES = BASE_TYPES + OTHER_BASES
-
-# DOUBLE_BASE_REGEX = re.compile(rf"\b{double_base_alternation}\b", re.IGNORECASE)
-# PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
-
-
-# =============================================================================
-# TABLE SPECIFIC REGEX
-# =============================================================================
-def build_table_regex() -> re.Pattern:
+def build_double_base_pattern() -> Tuple[str, str]:
     """
-    A stricter regex for table filtering that eliminates singular noise
-    (future, option, forward) but keeps the plurals often found in headers.
+    Refined logic:
+    Blocks: "equity options and warrants"
+    Allows: "equity warrants and option contracts" (via suffix check)
+    """
+    # 1. Base Terms (Values)
+    base_vals = [
+        b.value
+        for b in (
+            Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
+        )
+    ]
+    base_vals += [DERIVATIVES.SPECIAL_OPTION.value, DERIVATIVES.SPECIAL_SWAP.value]
+    bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
+
+    _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+    _SFX_ALT = to_build_alternation(_SFX)
+
+    # 2. Connector & Gap Logic
+    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+    gap = r"(?:\W+(?:\w+\W+){0,2}?)"
+
+    # 3. Pair Blocking with "Suffix Exception"
+    # Block matching if followed by partner UNLESS partner has a suffix
+    # e.g., "options and warrants" -> BLOCK
+    # e.g., "options and warrant contracts" -> ALLOW
+    WARR_VAL = BASE.WARRANT.value
+    OPT_VAL = BASE.OPTION.value
+
+    _OPT_STRICT = register_base(
+        OPT_VAL, lookaheads=[rf"{sep}{WARR_VAL}\b(?!\s+{_SFX_ALT})"]
+    )
+    _WARR_STRICT = register_base(
+        WARR_VAL, lookaheads=[rf"{sep}{OPT_VAL}\b(?!\s+{_SFX_ALT})"]
+    )
+
+    # 4. Fixed Lookbehinds (Chained)
+    forbidden_endings = (
+        r"(?<!\sa)(?<!\san)(?<!\sthe)" r"(?<!\swho)(?<!\sthat)(?<!\swhich)"
+    )
+    forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
+
+    # 5. Define the Starters
+    # Starters can be Suffixes or our Strict Bases
+    _STARTERS = to_build_alternation(_SFX + [_OPT_STRICT, _WARR_STRICT])
+
+    # 6. Build Double Base (Strict)
+    # The tail logic now allows the second term to also have a suffix
+    start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
+
+    double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
+
+    triple_base = ""  # For later
+
+    return double_base, triple_base
+
+
+class MULTI_BASE:
+    DOUBLE_BASE, TRIPLE_BASE = build_double_base_pattern()
+
+
+class DERIVATIVES_EXPORT(DERIVATIVE_PATTERNS):
+    """
+    Export patterns: All derivative detection patterns.
+    Includes DERIVATIVES patterns plus multi-base patterns.
+
+    Usage:
+    - Standalone matching: SPECIAL_OPTION, SPECIAL_SWAP, TRIPLE_BASE, etc.
+    - Prefix matching: Use DOUBLE_BASE with "interest rate", "currency", etc.
     """
 
-    # 1. Safe Plurals (Standalones that are safe in tables)
-    # Note: 'swaps' and 'derivatives' are already in ALL_REGEX via GEN_REGEX
-    # We add the others that are usually unsafe singular but safe plural.
-    table_safe_plurals = [
-        BASE.FUTURES,
-        register_base(
-            plural(BASE.FORWARD.value),
-            lookaheads=PHYSICAL_COMMERCIAL_TERMS + VERB_LOOKAHEAD,
-            lookbehinds=VERB_LOOKBEHIND
-            + [
-                r"carry",
-                r"carrying",
-                r"carried",
-                r"look",
-                r"looking",
-                r"looked",
-                r"brought",
-                r"put",
-                r"push",
-                r"set",
-            ],
-        ),
-        plural(BASE.COLLAR.value),
-        BASE.SWAPTION,
-        plural(BASE.DERIVATIVE.value),
-        plural(BASE.SWAP.value),
-        plural(BASE.PUT.value),
-        plural(BASE.CALL.value),
-    ] + ALL_DERIVATIVE_PATTERNS
+    # From DERIVATIVES (already high-confidence)
+    SPECIAL_OPTION = DERIVATIVES.SPECIAL_OPTION
+    SPECIAL_SWAP = DERIVATIVES.SPECIAL_SWAP
+    DERIVATIVE_CONTRACT = DERIVATIVES.DERIVATIVE_CONTRACT
+    INSTRUMENT_COMPOUND = DERIVATIVES.INSTRUMENT_COMPOUND
+    HEDGING_INSTRUMENT = DERIVATIVES.HEDGING_INSTRUMENT
+    ASSET_LIABILITY = DERIVATIVES.ASSET_LIABILITY
+    UNAMBIGUOUS_BASES = DERIVATIVES.UNAMBIGUOUS_BASES
+    AMBIGUOUS_BASES = DERIVATIVES.AMBIGUOUS_BASES
+    OTHER_BASES = DERIVATIVES.OTHER_BASES
 
-    plural_pattern = build_alternation(table_safe_plurals, sort_longest_first=True)
 
-    return re.compile(rf"\b{plural_pattern}\b", re.IGNORECASE)
+    # Multi-base patterns
+    DOUBLE_BASE = MULTI_BASE.DOUBLE_BASE  # "puts and options" (attach to prefix)
+    TRIPLE_BASE = MULTI_BASE.TRIPLE_BASE  # "caps, floors, and collars" (standalone)
 
-TABLE_REGEX = build_table_regex()
+    STRICT_PATTERN = to_build_alternation(
+        [
+            DERIVATIVES.SPECIAL_OPTION,
+            DERIVATIVES.SPECIAL_SWAP,
+            DERIVATIVES.DERIVATIVE_CONTRACT,
+            DERIVATIVES.INSTRUMENT_COMPOUND,
+            DERIVATIVES.HEDGING_INSTRUMENT,
+            DERIVATIVES.ASSET_LIABILITY,
+            DERIVATIVES.UNAMBIGUOUS_BASES,
+            MULTI_BASE.TRIPLE_BASE,
+            MULTI_BASE.DOUBLE_BASE,
+            
+        ],
+        sort_longest_first=True,
+    )
 
 def build_smart_regex(
     core_terms: List[str],
