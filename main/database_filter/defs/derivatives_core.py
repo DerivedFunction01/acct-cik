@@ -354,8 +354,8 @@ def expand_instruments(
 def build_loose_gen_regex() -> re.Pattern:
     # Matches any base or suffix
     # Used for broad filtering/denial logic
-    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES)]
-    all_suffixes = [s.value for s in (Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)] + [SUFFIX.COMMITMENT.value, SUFFIX.TRANSACTION.value, SUFFIX.POSITION.value]
+    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES + [BASE.WARRANT])]
+    all_suffixes = [s.value for s in (Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + Groups.MISC_SUFFIXES)]
     
     return build_regex(all_bases + all_suffixes)
 
