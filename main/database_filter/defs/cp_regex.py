@@ -1,6 +1,6 @@
 import re
 from typing import List, Tuple
-from defs.derivatives_core import (
+from main.database_filter.defs.derivatives_core_old import (
     COMMODITY_COMMERICIAL_PATTERN,
     build_smart_regex,
     expand_instruments,
@@ -398,7 +398,6 @@ COMMODITY_MAP = {
         "naphtha",
     ],
     "chemicals": [
-        "chemical",
         "fertilizer",
         "nitrogen",
         "petrochemical",
@@ -463,7 +462,6 @@ COMMODITY_MAP = {
         "veneer",
         "kraft paper",
         "newsprint",
-        "cellulose",
         "(?:particle|fiber|oriented strand )board",
     ],
     "environmental": [
@@ -789,7 +787,7 @@ CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES
 
 
 def run_tests():
-    from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
+    from main.database_filter.defs.derivatives_core_old import MatchLevel, run_category_tests, run_category_tests_counter
     test_cases = [
         ("commodity swap", MatchLevel.STRICT),
         ("commodity swap agreement", MatchLevel.STRICT),
