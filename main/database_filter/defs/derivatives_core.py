@@ -18,7 +18,7 @@ def register_base(
     return pattern
 
 VERB_LOOKBEHIND = [r"to\s"]
-VERB_LOOKAHEAD = [r"\s+(?:the|an|a)"]
+VERB_LOOKAHEAD = [r"\s+(?:the|an|a|its|forward)"]
 
 PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
     r"\sdeliver(?:y|ies)",
@@ -41,23 +41,18 @@ SWAP = register_base(
     lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
     + [
-        r"sim\s",
-        r"engine\s",
-        r"face\s",
         r"asset\s",
         r"debt[- ]for[- ]equity\s",
         r"debt[- ]for[- ]debt\s",
         r"like[- ]kind\s",
     ],
 )
+
 SWAPS = register_base(
     "swaps",
     lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
     + [
-        r"sim\s",
-        r"engine\s",
-        r"face\s",
         r"asset\s",
         r"debt[- ]for[- ]equity\s",
         r"debt[- ]for[- ]debt\s",
@@ -68,7 +63,7 @@ SWAPS = register_base(
 DERIVATIVES =  register_base(
     "derivatives?",
     lookaheads=VERB_LOOKAHEAD + [r"\s+counterpart(?:y|ies)", r"\s+markets?"],
-    lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s", r"plasma\s", r"chemical\s", r"cellulose\s"],
+    lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s"],
 )
 
 FUTURES = register_base(r"(?:perpetual\s+)?futures", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND)
@@ -77,7 +72,7 @@ FORWARD = register_base(
     lookaheads=[
         r"[- ]rates?",
         r"\s+participants?",
-        r"dealers?",
+        r"\s+dealers?",
         r"[- ]looking?",
         r"[- ]split", r"\s+earnings", r"\s+guidance", r"\s+multiple", r"\s+P/E", r"\s+auction"
     ] 
@@ -90,12 +85,7 @@ FORWARD = register_base(
         r"look\s",
         r"looking\s",
         r"looked\s",
-        r"straight\s",
-        r"fast\s",
         r"brought\s",
-        r"step\s",
-        r"go\s",
-        r"move\s",
         r"put\s",
         r"push\s",
         r"set\s",
@@ -105,7 +95,7 @@ COLLAR = register_base(
     "collars?",
     lookaheads=[r"[- ]rates?", r"[- ]workers?"] + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
-    + [r"blue[- ]", r"white\s", r"dog\s", r"shirt\s", r"cervical\s", r"white[- ]"],
+    + [r"blue[- ]", r"white[- ]"],
 )
 
 OPTION = register_base(
@@ -118,60 +108,40 @@ OPTION = register_base(
         r"share[- ]",
         r"treasury[- ]",
         r"restricted[- ]",
-        r"strategic\s",
-        r"financing\s",
-        r"payment\s",
-        r"renewal\s",
-        r"lease\s",
-        r"purchase\s",
-        r"extension\s",
-        r"termination\s",
-        r"expansion\s",
-        r"default\s",
     ],
 )
 LOCK = register_base(
     "locks?",
-    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]up", r"[- ]box", r"[- ]in"]
+    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]up",  r"[- ]in"]
     + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
-    + [r"door\s", r"grid\s", r"canal\s", r"zip\s", r"inter\s"],
+    + [r"grid\s", r"inter\s"],
 )
 CAP = register_base(
     "caps?",
-    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]ex", r"\s+table", r"\s+space"]
+    lookaheads=[r"\s+interest", r"[- ]rates?", r"[- ]ex"]
     + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
     + [
         r"market\s",
         r"equity\s",
-        r"small\s",
-        r"large\s",
-        r"mid\s",
-        r"micro\s",
-        r"nano\s",
-        r"salary\s",
-        r"bottle\s",
     ],
 )
 FLOOR = register_base(
     "floors?",
-    lookaheads=[r"\s+interest", r"[- ]rates?", r"\s+area", r"\s+space", r"\s+plan"]
+    lookaheads=[r"\s+interest", r"[- ]rates?"]
     + VERB_LOOKAHEAD,
     lookbehinds=VERB_LOOKBEHIND
     + [
         r"trading\s",
-        r"factory\s",
-        r"ground\s",
-        r"ocean\s",
-        r"sea\s",
-        r"shop\s",
-        r"dance\s",
-        r"construction\s",
     ],
 )
 PUT = register_base("puts?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND)
-CALL = register_base("calls?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND)
+
+CALL = register_base(
+    "calls?", lookaheads=VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND
+)
+
 HEDGE = register_base(
     "hedges?",
     lookaheads=VERB_LOOKAHEAD
@@ -277,7 +247,7 @@ def build_double_base_alternation() -> str:
 
     # Forbidden fillers to prevent false positives like "agreement sets the cap"
     # 1. Lookbehind: Gap must not end with articles or relative pronouns
-    forbidden_endings = r"(?<!\s(?:the|an|a|that|which|who))"
+    forbidden_endings = r"(?<!\sa)(?<!\san)(?<!\s(?:the|who))(?<!\sthat)(?<!\swhich)"
     # 2. Lookahead: Next term must not start with prepositions (unless consumed by gap)
     forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
 
