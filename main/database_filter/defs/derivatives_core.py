@@ -160,11 +160,11 @@ class DERIVATIVES(DERIVATIVE_PATTERNS):
 
 def build_double_base_pattern() -> Tuple[str, str]:
     """
-    Refined logic:
-    Blocks: "equity options and warrants"
-    Allows: "equity warrants and option contracts" (via suffix check)
+    Final Refined Logic:
+    Matches: 'equity warrants and option contracts'
+    Blocks: 'equity options and warrants'
     """
-    # 1. Base Terms (Values)
+    # 1. Base Values
     base_vals = [
         b.value
         for b in (
@@ -177,41 +177,40 @@ def build_double_base_pattern() -> Tuple[str, str]:
     _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
     _SFX_ALT = to_build_alternation(_SFX)
 
-    # 2. Connector & Gap Logic
+    # 2. Logic: The Suffix-Protected Pair Block
     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
-    gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
-    # 3. Pair Blocking with "Suffix Exception"
-    # Block matching if followed by partner UNLESS partner has a suffix
-    # e.g., "options and warrants" -> BLOCK
-    # e.g., "options and warrant contracts" -> ALLOW
-    WARR_VAL = BASE.WARRANT.value
-    OPT_VAL = BASE.OPTION.value
-
+    # Block ONLY if partner is 'naked' (no suffix).
+    # If partner has a suffix, the lookahead fails and the match proceeds.
     _OPT_STRICT = register_base(
-        OPT_VAL, lookaheads=[rf"{sep}{WARR_VAL}\b(?!\s+{_SFX_ALT})"]
+        BASE.OPTION.value, lookaheads=[rf"{sep}{BASE.WARRANT.value}\b(?!\s+{_SFX_ALT})"]
     )
     _WARR_STRICT = register_base(
-        WARR_VAL, lookaheads=[rf"{sep}{OPT_VAL}\b(?!\s+{_SFX_ALT})"]
+        BASE.WARRANT.value, lookaheads=[rf"{sep}{BASE.OPTION.value}\b(?!\s+{_SFX_ALT})"]
     )
 
-    # 4. Fixed Lookbehinds (Chained)
+    # 3. Fixed-Width Chained Lookbehinds
     forbidden_endings = (
         r"(?<!\sa)(?<!\san)(?<!\sthe)" r"(?<!\swho)(?<!\sthat)(?<!\swhich)"
     )
     forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
+    gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
-    # 5. Define the Starters
-    # Starters can be Suffixes or our Strict Bases
+    # 4. Assembly
     _STARTERS = to_build_alternation(_SFX + [_OPT_STRICT, _WARR_STRICT])
-
-    # 6. Build Double Base (Strict)
-    # The tail logic now allows the second term to also have a suffix
     start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
 
     double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
 
-    triple_base = ""  # For later
+    # 5. Triple Base (Standalone Catch-all)
+    loose_base_vals = base_vals + [BASE.WARRANT.value]
+    bases_loose_alt = to_build_alternation(loose_base_vals, sort_longest_first=True)
+    triple_base = (
+        rf"(?:{bases_loose_alt})"
+        rf"(?!\s+to){gap}{forbidden_endings}{forbidden_starters}"
+        rf"(?:{bases_loose_alt})"
+        rf"(?:{sep}(?:{bases_loose_alt}))+"
+    )
 
     return double_base, triple_base
 
