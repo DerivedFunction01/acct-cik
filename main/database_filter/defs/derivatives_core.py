@@ -30,7 +30,12 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     r"\sshipments?",
     r"\sreceipts?",
     r"\sinventor(?:y|ies)",
+    r"\s+stocks?",
 ]
+
+COMMODITY_COMMERICIAL_PATTERN = build_alternation(
+    PHYSICAL_COMMERCIAL_TERMS + [r"\spurchases?"], sort_longest_first=True
+)
 
 STANDALONE_BASES = [
     register_base(
@@ -54,7 +59,6 @@ STANDALONE_BASES = [
             r"\s+participants?",
             r"dealers?",
             r"\s+looking?",
-            r"\s+stocks?",
             r"[- ]split", r"\s+earnings", r"\s+guidance", r"\s+multiple", r"\s+P/E", r"\s+auction"
         ] 
         + VERB_LOOKAHEAD

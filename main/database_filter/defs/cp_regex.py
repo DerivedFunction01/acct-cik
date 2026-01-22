@@ -1,7 +1,7 @@
 import re
 from typing import List, Tuple
 from defs.derivatives_core import (
-    PHYSICAL_DELIVERY_PATTERN,
+    COMMODITY_COMMERICIAL_PATTERN,
     build_smart_regex,
     expand_instruments,
 )
@@ -652,7 +652,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
         COMMON_COMMODITIES +
         CP_UNITS_STRICT +
         NON_DERIVATIVE_COMMERCIAL_KEYWORDS +
-        [rf"{_COMMODITY_NAMES}\s+{PHYSICAL_DELIVERY_PATTERN}"]
+        [rf"{_COMMODITY_NAMES}{COMMODITY_COMMERICIAL_PATTERN}"]
     )
 
     return strict_terms, soft_terms, risk_terms
