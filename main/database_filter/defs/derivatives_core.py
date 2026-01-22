@@ -222,7 +222,7 @@ all_suffix_alternation = build_alternation(ALL_SUFFIXES, True)
 
 SPECIAL_BASE += [rf"hedg(?:e|ing)\s+(?:{suffix_alternation}|derivatives?)"]
 
-def build_double_base_alternation() -> str:
+def build_double_base_alternation() -> Tuple[str, str]:
     """
     Matches combinations of ambiguous bases which together strongly imply derivatives.
     e.g. "caps and floors", "options and futures"
@@ -251,10 +251,13 @@ def build_double_base_alternation() -> str:
     # 2. Lookahead: Next term must not start with prepositions (unless consumed by gap)
     forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
 
-    return rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})(?:{sep}(?:{bases}))*"
+    common_pattern = rf"(?:{start_alt})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases})"
+    double_base = rf"{common_pattern}(?:{sep}(?:{bases}))*"
+    triple_base = rf"{common_pattern}(?:{sep}(?:{bases}))+"
+    return double_base, triple_base
 
 
-DOUBLE_BASE = build_double_base_alternation()
+DOUBLE_BASE, TRIPLE_BASE = build_double_base_alternation()
 
 UNAMBIGUOUS_BASE_TYPES = SPECIAL_BASE + [DOUBLE_BASE]
 UNAMBIGUOUS_BASE_ENDING = UNAMBIGUOUS_BASE_TYPES + ["derivatives?"]
