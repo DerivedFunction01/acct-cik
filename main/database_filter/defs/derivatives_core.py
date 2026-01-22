@@ -46,15 +46,34 @@ PHYSICAL_INVENTORY_TERMS = []  # "capacity forward contract?"
 FORWARD_NOT_PHYSICAL_AHEAD = rf"(?![- ](?:{PHYSICAL_DELIVERY_PATTERN}))"
 
 STANDALONE_BASES = [
-    register_base("swaps?", lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD, lookbehinds=VERB_LOOKBEHIND),
+    register_base(
+        "swaps?",
+        lookaheads=[r"[- ]rates?", r"\s+participants?", r"dealers?"] + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
     register_base(
         "forwards?",
-        lookaheads=VERB_LOOKAHEAD,
-        lookbehinds=[r"carry\s", r"carrying\s", r"carried" r"to\s", r"look\s", r"looking\s", r"looked"],
+        lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookbehinds=[
+            r"carry\s",
+            r"carrying\s",
+            r"carried" r"to\s",
+            r"look\s",
+            r"looking\s",
+            r"looked",
+        ],
     )
     + FORWARD_NOT_PHYSICAL_AHEAD,
-    "collars?",
-    "derivatives",
+    register_base(
+        "collars?",
+        lookaheads=[r"[- ]rates?"] + VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND,
+    ),
+    register_base(
+        "derivatives",
+        lookaheads=VERB_LOOKAHEAD,
+        lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s"], # its derivatives, etc
+    ),
     r"(?:perpetual\s+)?futures",
     "swaptions?",
 ]
@@ -74,7 +93,11 @@ AMBIGUOUS_BASE_TYPES = [
         lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,
         lookbehinds=VERB_LOOKBEHIND + [r"market", r"equity"],
     ),
-    "derivatives?",
+    register_base(
+        "derivatives?",
+        lookaheads=VERB_LOOKAHEAD + [r"\s+counterpart(?:y|ies)", r"\s+markets?"],
+        lookbehinds=VERB_LOOKBEHIND + [r"its\s", r"their\s"],  # its derivatives, etc
+    ),
     register_base(
         "floors?",
         lookaheads=[r"\s+interest", r"[- ]rates?"] + VERB_LOOKAHEAD,

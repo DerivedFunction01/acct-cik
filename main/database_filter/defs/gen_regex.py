@@ -16,7 +16,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
     """
 
     # SAFE BASES: Low false-positive risk
-    safe_bases = ["swaps", r"(?<!\bits\s)derivatives", "futures", "the derivative"]
+    safe_bases = ["the derivative"]
 
     # UNSAFE STANDALONE: Require suffix
     unsafe_alone = [
@@ -27,7 +27,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         "futures",  # plural form
     ]
 
-    # SPECIAL BASES: safe as well
+    # SPECIAL BASES: safe as well (includes everything)
     special_bases = UNAMBIGUOUS_BASE_TYPES
 
     # SAFE SUFFIXES
