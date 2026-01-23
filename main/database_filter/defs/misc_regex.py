@@ -14,38 +14,41 @@ from defs.verb_core import build_strict_do_not_mitigate_regex
 VOLATILITY = add_restrictions(r"volatility", lookbehinds=[r"rate", r"price"])
 VARIANCE = add_restrictions(r"variance", lookbehinds=[r"rate", r"price"])
 
-MISC_CORE_TERMS = [
-    r"inflation",
-    r"CPI",
+STRONG_MISC_WITH_OPT = [
     VOLATILITY,
     VARIANCE,
+]
+
+STRONG_MISC_NO_OPT = [
+    r"inflation",
+    r"CPI",
+]
+
+STRONG_MISC_TERMS = STRONG_MISC_WITH_OPT + STRONG_MISC_NO_OPT
+
+WEAK_MISC_WITH_OPT = [r"weather", r"VIX"]
+
+WEAK_MISC_NO_OPT = [
     r"catastrophe",
     r"longevity",
     r"mortality",
     r"economic",
-    r"freight",
     r"property",
-    r"weather"
+    r"freight",
 ]
+
+WEAK_MISC_TERMS = WEAK_MISC_WITH_OPT + WEAK_MISC_NO_OPT
+
+MISC_CORE_TERMS = STRONG_MISC_TERMS + WEAK_MISC_TERMS
 
 def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
     Returns a tuple: (strict_misc_regex, soft_misc_regex, loose_misc_regex)
     """
 
-    # --- 1. Core Prefix Terms ---
-    strict_core_terms = MISC_CORE_TERMS
-
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     specific_phrases = [
-        r"inflation\s+swaps?",
-        r"CPI\s+swaps?",
-        rf"{VARIANCE}\s+swaps?",
         r"catastrophe\s+bonds?",
-        r"longevity\s+swaps?",
-        r"mortality\s+swaps?",
-        r"VIX\s+futures?",
-        r"VIX\s+options?",
     ]
 
     sorted_specific_phrases = sorted(
@@ -53,26 +56,63 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
 
     # --- 3. Build Patterns ---
-    
+
     # Strict/Soft are identical for Misc context
-    _MISC_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_terms,
+
+    # 1. Strong Terms (With Option): Allow "Volatility Option", "Volatility Agreement"
+    _MISC_CONFIG_STRONG_OPT = DERIVATIVES(
+        PREFIX=STRONG_MISC_WITH_OPT,
         STANDALONE_BASES=[BASE.SWAP, BASE.OPTION, BASE.FUTURES, BASE.FORWARD],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
     )
-    _MISC_PATTERN = DerivativeGenerator(config=_MISC_CONFIG).generate()
-    
-    strict_misc_regex = build_regex([_MISC_PATTERN] + sorted_specific_phrases)
-    soft_misc_regex = build_regex([_MISC_PATTERN] + sorted_specific_phrases)
+    _MISC_PATTERN_STRONG_OPT = DerivativeGenerator(config=_MISC_CONFIG_STRONG_OPT).generate()
 
-    # Loose: Allows any base/suffix with the prefix
-    _LOOSE_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_terms,
+    # 2. Strong Terms (No Option): Allow "Inflation Agreement", BLOCK "Inflation Option"
+    _MISC_CONFIG_STRONG_NO_OPT = DERIVATIVES(
+        PREFIX=STRONG_MISC_NO_OPT,
+        STANDALONE_BASES=[BASE.SWAP, BASE.FUTURES, BASE.FORWARD],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
+    )
+    _MISC_PATTERN_STRONG_NO_OPT = DerivativeGenerator(config=_MISC_CONFIG_STRONG_NO_OPT).generate()
+
+    # 3. Weak Terms (With Option): Allow "weather Option", BLOCK "weather Agreement"
+    _MISC_CONFIG_WEAK_OPT = DERIVATIVES(
+        PREFIX=WEAK_MISC_WITH_OPT,
+        STANDALONE_BASES=[BASE.SWAP, BASE.OPTION, BASE.FUTURES, BASE.FORWARD],
+        STANDALONE_SUFFIXES=[], 
+    )
+    _MISC_PATTERN_WEAK_OPT = DerivativeGenerator(config=_MISC_CONFIG_WEAK_OPT).generate()
+
+    # 4. Weak Terms (No Option): Allow "Property Swap", BLOCK "Property Option", "Property Agreement"
+    _MISC_CONFIG_WEAK_NO_OPT = DERIVATIVES(
+        PREFIX=WEAK_MISC_NO_OPT,
+        STANDALONE_BASES=[BASE.SWAP, BASE.FUTURES, BASE.FORWARD],
+        STANDALONE_SUFFIXES=[],
+    )
+    _MISC_PATTERN_WEAK_NO_OPT = DerivativeGenerator(config=_MISC_CONFIG_WEAK_NO_OPT).generate()
+
+    patterns = [
+        _MISC_PATTERN_STRONG_OPT,
+        _MISC_PATTERN_STRONG_NO_OPT,
+        _MISC_PATTERN_WEAK_OPT,
+        _MISC_PATTERN_WEAK_NO_OPT
+    ]
+
+    strict_misc_regex = build_regex(patterns + sorted_specific_phrases)
+    soft_misc_regex = build_regex(patterns + sorted_specific_phrases)
+
+    # Loose:
+    # Strong terms get full loose matching (contextual)
+    _LOOSE_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=STRONG_MISC_TERMS,
         LOOSE=True,
     )
-    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
-    
-    loose_misc_regex = build_regex([_LOOSE_PATTERN] + sorted_specific_phrases)
+    _LOOSE_PATTERN_STRONG = DerivativeGenerator(config=_LOOSE_CONFIG_STRONG).generate()
+
+    # Weak terms reuse the strict patterns (must have base) to avoid noise in loose regex
+    _LOOSE_PATTERN_WEAK = build_alternation([_MISC_PATTERN_WEAK_OPT, _MISC_PATTERN_WEAK_NO_OPT])
+
+    loose_misc_regex = build_regex([_LOOSE_PATTERN_STRONG, _LOOSE_PATTERN_WEAK] + sorted_specific_phrases)
 
     return strict_misc_regex, soft_misc_regex, loose_misc_regex
 

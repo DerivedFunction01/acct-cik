@@ -45,7 +45,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Strict Core Terms (Precise market/price references)
     strict_core_terms = [
         r"equity",
-        r"equity[- ](?:based|related|linked|index)",
+        r"equity(?:[- ](?:based|related|linked|index))?",
         r"market\s+index",
     ]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
