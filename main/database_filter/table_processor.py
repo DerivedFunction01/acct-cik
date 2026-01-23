@@ -5,9 +5,9 @@ from typing import List, Dict, Optional, Set, Tuple
 # --- REGEX DEFINITIONS ---
 from defs.shared_context import CURRENCY_NAMES_REGEX, all_currencies
 from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX
-from defs.derivatives_core import BASE_REGEX, TABLE_REGEX
+from defs.derivatives_core import BASE_REGEX
 from defs.fx_regex import FX_SOFT_REGEX
-from defs.gen_regex import GEN_REGEX
+from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, TABLE_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.prefiltered_lib import YEAR_REGEX
 # Basic patterns
@@ -381,7 +381,7 @@ class TableToTextConverter:
     def is_implied_derivative(self, full_context):
         return bool(
             STRICT_REGEX.search(full_context)
-            or GEN_REGEX.search(full_context)
+            or GEN_STRICT_CONTEXT_REGEX.search(full_context)
             or IR_SOFT_REGEX.search(full_context)
             or FX_SOFT_REGEX.search(full_context)
         )
