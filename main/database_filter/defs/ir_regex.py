@@ -4,7 +4,7 @@ from typing import Tuple, List
 
 from defs.regex_lib import add_restrictions, build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
-from defs.derivatives_core import BASE, DERIVATIVES, SUFFIX, DerivativeGenerator, Groups
+from defs.derivatives_core import BASE, DERIVATIVES, SUFFIX, DerivativeGenerator, Groups, build_instrument_regex
 BENCHMARK_RATES = [
     "SOFR",
     "SONIA",
@@ -71,12 +71,6 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "treasury locks?",
     ]
 
-    specific_phrases = [
-        "zero[- ]coupon swaps?",
-        "overnight index swaps?",
-        r"forward\s+rate\s+agreements?",
-    ]
-
     _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
@@ -84,25 +78,34 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT] + Groups.AMBIGUOUS_BASES,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT] + Groups.AMBIGUOUS_BASES + Groups.AMBIGUOUS_SUFFIXES,
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
+    # Simple and fast regex, meant for context, not for instruments
     _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
-
+    specific_phrases = [
+        r"(?:zero[- ]coupon|overnight[- ]index)\s+swaps?",
+        add_restrictions(
+            r"forward[- ]rate\s+agreements?",
+            lookbehinds=[r"foreign", r"currency", r"exchange"],
+        ),
+    ]
+    
+    SPECIFIC_PATTERN = build_alternation(specific_phrases)
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG)
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG)
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG)
-
+    return build_instrument_regex(_STRICT_PATTERN, _SOFT_PATTERN, _LOOSE_PATTERN, SPECIFIC_PATTERN)
     # --- 5. Final Build and Compile ---
     strict_pattern = build_smart_regex(
         core_terms,
         expand_instruments(
             unsafe=False, 
             additional_bases=["protection"], 
-            additional_standalone_suffixes=["contracts?", "collars"]
+            additional_standalone_suffixes=["contracts?"]
         ),  # IR caps, locks, floors is not included without the word contract, etc
         specific_phrases,
     )
@@ -218,12 +221,7 @@ BANK_SCORING_REGEX = build_regex(BANK_ENTITIES)
 LIBOR_TRANSITION_KEYWORDS = [
     # ... (Your existing transition terms: cessation, phase-out) ...
     r"LIBOR\s+transition",
-    r"transition\s+(?:from|away\s+from)\s+LIBOR",
-    r"discontinu(?:ance|ation|ed)\s+of\s+LIBOR",
-    r"cessation\s+of\s+LIBOR",
-    r"phase[- ]?out\s+of\s+LIBOR",
-    r"replacement\s+of\s+LIBOR",
-    r"migration\s+from\s+LIBOR",
+    r"(?:phase[- ]?out|replacement|migration|discontinu(?:ance|ation|ed)|transition|cessation)\s+(?:of|(?:away\s+)?from)\s+LIBOR",
     # Regulatory Bodies & Committees
     r"Alternative\s+Reference\s+Rates?\s+Committee",
     r"\bARRC\b",
