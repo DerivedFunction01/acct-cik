@@ -154,10 +154,6 @@ SUFFIX_LOOKBEHINDS = [
     r"retirement",
 ]
 
-EQUITY_LOOKBEHINDS = [
-    r"equity",
-]
-
 @dataclass
 class MultiBaseGenerator:
     """
@@ -239,7 +235,7 @@ class DERIVATIVES:
     _BASES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_BASES)
 
     # Fixed, for all categories (no suffix attachment)
-    MULTI_BASE: Any = field(default_factory=lambda: MULTI_BASE.DOUBLE_BASE)
+    MULTI_BASE: List[Any] = field(default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE])
 
     # Can add additional to this list, or force the list to be empty or override it
     ADDITIONAL_BASES: List[Any] = field(default_factory=list)

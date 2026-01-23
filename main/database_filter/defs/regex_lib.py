@@ -52,6 +52,7 @@ def add_restrictions(
     base: str,
     lookaheads: Optional[List[str]] = None,
     lookbehinds: Optional[List[str]] = None,
+    lookahead_sep: Optional[str] = "[- ]"
 ) -> str:
     pattern = base
     if lookbehinds:
@@ -59,7 +60,7 @@ def add_restrictions(
             pattern = f"(?<!{lb}[- ]){pattern}"
     if lookaheads:
         la_pattern = build_alternation(lookaheads)
-        pattern = f"{pattern}(?![- ]{la_pattern})"
+        pattern = f"{pattern}(?!{lookahead_sep}{la_pattern})"
     return pattern
 
 

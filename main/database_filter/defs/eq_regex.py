@@ -5,6 +5,7 @@ from defs.derivatives_core import (
     ALL_SUFFIXES,
     BASE,
     DERIVATIVES,
+    UNAMBIGUOUS_BASE_TYPES,
     DerivativeGenerator,
     Groups,
     MultiBaseGenerator,
@@ -24,12 +25,17 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
     _SFX_ALT = to_build_alternation(Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
 
-    _OPT_WARR = to_build_alternation([BASE.OPTION, BASE.WARRANT])
-    _OPT_WARR_STRICT = add_restrictions(
-        _OPT_WARR, lookaheads=[rf"{sep}{_OPT_WARR}\b(?!\s+{_SFX_ALT})"]
+    # Define ambiguous group that needs restriction (Option, Warrant, Cap, Floor, Lock)
+    ambiguous_list = [BASE.OPTION, BASE.WARRANT, BASE.CAP, BASE.FLOOR, BASE.LOCK]
+    _AMBIGUOUS_ALT = to_build_alternation(ambiguous_list)
+    _STRICT_ALT = to_build_alternation(UNAMBIGUOUS_BASE_TYPES)
+    _AMBIGUOUS_STRICT = add_restrictions(
+        _AMBIGUOUS_ALT,
+        lookaheads=[rf"{sep}(?:{_AMBIGUOUS_ALT}\b(?!\s+{_SFX_ALT}))(?!{_STRICT_ALT})"],
+        lookahead_sep="",
     )
-    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in [BASE.OPTION, BASE.WARRANT]]
-    eq_starters = [_OPT_WARR_STRICT] + _OTHER_BASES
+    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in ambiguous_list]
+    eq_starters = [_AMBIGUOUS_STRICT] + _OTHER_BASES
 
     # Generate restricted multi-base patterns for Equity context
     eq_double, eq_triple = MultiBaseGenerator(
