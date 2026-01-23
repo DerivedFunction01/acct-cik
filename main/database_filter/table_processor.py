@@ -117,7 +117,7 @@ GAIN_LOSS_HEADERS = re.compile(
 LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
 NOISE_HEADERS = re.compile(
-    r"strike|exercise|shares|units|count|ratio|weighted", re.IGNORECASE
+    r"strike|exercise|shares|units|ratio|weighted", re.IGNORECASE
 )
 
 DESIGNATION_REGEX = re.compile(r"designated as|hedging|trading|fair value|cash flow hedg|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
