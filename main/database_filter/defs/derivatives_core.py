@@ -408,7 +408,7 @@ class DerivativeGenerator:
         # Bases allowed to stand alone (Part 3)
         # Strict bases + Standalone bases + (Ambiguous bases if LOOSE)
         strict_bases_list = self.config._BASES + self.config.STANDALONE_BASES
-        if self.config.LOOSE:
+        if self.config.LOOSE and self.config._AMB_BASES != []:
             strict_bases_list += Groups.AMBIGUOUS_BASES
 
         # Bases allowed to have suffixes (Part 1)
@@ -424,7 +424,7 @@ class DerivativeGenerator:
             + self.config.ADDITIONAL_SUFFIXES
             + self.config.STANDALONE_SUFFIXES
         )
-        if self.config.LOOSE:
+        if self.config.LOOSE and self.config.SUFFIXES != []:
             suffixes_list += Groups.MISC_SUFFIXES
 
         # Suffixes allowed to stand alone (Part 3)

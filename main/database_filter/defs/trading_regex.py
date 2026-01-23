@@ -108,7 +108,7 @@ def run_tests():
     run_category_tests(test_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
 
     counter_cases = [
-        ("trading cap", MatchLevel.LOOSE),
+        ("trading cap", MatchLevel.NONE),
         ("market cap", MatchLevel.NONE),
     ]
     run_category_tests_counter(counter_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
