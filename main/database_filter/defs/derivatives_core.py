@@ -251,7 +251,7 @@ class DerivativeGenerator:
 
         # 2. Build regex parts
 
-        # If loose, build the simple one and return early
+        # If loose, build the simple one and return early (loose is now used for context)
         if self.config.LOOSE:
             return to_build_alternation(eff_strict, sort_longest_first=True)
 
@@ -273,7 +273,20 @@ class DerivativeGenerator:
         full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
 
         return full_pattern
-
+def build_instrument_regex(
+    strict_pattern,
+    soft_pattern,
+    loose_pattern,
+    specific_pattern,
+) -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
+    strict = [strict_pattern, specific_pattern]
+    soft = [soft_pattern, specific_pattern]
+    loose = [loose_pattern, specific_pattern]
+    return (
+        build_regex(strict),
+        build_regex(soft),
+        build_regex(loose),
+    )
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
@@ -302,17 +315,25 @@ def build_smart_regex(
     # E.g., "interest rate swap agreement" before "interest rate swap"
     return build_alternation([pattern2, pattern1], True)
 
+# --- Definitions for Export/Usage in other files ---
+BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
+ALL_BASE_TYPES = BASE_TYPES + [b for b in Groups.OTHER_BASES] + [b for b in Groups.MISC_BASES]
+UNAMBIGUOUS_BASE_ENDING = [b for b in Groups.UNAMBIGUOUS_BASES]
+UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING  # Alias
 
+UNAMBIGUOUS_SUFFIXES = [s for s in Groups.UNAMBIGUOUS_SUFFIXES]
+SUFFIXES = UNAMBIGUOUS_SUFFIXES + [s for s in Groups.AMBIGUOUS_SUFFIXES]
+ALL_SUFFIXES = SUFFIXES + [s for s in Groups.MISC_SUFFIXES]
 # --- Central Alternations for Instrument Components (Max Munch Sorting Applied) ---
-base_alternation = build_alternation(ALL_BASE_TYPES, True)
+base_alternation = to_build_alternation(ALL_BASE_TYPES, True)
 BASE_REGEX = build_regex(ALL_BASE_TYPES)
-safe_base_alternation = build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
-suffix_alternation = build_alternation(SUFFIXES, True)
-standalone_alternation = build_alternation(
+safe_base_alternation = to_build_alternation(UNAMBIGUOUS_BASE_ENDING, True)
+suffix_alternation = to_build_alternation(SUFFIXES, True)
+standalone_alternation = to_build_alternation(
     UNAMBIGUOUS_SUFFIXES + UNAMBIGUOUS_BASE_ENDING, True
 )
-unsafe_standalone_alternation = build_alternation(SUFFIXES + BASE_TYPES, True)
-full_suffix_alternation = build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES + ["hedging"], True)
+unsafe_standalone_alternation = to_build_alternation(SUFFIXES + BASE_TYPES, True)
+full_suffix_alternation = to_build_alternation(ALL_SUFFIXES + ALL_BASE_TYPES, True)
 # ----------------------------------------------------------------------------------
 
 
@@ -396,16 +417,6 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     ]
     return build_regex(unambiguous + plurals)
 
-
-# --- Definitions for Export/Usage in other files ---
-BASE_TYPES = [b.value for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
-ALL_BASE_TYPES = BASE_TYPES + [b.value for b in Groups.OTHER_BASES]
-UNAMBIGUOUS_BASE_ENDING = [b.value for b in Groups.UNAMBIGUOUS_BASES]
-UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING # Alias
-
-UNAMBIGUOUS_SUFFIXES = [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
-SUFFIXES = UNAMBIGUOUS_SUFFIXES + [s.value for s in Groups.AMBIGUOUS_SUFFIXES]
-ALL_SUFFIXES = SUFFIXES + [SUFFIX.COMMITMENT.value, SUFFIX.TRANSACTION.value, SUFFIX.POSITION.value]
 
 LOOSE_GEN_REGEX = build_loose_gen_regex()
 PRECISE_LOOSE_GEN_REGEX = build_loose_gen_regex_precise()
