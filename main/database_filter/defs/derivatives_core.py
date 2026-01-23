@@ -115,9 +115,15 @@ class Groups:
         BASE.STRADDLE,
         BASE.STRANGLE,
     ]
-    AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR]
-    # Bases that may not be used in a soft match
-    OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE]
+    AMBIGUOUS_BASES = [
+        BASE.OPTION,
+        BASE.LOCK,
+        BASE.CAP,
+        BASE.FLOOR,
+        BASE.PUT,
+        BASE.CALL,
+        BASE.HEDGE,
+    ]
     MISC_BASES = [BASE.WARRANT]
     NON_BASES = [
         BASE.PROTECTION,
@@ -180,7 +186,7 @@ class MultiBaseGenerator:
             base_vals = [
                 b.value
                 for b in (
-                    Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
+                    Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES
                 )
             ]
         bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
@@ -249,8 +255,7 @@ class MULTI_BASE:
     _any_u, _ = MultiBaseGenerator(
         bases=Groups.UNAMBIGUOUS_BASES,
         starters=Groups.UNAMBIGUOUS_BASES
-        + Groups.AMBIGUOUS_BASES
-        + Groups.OTHER_BASES,
+        + Groups.AMBIGUOUS_BASES,
         include_suffixes=True,
     ).generate()
 
@@ -408,7 +413,7 @@ def build_smart_regex(
 
 # --- Definitions for Export/Usage in other files ---
 BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
-ALL_BASE_TYPES = BASE_TYPES + [b for b in Groups.OTHER_BASES] + [b for b in Groups.MISC_BASES]
+ALL_BASE_TYPES = BASE_TYPES + [b for b in Groups.MISC_BASES]
 UNAMBIGUOUS_BASE_ENDING = [b for b in Groups.UNAMBIGUOUS_BASES]
 UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING  # Alias
 
@@ -491,7 +496,7 @@ def expand_instruments(
 def build_loose_gen_regex() -> re.Pattern:
     # Matches any base or suffix
     # Used for broad filtering/denial logic
-    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES + [BASE.WARRANT])]
+    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.WARRANT])]
     all_suffixes = [s.value for s in (Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + Groups.MISC_SUFFIXES)]
     
     return build_regex(all_bases + all_suffixes)
@@ -502,7 +507,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     # Used for stricter context checks
     unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES]
     plurals = [
-        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES],
+        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
         *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
         plural(BASE.WARRANT)
     ]

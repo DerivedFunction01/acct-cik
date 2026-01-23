@@ -83,7 +83,8 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT] + Groups.AMBIGUOUS_BASES + Groups.AMBIGUOUS_SUFFIXES,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT]
+        + Groups.AMBIGUOUS_BASES,
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
     # Loose: Allows "Interest Rate" + [Any Base or Any Suffix]
@@ -91,21 +92,20 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
         ADDITIONAL_BASES=[BASE.PROTECTION],
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
-        STANDALONE_SUFFIXES=ALL_SUFFIXES,
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
     )
     specific_phrases = [
         r"(?:zero[- ]coupon|overnight[- ]index)\s+swaps?",
         r"forward[- ]rate\s+agreements?",
     ]
-    
+
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
-    
+
     # Generate the regex strings
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
-    
+
     return build_instrument_regex(_STRICT_PATTERN, _SOFT_PATTERN, _LOOSE_PATTERN, SPECIFIC_PATTERN)
 
 IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX = build_ir_regex()
@@ -418,10 +418,7 @@ def run_tests():
         ("treasury rate locks", MatchLevel.SOFT),
         ("fixed rate swap", MatchLevel.STRICT),
         ("pay fixed receive floating swap", MatchLevel.STRICT),
-        (
-            "interest rate protection",
-            MatchLevel.NONE,
-        ),  # Protection is not a standalone base in strict/soft
+        ("interest rate protection", MatchLevel.LOOSE),
         ("interest rate protection agreement", MatchLevel.STRICT),
         ("interest rate contract", MatchLevel.STRICT),
         ("interest rate hedges", MatchLevel.LOOSE),
@@ -433,7 +430,6 @@ def run_tests():
     counter_cases = [
         ("interest rate cap", MatchLevel.STRICT),  # Should NOT be strict
         ("treasury rate floor", MatchLevel.STRICT),
-        ("interest rate protection", MatchLevel.LOOSE),
         ("fixed rate agreement", MatchLevel.SOFT),
         ("floating rate arrangement", MatchLevel.SOFT),
     ]

@@ -33,7 +33,7 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
         [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
     )
 
-    DERIVATIVE_CONTRACT = build_compound(Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES, SUFFIX.CONTRACT)
+    DERIVATIVE_CONTRACT = build_compound(Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES, SUFFIX.CONTRACT)
     ASSET_LIABILITY = build_compound(
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
@@ -258,6 +258,9 @@ def run_tests():
         ("contracts such as swaps", MatchLevel.STRICT),
         ("contracts such as options", MatchLevel.STRICT),
         ("contracts sets the cap", MatchLevel.STRICT),
+        ("call contract", MatchLevel.STRICT),
+        ("put contract", MatchLevel.STRICT),
+        ("hedge contract", MatchLevel.STRICT),
     ]
     print("\nRunning Double Base Tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)

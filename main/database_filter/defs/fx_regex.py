@@ -68,7 +68,6 @@ def build_fx_dynamic_pattern() -> List[str]:
 def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Helper Definitions ---
     currency_name_alternation = build_currency_descriptor_pattern()
-    fx_dynamic_pattern = build_fx_dynamic_pattern()
 
     forward_types = [
         "non[- ]deliverable",
@@ -77,10 +76,11 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # --- 1. Define Prefixes ---
     fx_prefixes = build_fx_dynamic_pattern()
-    currency_prefixes = [currency_name_alternation]
-    naked_prefixes = [CURRENCY_TERM]
+    currency_name_prefixes = [currency_name_alternation]
+    naked_prefixes = [CURRENCY_TERM] # Weak prefix ("currency")
     
-    all_prefixes = fx_prefixes + currency_prefixes + naked_prefixes
+    strong_prefixes = fx_prefixes + currency_name_prefixes
+    all_prefixes = strong_prefixes + naked_prefixes
     
     # --- 2. Specific Phrases ---
     fixed_phrases = [
@@ -101,13 +101,22 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     
     # --- 3. Strict Generator ---
     # Option is strict in FX context (Foreign Exchange Option)
-    _STRICT_CONFIG = DERIVATIVES(
-        PREFIX=all_prefixes,
+    # Split into Strong (allows Agreements) and Weak (allows only Contracts)
+    _STRICT_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=strong_prefixes,
         STANDALONE_BASES=[BASE.OPTION],
         MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
     )
-    _STRICT_MAIN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
+    _STRICT_MAIN_STRONG = DerivativeGenerator(config=_STRICT_CONFIG_STRONG).generate()
     
+    _STRICT_CONFIG_WEAK = DERIVATIVES(
+        PREFIX=naked_prefixes,
+        STANDALONE_BASES=[BASE.OPTION],
+        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES, # No Agreements for "currency"
+        MULTI_BASE=[],
+    )
+    _STRICT_MAIN_WEAK = DerivativeGenerator(config=_STRICT_CONFIG_WEAK).generate()
+
     # Multi-Base (Caps and Floors, etc.) attached to prefixes
     _MULTI_CONFIG = DERIVATIVES(
         PREFIX=all_prefixes,
@@ -117,18 +126,27 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _STRICT_MULTI = DerivativeGenerator(config=_MULTI_CONFIG).generate()
     
-    strict_fx_regex = build_regex([_STRICT_MAIN, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    strict_fx_regex = build_regex([_STRICT_MAIN_STRONG, _STRICT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
     
     # --- 4. Soft Generator ---
     # Allows ambiguous bases (Caps, Floors) and Hedges
-    _SOFT_CONFIG = DERIVATIVES(
-        PREFIX=all_prefixes,
+    _SOFT_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=strong_prefixes,
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES + [BASE.HEDGE],
         MULTI_BASE=[],
         SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
     )
-    _SOFT_MAIN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
-    soft_fx_regex = build_regex([_SOFT_MAIN, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    _SOFT_MAIN_STRONG = DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate()
+
+    _SOFT_CONFIG_WEAK = DERIVATIVES(
+        PREFIX=naked_prefixes,
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + [BASE.HEDGE],
+        MULTI_BASE=[],
+        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES # No Agreements for "currency"
+    )
+    _SOFT_MAIN_WEAK = DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
+
+    soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
     
     # --- 5. Loose Generator ---
     _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, LOOSE=True)

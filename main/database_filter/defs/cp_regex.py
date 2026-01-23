@@ -725,6 +725,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_patterns,
         ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
+        STANDALONE_SUFFIXES=[],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
     strict_cp_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
@@ -776,7 +777,7 @@ def run_tests():
         ("fixed price swap", MatchLevel.STRICT),
         ("weather derivative", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),
-        ("commodity contract", MatchLevel.SOFT),
+        ("commodity contract", MatchLevel.STRICT),
         ("oil price contract", MatchLevel.SOFT),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),
