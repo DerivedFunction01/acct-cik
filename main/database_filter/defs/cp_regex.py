@@ -777,7 +777,7 @@ def run_tests():
         ("fixed price swap", MatchLevel.STRICT),
         ("weather derivative", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),
-        ("commodity contract", MatchLevel.STRICT),
+        ("commodity contract", MatchLevel.SOFT), # Note all cp contracts are derivatives
         ("oil price contract", MatchLevel.SOFT),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),

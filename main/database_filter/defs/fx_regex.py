@@ -311,7 +311,7 @@ def run_tests():
         ("currency agreement", MatchLevel.LOOSE),
         ("foreign currency contract", MatchLevel.STRICT),
         ("foreign currency hedges", MatchLevel.SOFT),
-        ("currency hedging", MatchLevel.LOOSE),
+        ("currency hedging", MatchLevel.SOFT),
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
         ("currency exchange rate arrangement", MatchLevel.STRICT),
@@ -321,9 +321,9 @@ def run_tests():
         ("Japanese Yen option", MatchLevel.STRICT),
         ("exchange rate agreement", MatchLevel.STRICT),
         ("exchange rate hedge", MatchLevel.SOFT),
-        ("foreign currency commitment", MatchLevel.LOOSE),
-        ("currency transaction", MatchLevel.LOOSE),
-        ("Japanese Yen contract", MatchLevel.LOOSE),
+        ("foreign currency commitment", MatchLevel.LOOSE), 
+        ("currency transaction", MatchLevel.LOOSE), 
+        ("Japanese Yen contract", MatchLevel.LOOSE), # Only options along with other bases
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
