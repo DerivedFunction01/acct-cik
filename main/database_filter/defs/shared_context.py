@@ -471,7 +471,6 @@ SETTLEMENT_MODIFIERS = [
     "annually",
     "weekly",
     "annual",
-    "every", # catch all for every month, etc
 ]
 SETTLEMENT_MECHANICS_REGEX = build_regex(SETTLEMENT_MODIFIERS)
 TERM_LOOKAHEADS = ["price", "rate", "date", "balance", "value"]
@@ -518,7 +517,7 @@ TERMINATION_NOUNS = [
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
-    add_restrictions(r"settl(?:ement|ing)", lookbehinds=SETTLEMENT_MODIFIERS, lookaheads=TERM_LOOKAHEADS + SETTLEMENT_MODIFIERS, lookahead_sep=r"\s+"),  # Matches: settlement
+    add_restrictions(r"settl(?:ement|ing)", lookbehinds=SETTLEMENT_MODIFIERS, lookaheads=TERM_LOOKAHEADS + SETTLEMENT_MODIFIERS + [r"every"], lookahead_sep=r"\s+"),  # Matches: settlement
     r"cancellation",  # Matches: cancellation
     r"novation",  # Matches: novation
     r"rescission",  # Matches: rescission
