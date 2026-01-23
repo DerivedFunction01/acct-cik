@@ -52,8 +52,6 @@ class BASE(Enum):
     WARRANT = r"warrants?"
     STRADDLE = r"straddles?"
     STRANGLE = r"strangles?"
-    RISK_REVERSAL = r"risk\s+reversals?"
-    CONTRACT_FOR_DIFFERENCE = r"contracts?\s+for\s+difference"
 
     # IR bases
     PROTECTION = r"protections?"
@@ -128,8 +126,6 @@ class Groups:
         SPEC_BASE.SPECIAL_OPTION,
         BASE.STRADDLE,
         BASE.STRANGLE,
-        BASE.RISK_REVERSAL,
-        BASE.CONTRACT_FOR_DIFFERENCE,
     ]
     AMBIGUOUS_BASES = [
         BASE.OPTION,
