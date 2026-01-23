@@ -184,14 +184,14 @@ def run_tests():
 
     counter_cases = [
         # Weak terms should not match with generic suffixes or disallowed bases
-        ("freight agreement", MatchLevel.LOOSE),
-        ("property option", MatchLevel.LOOSE),
-        ("property agreement", MatchLevel.LOOSE),
-        ("freight contract", MatchLevel.LOOSE),
-        ("freight option", MatchLevel.LOOSE),
-        ("property swap", MatchLevel.LOOSE), 
-        ("freight forward", MatchLevel.LOOSE),
-        ("property forward", MatchLevel.LOOSE),
+        ("freight agreement", MatchLevel.NONE),
+        ("property option", MatchLevel.NONE),
+        ("property agreement", MatchLevel.NONE),
+        ("freight contract", MatchLevel.NONE),
+        ("freight option", MatchLevel.NONE),
+        ("property swap", MatchLevel.NONE),
+        ("freight forward", MatchLevel.NONE),
+        ("property forward", MatchLevel.NONE),
         # Restricted terms (lookbehinds)
         ("interest rate volatility swap", MatchLevel.NONE),
         # Non-derivative terms (Should not match Soft)
@@ -207,6 +207,6 @@ def run_tests():
         ("catastrophe loss", MatchLevel.NONE),
         ("inflation rate", MatchLevel.NONE),
         ("volatility index", MatchLevel.NONE),
-        ("economic hedge", MatchLevel.LOOSE),
+        ("economic hedge", MatchLevel.NONE),
     ]
     run_category_tests_counter(counter_cases, MISC_REGEX, MISC_SOFT_REGEX, MISC_LOOSE_REGEX)
