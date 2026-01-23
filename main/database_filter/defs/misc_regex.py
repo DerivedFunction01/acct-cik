@@ -23,6 +23,8 @@ MISC_CORE_TERMS = [
     r"longevity",
     r"mortality",
     r"economic",
+    r"freight",
+    r"property",
     r"weather"
 ]
 

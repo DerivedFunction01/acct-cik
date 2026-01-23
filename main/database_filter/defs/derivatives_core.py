@@ -52,6 +52,8 @@ class BASE(Enum):
     WARRANT = r"warrants?"
     STRADDLE = r"straddles?"
     STRANGLE = r"strangles?"
+    RISK_REVERSAL = r"risk\s+reversals?"
+    CONTRACT_FOR_DIFFERENCE = r"contracts?\s+for\s+difference"
 
     # IR bases
     PROTECTION = r"protections?"
@@ -88,6 +90,11 @@ class SPEC_BASE(Enum):
         r"total[- ]return",
         r"back[- ]to[- ]back",
         r"correlation",
+        r"dividend",
+        r"amorti[sz]ing",
+        r"constant[- ]maturity",
+        r"conditional[- ]variance",
+        r"inflation",
     ], BASE.SWAP)
     SPECIAL_OPTION = build_compound([
         r"asian",
@@ -97,6 +104,12 @@ class SPEC_BASE(Enum):
         r"lookback",
         r"exotic",
         r"barrier",
+        r"binary",
+        r"digital",
+        r"chooser",
+        r"cliquet",
+        r"compound",
+        r"forward[- ]start",
         BASE.PUT,
         BASE.CALL,
         BASE.STRADDLE,
@@ -115,6 +128,8 @@ class Groups:
         SPEC_BASE.SPECIAL_OPTION,
         BASE.STRADDLE,
         BASE.STRANGLE,
+        BASE.RISK_REVERSAL,
+        BASE.CONTRACT_FOR_DIFFERENCE,
     ]
     AMBIGUOUS_BASES = [
         BASE.OPTION,
