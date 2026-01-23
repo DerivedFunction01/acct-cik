@@ -88,7 +88,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_BASES=[BASE.OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
-    soft_eq_regex = build_regex([_SOFT_PATTERN] + sorted_specific_phrases + [ ])
+    soft_eq_regex = build_regex(
+        [_SOFT_PATTERN] + sorted_specific_phrases + soft_phrases
+    )
 
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
@@ -97,7 +99,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_SUFFIXES=ALL_SUFFIXES,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
-    loose_eq_regex = build_regex([_LOOSE_PATTERN] + sorted_specific_phrases + [rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"])
+    loose_eq_regex = build_regex(
+        [_LOOSE_PATTERN] + sorted_specific_phrases + soft_phrases
+    )
 
     return strict_eq_regex, soft_eq_regex, loose_eq_regex
 
