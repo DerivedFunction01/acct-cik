@@ -21,7 +21,7 @@ EQ_INDICES = [
     r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
     r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
     r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
-    r"market[- ]index"
+    add_restrictions(r"market[- ]index", lookbehinds=[r"commodity", r"energy", r"oil", r"gas", r"power", r"bond", r"debt", r"credit", r"gold", r"silver"]),
 ]
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -320,6 +320,8 @@ def run_tests():
         ("dividend futures", MatchLevel.STRICT),
         ("S&P 500 swap", MatchLevel.STRICT),
         ("S&P 500 option", MatchLevel.SOFT),
+        ("market index swap", MatchLevel.STRICT),
+        ("commodity market index swap", MatchLevel.NONE),
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
