@@ -54,10 +54,13 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"dividends?",
         r"stocks?",
         r"shares?",
-        r"S\&P\s+500",
-        r"Nasdaq(?:\s+Composite|\s+Index)?",
-        r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
-        r"Russell\s+2000",
+        r"S\&P\s+(?:500|400|600|1500)(?:\s+total\s+return)?(?:\s+index)?",
+        r"Nasdaq(?:[-\s]?100|(?:\s+Composite)?)(?:\s+index)?",
+        r"Dow\s+Jones(?:\s+Industrial\s+Average)?(?:\s+index)?",
+        r"Russell\s+(?:1000|2000|3000)(?:\s+(?:Value|Growth))?(?:\s+index)?",
+        r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
+        r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
+        r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
     ]
     restricted_core_terms = [rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
