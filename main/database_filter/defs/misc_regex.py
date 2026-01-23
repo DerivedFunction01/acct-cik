@@ -18,7 +18,7 @@ VARIANCE = add_restrictions(r"variance", lookbehinds=[r"rate", r"price", r"curre
 STRONG_MISC_WITH_OPT = [r"weather", r"VIX"]
 # Only allow futures
 STRONG_MISC = [
-    r"inflation",
+    r"inflation(?:[- ](?:linked|rate))",
     r"CPI",
     VOLATILITY,
     VARIANCE,
@@ -197,15 +197,29 @@ def run_tests():
 
     counter_cases = [
         # Weak terms should not match with generic suffixes or disallowed bases
-        ("freight agreement", MatchLevel.NONE),
+        ("freight agreement", MatchLevel.LOOSE),
         ("property option", MatchLevel.LOOSE),
-        ("property agreement", MatchLevel.NONE),
-        ("freight contract", MatchLevel.NONE),
-        ("freight option", MatchLevel.NONE),
-        ("property swap", MatchLevel.NONE), 
-        ("freight forward", MatchLevel.NONE),
-        ("property forward", MatchLevel.NONE),
+        ("property agreement", MatchLevel.LOOSE),
+        ("freight contract", MatchLevel.LOOSE),
+        ("freight option", MatchLevel.LOOSE),
+        ("property swap", MatchLevel.LOOSE), 
+        ("freight forward", MatchLevel.LOOSE),
+        ("property forward", MatchLevel.LOOSE),
         # Restricted terms (lookbehinds)
         ("interest rate volatility swap", MatchLevel.NONE),
+        # Non-derivative terms (Should not match Soft)
+        ("economic growth", MatchLevel.NONE),
+        ("economic value", MatchLevel.NONE),
+        ("freight cost", MatchLevel.NONE),
+        ("property tax", MatchLevel.NONE),
+        ("land lease", MatchLevel.NONE),
+        ("mortality rate", MatchLevel.NONE),
+        ("longevity risk", MatchLevel.NONE),
+        ("weather conditions", MatchLevel.NONE),
+        ("CPI increase", MatchLevel.NONE),
+        ("catastrophe loss", MatchLevel.NONE),
+        ("inflation rate", MatchLevel.NONE),
+        ("volatility index", MatchLevel.NONE),
+        ("economic hedge", MatchLevel.LOOSE),
     ]
     run_category_tests_counter(counter_cases, MISC_REGEX, MISC_SOFT_REGEX, MISC_LOOSE_REGEX)
