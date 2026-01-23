@@ -284,6 +284,17 @@ def run_tests():
         ("option", MatchLevel.LOOSE), # Singular Ambiguous
         ("cap", MatchLevel.LOOSE), # Singular Ambiguous
         ("market cap", MatchLevel.LOOSE), # Matches "cap" in LOOSE
+
+        # --- Counter Cases (Non-Financial / Exclusion Handled) ---
+        ("forward looking", MatchLevel.SOFT),
+        ("look forward", MatchLevel.SOFT),
+        ("carry forward", MatchLevel.SOFT),
+        ("forward shipment", MatchLevel.SOFT),
+        ("derivative market", MatchLevel.STRICT), 
+        ("swap participants", MatchLevel.SOFT),
+        ("asset swaps", MatchLevel.STRICT),
+        ("asset swap", MatchLevel.SOFT),
+        ("debt-for-equity swaps", MatchLevel.STRICT),
     ]
     print("\nRunning Gen Regex Tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
