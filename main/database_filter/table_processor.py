@@ -382,8 +382,6 @@ class TableToTextConverter:
         return bool(
             STRICT_REGEX.search(full_context)
             or GEN_STRICT_CONTEXT_REGEX.search(full_context)
-            or IR_SOFT_REGEX.search(full_context)
-            or FX_SOFT_REGEX.search(full_context)
         )
 
     def _detect_merge_patterns(
