@@ -11,6 +11,15 @@ from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import build_risk_managment_phrase
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
+CRYPTO_CORE_TERMS = [
+    r"crypto(?:currenc(?:y|ies))?",
+    r"digital\s+assets?",
+    r"(?:virtual|digital|crypto)[- ]currenc(?:y|ies)",
+    r"bitcoin",
+    r"ether(?:eum)?",
+    r"BTC",
+    r"ETH",
+]
 
 def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
@@ -18,22 +27,10 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
 
     # --- 1. Core Prefix Terms ---
-    strict_core_terms = [
-        r"crypto(?:currency)?",
-        r"digital\s+assets?",
-        r"(?:virtual|digital|crypto)[- ]currency",
-        r"bitcoin",
-        r"ethereum",
-        r"BTC",
-        r"ETH",
-    ]
-
+    strict_core_terms = CRYPTO_CORE_TERMS
 
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     specific_phrases = [
-        r"bitcoin\s+futures?",
-        r"ether(?:eum)?\s+futures?",
-        r"crypto\s+swaps?",
         r"digital\s+asset\s+securities?",
     ]
 
@@ -98,11 +95,7 @@ def build_crypto_context_terms() -> Tuple[List[str], List[str], List[str]]:
     soft_terms = crypto_broad
 
     # 4. Risk Management Glue
-    crypto_glue = [
-        r"crypto",
-        r"digital\s+assets?",
-        r"bitcoin",
-    ]
+    crypto_glue = CRYPTO_CORE_TERMS
 
     risk_terms = [build_risk_managment_phrase(crypto_glue)]
 
@@ -116,14 +109,7 @@ CRYPTO_STRICT_CONTEXT_REGEX = build_regex(CRYPTO_STRICT_TERMS + CRYPTO_RISK_TERM
 CRYPTO_RISK_REGEX = build_regex(CRYPTO_RISK_TERMS)
 CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_LOOSE_REGEX = build_crypto_regex()
 
-CRYPTO_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
-    [
-        r"crypto",
-        r"digital\s+assets?",
-        r"bitcoin",
-        r"cryptocurrenc(?:y|ies)",
-    ]
-)
+CRYPTO_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(CRYPTO_CORE_TERMS)
 
 def run_tests():
     from defs.derivatives_core import (
