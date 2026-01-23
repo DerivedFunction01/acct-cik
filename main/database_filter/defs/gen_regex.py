@@ -146,9 +146,10 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         MULTI_BASE.MIXED_DOUBLE,
         add_restrictions(
             plural(to_build_alternation([BASE.SWAP, BASE.FUTURES, BASE.DERIVATIVE])),
-            lookbehinds=VERB_LOOKBEHIND + [r"its", r"their"],
-            lookaheads=VERB_LOOKAHEAD +[ r"participants?", r"dealers?", r"markets?"]
-        )
+            lookbehinds=VERB_LOOKBEHIND
+            + [r"its", r"their", r"asset", r"debt[- ]for[- ]equity", r"land", r"property", r"real[- ]estate"],
+            lookaheads=VERB_LOOKAHEAD + [r"participants?", r"dealers?", r"markets?"],
+        ),
     ]
     derivative_alt = to_build_alternation(DERIVATIVE_PATTERNS, sort_longest_first=True)
 
