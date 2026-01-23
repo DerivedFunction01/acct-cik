@@ -465,11 +465,13 @@ SETTLEMENT_MODIFIERS = [
     "daily",
     "monthly",
     "physically",
+    "quarterly",
     "final",
     "mandatory",
     "annually",
     "weekly",
     "annual",
+    "every", # catch all for every month, etc
 ]
 SETTLEMENT_MECHANICS_REGEX = build_regex(SETTLEMENT_MODIFIERS)
 TERM_LOOKAHEADS = ["price", "rate", "date", "balance", "value"]
