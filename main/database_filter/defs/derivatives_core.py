@@ -336,12 +336,15 @@ class DerivativeGenerator:
         if self.config.LOOSE:
             # Combine all unique terms into one massive alternation
             all_terms = set(strict_bases_list + ambig_bases_list + suffixes_list + standalone_suffixes_list)
+            if not all_terms:
+                return ""
             prefix_pattern = to_build_alternation(
                 self.config.PREFIX, sort_longest_first=True
             )
             suffix_str = to_build_alternation(list(all_terms), sort_longest_first=True)
-            combo_str = rf"{prefix_pattern}[- ]{suffix_str}"
-            return combo_str
+            if prefix_pattern:
+                return rf"{prefix_pattern}[- ]{suffix_str}"
+            return suffix_str
 
         # Normal Mode
 
@@ -350,7 +353,10 @@ class DerivativeGenerator:
         # Use sets to remove duplicates for cleaner regex, then convert to list
         ambig_str = to_build_alternation(list(set(ambig_bases_list)), sort_longest_first=True)
         suffix_str = to_build_alternation(list(set(suffixes_list)), sort_longest_first=True)
-        combo_str = rf"{ambig_str}[- ]{suffix_str}"
+
+        combo_str = ""
+        if ambig_str and suffix_str:
+            combo_str = rf"{ambig_str}[- ]{suffix_str}"
 
         # Part 2: Multi Base
         multi_str = to_build_alternation(
@@ -362,13 +368,21 @@ class DerivativeGenerator:
         standalone_str = to_build_alternation(list(set(standalone_pool)), sort_longest_first=True)
 
         # Combine Suffix Parts
-        full_suffix_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
+        valid_parts = [p for p in [combo_str, multi_str, standalone_str] if p]
+
+        if not valid_parts:
+            return ""
+
+        full_suffix_pattern = to_build_alternation(valid_parts, sort_longest_first=True)
 
         # Prefix
         prefix_pattern = to_build_alternation(self.config.PREFIX, sort_longest_first=True)
 
         # Create the final pattern
-        full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
+        if prefix_pattern:
+            full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
+        else:
+            full_pattern = full_suffix_pattern
 
         return full_pattern
 
