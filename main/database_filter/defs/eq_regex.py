@@ -119,7 +119,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _SWP_FWD = [BASE.SWAP, BASE.FORWARD]
     _SWP_FWD_ALT = to_build_alternation(_SWP_FWD)
     _RESTRICTED_SWP_FWD = add_restrictions(
-        _SWP_FWD_ALT, lookbehinds=[r"stocks?", r"dividends?", r"shares?"]
+        _SWP_FWD_ALT, lookbehinds=[r"stocks", r"dividends", r"shares", r"stock", r"dividend", r"share"]
     )
     _RESTRICTED_BASES.append(_RESTRICTED_SWP_FWD)
     _RESTRICTED_CONFIG = DERIVATIVES(
