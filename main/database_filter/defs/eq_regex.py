@@ -44,14 +44,13 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # Strict Core Terms (Precise market/price references)
     strict_core_terms = [
-        r"equity",
         r"equity(?:[- ](?:based|related|linked|index))?",
         r"market\s+index",
     ]
 
     # Restricted Core Terms (Common words that require SAFE bases to avoid compensation/noise)
     # These will ONLY match with Unambiguous Bases (Swaps, Futures, etc.)
-    restricted_core_terms = [
+    restricted_core = [
         r"dividends?",
         r"stocks?",
         r"shares?",
@@ -60,6 +59,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
         r"Russell\s+2000",
     ]
+    restricted_core_terms = [rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
 
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
