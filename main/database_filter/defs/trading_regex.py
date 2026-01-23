@@ -78,7 +78,6 @@ def build_trading_context_terms() -> Tuple[List[str], List[str], List[str]]:
     soft_terms = TRADING_CORE_TERMS + [
         r"strike\s+prices?",
         r"exercise\s+prices?",
-        r"spot\s+prices?",
         r"initial\s+prices?",
     ]
     
