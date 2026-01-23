@@ -4,9 +4,9 @@ from defs.cp_regex import COMMODITY_REGEX, CP_CONTEXT_REGEX, CP_REGEX, CP_SOFT_R
 from defs.cr_regex import CR_CONTEXT_REGEX, CR_REGEX, CR_SOFT_REGEX, CR_STRICT_CONTEXT_REGEX, CR_LOOSE_REGEX, CR_RISK_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX
 from defs.fx_regex import CURRENCY_TERM, FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
-from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
+from defs.gen_regex import GEN_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
 from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, to_build_alternation
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex, to_build_alternation
 from defs.derivatives_core import ALL_SUFFIXES, SUFFIX, Groups
 from main.database_filter.defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
