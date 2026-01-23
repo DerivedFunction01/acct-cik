@@ -10,12 +10,12 @@ from defs.exclusion_regex import ENTITY_TOKEN
 
 class GEN_DERIVATIVE_PATTERNS(Enum):
     HEDGING_INSTRUMENT_ALONE = build_compound(
+        BASE.HEDGE,
         [
             SUFFIX.CONTRACT,
             SUFFIX.INSTRUMENT,
             BASE.DERIVATIVE,
         ],
-        BASE.HEDGE,
     )
     # Miscellaneous complex patterns
     OTHER_INSTRUMENTS = build_alternation(
@@ -142,6 +142,11 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         GEN_DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
         GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
         MULTI_BASE.TRIPLE_BASE,
+        add_restrictions(
+            plural(to_build_alternation([BASE.SWAP, BASE.FUTURES, BASE.DERIVATIVE])),
+            lookbehinds=VERB_LOOKBEHIND,
+            lookaheads=VERB_LOOKAHEAD +[ r"participants?", r"dealers?", r"markets?"]
+        )
     ]
     derivative_alt = to_build_alternation(DERIVATIVE_PATTERNS, sort_longest_first=True)
 
