@@ -48,6 +48,18 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"equity(?:[- ](?:based|related|linked|index))?",
         r"market\s+index",
     ]
+
+    # Restricted Core Terms (Common words that require SAFE bases to avoid compensation/noise)
+    # These will ONLY match with Unambiguous Bases (Swaps, Futures, etc.)
+    restricted_core_terms = [
+        r"dividends?",
+        r"stocks?",
+        r"shares?",
+        r"S\&P\s+500",
+        r"Nasdaq(?:\s+Composite|\s+Index)?",
+        r"Dow\s+Jones(?:\s+Industrial\s+Average|\s+Index)?",
+        r"Russell\s+2000",
+    ]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
 
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
@@ -101,7 +113,17 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         MULTI_BASE=[eq_double, eq_triple],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
-    strict_eq_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
+
+    _RESTRICTED_CONFIG = DERIVATIVES(
+        PREFIX=restricted_core_terms,
+        _BASES=Groups.UNAMBIGUOUS_BASES,
+        _AMB_BASES=[], # Explicitly empty to prevent ambiguous bases (Options/Warrants)
+        STANDALONE_SUFFIXES=[], # No "Stock Agreement"
+        MULTI_BASE=[], # No multi-base to avoid "Stock options and warrants"
+    )
+    _RESTRICTED_PATTERN = DerivativeGenerator(config=_RESTRICTED_CONFIG).generate()
+
+    strict_eq_regex = build_regex([_STRICT_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases)
 
     # -------------------------------------------------------------------------
     # --- B. SOFT Pattern Construction (Contextual Precision) ---
@@ -114,7 +136,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
     soft_eq_regex = build_regex(
-        [_SOFT_PATTERN] + sorted_specific_phrases + soft_phrases
+        [_SOFT_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases + soft_phrases
     )
 
     _LOOSE_CONFIG = DERIVATIVES(
@@ -126,7 +148,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
     loose_eq_regex = build_regex(
-        [_LOOSE_PATTERN] + sorted_specific_phrases + soft_phrases
+        [_LOOSE_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases + soft_phrases
     )
 
     return strict_eq_regex, soft_eq_regex, loose_eq_regex
@@ -280,6 +302,9 @@ def run_tests():
         ("stock options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE with stock prefix
         ("stock agreement, options and warrants", MatchLevel.NONE), # TRIPLE_BASE with agreement start
         ("equity options and swaps", MatchLevel.STRICT), # Double Base (Ambiguous + Unambiguous)
+        ("stock swap", MatchLevel.STRICT),
+        ("dividend futures", MatchLevel.STRICT),
+        ("S&P 500 swap", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
