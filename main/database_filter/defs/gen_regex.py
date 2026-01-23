@@ -3,7 +3,7 @@ import re
 
 
 from defs.derivatives_core import BASE, MULTI_BASE, PHYSICAL_COMMERCIAL_TERMS, PRECISE_LOOSE_GEN_REGEX, SPEC_BASE, SUFFIX, VERB_LOOKAHEAD, VERB_LOOKBEHIND, Groups, build_compound
-from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural
+from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural, to_build_alternation
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
 from defs.exclusion_regex import ENTITY_TOKEN
@@ -35,7 +35,7 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
 
     DERIVATIVE_CONTRACT = build_compound(Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES, SUFFIX.CONTRACT)
     ASSET_LIABILITY = build_compound(
-        [BASE.DERIVATIVE, BASE.SWAP], [r"liabilit(?:y|ies)", r"assets?"]
+        [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
 
 
@@ -143,7 +143,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
         MULTI_BASE.TRIPLE_BASE,
     ]
-    derivative_alt = build_alternation(DERIVATIVE_PATTERNS, sort_longest_first=True)
+    derivative_alt = to_build_alternation(DERIVATIVE_PATTERNS, sort_longest_first=True)
 
     INSTRUMENT_REGEX = re.compile(
         rf"\b(?P<instrument>{derivative_alt})\b", re.IGNORECASE
