@@ -36,7 +36,6 @@ def build_energy_dynamic_pattern() -> str:
         "coal",
         "gas(?:oline)?",
         "propane",
-        "power",
         "petroleum",
         "diesel",
         "butane",
@@ -47,6 +46,8 @@ def build_energy_dynamic_pattern() -> str:
         "kerosene",
         "LNG",
         "LPG",
+        "solar",
+        "wind",
     ]
 
     modifiers = [
@@ -63,8 +64,6 @@ def build_energy_dynamic_pattern() -> str:
         "coking",
         "natural",
         "carbon",
-        "solar",
-        "wind",
         "renewable",
         "liquid",
     ]
@@ -78,7 +77,7 @@ def build_energy_dynamic_pattern() -> str:
         rf"(?:(?:{prefix_alt})[- ])?"
         rf"(?:(?:{modifier_alt})[- ])?"
         rf"(?:{base_alt})"
-        rf"(?:[- ](?:{base_alt}|liquids?))?"
+        rf"(?:[- ](?:{base_alt}|liquids?|power))?"
     )
 
 
