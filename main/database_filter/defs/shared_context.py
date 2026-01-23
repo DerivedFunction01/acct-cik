@@ -549,42 +549,42 @@ TERMINATION_NOUNS = [
 ALL_TERM_TERMS = TERMINATION_VERBS + TERMINATION_NOUNS
 
 
-DERIVATIVE_EXCHANGES = [
-    r"\bNYMEX\b",
-    r"\bNew\s+York\s+Mercantile\s+Exchange\b",
-    r"\bCOMEX\b",
-    r"\bCommodity\s+Exchange(?!\s+Act)\b",
-    r"\bCBOT\b",
-    r"\bChicago\s+Board\s+of\s+Trade\b",
-    r"\bCME\b",
-    r"\bChicago\s+Mercantile\s+Exchange\b",
-    r"\bICE\b",
-    r"\bIntercontinental\s+Exchange\b",
-    r"\bLME\b",
-    r"\bLondon\s+Metal\s+Exchange\b",
-    r"\bCBOE\b",
-    r"\bChicago\s+Board\s+Options\s+Exchange\b",
-    r"\bICE\s+Futures\b",
-    r"\bNYBOT\b",
-    r"\bNew\s+York\s+Board\s+of\s+Trade\b",
-    r"\bKCBT\b",
-    r"\bKansas\s+City\s+Board\s+of\s+Trade\b",
-    r"\bMGEX\b",
-    r"\bMinneapolis\s+Grain\s+Exchange\b",
-    r"\bEurex\b",
-    r"\bLIFFE\b",
-    r"\bLondon\s+International\s+Financial\s+Futures\s+and\s+Options\s+Exchange\b",
-    r"\bTOCOM\b",
-    r"\bTokyo\s+Commodity\s+Exchange\b",
-    r"\bMontreal\s+Exchange\b",
-    r"\bMX\b",
-    r"\bBM&F\b",
-    r"\bDME\b",
-    r"\bDubai\s+Mercantile\s+Exchange\b",
-    r"[Dd]erivative\s+[Mm]arkets?",
-    r"\bBIFFEX\b",
-    r"\bBaltic\s+Exchange\b",
+EXCHANGE_ACRONYMS = [
+    "NYMEX", "COMEX", "CBOT", "CME", "ICE", "LME", "CBOE", "NYBOT", "KCBT", "MGEX",
+    "LIFFE", "TOCOM", "MX", "BM&F", "DME", "BIFFEX", "Eurex"
 ]
+
+EXCHANGE_PREFIXES = [
+    r"New\s+York\s+Mercantile",
+    r"Chicago\s+Mercantile",
+    r"Intercontinental",
+    r"London\s+Metal",
+    r"Chicago\s+Board\s+Options",
+    r"Minneapolis\s+Grain",
+    r"London\s+International\s+Financial\s+Futures\s+and\s+Options",
+    r"Tokyo\s+Commodity",
+    r"Montreal",
+    r"Dubai\s+Mercantile",
+    r"Baltic",
+]
+
+BOARD_OF_TRADE_PREFIXES = [
+    r"Chicago",
+    r"New\s+York",
+    r"Kansas\s+City",
+]
+
+OTHER_EXCHANGES = [
+    r"ICE\s+Futures",
+    r"[Dd]erivative\s+[Mm]arkets?",
+    r"Commodity\s+Exchange(?!\s+Act)",
+]
+
+DERIVATIVE_EXCHANGES = [
+    build_alternation(EXCHANGE_ACRONYMS),
+    rf"{build_alternation(EXCHANGE_PREFIXES)}\s+Exchange",
+    rf"{build_alternation(BOARD_OF_TRADE_PREFIXES)}\s+Board\s+of\s+Trade",
+] + OTHER_EXCHANGES
 
 DERIVATIVE_ENTITIES = [
     r"\bCFTC\b",
@@ -602,7 +602,69 @@ DERIVATIVE_ENTITIES = [
     r"\bLondon\s+Clearing\s+House\b",
 ]
 
-TRADING_ENTITIES = DERIVATIVE_EXCHANGES + DERIVATIVE_ENTITIES
-TRADING_VENUE_REGEX = build_regex(DERIVATIVE_EXCHANGES, ignore_case=False)
-DERIVATIVE_CLEARING_REGEX = build_regex(DERIVATIVE_ENTITIES, ignore_case=False)
+
+def dynamic_exchange() -> str:
+    triggers = [
+        "Derivatives?",
+        "Futures",
+        "Options",
+        "Swaps",
+        "Board",
+        "Mercantile",
+        "Commodity",
+        "Securities",
+        "Financial",
+        "Intercontinental",
+        "Stock",
+        "International",
+        "National",
+    ]
+    trigger_pat = build_alternation(triggers)
+
+    suffixes = [
+        "Exchange",
+        "Trade",
+        "Market",
+    ]
+    suffix_pat = build_alternation(suffixes)
+
+    cap_word = r"[A-Z][\w\'-]*"
+    connector = r"(?:[oO]f|[aA]nd|&|[fF]or)"
+
+    return rf"\b(?:{cap_word}\s+)*{trigger_pat}(?:\s+(?:{cap_word}|{connector}))*\s+{suffix_pat}\b"
+
+def dynamic_clearing() -> str:
+    triggers = [
+        "Derivatives?",
+        "Futures",
+        "Options",
+        "Swaps",
+        "Clearing",
+        "International",
+        "National",
+        "Commodity",
+        "Securities",
+        "Financial",
+    ]
+    trigger_pat = build_alternation(triggers)
+    
+    suffixes = [
+        "Association",
+        "Commission",
+        "Corporation",
+        "Authority",
+        "Council",
+        "House",
+        "Registry",
+    ]
+    suffix_pat = build_alternation(suffixes)
+    
+    cap_word = r"[A-Z][\w\'-]*"
+    connector = r"(?:[oO]f|[aA]nd|&|[fF]or)"
+    
+    return rf"\b(?:{cap_word}\s+)*{trigger_pat}(?:\s+(?:{cap_word}|{connector}))*\s+{suffix_pat}\b"
+
+TRADING_ENTITIES = DERIVATIVE_EXCHANGES + DERIVATIVE_ENTITIES + [dynamic_exchange(), dynamic_clearing()]
+TRADING_VENUE_REGEX = build_regex(DERIVATIVE_EXCHANGES + [dynamic_exchange()], ignore_case=False)
+DERIVATIVE_CLEARING_REGEX = build_regex(DERIVATIVE_ENTITIES + [dynamic_clearing()], ignore_case=False)
 FULL_ENTITY_REGEX = build_regex(TRADING_ENTITIES, ignore_case=False)
