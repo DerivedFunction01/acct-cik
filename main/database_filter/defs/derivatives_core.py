@@ -194,6 +194,10 @@ class Groups:
     NON_BASES = [
         BASE.PROTECTION,
         BASE.FORWARD_PURCHASE,
+        BASE.QUANTO,
+        BASE.SPREAD,
+        BASE.VOLATILITY,
+        BASE.BASIS,
     ]
 
     # Suffix Sets
