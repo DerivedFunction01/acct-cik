@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import re
 from typing import List, Optional
-from defs.regex_lib import build_alternation, build_regex
+from defs.regex_lib import add_restrictions, build_alternation, build_regex
 
 _DEBT_TERMS = r"(?:debts?|loans?|borrowings?|bonds?|senior\s+notes?|notes?|debentures?)"
 RISK_TERMS = [
@@ -469,9 +469,10 @@ SETTLEMENT_MODIFIERS = [
     "mandatory",
     "annually",
     "weekly",
+    "annual",
 ]
-_settle_lookbehind = "".join([rf"(?<!\b{word}\s)" for word in SETTLEMENT_MODIFIERS])
 SETTLEMENT_MECHANICS_REGEX = build_regex(SETTLEMENT_MODIFIERS)
+TERM_LOOKAHEADS = ["price", "rate", "date", "balance", "value"]
 TERMINATION_VERBS = [
     # --- SAFE VERBS (Past/Present/Participle) ---
     # Regex note: We removed |ion, |ity, |ment, |y suffixes
@@ -480,11 +481,11 @@ TERMINATION_VERBS = [
     r"terminat(?:e(?:d|s)?)",  # Matches: terminate, terminated.      STOPS: termination
     r"ceas(?:e(?:d|s)?|ing)",  # Matches: cease, ceased
     r"retir(?:e(?:d|s)?|ing)",  # Matches: retire, retired.
-    r"clos(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value))",
+    add_restrictions(r"clos(?:e(?:d|s)?|ing)", lookaheads=TERM_LOOKAHEADS, lookahead_sep=r"\s+"),
     r"liquidat(?:e(?:d|s)?|ing)",  # Matches: liquidate, liquidated.  STOPS: liquidation
     r"unwound",
     r"unwind",
-    r"exercis(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value)",  # Matches: exercise, exercised.        STOPS: exercisable
+    add_restrictions(r"exercis(?:e(?:d|s)?|ing)", lookaheads=TERM_LOOKAHEADS, lookahead_sep=r"\s+"),
     r"extinguish(?:e(?:d|s)?|ing)",  # Matches: extinguish, extinguished.   STOPS: extinguishment
     r"novat(?:e(?:d|s)?|ing)",  # Matches: novate, novated.            STOPS: novation
     r"cancel(?:l(?:ed|ing)|s)?",  # Matches: cancel, cancelled.          STOPS: cancellation
@@ -497,7 +498,7 @@ TERMINATION_VERBS = [
     r"redeem(?:e(?:d|s)?|ing)",  # Matches: redeem, redeemed.           STOPS: redemption
     r"repudiat(?:e(?:d|s)?|ing)",
     # --- SAFEGUARDED SETTLEMENT (From previous turn) --- (settles annually, etc)
-    rf"(?<!{_settle_lookbehind}\s)settl(?:es?|ed)(?<!\s{_settle_lookbehind})",
+    add_restrictions(r"settl(?:es?|ed)", lookbehinds=SETTLEMENT_MODIFIERS, lookaheads=TERM_LOOKAHEADS + SETTLEMENT_MODIFIERS, lookahead_sep=r"\s+"),
     r"sold",
     r"wind(?:ing)?\s+down",
     r"dispos(?:e(?:d|s)?|ing)",
@@ -515,7 +516,7 @@ TERMINATION_NOUNS = [
     r"redemption",  # Matches: redemption
     # --- EVENTS (Transactional) ---
     r"extinguishment",  # Matches: extinguishment
-    rf"(?<!{_settle_lookbehind}\s)settl(?:ement|ing)(?<!\s{_settle_lookbehind})",  # Matches: settlement
+    add_restrictions(r"settl(?:ement|ing)", lookbehinds=SETTLEMENT_MODIFIERS, lookaheads=TERM_LOOKAHEADS + SETTLEMENT_MODIFIERS, lookahead_sep=r"\s+"),  # Matches: settlement
     r"cancellation",  # Matches: cancellation
     r"novation",  # Matches: novation
     r"rescission",  # Matches: rescission

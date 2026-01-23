@@ -124,6 +124,23 @@ REM_TERM_PHRASES = [
     r"average\s+life",
 ]
 
+STRICT_FV_HIERARCHY_TERMS = [
+    r"level\s*[123]",
+    r"fair\s+value\s+hierarchy",
+    r"recurring\s+basis",
+    r"non[- ]recurring\s+basis",
+    r"unobservable\s+inputs?",
+]
+
+TRADING_VALUE_TERMS = [
+    r"spot\s+prices?",
+    r"strike\s+prices?",
+    r"exercise\s+prices?",
+    r"market\s+prices?",
+    r"settlement\s+prices?",
+    r"volumes?",
+    r"initial\s+prices?",
+]
 # Compile all regexes once at module load
 NOTIONAL_CONTEXT_REGEX = build_regex(NOTIONAL_TERMS)
 FAIR_VALUE_CONTEXT_REGEX = build_regex(FAIR_VALUE_TERMS)
@@ -137,6 +154,8 @@ verbs_pattern = build_alternation(FINANCIAL_OUTCOME_VERBS)
 FLEX_SEP = r"(?:\s+\S+){0,5}\s+"
 BS_LOC_REGEX = re.compile(f"{verbs_pattern}{FLEX_SEP}{locs_pattern}", re.IGNORECASE)
 
+STRICT_FV_HIERARCHY_REGEX = build_regex(STRICT_FV_HIERARCHY_TERMS)
+TRADING_VALUE_REGEX = build_regex(TRADING_VALUE_TERMS)
 
 REM_TERM_REGEX = build_regex(REM_TERM_PHRASES)
 
@@ -215,6 +234,7 @@ def check_quantitative_evidence(
     skip_year: bool = False,
     has_active_context: bool = False,
     force_transaction_context: bool = False,
+    is_strict_fv_hierarchy: bool = False,
 ) -> Optional[Reason]:
     """Check for Quantitative Evidence (NVY/FVY)."""
     from prefilter_tagging import extract_values_and_years
@@ -224,9 +244,10 @@ def check_quantitative_evidence(
 
     is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
     is_fair_value = bool(FAIR_VALUE_CONTEXT_REGEX.search(text))
+    is_trading_val = bool(TRADING_VALUE_REGEX.search(text))
     has_mention = check_mention(text)
 
-    if not has_mention and not (is_notional or is_fair_value):
+    if not has_mention and not (is_notional or is_fair_value or is_trading_val):
         return None
 
     years_found, values_found = extract_values_and_years(text)
@@ -253,8 +274,18 @@ def check_quantitative_evidence(
         else:
             return EvidenceReason.ACT_NV_YEAR if has_relevant_year else EvidenceReason.NVNY
 
-    # 2. FAIR VALUE LOGIC
-    if is_fair_value:
+    # 2. TRADING VALUE LOGIC (Strike Price, Spot Price, etc.)
+    # Must have specific instrument to avoid "spot price of gold" noise.
+    if is_trading_val:
+        if verbs.is_specific:
+            if not is_flow:
+                return EvidenceReason.VY if has_relevant_year else EvidenceReason.VNY
+            else:
+                return EvidenceReason.ACT_V_YEAR if has_relevant_year else EvidenceReason.VNY
+
+    # 3. FAIR VALUE LOGIC
+    # If global hierarchy context exists, assume generic values are Fair Value
+    if is_fair_value or is_strict_fv_hierarchy:
         # 1. STRICT PNL CHECK (The Override)
         if HAD_CHANGE_REGEX.search(text):
             return NoiseReason.PNL
@@ -510,6 +541,7 @@ def scan_sentence_for_evidence(
     verbs: VerbCheckResults,
     has_active_context: bool = False,
     force_transaction_context: bool = False,
+    is_strict_fv_hierarchy: bool = False,
 ) -> Optional[Reason]:
     """
     Scan a sentence and return the HIGHEST PRIORITY evidence tag.
@@ -522,7 +554,7 @@ def scan_sentence_for_evidence(
     if mat := check_future_maturity(text, reporting_year, is_strict_derivative, verbs):
         return mat
     if q := check_quantitative_evidence(
-        text, reporting_year, is_strict_derivative, verbs, has_active_context=has_active_context, force_transaction_context=force_transaction_context
+        text, reporting_year, is_strict_derivative, verbs, has_active_context=has_active_context, force_transaction_context=force_transaction_context, is_strict_fv_hierarchy=is_strict_fv_hierarchy
     ):
         return q
     if as_year := check_active_state_year(
@@ -668,6 +700,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = True, is_n
 
     # Reconstruct masked text for global check
     masked_text = " ".join(masked_sentences)
+    is_strict_fv_hierarchy = bool(STRICT_FV_HIERARCHY_REGEX.search(masked_text))
     is_strict_derivative = check_derivative_global(masked_text)
 
     # === PRE-SCAN: Identify if paragraph contains an Active Context signal ===
@@ -679,7 +712,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = True, is_n
     for i, s in enumerate(masked_sentences):
         verbs = sentence_verbs[i]
         # Pass False to avoid circular dependency during scan
-        res = scan_sentence_for_evidence(s, reporting_year, is_strict_derivative, verbs, has_active_context=False)
+        res = scan_sentence_for_evidence(s, reporting_year, is_strict_derivative, verbs, has_active_context=False, is_strict_fv_hierarchy=is_strict_fv_hierarchy)
         pre_scan_results.append(res)
         if res in active_context_reasons:
             has_active_context = True
@@ -715,7 +748,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = True, is_n
                 )
                 # Promote to Active Transaction Quant
                 evidence2 = check_quantitative_evidence(
-                    masked, reporting_year, is_strict_derivative, verbs, skip_year=True, force_transaction_context=True
+                    masked, reporting_year, is_strict_derivative, verbs, skip_year=True, force_transaction_context=True, is_strict_fv_hierarchy=is_strict_fv_hierarchy
                 )
 
                 if evidence2:
@@ -744,7 +777,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = True, is_n
 
             if needs_rescan:
                 evidence = scan_sentence_for_evidence(
-                    masked, reporting_year, is_strict_derivative, verbs, has_active_context=True, force_transaction_context=force_transaction_for_quants
+                    masked, reporting_year, is_strict_derivative, verbs, has_active_context=True, force_transaction_context=force_transaction_for_quants, is_strict_fv_hierarchy=is_strict_fv_hierarchy
                 )
 
             if evidence:
