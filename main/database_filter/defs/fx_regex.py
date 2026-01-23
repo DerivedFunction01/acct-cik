@@ -300,7 +300,7 @@ def run_tests():
         ("foreign currency forward", MatchLevel.STRICT),
         ("foreign currency exchange rate contract", MatchLevel.STRICT),
         ("currency contract", MatchLevel.STRICT),
-        ("currency swap agreement", MatchLevel.STRICT),
+        ("currency cap agreement", MatchLevel.STRICT),
         ("FX forward", MatchLevel.STRICT),
         (
             "foreign exchange option",
@@ -331,6 +331,7 @@ def run_tests():
         ("foreign currency commitments", MatchLevel.SOFT),
         ("currency rate", MatchLevel.LOOSE),
         ("exchange rate", MatchLevel.LOOSE),
+        ("cap contract", MatchLevel.LOOSE),
         ("foreign currency transaction", MatchLevel.SOFT), # Transaction is not a derivative suffix
     ]
     run_category_tests_counter(counter_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
