@@ -67,6 +67,7 @@ class BASE(Enum):
     BASIS = r"basis"
     VOLATILITY = r"volatility"
     QUANTO = r"quanto(?:[- ]style)"
+    INDEX = r"index"
 
     # IR bases
     PROTECTION = r"protections?"
@@ -156,9 +157,9 @@ class SPEC_BASE(Enum):
         ],
         BASE.FUTURES,
     )
-    SPECIAL_SPREAD = build_compound([BASE.CALL, BASE.PUT], BASE.SPREAD)
+    SPECIAL_SPREAD = build_compound([BASE.CALL, BASE.PUT, r"butterfly", r"calendar", r"vertical", r"horizontal", r"condor"], BASE.SPREAD)
     SPECIAL_OTHER = build_compound(
-        [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS],
+        [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS, BASE.INDEX],
         [
             BASE.SWAP,
             BASE.FORWARD,
