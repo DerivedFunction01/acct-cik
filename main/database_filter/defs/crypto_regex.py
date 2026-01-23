@@ -1,7 +1,12 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import build_smart_regex, expand_instruments
+from defs.derivatives_core import (
+    BASE,
+    DERIVATIVES,
+    DerivativeGenerator,
+    SUFFIX,
+)
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import build_risk_managment_phrase
 from defs.verb_core import build_strict_do_not_mitigate_regex
@@ -22,10 +27,7 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"BTC",
         r"ETH",
     ]
-    strict_core_alt = build_alternation(strict_core_terms, sort_longest_first=True)
 
-    soft_core_terms = strict_core_terms
-    soft_core_alt = build_alternation(soft_core_terms, sort_longest_first=True)
 
     # --- 2. Specific Instrument Phrases (Max Munch) ---
     specific_phrases = [
@@ -39,45 +41,27 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"))
     )
 
-    # --- 3. Instrument Fragments ---
-
-    strict_instrument_fragment = expand_instruments(
-        unsafe=False,
-        exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "options?", "agreements?"],
+    # --- 3. Build Patterns ---
+    
+    # Strict/Soft are identical in Crypto context
+    _CRYPTO_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_terms,
+        STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
     )
+    _CRYPTO_PATTERN = DerivativeGenerator(config=_CRYPTO_CONFIG).generate()
+    
+    strict_crypto_regex = build_regex([_CRYPTO_PATTERN] + sorted_specific_phrases)
+    soft_crypto_regex = build_regex([_CRYPTO_PATTERN] + sorted_specific_phrases)
 
-    soft_instrument_fragment = expand_instruments(
-        unsafe=True,
-        exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "options?", "agreements?"],
+    # Loose: Allows any base/suffix with the prefix
+    _LOOSE_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_terms,
+        LOOSE=True,
     )
-
-    # --- 4. Build Patterns ---
-
-    strict_pattern = build_smart_regex(
-        [strict_core_alt],
-        strict_instrument_fragment,
-        sorted_specific_phrases,
-    )
-    strict_crypto_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
-
-    soft_pattern = build_smart_regex(
-        [soft_core_alt],
-        soft_instrument_fragment,
-        sorted_specific_phrases,
-    )
-    soft_crypto_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-
-    loose_instrument_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=False
-    )
-    loose_pattern = build_smart_regex(
-        [soft_core_alt],
-        loose_instrument_fragment,
-        sorted_specific_phrases,
-    )
-    loose_crypto_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
+    
+    loose_crypto_regex = build_regex([_LOOSE_PATTERN] + sorted_specific_phrases)
 
     return strict_crypto_regex, soft_crypto_regex, loose_crypto_regex
 
@@ -142,7 +126,7 @@ CRYPTO_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 )
 
 def run_tests():
-    from defs.derivatives_core import (
+    from main.database_filter.defs.derivatives_core_old import (
         MatchLevel,
         run_category_tests,
         run_category_tests_counter,
