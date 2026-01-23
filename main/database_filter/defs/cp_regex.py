@@ -4,6 +4,7 @@ from defs.derivatives_core import (
     BASE,
     COMMODITY_COMMERICIAL_PATTERN,
     DERIVATIVES,
+    MULTI_BASE,
     DerivativeGenerator,
     SUFFIX,
     Groups,
@@ -702,6 +703,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # These contain the max-munch phrases and apply to both strict and soft.
     specific_phrases = [
         r"power purchase agreements?",  # raw string for regex
+        r"forward\s+freight\s+agreements?"
     ]
     soft_specific_phrases = [
         r"fixed[- ]price(?: purchase)?\s+commitments?",
@@ -716,6 +718,22 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         soft_specific_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
+
+    _FREIGHT = r"(?:container[- ])?freight"
+    _FREIGHT_BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    # prevent freight forward contracts
+    if BASE.FORWARD in _FREIGHT_BASES:
+        _FREIGHT_BASES.remove(BASE.FORWARD)
+    # Create a new specific derivative
+    _FREIGHT_DERIVATIVES = DERIVATIVES(
+        PREFIX=[_FREIGHT],
+        _BASES=_FREIGHT_BASES,
+        ADDITIONAL_BASES=[],
+        STANDALONE_SUFFIXES=[],
+    )
+    _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
+    specific_phrases.append(_FREIGHT_PATTERN)
+    soft_specific_phrases.append(_FREIGHT_PATTERN)
 
     # -------------------------------------------------------------------------
     # --- A. STRICT Pattern Construction (High Precision) ---
@@ -762,7 +780,7 @@ CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
-CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES)
+CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES+ ["freight"])
 
 
 def run_tests():

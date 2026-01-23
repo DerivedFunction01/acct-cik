@@ -27,7 +27,6 @@ STRONG_MISC = [
     r"longevity",
     r"mortality",
     r"economic",
-    r"(?:container[- ])?freight",
 ]
 
 PROPERTY = [
@@ -174,9 +173,6 @@ def run_tests():
         
         # Weak Terms (Property/Freight restrictions)
         ("property futures", MatchLevel.STRICT),
-        ("freight futures", MatchLevel.STRICT),
-        ("freight swap", MatchLevel.STRICT),
-        ("freight forward agreement", MatchLevel.STRICT),
         
         # Specific Phrases
         ("catastrophe bond", MatchLevel.STRICT),
@@ -185,20 +181,15 @@ def run_tests():
 
     counter_cases = [
         # Weak terms should not match with generic suffixes or disallowed bases
-        ("freight agreement", MatchLevel.NONE),
         ("property option", MatchLevel.NONE),
         ("property agreement", MatchLevel.NONE),
-        ("freight contract", MatchLevel.NONE),
-        ("freight option", MatchLevel.NONE),
         ("property swap", MatchLevel.NONE),
-        ("freight forward", MatchLevel.NONE),
         ("property forward", MatchLevel.NONE),
         # Restricted terms (lookbehinds)
         ("interest rate volatility swap", MatchLevel.NONE),
         # Non-derivative terms (Should not match Soft)
         ("economic growth", MatchLevel.NONE),
         ("economic value", MatchLevel.NONE),
-        ("freight cost", MatchLevel.NONE),
         ("property tax", MatchLevel.NONE),
         ("land lease", MatchLevel.NONE),
         ("mortality rate", MatchLevel.NONE),
