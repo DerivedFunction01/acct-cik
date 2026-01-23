@@ -724,10 +724,14 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # prevent freight forward contracts (in case)
     if BASE.FORWARD in _FREIGHT_BASES:
         _FREIGHT_BASES.remove(BASE.FORWARD)
+    if BASE.SWAP in _FREIGHT_BASES:
+        _FREIGHT_BASES.remove(BASE.SWAP)
+
     # Create a new specific derivative
     _FREIGHT_DERIVATIVES = DERIVATIVES(
         PREFIX=[_FREIGHT],
         _BASES=_FREIGHT_BASES,
+        _AMB_BASES=[BASE.SWAP],
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[],
     )
