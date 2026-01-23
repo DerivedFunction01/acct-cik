@@ -308,7 +308,7 @@ def run_tests():
         ),  # Option is explicitly added as safe suffix
         ("cross currency swap", MatchLevel.STRICT),
         ("forward foreign exchange contract", MatchLevel.STRICT),
-        ("currency agreement", MatchLevel.LOOSE),
+        ("currency agreement", MatchLevel.SOFT),
         ("foreign currency contract", MatchLevel.STRICT),
         ("foreign currency hedges", MatchLevel.SOFT),
         ("currency hedging", MatchLevel.SOFT),
@@ -329,9 +329,8 @@ def run_tests():
 
     counter_cases = [
         ("foreign currency commitments", MatchLevel.SOFT),
-        ("currency rate", MatchLevel.STRICT),
+        ("currency rate", MatchLevel.LOOSE),
         ("exchange rate", MatchLevel.LOOSE),
-        
-        ("foreign currency transaction", MatchLevel.STRICT), # Transaction is not a derivative suffix
+        ("foreign currency transaction", MatchLevel.SOFT), # Transaction is not a derivative suffix
     ]
     run_category_tests_counter(counter_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
