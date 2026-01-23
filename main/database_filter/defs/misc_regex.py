@@ -57,47 +57,78 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # -------------------------------------------------------------------------
 
     BASES = Groups.UNAMBIGUOUS_BASES.copy()
-    BASES.remove(BASE.FORWARD)
-    BASES.remove(BASE.COLLAR)
+    if BASE.FORWARD in BASES:
+        BASES.remove(BASE.FORWARD)
+    if BASE.COLLAR in BASES:
+        BASES.remove(BASE.COLLAR)
+    
     # remove some bases
     STRICTER_BASES = BASES.copy()
-    STRICTER_BASES.remove(BASE.SWAP)
+    if BASE.SWAP in STRICTER_BASES:
+        STRICTER_BASES.remove(BASE.SWAP)
 
     _AMB_BASES = [BASE.SWAP, BASE.FORWARD, BASE.COLLAR]
 
     # 1. Strong misc with options (removes foward and collar but keeps swap)
+    # Allows "Weather Option", "Weather Agreement"
     _STRONG_CONFIG = DERIVATIVES(
         PREFIX=STRONG_MISC_WITH_OPT,
         _BASES=BASES + [BASE.OPTION],
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES, # redundant for swaps but fixed in the generator
+        STANDALONE_SUFFIXES=[],
     )
     _STRONG_PATTERN = DerivativeGenerator(config=_STRONG_CONFIG).generate()
 
     # 2. Strong misc without options
+    # Allows "Inflation Swap", Blocks "Inflation Option".
     _WEAK_CONFIG = DERIVATIVES(
-        PREFIX=WEAK_MISC,
+        PREFIX=STRONG_MISC,
         _BASES=BASES,
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
+        STANDALONE_SUFFIXES=[],
     )
     _WEAK_PATTERN = DerivativeGenerator(config=_WEAK_CONFIG).generate()
 
-    # 3. Soft misc (no options, no swaps, etc)
-    _SOFT_CONFIG = DERIVATIVES(
-        PREFIX=MISC_CORE_TERMS,
-        _BASES=STRICTER_BASES,
+    # 3. Weak misc (Freight, Economic)
+    # Allows "Freight Swap". Blocks "Freight Agreement", "Freight Option".
+    _WEAKEST_CONFIG = DERIVATIVES(
+        PREFIX=WEAK_MISC,
+        _BASES=BASES,
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
+        STANDALONE_SUFFIXES=[], 
     )
+    _WEAKEST_PATTERN = DerivativeGenerator(config=_WEAKEST_CONFIG).generate()
 
-    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
-
-    # 5. Land (no ambigous bases)
+    # 4. Property (Land, Real Estate)
+    # Allows "Property Futures". Blocks "Property Swap", "Property Option", "Property Agreement".
     _PROPERTY_CONFIG = DERIVATIVES(
         PREFIX=PROPERTY,
         _BASES=STRICTER_BASES,
-        _AMB_BASES=[],
+        _AMB_BASES=[], # No ambiguous bases allowed for property
+        STANDALONE_SUFFIXES=[],
     )
     _PROPERTY_PATTERN = DerivativeGenerator(config=_PROPERTY_CONFIG).generate()
 
+    patterns = [
+        _STRONG_PATTERN,
+        _WEAK_PATTERN,
+        _WEAKEST_PATTERN,
+        _PROPERTY_PATTERN,
+    ]
+    
+    strict_misc_regex = build_regex(patterns + sorted_specific_phrases)
+    soft_misc_regex = build_regex(patterns + sorted_specific_phrases)
+
+    # 5. Loose Config
+    _LOOSE_CONFIG = DERIVATIVES(
+        PREFIX=MISC_CORE_TERMS,
+        LOOSE=True,
+    )
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
+
+    loose_misc_regex = build_regex([_LOOSE_PATTERN] + patterns + sorted_specific_phrases)
+
+    return strict_misc_regex, soft_misc_regex, loose_misc_regex
 
 def build_misc_context_terms() -> Tuple[List[str], List[str], List[str]]:
     # 1. Explicit Instruments (Strict)
@@ -139,24 +170,24 @@ def run_tests():
 
     test_cases = [
         # Strong Terms (With Option: Volatility, Variance)
-        ("volatility option", MatchLevel.STRICT),
-        ("volatility swap", MatchLevel.STRICT),
-        ("volatility agreement", MatchLevel.LOOSE),
+        ("weather option", MatchLevel.STRICT),
+        ("weather swap", MatchLevel.STRICT),
+        ("weather agreement", MatchLevel.LOOSE),
         
         # Strong Terms (No Option: Inflation, CPI)
         ("inflation swap", MatchLevel.STRICT),
         ("inflation agreement", MatchLevel.LOOSE),
-        ("inflation option", MatchLevel.LOOSE), # Caught by LOOSE=True on Strong terms
+        ("inflation option", MatchLevel.LOOSE), 
 
         # Weak Terms (With Option: Weather, VIX)
-        ("weather option", MatchLevel.STRICT),
-        ("weather swap", MatchLevel.STRICT),
-        ("weather derivatives", MatchLevel.STRICT),
+        ("volatility option", MatchLevel.LOOSE), # Volatility moved to STRONG_MISC (No Option)
+        ("volatility swap", MatchLevel.STRICT),
+        ("volatility derivatives", MatchLevel.STRICT),
         
         # Weak Terms (Property/Freight restrictions)
         ("property futures", MatchLevel.STRICT),
         ("freight futures", MatchLevel.STRICT),
-        ("freight swap", MatchLevel.LOOSE),
+        ("freight swap", MatchLevel.STRICT),
         ("freight forward agreement", MatchLevel.STRICT),
         
         # Specific Phrases
@@ -166,7 +197,7 @@ def run_tests():
 
     counter_cases = [
         # Weak terms should not match with generic suffixes or disallowed bases
-        ("weather agreement", MatchLevel.NONE),
+        ("freight agreement", MatchLevel.NONE),
         ("property option", MatchLevel.LOOSE),
         ("property agreement", MatchLevel.NONE),
         ("freight contract", MatchLevel.NONE),
