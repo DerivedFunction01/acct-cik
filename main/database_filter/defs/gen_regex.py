@@ -72,7 +72,10 @@ def build_table_regex() -> re.Pattern:
         plural(BASE.COLLAR),
         BASE.SWAPTION,
         plural(BASE.DERIVATIVE),
-        plural(BASE.SWAP),
+        add_restrictions(
+            plural(BASE.SWAP),
+            lookbehinds=[ r"asset", r"debt[- ]for[- ]equity", r"land", r"property", r"real[- ]estate"]
+        ),
         plural(BASE.PUT),
         plural(BASE.CALL),
     ] # Rest will be caught by gen_regex
