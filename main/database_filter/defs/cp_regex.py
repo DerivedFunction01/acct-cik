@@ -718,7 +718,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _FREIGHT_DERIVATIVES = DERIVATIVES(
         PREFIX=[_FREIGHT],
         _BASES=_FREIGHT_BASES,
-        _AMB_BASES=[BASE.SWAP],
+        _AMB_BASES=[BASE.SWAP], # Force swap to have a suffix
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[],
     )
