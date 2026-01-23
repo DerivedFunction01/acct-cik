@@ -54,6 +54,9 @@ class BASE(Enum):
     STRANGLE = r"strangles?"
 
     SPREAD = r"spreads?"
+    VOLATILITY = r"volatility"
+    BASIS = r"basis"
+    QUANTO = r"quanto(?:[- ]style)"
     # IR bases
     PROTECTION = r"protections?"
 
@@ -84,29 +87,35 @@ class SPEC_BASE(Enum):
     # Modifiers
     SPECIAL_SWAP = build_compound(
         [
-            r"basis",
+            BASE.BASIS,
             r"(?:conditional[- ])?variance",
-            r"volatility",
+            BASE.VOLATILITY,
             r"total[- ]return",
             r"back[- ]to[- ]back",
             r"correlation",
+            BASE.QUANTO,
         ],
         BASE.SWAP,
     )
     SPECIAL_OPTION = build_compound([
-        r"asian",
-        r"bermuda",
-        r"basket",
-        r"rainbow",
-        r"lookback",
-        r"exotic",
-        r"barrier",
-        r"binary",
-        r"digital",
-        r"chooser",
-        r"cliquet",
-        r"compound",
+        build_compound([],
+                       [r"asian",
+                        r"bermuda",
+                        r"basket",
+                        r"rainbow",
+                        r"lookback",
+                        r"exotic",
+                        r"barrier",
+                        r"binary",
+                        r"digital",
+                        r"chooser",
+                        r"cliquet",
+                        r"compound",
+                        ], 
+                       suffix=["(?:[- ]style)?"], sep_suffix=""),
         r"forward[- ]start",
+        r"calendar",
+        BASE.QUANTO,
         BASE.FORWARD,
         BASE.PUT,
         BASE.CALL,
@@ -127,6 +136,12 @@ class SPEC_BASE(Enum):
             r"continuous",
         ],
         BASE.FUTURES,
+    )
+    SPECIAL_SPREAD = build_compound(
+        [
+            BASE.CALL
+        ],
+        BASE.SPREAD
     )
 
 class Groups:
