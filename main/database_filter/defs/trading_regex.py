@@ -3,6 +3,7 @@ from typing import Tuple, List
 
 from defs.derivatives_core import (
     DERIVATIVES,
+    SPEC_BASE,
     DerivativeGenerator,
     Groups,
 )
@@ -24,22 +25,33 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
 
     # --- 1. Build Patterns ---
-    
+
     # Strict: Only allows Trading Bases (Spreads, Straddles, Exotics)
     # We do not attach prefixes here because these bases are strong enough on their own
-    # or are attached to "Trading" prefix.
+    _STANDALONE_TRADING_CONFIG = DERIVATIVES(
+        PREFIX=[],
+        _BASES=[],
+        _AMB_BASES=[],
+        STANDALONE_BASES=[SPEC_BASE.TRADING_OPTION, SPEC_BASE.SPECIAL_SPREAD],
+        STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[],
+    )
+    _STANDALONE_TRADING_PATTERN = DerivativeGenerator(
+        config=_STANDALONE_TRADING_CONFIG
+    ).generate()
+    
     _TRADING_CONFIG = DERIVATIVES(
         PREFIX=TRADING_CORE_TERMS,
-        _BASES=Groups.TRADING_BASES,
+        _BASES=Groups.UNAMBIGUOUS_BASES + Groups.TRADING_BASES,
         _AMB_BASES=[],
-        STANDALONE_BASES=Groups.TRADING_BASES, # Allow "Call Spread", "Asian Option" standalone
+        STANDALONE_BASES=[],
         STANDALONE_SUFFIXES=[],
         MULTI_BASE=[],
     )
     _TRADING_PATTERN = DerivativeGenerator(config=_TRADING_CONFIG).generate()
-    
-    strict_trading_regex = build_regex([_TRADING_PATTERN])
-    soft_trading_regex = build_regex([_TRADING_PATTERN])
+
+    strict_trading_regex = build_regex([_TRADING_PATTERN, _STANDALONE_TRADING_PATTERN])
+    soft_trading_regex = build_regex([_TRADING_PATTERN, _STANDALONE_TRADING_PATTERN])
 
     # Loose: Allows any base with Trading prefix
     _LOOSE_CONFIG = DERIVATIVES(
@@ -48,7 +60,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
-    
+
     loose_trading_regex = build_regex([_LOOSE_PATTERN])
 
     return strict_trading_regex, soft_trading_regex, loose_trading_regex
