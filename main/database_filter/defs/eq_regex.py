@@ -6,10 +6,8 @@ from defs.derivatives_core import (
     BASE,
     DERIVATIVES,
     DerivativeGenerator,
-    EQUITY_LOOKBEHINDS,
     Groups,
     MultiBaseGenerator,
-    SUFFIX,
 )
 from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
@@ -20,26 +18,24 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     option = r"options?"
     warrant = r"warrants?"
     derivative = r"derivatives?"
-    
+
     # --- Construct Restricted Starters for Equity ---
     # Block "options and warrants" (naked) to avoid compensation noise
     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
     _SFX_ALT = to_build_alternation(Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
-    
-    _OPT_STRICT = add_restrictions(
-        BASE.OPTION.value, lookaheads=[rf"{sep}{BASE.WARRANT.value}\b(?!\s+{_SFX_ALT})"]
-    )
-    _WARR_STRICT = add_restrictions(
-        BASE.WARRANT.value, lookaheads=[rf"{sep}{BASE.OPTION.value}\b(?!\s+{_SFX_ALT})"]
+
+    _OPT_WARR = to_build_alternation([BASE.OPTION, BASE.WARRANT])
+    _OPT_WARR_STRICT = add_restrictions(
+        _OPT_WARR, lookaheads=[rf"{sep}{_OPT_WARR}\b(?!\s+{_SFX_ALT})"]
     )
     _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in [BASE.OPTION, BASE.WARRANT]]
-    eq_starters = [_OPT_STRICT, _WARR_STRICT] + _OTHER_BASES
+    eq_starters = [_OPT_WARR_STRICT] + _OTHER_BASES
 
     # Generate restricted multi-base patterns for Equity context
     eq_double, eq_triple = MultiBaseGenerator(
-        suffix_restrictions=EQUITY_LOOKBEHINDS, starters=eq_starters
+        suffix_restrictions=[r"equity"], starters=eq_starters
     ).generate()
-    
+
     # Strict Core Terms (Precise market/price references)
     strict_core_terms = [
         r"equity",
