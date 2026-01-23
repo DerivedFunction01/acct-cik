@@ -719,9 +719,9 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
 
-    _FREIGHT = r"(?:container[- ])?freight"
+    _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
     _FREIGHT_BASES = Groups.UNAMBIGUOUS_BASES.copy()
-    # prevent freight forward contracts
+    # prevent freight forward contracts (in case)
     if BASE.FORWARD in _FREIGHT_BASES:
         _FREIGHT_BASES.remove(BASE.FORWARD)
     # Create a new specific derivative
