@@ -25,7 +25,7 @@ STRONG_MISC_WITH_OPT = [
 # Only allow futures
 STRONG_MISC = [
     r"inflation(?:[- ](?:linked|rate))?",
-    r"CPI(?:[- ](?:linked)?",
+    r"CPI(?:[- ]linked)?",
     VOLATILITY,
     VARIANCE,
     r"catastrophe(?:[- ]linked)?",
