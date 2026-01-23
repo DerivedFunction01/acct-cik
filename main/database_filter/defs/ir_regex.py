@@ -414,8 +414,8 @@ def debt_feature_regex() -> re.Pattern:
     # Matches: "fair value of debt", "change in the fair value of our facility"
     # Also matches: secured debt/facility (no gap)
     patterns = [
-        rf"{prefix_gap}fair\s+value\s+of{mid_gap}{_IR_DEBT}\b",
-        rf"secured\s+{_IR_DEBT}\b",
+        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_IR_DEBT}|facility)\b",
+        rf"secured\s+(?:{_IR_DEBT}|facility)\b",
         cap_floor_pattern,
         pat_a,
         pat_b,
