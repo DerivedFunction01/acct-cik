@@ -473,7 +473,7 @@ SETTLEMENT_MODIFIERS = [
     "annual",
 ]
 SETTLEMENT_MECHANICS_REGEX = build_regex(SETTLEMENT_MODIFIERS)
-TERM_LOOKAHEADS = ["price", "rate", "date", "balance", "value"]
+TERM_LOOKAHEADS = ["price", "rate", "balance", "value"]
 TERMINATION_VERBS = [
     # --- SAFE VERBS (Past/Present/Participle) ---
     # Regex note: We removed |ion, |ity, |ment, |y suffixes
