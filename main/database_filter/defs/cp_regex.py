@@ -744,7 +744,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE] + Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
         STANDALONE_SUFFIXES=[],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
@@ -756,7 +756,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE] + Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, BASE.OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
@@ -764,7 +764,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE] + Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()

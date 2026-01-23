@@ -94,7 +94,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=forward_types,
         _BASES=[BASE.FORWARD, BASE.OPTION, BASE.SWAP],
         _AMB_BASES=[],
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         MULTI_BASE=[],
     )
     _FWD_PATTERN = DerivativeGenerator(config=_FWD_CONFIG).generate()
@@ -112,7 +112,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=fx_prefixes,
         STANDALONE_BASES=[BASE.OPTION],
         STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
     )
     _STRICT_MAIN_STRONG = DerivativeGenerator(config=_STRICT_CONFIG_STRONG).generate()
@@ -121,7 +121,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
         STANDALONE_BASES=[BASE.OPTION],
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[],
     )
@@ -132,7 +132,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=all_prefixes,
         _BASES=[],
         _AMB_BASES=[],
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         SUFFIXES=[],
         MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
     )
@@ -144,7 +144,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Allows ambiguous bases (Caps, Floors) and Hedges
     _SOFT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=fx_prefixes,
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         MULTI_BASE=[],
         STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
@@ -154,7 +154,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Bare Currency agreement, currency hedges, currency contracts, etc
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
-        ADDITIONAL_BASES=Groups.TRADING_BASES,
+        ADDITIONAL_BASES=[],
         STANDALONE_BASES=[BASE.OPTION, BASE.HEDGE],
         MULTI_BASE=[],
         STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES,
@@ -164,7 +164,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _CURR_NAME_PATTERN, _FWD_PATTERN] + fixed_phrases)
 
     # --- 5. Loose Generator ---
-    _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, ADDITIONAL_BASES=Groups.TRADING_BASES, LOOSE=True)
+    _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, ADDITIONAL_BASES=[], LOOSE=True)
     _LOOSE_MAIN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
     loose_fx_regex = build_regex([_LOOSE_MAIN] + fixed_phrases)
 

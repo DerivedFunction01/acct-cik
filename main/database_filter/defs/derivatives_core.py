@@ -178,6 +178,18 @@ class SPEC_BASE(Enum):
 
 
 class Groups:
+    CORE_UNAMBIGUOUS_BASES = [
+        BASE.SWAP,
+        BASE.FORWARD,
+        BASE.COLLAR,
+        BASE.DERIVATIVE,
+        BASE.FUTURES,
+        BASE.SWAPTION,
+        SPEC_BASE.SPECIAL_FUTURES,
+        SPEC_BASE.SPECIAL_SWAP,
+        SPEC_BASE.CORE_OPTION,
+        SPEC_BASE.SPECIAL_OTHER,
+    ]
     UNAMBIGUOUS_BASES = [
         BASE.SWAP,
         BASE.FORWARD,
@@ -191,6 +203,10 @@ class Groups:
         SPEC_BASE.SPECIAL_OTHER,
         BASE.STRADDLE,
         BASE.STRANGLE,
+        # added for completion
+        SPEC_BASE.TRADING_OPTION,
+        SPEC_BASE.SPECIAL_SPREAD,
+        SPEC_BASE.TRADING_COLLAR,
     ]
     AMBIGUOUS_BASES = [
         BASE.OPTION,
@@ -541,10 +557,10 @@ def build_smart_regex(
 
 
 # --- Definitions for Export/Usage in other files ---
-BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.TRADING_BASES]
+BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
 ALL_BASE_TYPES = BASE_TYPES + [b for b in Groups.MISC_BASES]
-UNAMBIGUOUS_BASE_ENDING = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.TRADING_BASES]
-UNAMBIGUOUS_BASE_TYPES = list(set(UNAMBIGUOUS_BASE_ENDING) - {BASE.SPREAD})
+UNAMBIGUOUS_BASE_ENDING = [b for b in Groups.UNAMBIGUOUS_BASES]
+UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING
 
 PRECISE_BASE_REGEX = build_regex(UNAMBIGUOUS_BASE_TYPES)
 UNAMBIGUOUS_SUFFIXES = [s for s in Groups.UNAMBIGUOUS_SUFFIXES]
@@ -645,7 +661,7 @@ def build_loose_gen_regex() -> re.Pattern:
 def build_loose_gen_regex_precise() -> re.Pattern:
     # Matches unambiguous bases + specific plurals of ambiguous ones
     # Used for stricter context checks
-    unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES + Groups.TRADING_BASES]
+    unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES ]
     plurals = [
         *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
         *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
