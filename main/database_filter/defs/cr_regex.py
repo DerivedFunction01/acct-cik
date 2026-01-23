@@ -131,7 +131,7 @@ CR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 
 
 def run_tests():
-    from main.database_filter.defs.derivatives_core_old import (
+    from defs.derivatives_core import (
         MatchLevel,
         run_category_tests,
         run_category_tests_counter,

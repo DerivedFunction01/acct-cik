@@ -236,7 +236,7 @@ GEN_HEDGES = build_regex(
 )
 
 def run_tests():
-    from main.database_filter.defs.derivatives_core import (
+    from .defs.derivatives_core import (
         LOOSE_GEN_REGEX,
         MatchLevel,
         run_category_tests,

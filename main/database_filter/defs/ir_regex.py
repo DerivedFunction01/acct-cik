@@ -408,7 +408,7 @@ IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 DEBT_FT_REGEX = debt_feature_regex()
 
 def run_tests():
-    from main.database_filter.defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
+    from .defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
         ("interest rate swap agreement", MatchLevel.STRICT),

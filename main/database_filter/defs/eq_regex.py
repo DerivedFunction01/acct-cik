@@ -279,6 +279,7 @@ def run_tests():
         ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE overrides equity exclusion
         ("stock options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE with stock prefix
         ("stock agreement, options and warrants", MatchLevel.STRICT), # TRIPLE_BASE with agreement start
+        ("equity options and swaps", MatchLevel.STRICT), # Double Base (Ambiguous + Unambiguous)
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
