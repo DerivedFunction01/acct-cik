@@ -119,7 +119,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         ADDITIONAL_BASES=[],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
-    _RESTRICTED_BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    _RESTRICTED_BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     _RESTRICTED_BASES.remove(BASE.SWAP)
     _RESTRICTED_BASES.remove(BASE.FORWARD)
 

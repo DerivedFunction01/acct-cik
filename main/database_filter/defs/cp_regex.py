@@ -707,7 +707,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     ]
 
     _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
-    _FREIGHT_BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    _FREIGHT_BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     # prevent freight forward contracts (in case)
     if BASE.FORWARD in _FREIGHT_BASES:
         _FREIGHT_BASES.remove(BASE.FORWARD)

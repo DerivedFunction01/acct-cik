@@ -45,7 +45,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # Strict/Soft are identical in CR because exclude_standalone_suffixes=True
     # forces safe bases only, but we explicitly allow Option/Contract/Agreement standalone.
-    BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     if BASE.FORWARD in BASES:
         BASES.remove(BASE.FORWARD)
     if BASE.COLLAR in BASES:

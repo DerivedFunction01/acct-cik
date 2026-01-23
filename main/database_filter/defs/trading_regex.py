@@ -62,7 +62,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Loose: Allows any base with Trading prefix
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=TRADING_CORE_TERMS,
-        _BASES=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
+        _BASES=Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
         _AMB_BASES=[], # prevent trading cap, market cap, etc
         LOOSE=True,
     )

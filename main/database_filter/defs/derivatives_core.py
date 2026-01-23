@@ -125,6 +125,7 @@ class SPEC_BASE(Enum):
                     r"chooser",
                     r"cliquet",
                     r"compound",
+                    r"capped",
                 ],
                 suffix=["(?:[- ]style)?"],
                 sep_suffix="",
@@ -133,7 +134,6 @@ class SPEC_BASE(Enum):
             r"calendar",
             r"average[- ]rate",
             r"knock[- ](?:in|out)",
-            r"capped",
             r"shout",
             r"range[- ]accrual",
         ],
@@ -219,6 +219,8 @@ class Groups:
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.CORE_OPTION,
         SPEC_BASE.SPECIAL_OTHER,
+        BASE.STRADDLE,
+        BASE.STRANGLE,
     ]
     UNAMBIGUOUS_BASES = [
         BASE.SWAP,
@@ -251,6 +253,8 @@ class Groups:
         SPEC_BASE.TRADING_OPTION,
         SPEC_BASE.SPECIAL_SPREAD,
         SPEC_BASE.TRADING_COLLAR,
+        BASE.STRADDLE,
+        BASE.STRANGLE,
     ]
     MISC_BASES = [
         BASE.WARRANT,
@@ -419,7 +423,7 @@ class DERIVATIVES:
     # Can add additional to this list (adds to _BASES)
     STANDALONE_BASES: List[Any] = field(default_factory=list)
     # Default fixed group (adds to the suffixes attribute)
-    _BASES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_BASES)
+    _BASES: List[Any] = field(default_factory=lambda: Groups.CORE_UNAMBIGUOUS_BASES)
 
     # Fixed, for all categories (no suffix attachment)
     MULTI_BASE: List[Any] = field(
@@ -674,7 +678,7 @@ def build_loose_gen_regex() -> re.Pattern:
     # Used for broad filtering/denial logic
     all_bases = [
         b.value
-        for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.WARRANT])
+        for b in (Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.WARRANT])
     ]
     all_suffixes = [
         s.value
@@ -691,7 +695,7 @@ def build_loose_gen_regex() -> re.Pattern:
 def build_loose_gen_regex_precise() -> re.Pattern:
     # Matches unambiguous bases + specific plurals of ambiguous ones
     # Used for stricter context checks
-    unambiguous = [b.value for b in Groups.UNAMBIGUOUS_BASES ]
+    unambiguous = [b.value for b in Groups.CORE_UNAMBIGUOUS_BASES ]
     plurals = [
         *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
         *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],

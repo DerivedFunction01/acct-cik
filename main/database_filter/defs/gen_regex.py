@@ -28,11 +28,11 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
     HEDGES = build_compound([r"fair[- ]value", r"cash[- ]flow", r"net[- ]investment"], BASE.HEDGE)
     # Base + Suffix combinations
     INSTRUMENT_COMPOUND = build_compound(
-        Groups.UNAMBIGUOUS_BASES,
+        Groups.CORE_UNAMBIGUOUS_BASES,
         [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
     )
 
-    DERIVATIVE_CONTRACT = build_compound(Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES, SUFFIX.CONTRACT)
+    DERIVATIVE_CONTRACT = build_compound(Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES, SUFFIX.CONTRACT)
     ASSET_LIABILITY = build_compound(
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )

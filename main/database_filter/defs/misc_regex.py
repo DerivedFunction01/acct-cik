@@ -57,7 +57,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     # -------------------------------------------------------------------------
 
-    BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     if BASE.FORWARD in BASES:
         BASES.remove(BASE.FORWARD)
     
