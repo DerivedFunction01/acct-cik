@@ -90,3 +90,25 @@ TRADING_RISK_REGEX = build_regex(TRADING_RISK_TERMS)
 TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX = build_trading_regex()
 
 TRADING_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(TRADING_CORE_TERMS)
+
+def run_tests():
+    from defs.derivatives_core import (
+        MatchLevel,
+        run_category_tests,
+        run_category_tests_counter,
+    )
+
+    test_cases = [
+        ("Asian option", MatchLevel.STRICT),
+        ("call spread", MatchLevel.STRICT),
+        ("trading derivatives", MatchLevel.STRICT),
+        ("speculative swap agreement", MatchLevel.STRICT),
+        ("trading swap", MatchLevel.LOOSE),
+    ]
+    run_category_tests(test_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
+
+    counter_cases = [
+        ("trading cap", MatchLevel.LOOSE),
+        ("market cap", MatchLevel.NONE),
+    ]
+    run_category_tests_counter(counter_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
