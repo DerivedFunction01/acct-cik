@@ -40,6 +40,7 @@ class BASE(Enum):
     DERIVATIVE = r"derivatives?"
     FUTURES = r"(?:perpetual\s+)?futures"
     SWAPTION = r"swaptions?"
+    SWAP_FUTURES = r"swap\s+futures?"
     OPTION = r"options?"
     LOCK = r"locks?"
     CAP = r"caps?"
@@ -122,6 +123,7 @@ class Groups:
         BASE.DERIVATIVE,
         BASE.FUTURES,
         BASE.SWAPTION,
+        BASE.SWAP_FUTURES,
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.SPECIAL_OPTION,
         BASE.STRADDLE,
