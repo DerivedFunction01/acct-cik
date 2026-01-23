@@ -88,6 +88,8 @@ def to_list(items: Any) -> List[str]:
 
 
 def to_build_alternation(items: Any, sort_longest_first: bool = True) -> str:
+    if not items:
+        return ""
     return build_alternation(to_list(items), sort_longest_first=sort_longest_first)
 
 
