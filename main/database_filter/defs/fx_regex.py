@@ -13,6 +13,7 @@ from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_d
 
 
 CURRENCY_TERM = add_restrictions("currency", lookbehinds=["single", "crypto"])
+EXCHANGE_TERM = add_restrictions("exchange", lookbehinds=["interest"])
 
 def build_fx_dynamic_pattern() -> List[str]:
     """
@@ -28,15 +29,15 @@ def build_fx_dynamic_pattern() -> List[str]:
         [
             r"(?:cross|multi)[- ]currency",
             r"cross[- ]currency\s+interest[- ]rate",
-            r"(?<!interest[- ])exchange[- ]rate",
+            rf"{EXCHANGE_TERM}[- ]rate",
         ],
         sort_longest_first=True,
     )
     word2_alt = build_alternation(
         [
             CURRENCY_TERM,
-            r"(?<!interest[- ])exchange",
-            r"(?<!interest[- ])exchange[- ]rate",
+            EXCHANGE_TERM,
+            rf"{EXCHANGE_TERM}[- ]rate",
         ],
         sort_longest_first=True,
     )
@@ -58,6 +59,7 @@ def build_fx_dynamic_pattern() -> List[str]:
         # Single-word descriptive terms (low priority, included for completeness)
         r"FX",
         r"forex",
+        add_restrictions(r"forward[- ]rates?", lookaheads=[r"agreements?"]),
     ]
 
     # CRITICAL: We let build_alternation sort this entire list by length/word count
@@ -74,9 +76,6 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "non[- ]deliverable",
         "deal[- ]contingent",
     ]
-    forward_types_alternation = build_alternation(
-        forward_types, sort_longest_first=True
-    )
 
     # --- 1. Define Prefixes ---
     fx_prefixes = build_fx_dynamic_pattern()

@@ -23,7 +23,10 @@ BENCHMARK_RATES = [
 ]
 
 RATE_TYPES = ["fixed", "variable", "floating"]
-
+INTEREST = add_restrictions(
+    r"interest", lookbehinds=[r"foreign", r"currency", r"exchange"]
+)
+IR_RATE = f"{INTEREST}[- ]rates?"
 RATE_ADJECTIVES = [
     "treasury",
     "benchmark",
@@ -91,10 +94,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     specific_phrases = [
         r"(?:zero[- ]coupon|overnight[- ]index)\s+swaps?",
-        add_restrictions(
-            r"forward[- ]rate\s+agreements?",
-            lookbehinds=[r"foreign", r"currency", r"exchange"],
-        ),
+        r"forward[- ]rate\s+agreements?",
     ]
     
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
@@ -395,11 +395,13 @@ IR_RISK_REGEX = build_regex(IR_RISK_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
+
 IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [
-        add_restrictions(r"interest[- ]rates?", lookbehinds = [r"foreign", r"currency", r"exchange"]),
+        IR_RATE,
         r"yield\s+curves?",
-    ] + BENCHMARK_RATES
+    ]
+    + BENCHMARK_RATES
 )
 DEBT_FT_REGEX = debt_feature_regex()
 
