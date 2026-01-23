@@ -2,9 +2,9 @@ import re
 from typing import Tuple, List
 
 
-from defs.regex_lib import add_restrictions, build_alternation, build_regex
+from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
-from defs.derivatives_core import BASE, DERIVATIVES, SUFFIX, DerivativeGenerator, Groups, build_instrument_regex
+from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups, build_instrument_regex
 BENCHMARK_RATES = [
     "SOFR",
     "SONIA",
@@ -286,8 +286,7 @@ def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
     ] + BENCHMARK_RATES
 
     strict_terms = [
-        rf"(?<!foreign[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
-        rf"(?<!currency[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
+        rf"(?<!foreign[- ])(?<!currency[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
         r"(?:pay|receive)[- ](?:fixed|variable|floating)",
         r"fed(?:eral)?\s+funds\s+rates?",
     ] + BENCHMARK_RATES
@@ -363,9 +362,9 @@ def debt_feature_regex() -> re.Pattern:
     ]
     conn_pat = build_alternation(connectors)
 
-    full_suffix_alt = build_alternation(UNAMBIGUOUS_SUFFIXES + ["options?"])
-    safe_list = set(UNAMBIGUOUS_SUFFIXES)
-    safe_suffix_alt = build_alternation(list(safe_list))
+    full_suffix_alt = to_build_alternation(ALL_SUFFIXES + [BASE.OPTION])
+    safe_list = set(SUFFIXES)
+    safe_suffix_alt = to_build_alternation(safe_list)
 
     targets_embedded = [
         rf"rate\s+(?:caps?|floors?|locks?|options?)(?!\s+{full_suffix_alt})",
