@@ -146,7 +146,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         MULTI_BASE.MIXED_DOUBLE,
         add_restrictions(
             plural(to_build_alternation([BASE.SWAP, BASE.FUTURES, BASE.DERIVATIVE])),
-            lookbehinds=VERB_LOOKBEHIND,
+            lookbehinds=VERB_LOOKBEHIND + [r"its", r"their"],
             lookaheads=VERB_LOOKAHEAD +[ r"participants?", r"dealers?", r"markets?"]
         )
     ]
