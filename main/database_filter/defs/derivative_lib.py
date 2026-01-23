@@ -173,6 +173,8 @@ def run_tests():
     from defs.cr_regex import run_tests as cr_run
     from defs.crypto_regex import run_tests as crypto_run
     from defs.misc_regex import run_tests as misc_run
+    from defs.trading_regex import run_tests as trading_run
+    from defs.gen_regex import run_tests as gen_run
     
     ir_run()
     fx_run()
@@ -181,3 +183,5 @@ def run_tests():
     cr_run()
     crypto_run()
     misc_run()
+    trading_run()
+    gen_run()
