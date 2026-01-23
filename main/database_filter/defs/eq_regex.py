@@ -25,7 +25,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"equity[- ](?:based|related|linked|index)",
         r"market\s+index",
     ]
-    strict_core_alternation = build_alternation(strict_core_terms, True)
+    CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
 
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
     # Convertible phrases (Structural Embedded Derivatives)
@@ -33,7 +33,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))\s+(?:hedges?|derivatives?)",
+        rf"{CONV}\s+(?:hedges?|derivatives?)",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -46,6 +46,11 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:{derivative}\s+)?{warrant}.*(?:classified|accounted(?: for)?)\s+as\s+(?:a\s+)?(?:{derivative}[- ]{liability}|{derivative}|{liability})",
         rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
     ]
+    soft_phrases = [
+        CONV,
+        rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?{warrant}",
+        rf"{warrant}(?:[- ](?:linked|attached)){_DEBT_TERMS}",
+    ]
 
     # Other Explicitly Safe Phrases
     explicit_phrases = [
@@ -54,7 +59,6 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
         r"margin\s+loans?",
-        r"bond\s+warrants?",
         # Triple Base with Equity Prefixes (overrides compensation logic due to list strength)
         rf"(?:stock|shares?|treasury|equity)\s+{MULTI_BASE.TRIPLE_BASE}",
     ]
@@ -84,7 +88,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_BASES=[BASE.OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
-    soft_eq_regex = build_regex([_SOFT_PATTERN] + sorted_specific_phrases + [rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"])
+    soft_eq_regex = build_regex([_SOFT_PATTERN] + sorted_specific_phrases + [ ])
 
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
