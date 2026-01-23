@@ -75,7 +75,12 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
 def build_trading_context_terms() -> Tuple[List[str], List[str], List[str]]:
     strict_terms = TRADING_CORE_TERMS
-    soft_terms = TRADING_CORE_TERMS
+    soft_terms = TRADING_CORE_TERMS + [
+        r"strike\s+prices?",
+        r"exercise\s+prices?",
+        r"spot\s+prices?",
+        r"initial\s+prices?",
+    ]
     
     # Risk Management Glue
     trading_glue = TRADING_CORE_TERMS

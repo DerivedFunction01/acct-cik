@@ -133,7 +133,12 @@ def build_misc_context_terms() -> Tuple[List[str], List[str], List[str]]:
     ]
 
     # 2. Broader terms (Soft)
-    misc_broad = MISC_CORE_TERMS
+    misc_broad = MISC_CORE_TERMS + [
+        r"temperatures?",
+        r"precipitations?",
+        r"snowfalls?",
+        r"(?:heating|cooling)\s+degree\s+days?",
+    ]
 
     strict_terms = misc_instruments
     soft_terms = misc_broad
