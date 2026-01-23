@@ -131,8 +131,11 @@ class SPEC_BASE(Enum):
             ),
             r"forward[- ]start",
             r"calendar",
-            BASE.STRADDLE,
-            BASE.STRANGLE,
+            r"average[- ]rate",
+            r"knock[- ](?:in|out)",
+            r"capped",
+            r"shout",
+            r"range[- ]accrual",
         ],
         BASE.OPTION,
     )
@@ -157,7 +160,25 @@ class SPEC_BASE(Enum):
         ],
         BASE.FUTURES,
     )
-    SPECIAL_SPREAD = build_compound([BASE.CALL, BASE.PUT, r"butterfly", r"calendar", r"vertical", r"horizontal", r"condor"], BASE.SPREAD)
+    SPECIAL_SPREAD = build_compound(
+        [
+            BASE.CALL,
+            BASE.PUT,
+            r"butterfly",
+            r"calendar",
+            r"vertical",
+            r"horizontal",
+            r"condor",
+            r"bull",
+            r"bear",
+            r"ratio",
+            r"credit",
+            r"debit",
+            r"box",
+            r"diagonal",
+        ],
+        BASE.SPREAD,
+    )
     SPECIAL_OTHER = build_compound(
         [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS, BASE.INDEX],
         [
@@ -171,8 +192,16 @@ class SPEC_BASE(Enum):
     )
     TRADING_COLLAR = build_compound(
         [
-            r"zero[- ]cost",
+            r"(?:zero|no|low)[- ]cost",
+            r"costless",
+            r"covered",
+            BASE.PUT,
+            BASE.CALL,
             BASE.OPTION,
+            r"put[- ]call",
+            BASE.FORWARD,
+            r"reverse",
+            r"participating",
         ],
         BASE.COLLAR,
     )

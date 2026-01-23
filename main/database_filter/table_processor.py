@@ -118,8 +118,10 @@ GAIN_LOSS_HEADERS = re.compile(
 LOCATION_HEADERS = re.compile(r"location|sheet|line item", re.IGNORECASE)
 MATURITY_HEADERS = re.compile(r"maturity|expiration", re.IGNORECASE)
 NOISE_HEADERS = re.compile(
-    r"strike|exercise|shares|units|ratio|weighted", re.IGNORECASE
+    r"ratio", re.IGNORECASE
 )
+STRIKE_HEADERS = re.compile(r"strike|exercise", re.IGNORECASE)
+VOLUME_HEADERS = re.compile(r"shares|units|contracts|count|number\s+of", re.IGNORECASE)
 
 DESIGNATION_REGEX = re.compile(r"designated as|hedging|trading|fair value|cash flow hedg|net investment|derivatives|aoci|income|earnings|gain|loss",re.IGNORECASE,)
 
@@ -1142,6 +1144,10 @@ class TableToTextConverter:
                 year_suffix = ""
             elif PERCENT_HEADERS.search(header_lower):
                 self.col_map[local_idx] = "rate"
+            elif STRIKE_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "strike"
+            elif VOLUME_HEADERS.search(header_lower):
+                self.col_map[local_idx] = "volume"
 
             if new_base_type:
                 self.col_map[local_idx] = f"{new_base_type}{year_suffix}"
@@ -1497,6 +1503,10 @@ class TableToTextConverter:
                 value = self.normalize_value(clean_val, multiplier=final_multiplier)
                 if "%" in value:
                     actual_col_type = "rate"
+                
+                # If we detected a strike price column but the value is a percentage, treat as rate
+                if actual_col_type == "strike" and "%" in value:
+                    actual_col_type = "rate"
 
                 use_anchor = (
                     table_has_strong_row
@@ -1516,6 +1526,10 @@ class TableToTextConverter:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a value of {value}."
                 elif actual_col_type == "rate":
                     continue
+                elif actual_col_type == "strike":
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a strike price of {value}."
+                elif actual_col_type == "volume":
+                    sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with a volume of {value}."
                 else:
                     sentence = f"{anchor_text} {year_str}The Company held {display_instrument} with an amount of {value}."
                 sentences.append(sentence)
