@@ -581,7 +581,9 @@ DERIVATIVE_EXCHANGES = [
     r"\bBM&F\b",
     r"\bDME\b",
     r"\bDubai\s+Mercantile\s+Exchange\b",
-    r"[Dd]erivative\s+[Mm]arkets?"
+    r"[Dd]erivative\s+[Mm]arkets?",
+    r"\bBIFFEX\b",
+    r"\bBaltic\s+Exchange\b",
 ]
 
 DERIVATIVE_ENTITIES = [
