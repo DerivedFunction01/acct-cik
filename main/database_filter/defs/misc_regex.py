@@ -16,7 +16,12 @@ from defs.verb_core import build_strict_do_not_mitigate_regex
 VOLATILITY = add_restrictions(r"volatility", lookbehinds=[r"rate", r"price", r"currency"])
 VARIANCE = add_restrictions(r"variance", lookbehinds=[r"rate", r"price", r"currency"])
 
-STRONG_MISC_WITH_OPT = [r"weather", r"VIX"]
+STRONG_MISC_WITH_OPT = [
+    r"weather",
+    r"VIX",  # --- Volatility Indices ---
+    r"VXN",
+    r"RVX",
+]
 # Only allow futures
 STRONG_MISC = [
     r"inflation(?:[- ](?:linked|rate))?",
@@ -122,6 +127,8 @@ def build_misc_context_terms() -> Tuple[List[str], List[str], List[str]]:
         r"inflation\s+linked",
         r"volatility\s+index",
         r"VIX",
+        r"VXN",
+        r"RVX",
         r"catastrophe",
     ]
 
