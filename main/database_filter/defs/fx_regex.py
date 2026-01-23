@@ -140,6 +140,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_MAIN_STRONG = DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate()
 
+    # Bare Currency agreement, currency hedges, currency contracts, etc
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
         STANDALONE_BASES=[BASE.OPTION, BASE.HEDGE],
@@ -282,11 +283,12 @@ from defs.verb_core import build_strict_do_not_mitigate_regex
 
 FX_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [
-        r"foreign\s+currency",
-        r"currency",
+        r"(?:foreign|cross|multi)[- ]currency",
+        CURRENCY_TERM,
         r"exchange\s+rates?",
         r"(?:foreign|forward|currency|cross[- ]currency)\s+exchange",
         r"fx",
+        r"forex",
     ]
 )
 
