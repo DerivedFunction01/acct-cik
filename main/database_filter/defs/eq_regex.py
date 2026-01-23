@@ -13,6 +13,17 @@ from defs.derivatives_core import (
 from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 
+EQ_INDICES = [
+    r"S\&P\s+(?:500|400|600|1500)(?:\s+total\s+return)?(?:\s+index)?",
+    r"Nasdaq(?:[-\s]?100|(?:\s+Composite)?)(?:\s+index)?",
+    r"Dow\s+Jones(?:\s+Industrial\s+Average)?(?:\s+index)?",
+    r"Russell\s+(?:1000|2000|3000)(?:\s+(?:Value|Growth))?(?:\s+index)?",
+    r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
+    r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
+    r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
+    r"market[- ]index"
+]
+
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
     liability = r"liabilit(?:y|ies)"
@@ -45,7 +56,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Strict Core Terms (Precise market/price references)
     strict_core_terms = [
         r"equity(?:[- ](?:based|related|linked|index))?",
-        r"market\s+index",
+        rf"{to_build_alternation(EQ_INDICES)}(?:[- ](?:based|related|linked|index))?",
     ]
 
     # Restricted Core Terms (Common words that require SAFE bases to avoid compensation/noise)
@@ -54,13 +65,6 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"dividends?",
         r"stocks?",
         r"shares?",
-        r"S\&P\s+(?:500|400|600|1500)(?:\s+total\s+return)?(?:\s+index)?",
-        r"Nasdaq(?:[-\s]?100|(?:\s+Composite)?)(?:\s+index)?",
-        r"Dow\s+Jones(?:\s+Industrial\s+Average)?(?:\s+index)?",
-        r"Russell\s+(?:1000|2000|3000)(?:\s+(?:Value|Growth))?(?:\s+index)?",
-        r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
-        r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
-        r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
     ]
     restricted_core_terms = [rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
@@ -232,15 +236,7 @@ def build_eq_context_terms() -> Tuple[List[str], List[str], List[str]]:
     ]
 
     # 3. Indices
-    eq_indices = [
-        r"S\&P\s+(?:500|400|600|1500)(?:\s+total\s+return)?(?:\s+index)?",
-        r"Nasdaq(?:[-\s]?100|(?:\s+Composite)?)(?:\s+index)?",
-        r"Dow\s+Jones(?:\s+Industrial\s+Average)?(?:\s+index)?",
-        r"Russell\s+(?:1000|2000|3000)(?:\s+(?:Value|Growth))?(?:\s+index)?",
-        r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
-        r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
-        r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
-    ]
+    eq_indices = EQ_INDICES
 
     # 4. Equity Components (Types of stock)
     eq_components = [
@@ -323,6 +319,7 @@ def run_tests():
         ("stock swap", MatchLevel.NONE),
         ("dividend futures", MatchLevel.STRICT),
         ("S&P 500 swap", MatchLevel.STRICT),
+        ("S&P 500 option", MatchLevel.SOFT),
     ]
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
