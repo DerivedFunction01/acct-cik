@@ -15,10 +15,11 @@ CRYPTO_CORE_TERMS = [
     r"crypto(?:currenc(?:y|ies))?",
     r"digital\s+assets?",
     r"(?:virtual|digital|crypto)[- ]currenc(?:y|ies)",
-    r"bitcoin",
+    r"bitcoins?",
     r"ether(?:eum)?",
     r"BTC",
     r"ETH",
+    r"stablecoins?"
 ]
 
 def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
