@@ -44,22 +44,20 @@ class BASE(Enum):
     LOCK = r"locks?"
     CAP = r"caps?"
     FLOOR = r"floors?"
-    
-    
-    
+
     # Other bases that are not used standalone
     PUT = r"puts?"
     CALL = r"calls?"
     HEDGE = r"hedg(?:es?|ing)"
     WARRANT = r"warrants?"
-    
-    # IR bases
-    PROTECTION = r"protections?"
-    
-    # CP bases
-    FORWARD_PURCHASE = r"forward\s+purchase"
     STRADDLE = r"straddles?"
     STRANGLE = r"strangles?"
+
+    # IR bases
+    PROTECTION = r"protections?"
+
+    # CP bases
+    FORWARD_PURCHASE = r"forward\s+purchase"
 
 
 class SUFFIX(Enum):
@@ -100,6 +98,8 @@ class SPEC_BASE(Enum):
         r"barrier",
         BASE.PUT,
         BASE.CALL,
+        BASE.STRADDLE,
+        BASE.STRANGLE,
     ], BASE.OPTION)
 
 class Groups:
@@ -112,11 +112,16 @@ class Groups:
         BASE.SWAPTION,
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.SPECIAL_OPTION,    
+        
     ]
-    AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR]
+    AMBIGUOUS_BASES = [BASE.OPTION, BASE.LOCK, BASE.CAP, BASE.FLOOR, BASE.STRADDLE, BASE.STRANGLE]
     # Bases that may not be used in a soft match
     OTHER_BASES = [BASE.PUT, BASE.CALL, BASE.HEDGE]
-    MISC_BASES = [BASE.PROTECTION, BASE.FORWARD_PURCHASE, BASE.STRADDLE, BASE.STRANGLE, BASE.WARRANT]
+    MISC_BASES = [BASE.WARRANT]
+    NON_BASES = [
+        BASE.PROTECTION,
+        BASE.FORWARD_PURCHASE,
+    ]
 
     # Suffix Sets
     UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
@@ -241,11 +246,14 @@ class MULTI_BASE:
     # 2. End with Unambiguous (Any + U)
     # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
     _any_u, _ = MultiBaseGenerator(
-        bases=Groups.UNAMBIGUOUS_BASES, include_suffixes=True
+        bases=Groups.UNAMBIGUOUS_BASES,
+        starters=Groups.UNAMBIGUOUS_BASES
+        + Groups.AMBIGUOUS_BASES
+        + Groups.OTHER_BASES,
+        include_suffixes=True,
     ).generate()
 
     MIXED_DOUBLE = to_build_alternation([_u_any, _any_u], sort_longest_first=True)
-    
 @dataclass
 class DERIVATIVES:
     # Default groups

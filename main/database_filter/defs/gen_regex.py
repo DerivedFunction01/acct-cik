@@ -253,6 +253,7 @@ def run_tests():
         ("swaps and futures", MatchLevel.STRICT),
         ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE
         ("swaps and options", MatchLevel.STRICT), # MIXED_DOUBLE (U + A)
+        ("caps and swaps", MatchLevel.STRICT), # MIXED_DOUBLE (A + U)
         ("caps and floors", MatchLevel.STRICT),
         ("contracts such as swaps", MatchLevel.STRICT),
         ("contracts such as options", MatchLevel.STRICT),
