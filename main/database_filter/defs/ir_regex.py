@@ -5,6 +5,7 @@ from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups, build_instrument_regex
 
+_IR_DEBT = Rf"(?:{_DEBT_TERMS}|credit\s+facilit(?:y|ies))"
 BENCHMARK_RATES = [
     "SOFR",
     "SONIA",
@@ -119,7 +120,7 @@ IR_DEBT_LOOKBEHIND_TERM = (
     r"(?<!convertible\s)"  # Negative Lookbehind 1
     r"(?<!foreign\s)"  # Negative Lookbehind 2
     r"(?<!denominated\s)"  # Negative Lookbehind 3
-    rf"{_DEBT_TERMS}"  # The actual match
+    rf"{_IR_DEBT}"  # The actual match
     r"(?!\s+denominated)"  # Negative Lookahead (NEW)
 )
 
@@ -351,7 +352,7 @@ def debt_feature_regex() -> re.Pattern:
     ]
     target_pat_embedded = build_alternation(targets_embedded)
 
-    pat_a = rf"\b{_DEBT_TERMS}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat_embedded}\b"
+    pat_a = rf"\b{_IR_DEBT}\s+(?:\S+\s+){{0,10}}{conn_pat}\s+(?:\S+\s+){{0,3}}{target_pat_embedded}\b"
     percent_pat = r"\d+(?:\.\d+)?\s*(?:%|percent|bps|basis\s+points)"
     pat_b = rf"\b{target_pat_embedded}\s+(?:\S+\s+){{0,3}}{percent_pat}\b"
     noun_indicators = r"(?:features?|provisions?|terms?)"
@@ -361,8 +362,8 @@ def debt_feature_regex() -> re.Pattern:
     # Matches: "fair value of debt", "change in the fair value of our facility"
     # Also matches: secured debt/facility (no gap)
     patterns = [
-        rf"{prefix_gap}fair\s+value\s+of{mid_gap}(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
-        rf"secured\s+(?:{_DEBT_TERMS}|facilit(?:y|ies))\b",
+        rf"{prefix_gap}fair\s+value\s+of{mid_gap}{_IR_DEBT}\b",
+        rf"secured\s+{_IR_DEBT}\b",
         cap_floor_pattern,
         pat_a,
         pat_b,

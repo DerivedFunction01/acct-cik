@@ -201,7 +201,7 @@ class DERIVATIVES:
     # Can add additional to this list, or force the list to be empty or override it
     ADDITIONAL_BASES: List[Any] = field(default_factory=list)
 
-    _A_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
+    _AMB_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
 
     # Standalone suffixes will not be a prefix for a base
     STANDALONE_SUFFIXES: List[Any] = field(default_factory=list)
@@ -232,10 +232,10 @@ class DerivativeGenerator:
         # Start with defaults or overrides
         # Build the strict base set
         eff_strict = self.config._BASES + self.config.STANDALONE_BASES + (
-            self.config._A_BASES if self.config.LOOSE else []
+            self.config._AMB_BASES if self.config.LOOSE else []
         )
         # Allow ambigous to use the list from strict
-        eff_ambig = set(self.config._A_BASES + eff_strict + self.config.ADDITIONAL_BASES)
+        eff_ambig = set(self.config._AMB_BASES + eff_strict + self.config.ADDITIONAL_BASES)
         # Premake the suffix list (to attach to bases)
         eff_suff = set(
             self.config.SUFFIXES

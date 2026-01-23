@@ -1,7 +1,15 @@
 import re
 from typing import Tuple, List
 
-from defs.derivatives_core import  build_smart_regex, expand_instruments, TRIPLE_BASE
+from defs.derivatives_core import (
+    ALL_SUFFIXES,
+    BASE,
+    DERIVATIVES,
+    DerivativeGenerator,
+    Groups,
+    MULTI_BASE,
+    SUFFIX,
+)
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 
@@ -46,8 +54,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
         r"margin\s+loans?",
+        r"bond\s+warrants?",
         # Triple Base with Equity Prefixes (overrides compensation logic due to list strength)
-        rf"(?:stock|shares?|treasury)\s+{TRIPLE_BASE}",
+        rf"(?:stock|shares?|treasury)\s+{MULTI_BASE.TRIPLE_BASE}",
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
@@ -60,45 +69,31 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- A. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment for attachment: Must exclude standalones to ensure precision in core matches
-    strict_attachment_fragment = expand_instruments(
-        unsafe=False, exclude_standalone_suffixes=True
+    _STRICT_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_terms,
     )
-
-    strict_pattern = build_smart_regex(
-        [strict_core_alternation],  # Precise prefixes (share price, S&P 500, etc.)
-        strict_attachment_fragment,  # Must attach a derivative base (e.g., 'swap' or 'future')
-        sorted_specific_phrases,  # All high-priority explicit phrases
-    )
-    strict_eq_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
+    strict_eq_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
 
     # -------------------------------------------------------------------------
     # --- B. SOFT Pattern Construction (Contextual Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment for general pattern combination: Includes all derivative terminology, including standalones.
-    soft_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=True, additional_standalone_suffixes=["options?"])
+    _SOFT_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_terms,
+        STANDALONE_BASES=[BASE.OPTION],
+    )
+    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
+    soft_eq_regex = build_regex([_SOFT_PATTERN] + sorted_specific_phrases + [rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"])
 
-    soft_pattern = build_smart_regex(
-        [strict_core_alternation],
-        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'warrants' standalones)
-        sorted_specific_phrases
-        + [
-            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))", # Gets defanged if nst is true
-        ],
+    _LOOSE_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_terms,
+        ADDITIONAL_BASES=[BASE.OPTION],
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
+        STANDALONE_SUFFIXES=ALL_SUFFIXES,
     )
-    soft_eq_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    
-    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False, full_alternation=True)
-    loose_pattern = build_smart_regex(
-        [strict_core_alternation],
-        loose_instrument_fragment,
-        sorted_specific_phrases
-        + [
-            rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))",
-        ],
-    )
-    loose_eq_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
+    loose_eq_regex = build_regex([_LOOSE_PATTERN] + sorted_specific_phrases + [rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"])
 
     return strict_eq_regex, soft_eq_regex, loose_eq_regex
 
