@@ -22,17 +22,22 @@ from defs.prefiltered_lib import (
     is_warrant_target,
     is_convertible_target
 )
-from defs.derivative_lib import ALL_REGEX, STRICT_REGEX, SOFT_REGEX, find_hedging_context
+from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
 from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
-from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX
+from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, GEN_REGEX
 from defs.shared_context import (
     CURRENCY_NAMES_REGEX,
     VALUATION_MODELS_REGEX,
     TRADING_VENUE_REGEX,
     DERIVATIVE_CLEARING_REGEX,
 )
-from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise
+from defs.ir_regex import EXCLUDE_REGEX_LIBOR_TRANSITION, is_bank_list_noise, IR_REGEX, IR_SOFT_REGEX
+from defs.fx_regex import FX_REGEX, FX_SOFT_REGEX
+from defs.cr_regex import CR_REGEX, CR_SOFT_REGEX
+from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX
+from defs.misc_regex import MISC_REGEX, MISC_SOFT_REGEX
+from defs.trading_regex import TRADING_REGEX, TRADING_SOFT_REGEX
 from defs.exclusion_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
     ENTITY_EXCLUSION_REGEX,
@@ -82,15 +87,34 @@ def count_information(text: str) -> dict:
             "commodity_total": 3
         }
     """
+    # Combine regexes for categories
+    ir_regex = re.compile(r"|".join([IR_REGEX.pattern, IR_SOFT_REGEX.pattern]), re.IGNORECASE)
+    fx_regex = re.compile(r"|".join([FX_REGEX.pattern, FX_SOFT_REGEX.pattern]), re.IGNORECASE)
+    cp_regex = re.compile(r"|".join([CP_REGEX.pattern, CP_SOFT_REGEX.pattern]), re.IGNORECASE)
+    eq_regex = re.compile(r"|".join([EQ_REGEX.pattern, EQ_SOFT_REGEX.pattern]), re.IGNORECASE)
+    cr_regex = re.compile(r"|".join([CR_REGEX.pattern, CR_SOFT_REGEX.pattern]), re.IGNORECASE)
+    crypto_regex = re.compile(r"|".join([CRYPTO_REGEX.pattern, CRYPTO_SOFT_REGEX.pattern]), re.IGNORECASE)
+    misc_regex = re.compile(r"|".join([MISC_REGEX.pattern, MISC_SOFT_REGEX.pattern]), re.IGNORECASE)
+    trading_regex = re.compile(r"|".join([TRADING_REGEX.pattern, TRADING_SOFT_REGEX.pattern]), re.IGNORECASE)
+    gen_regex = re.compile(r"|".join([GEN_REGEX.pattern, GEN_STRICT_CONTEXT_REGEX.pattern]), re.IGNORECASE)
+
     # Configuration: (regex, dict_key, total_key, transform_func)
     configs = [
         (CURRENCY_NAMES_REGEX, "currencies", "currency_total", str.upper),
         (COMMODITY_REGEX, "commodities", "commodity_total", str.lower),
-        (TRADING_VENUE_REGEX, "venues", "venues_total", str.lower),
-        (DERIVATIVE_CLEARING_REGEX, "clearing", "clearing_total", str.lower),
+        (TRADING_VENUE_REGEX, "venues", "venues_total", None),
+        (DERIVATIVE_CLEARING_REGEX, "clearing", "clearing_total", None),
         (VALUATION_MODELS_REGEX, "valuation_models", "valuation_models_total", str.lower),
-        (ALL_REGEX, "keyword_hits", "keyword_hits_total", str.lower),
         (DER_STD_REGEX, "der_std_hits", "der_std_hits_total", str.lower),
+        (ir_regex, "ir_hits", "ir_hits_total", str.lower),
+        (fx_regex, "fx_hits", "fx_hits_total", str.lower),
+        (cp_regex, "cp_hits", "cp_hits_total", str.lower),
+        (eq_regex, "eq_hits", "eq_hits_total", str.lower),
+        (cr_regex, "cr_hits", "cr_hits_total", str.lower),
+        (crypto_regex, "crypto_hits", "crypto_hits_total", str.lower),
+        (misc_regex, "misc_hits", "misc_hits_total", str.lower),
+        (trading_regex, "trading_hits", "trading_hits_total", str.lower),
+        (gen_regex, "gen_hits", "gen_hits_total", str.lower),
     ]
 
     result = {}
@@ -100,7 +124,10 @@ def count_information(text: str) -> dict:
         
         if regex:
             for match in regex.finditer(text):
-                val = transform(match.group())
+                if transform:
+                    val = transform(match.group())
+                else:
+                    val = match.group()
                 result[dict_key][val] = result[dict_key].get(val, 0) + 1
                 result[total_key] += 1
 
