@@ -19,11 +19,11 @@ VARIANCE = add_restrictions(r"variance", lookbehinds=[r"rate", r"price", r"curre
 STRONG_MISC_WITH_OPT = [r"weather", r"VIX"]
 # Only allow futures
 STRONG_MISC = [
-    r"inflation(?:[- ](?:linked|rate))",
-    r"CPI",
+    r"inflation(?:[- ](?:linked|rate))?",
+    r"CPI(?:[- ](?:linked)?",
     VOLATILITY,
     VARIANCE,
-    r"catastrophe",
+    r"catastrophe(?:[- ]linked)?",
     r"longevity",
     r"mortality",
     r"economic",
