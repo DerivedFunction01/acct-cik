@@ -34,7 +34,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     cln_pattern = rf"credit[- ]linked\s+{_DEBT_TERMS}"
     specific_phrases = [
         cln_pattern,
-        "credit (?:swaps?(?![- ]rates?)|derivatives?)",
+        "credit(?:[- ]default)? (?:swaps?(?![- ]rates?)|derivatives?)",
     ]  # None for this one
 
     sorted_specific_phrases = sorted(
