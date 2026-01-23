@@ -309,7 +309,7 @@ GENERIC_RISK_GLUE = [
     r"conditions?",
     r"uncertaint(?:y|ies)",
     r"management",
-]
+] + RISK_TERMS
 
 
 def build_risk_managment_phrase(

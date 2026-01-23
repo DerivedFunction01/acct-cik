@@ -5,7 +5,7 @@ import re
 from typing import List, Optional
 from defs.derivative_lib import create_target
 from defs.regex_lib import build_alternation, build_regex
-from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS
+from defs.shared_context import ALL_TERM_TERMS, TERMINATION_VERBS, MITIGATION_VERBS, RISK_TERMS
 from defs.verb_core import (
     _DENIAL_FILLER,
     GAP_CHAIN,
@@ -56,7 +56,7 @@ def build_passive_verb_regex(past_only: bool = False) -> re.Pattern:
     else:
         aux_verbs = r"(?:is|are|was|were|have\s+been|has\s+been|be)"
     return re.compile(
-        rf"\b{_DENIAL_TARGET}\s+"
+        rf"\b{_DENIAL_TARGET}(?:[,\s]+)"
         rf"{_DENIAL_FILLER}"
         rf"{aux_verbs}\s+"
         rf"(?:{INTENT_VERB_PATTERN})\b",
@@ -466,7 +466,12 @@ def run_tests():
             "We may consider using two million notional oil swap contracts",
             True,
         ),
-        ("POTENTIAL", POTENTIAL_REGEX, "We expect to hedge with financial derivatives", True),
+        (
+            "POTENTIAL",
+            POTENTIAL_REGEX,
+            "We expect to hedge with financial derivatives",
+            True,
+        ),
         ("POTENTIAL", POTENTIAL_REGEX, "We entered into swaps", False),
         # VAGUE_TIMING
         ("VAGUE_TIMING", VAGUE_TIMING_REGEX, "We use swaps from time to time", True),
@@ -481,12 +486,34 @@ def run_tests():
         ("PRIOR", PRIOR_INDICATOR, "During previous reporting periods", True),
         ("PRIOR", PRIOR_INDICATOR, "Historically", True),
         # TERMINATION
-        ("TERMINATION", TERMINATION_REGEX, "The two million notional swaps expired", True),
-        ("TERMINATION", TERMINATION_REGEX, "We terminated the interest rate swap agreement", True),
+        (
+            "TERMINATION",
+            TERMINATION_REGEX,
+            "The two million notional swaps expired",
+            True,
+        ),
+        (
+            "TERMINATION",
+            TERMINATION_REGEX,
+            "We terminated the interest rate swap agreement",
+            True,
+        ),
         ("TERMINATION", TERMINATION_REGEX, "The swaps matured", True),
         ("TERMINATION", TERMINATION_REGEX, "The swaps settles weekly", False),
         ("TERMINATION", TERMINATION_REGEX, "The swaps weekly settles", False),
         ("TERMINATION", TERMINATION_ALL_REGEX, "The annual settlement", False),
+        (
+            "TERMINATION: Settlement Date",
+            TERMINATION_ALL_REGEX,
+            "The settlement date of the swap",
+            True,
+        ),
+        (
+            "TERMINATION: Annual Settlement",
+            TERMINATION_ALL_REGEX,
+            "The annual settlement of the swap",
+            False,
+        ),
         # IMMATERIAL_REGEX
         (
             "IMM: Strict - Notional",

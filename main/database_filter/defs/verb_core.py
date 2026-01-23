@@ -245,7 +245,7 @@ PRE_VERB_GAP = (
     r"(?:"
     rf"\s+(?:{aux})\s+{SUBJ}\s+|"  # Inversion: " did the company "
     r"[, ](?:"  # Mandatory space or comma after "not"
-    rf"{_DENIAL_FILLER}\s+|"  # "currently, occasionally "
+    rf"{_DENIAL_FILLER}|"  # "currently, occasionally "
     r"\s*[^,]{1,50}\s*,\s+"  # ", as a routine matter, " (Greedy but bounded)
     r")?)"
 )
