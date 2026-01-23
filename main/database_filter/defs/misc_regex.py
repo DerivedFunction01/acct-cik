@@ -123,6 +123,7 @@ def build_misc_context_terms() -> Tuple[List[str], List[str], List[str]]:
         r"inflation\s+linked",
         r"volatility\s+index",
         r"VIX",
+        r"catastrophe",
     ]
 
     # 2. Broader terms (Soft)
@@ -132,7 +133,7 @@ def build_misc_context_terms() -> Tuple[List[str], List[str], List[str]]:
     soft_terms = misc_broad
 
     # 3. Risk Management Glue
-    misc_glue = MISC_CORE_TERMS
+    misc_glue = misc_instruments + PROPERTY
 
     risk_terms = [build_risk_managment_phrase(misc_glue)]
 
