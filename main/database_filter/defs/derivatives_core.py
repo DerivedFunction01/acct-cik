@@ -81,15 +81,17 @@ class SUFFIX(Enum):
 # ============================================================================
 class SPEC_BASE(Enum):
     # Modifiers
-    SPECIAL_SWAP = build_compound([
-        r"basis",
-        r"variance",
-        r"volatility",
-        r"total[- ]return",
-        r"back[- ]to[- ]back",
-        r"correlation",
-        r"conditional[- ]variance",
-    ], BASE.SWAP)
+    SPECIAL_SWAP = build_compound(
+        [
+            r"basis",
+            r"(?:conditional[- ])?variance",
+            r"volatility",
+            r"total[- ]return",
+            r"back[- ]to[- ]back",
+            r"correlation",
+        ],
+        BASE.SWAP,
+    )
     SPECIAL_OPTION = build_compound([
         r"asian",
         r"bermuda",
