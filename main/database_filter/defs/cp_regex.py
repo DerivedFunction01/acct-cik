@@ -768,7 +768,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
-    loose_cp_regex = build_regex([_LOOSE_PATTERN] + sorted_soft_specific_phrases)
+    loose_cp_regex = build_regex([_LOOSE_PATTERN] + sorted_soft_specific_phrases + [rf"{_FREIGHT}\s+swap"])
 
     return strict_cp_regex, soft_cp_regex, loose_cp_regex
 
