@@ -98,6 +98,12 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _FWD_PATTERN = DerivativeGenerator(config=_FWD_CONFIG).generate()
 
+    _CURR_NAME_CONFIG = DERIVATIVES(
+        PREFIX=currency_name_prefixes,
+        STANDALONE_BASES=[BASE.OPTION],
+        MULTI_BASE=[],
+    )
+    _CURR_NAME_PATTERN = DerivativeGenerator(config=_CURR_NAME_CONFIG).generate()
     # --- 3. Strict Generator ---
     # Option is strict in FX context (Foreign Exchange Option)
     # Split into Strong (allows Agreements) and Weak (allows only Contracts)
@@ -128,7 +134,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _STRICT_MULTI = DerivativeGenerator(config=_MULTI_CONFIG).generate()
 
-    strict_fx_regex = build_regex([_STRICT_MAIN_STRONG, _STRICT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    strict_fx_regex = build_regex([_STRICT_MAIN_STRONG, _STRICT_MAIN_WEAK, _STRICT_MULTI, _CURR_NAME_PATTERN, _FWD_PATTERN] + fixed_phrases)
 
     # --- 4. Soft Generator ---
     # Allows ambiguous bases (Caps, Floors) and Hedges
@@ -149,7 +155,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_MAIN_WEAK = DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
 
-    soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _CURR_NAME_PATTERN, _FWD_PATTERN] + fixed_phrases)
 
     # --- 5. Loose Generator ---
     _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, LOOSE=True)
@@ -323,11 +329,17 @@ def run_tests():
         ("foreign currency exchange swap", MatchLevel.STRICT),
         ("exchange rate contract", MatchLevel.STRICT),
         ("Japanese Yen option", MatchLevel.STRICT),
+        ("Euro forward", MatchLevel.STRICT),
         ("exchange rate agreement", MatchLevel.STRICT),
         ("exchange rate hedge", MatchLevel.SOFT),
-        ("foreign currency commitment", MatchLevel.LOOSE), 
-        ("currency transaction", MatchLevel.LOOSE), 
-        ("Japanese Yen contract", MatchLevel.LOOSE), # Only options along with other bases
+        ("foreign currency commitment", MatchLevel.LOOSE),
+        ("currency transaction", MatchLevel.LOOSE),
+        (
+            "Japanese Yen contract",
+            MatchLevel.LOOSE,
+        ),  # Only options along with other bases
+        ("currency assets", MatchLevel.LOOSE),
+        ("foreign currency liability", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
