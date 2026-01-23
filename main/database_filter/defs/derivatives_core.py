@@ -156,19 +156,6 @@ SUFFIX_LOOKBEHINDS = [
 
 EQUITY_LOOKBEHINDS = [
     r"equity",
-    r"stock",
-    r"shares?",
-    r"treasury",
-    r"purchase",
-    r"acquisition",
-    r"merger",
-    r"award",
-    r"incentive",
-    r"compensation",
-    r"bonus",
-    r"severance",
-    r"pension",
-    r"retirement",
 ]
 
 @dataclass
