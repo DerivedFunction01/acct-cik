@@ -10,6 +10,7 @@ from defs.fx_regex import FX_SOFT_REGEX
 from defs.gen_regex import GEN_REGEX, GEN_STRICT_CONTEXT_REGEX, TABLE_REGEX
 from defs.ir_regex import IR_SOFT_REGEX
 from defs.prefiltered_lib import YEAR_REGEX
+from defs.trading_regex import TRADING_REGEX
 # Basic patterns
 YEAR_SLASH_REGEX = re.compile(r"\b(?:\d{1,2}/)+(\d{2,4})\b")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
@@ -1475,6 +1476,8 @@ class TableToTextConverter:
                 base_type = "_".join(parts)
                 actual_col_type = base_type
                 display_instrument = f"{instrument_name}{expiration_str}"
+                if TRADING_REGEX.search(instrument_name):
+                    display_instrument += " used for trading activities"
 
                 if GAIN_LOSS_HEADERS.search(display_instrument):
                     actual_col_type = "gain_loss"
