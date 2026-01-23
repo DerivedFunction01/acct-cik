@@ -1046,7 +1046,7 @@ QUANT_REGEX = re.compile(
     rf"{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?\s+(?:{COMMODITY_UNIT_PATTERN}|shares)|"
     
     # 4. Tabular Context (e.g., "amount of 500 million")
-    rf"(?:amount|value)\s+of\s+{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?",
+    rf"(?:amount|value|volume|strike\s+price)\s+of\s+{NUMBER_PATTERN}(?:\s+{SCALE_WORDS})?",
 )
 
 # Needs to match $0, $ 0, $ (0), or $(0), 0 USD, USD 0, or 0 million units/shares
