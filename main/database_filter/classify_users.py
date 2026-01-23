@@ -29,6 +29,8 @@ from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
 from defs.cp_regex import CP_DO_NOT_MITIGATE_REGEX, COMMODITY_REGEX
 from defs.eq_regex import EQ_DO_NOT_MITIGATE_REGEX
 from defs.cr_regex import CR_DO_NOT_MITIGATE_REGEX
+from defs.crypto_regex import CRYPTO_DO_NOT_MITIGATE_REGEX
+from defs.misc_regex import MISC_DO_NOT_MITIGATE_REGEX
 
 # =============================================================================
 # INSTRUMENT EVIDENCE STRUCTURES
