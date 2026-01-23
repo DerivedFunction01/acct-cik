@@ -204,26 +204,25 @@ EQUITY_COMP_KEYWORDS = [
     "ESPP",  # Employee Stock Purchase Plan
     "SARs?",  # Stock Appreciation Rights
     "stock appreciation rights?",
-    "(?:phantom|employee) stocks?",
+    "(?:phantom|employee|common) stocks?",
     "employees?",
     # 2. Plan/HR Terminology
     "compensations?",
     "(?:benefit|incentive|treasury) plans?",
-    "share-based payment",
+    "share-based payments?",
     "vesting",
     "exercisable",
-    "grant date",
+    "grant dates?",
     "service period",
     "unrecognized compensation",
     "weighted-average exercise price",
     # 3. Income Statement Noise
-    "bonus",
-    "salary",
-    "wage",
+    "bonus(?:es)?",
+    "salar(?:y|ies)?",
+    "wages?",
     "payroll",
     "severance",
-    "common shares?",
-    "exercise",
+    "(?:common|treasury|outstanding) shares?",
 ]
 
 
