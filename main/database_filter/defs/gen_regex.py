@@ -142,6 +142,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         GEN_DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
         GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
         MULTI_BASE.TRIPLE_BASE,
+        MULTI_BASE.MIXED_DOUBLE,
         add_restrictions(
             plural(to_build_alternation([BASE.SWAP, BASE.FUTURES, BASE.DERIVATIVE])),
             lookbehinds=VERB_LOOKBEHIND,
@@ -251,6 +252,7 @@ def run_tests():
         ("options and warrants", MatchLevel.STRICT),
         ("swaps and futures", MatchLevel.STRICT),
         ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE
+        ("swaps and options", MatchLevel.STRICT), # MIXED_DOUBLE (U + A)
         ("caps and floors", MatchLevel.STRICT),
         ("contracts such as swaps", MatchLevel.STRICT),
         ("contracts such as options", MatchLevel.STRICT),

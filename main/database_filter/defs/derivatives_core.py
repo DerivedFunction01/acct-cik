@@ -163,15 +163,20 @@ class MultiBaseGenerator:
     """
     suffix_restrictions: List[str] = field(default_factory=list)
     starters: Optional[List[Any]] = None
+    bases: Optional[List[Any]] = None
+    include_suffixes: bool = True
 
     def generate(self) -> Tuple[str, str]:
         # 1. Base Values
-        base_vals = [
-            b.value
-            for b in (
-                Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
-            )
-        ]
+        if self.bases is not None:
+            base_vals = [b.value if hasattr(b, "value") else b for b in self.bases]
+        else:
+            base_vals = [
+                b.value
+                for b in (
+                    Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
+                )
+            ]
         bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
 
         _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
@@ -197,11 +202,15 @@ class MultiBaseGenerator:
         # Starters must include:
         # 1. Suffixes (potentially restricted)
         # 2. Bases (provided starters OR all bases)
-        _BASE_STARTERS = self.starters if self.starters else base_vals
+        if self.starters:
+            _BASE_STARTERS = [b.value if hasattr(b, "value") else b for b in self.starters]
+        else:
+            _BASE_STARTERS = base_vals
 
-        _STARTERS = to_build_alternation(
-            [_SFX_STRICT] + _BASE_STARTERS
-        )
+        starter_list = _BASE_STARTERS
+        if self.include_suffixes:
+            starter_list = [_SFX_STRICT] + starter_list
+        _STARTERS = to_build_alternation(starter_list)
         start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
 
         double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
@@ -222,6 +231,21 @@ class MultiBaseGenerator:
 class MULTI_BASE:
     DOUBLE_BASE, TRIPLE_BASE = MultiBaseGenerator().generate()
 
+    # Mixed Double: At least one unambiguous base
+    # 1. Start with Unambiguous (U + Any)
+    # Excludes suffixes to ensure the first term is a strong base (e.g. "Swaps and Options")
+    _u_any, _ = MultiBaseGenerator(
+        starters=Groups.UNAMBIGUOUS_BASES, include_suffixes=False
+    ).generate()
+
+    # 2. End with Unambiguous (Any + U)
+    # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
+    _any_u, _ = MultiBaseGenerator(
+        bases=Groups.UNAMBIGUOUS_BASES, include_suffixes=True
+    ).generate()
+
+    MIXED_DOUBLE = to_build_alternation([_u_any, _any_u], sort_longest_first=True)
+    
 @dataclass
 class DERIVATIVES:
     # Default groups
