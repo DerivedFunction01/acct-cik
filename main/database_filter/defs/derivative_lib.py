@@ -6,8 +6,9 @@ from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_C
 from defs.fx_regex import CURRENCY_TERM, FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
 from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
-from main.database_filter.defs.derivatives_core_old import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, to_build_alternation
+from defs.derivatives_core import ALL_SUFFIXES, SUFFIX, Groups
+from main.database_filter.defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
 
 STRICT_REGEX = re.compile(
@@ -131,14 +132,10 @@ GLUE_MAP = {
     ]),
 }
 def create_target() -> str:
-    _ABSENCE_NOUNS = [
-        r"positions?",
-        r"obligations?",
-        r"activit(?:ies|y)",  # "no derivative activity"
-        r"involvements?",  # "no involvement with derivatives"
-        r"holdings?",  # "no holdings"
-    ]
-    _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{PRECISE_LOOSE_GEN_REGEX.pattern}|{build_alternation(_ABSENCE_NOUNS)})"
+    _ABSENCE_NOUNS = ALL_SUFFIXES.copy()
+    _ABSENCE_NOUNS.remove(SUFFIX.LIABILITY)
+    _ABSENCE_NOUNS.remove(SUFFIX.ASSET)
+    _DENIAL_TARGET = rf"(?:{STRICT_REGEX.pattern}|{PRECISE_LOOSE_GEN_REGEX.pattern}|{to_build_alternation(_ABSENCE_NOUNS)})"
     return _DENIAL_TARGET
 
 

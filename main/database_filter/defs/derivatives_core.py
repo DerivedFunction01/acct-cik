@@ -309,6 +309,9 @@ def build_instrument_regex(
         build_regex(soft),
         build_regex(loose),
     )
+
+DOUBLE_BASE_REGEX = build_regex([MULTI_BASE.DOUBLE_BASE])
+
 def build_smart_regex(
     core_terms: List[str],
     context_terms: str,
