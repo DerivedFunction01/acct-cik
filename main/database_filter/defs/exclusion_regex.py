@@ -89,9 +89,8 @@ LEGAL_LITIGATION_KEYWORDS = [
     # Securities litigation specific
     r"\bsecurities\s+(?:fraud|litigation|class\s+action)\b",
     r"\bclass\s+action\s+lawsuit\b",
-    r"\bshareholder\s+(?:lawsuit|litigation|suit)\b",
+    r"\bshareholder\s+(?:lawsuit|litigation|suit|derivative)\b",
     r"derivative\s+(?:action|lawsuit|suit|litigation|settlement|claim|proceeding)",
-    r"shareholder\s+derivative",
     r"courts?",
     r"petitions?",
     r"defenses?",
