@@ -4,7 +4,7 @@ from collections import defaultdict
 import re
 from typing import List, Tuple
 
-from defs.regex_lib import build_alternation, build_regex
+from defs.regex_lib import build_alternation, build_regex, to_build_alternation
 from defs.derivatives_core import ALL_SUFFIXES
 from defs.shared_context import TRADING_ENTITIES
 
@@ -177,7 +177,6 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "pension",  #
         "retirement",
         "warranty",  #
-        r"(?<!power[- ])purchase",  # Matches "Purchase contract"
         "trade",  # Matches "Trade agreement
         "deferred compensation",  #
         "stock option",  #
@@ -248,17 +247,9 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "non-compete",
         "non-disclosure",
         "confidentiality",
-        "sales",
+        "sales?",
     ]
     suffixes = ALL_SUFFIXES.copy()
-    additional_suffixes = [
-        r"positions?",
-        r"obligations?",
-        r"(?:activit|liabilit)(?:ies|y)", 
-        r"involvements?",  
-        r"holdings?",
-        r"assets?",
-    ]
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
         r"swap\s+(?:dealers?|participants?)",
@@ -266,13 +257,11 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         r"(?:the|an)\s+options?\s+(?:to|for)",
         r"to\s+(?:swap|forward|call|put)",
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
-        r"(?:the|an)\s+options?\s+(?:to|for)",
-        r"calls?\s+(?:for|upon)",
+        r"calls?\s+(?:upon)",
         r"puts?\s+(?:in|up|forward|off|out)",
     ]
 
-    suffixes.extend(additional_suffixes)
-    suffix_alternation = build_alternation(suffixes)
+    suffix_alternation = to_build_alternation(suffixes)
     placeholder_alternation = build_alternation(placeholders)
     other_alternation = build_alternation(other_terms)
     return re.compile(

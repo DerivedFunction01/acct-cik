@@ -70,6 +70,12 @@ class SUFFIX(Enum):
     COMMITMENT = r"commitments?"
     TRANSACTION = r"transactions?"
     POSITION = r"positions?"
+    OBLIGATION = r"obligations?"
+    ACTIVITY = r"activit(?:ies|y)"
+    ASSET = r"assets?"
+    LIABILITY = r"liabilit(?:ies|y)"
+    INVOLVEMENT = r"involvements?"
+    HOLDING = r"holdings?"
 
 
 # ============================================================================
@@ -115,7 +121,7 @@ class Groups:
     # Suffix Sets
     UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
     AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
-    MISC_SUFFIXES = [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION]
+    MISC_SUFFIXES = [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION, SUFFIX.ASSET, SUFFIX.LIABILITY, SUFFIX.ACTIVITY, SUFFIX.HOLDING]
 
 
 def build_double_base_pattern() -> Tuple[str, str]:
