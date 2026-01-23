@@ -21,6 +21,7 @@ BENCHMARK_RATES = [
     "TIBOR",
     "PRIBOR",
     "MOSPRIME",
+    r"euro(?:\s|\-)?dollars?",
 ]
 
 RATE_TYPES = ["fixed", "variable", "floating"]
@@ -238,7 +239,7 @@ BANK_SCORING_REGEX = build_regex(BANK_ENTITIES)
 LIBOR_TRANSITION_KEYWORDS = [
     # ... (Your existing transition terms: cessation, phase-out) ...
     r"LIBOR\s+transition",
-    r"(?:phase[- ]?out|replacement|migration|discontinu(?:ance|ation|ed)|transition|cessation)\s+(?:of|(?:away\s+)?from)\s+LIBOR",
+    r"(?:phase(?:\s|\-)?out|replacement|migration|discontinu(?:ance|ation|ed)|transition|cessation)\s+(?:of|(?:away\s+)?from)\s+LIBOR",
     # Regulatory Bodies & Committees
     r"Alternative\s+Reference\s+Rates?\s+Committee",
     r"\bARRC\b",
@@ -467,6 +468,8 @@ def run_tests():
         ("interest rate hedges", MatchLevel.SOFT),
         ("floating rate hedge contract", MatchLevel.STRICT),
         ("interest rate hedging", MatchLevel.SOFT),
+        ("Eurodollar futures", MatchLevel.STRICT),
+        ("Eurodollar options", MatchLevel.SOFT),
     ]
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 

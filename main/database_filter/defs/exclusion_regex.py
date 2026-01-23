@@ -150,7 +150,7 @@ NON_FINANCIAL_KEYWORDS = [
 PLAN_ASSETS_KEYWORDS = [
     r"\bplan\s+assets\b",
     r"\bpension\s+(?:plans|funds?|trust|benefits?)",
-    r"\bpost[- ]?retirement\s+(?:benefits?|plans?)",
+    r"\bpost(?:\s|\-)?retirement\s+(?:benefits?|plans?)",
     r"\bdefined\s+benefit\s+(?:plans?|pensions?)",
     r"\bretirement\s+(?:plans?|system|benefits?)",
     r"\btrust\s+assets\b",

@@ -89,7 +89,7 @@ CONTRACTUAL_KEYWORDS_PHRASE = [
     r"certificate\s+of\s+incorporation",
     r"articles\s+of\s+incorporation",
     r"certificate\s+of\s+designation",
-    r"by[- ]?laws",
+    r"by(?:\s|\-)?laws",
     r"organizational\s+documents",
     r"delaware\s+law",
     r"general\s+corporation\s+law",
