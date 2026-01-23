@@ -484,7 +484,7 @@ TERMINATION_VERBS = [
     r"liquidat(?:e(?:d|s)?|ing)",  # Matches: liquidate, liquidated.  STOPS: liquidation
     r"unwound",
     r"unwind",
-    r"exercis(?:e(?:d|s)?|ing)",  # Matches: exercise, exercised.        STOPS: exercisable
+    r"exercis(?:e(?:d|s)?|ing)(?!\s+(?:price|rate|date|balance|value)",  # Matches: exercise, exercised.        STOPS: exercisable
     r"extinguish(?:e(?:d|s)?|ing)",  # Matches: extinguish, extinguished.   STOPS: extinguishment
     r"novat(?:e(?:d|s)?|ing)",  # Matches: novate, novated.            STOPS: novation
     r"cancel(?:l(?:ed|ing)|s)?",  # Matches: cancel, cancelled.          STOPS: cancellation
