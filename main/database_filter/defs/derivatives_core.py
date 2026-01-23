@@ -335,7 +335,7 @@ class MultiBaseGenerator:
             base_vals = [b.value if hasattr(b, "value") else b for b in self.bases]
         else:
             base_vals = [
-                b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES)
+                b.value for b in (Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES)
             ]
         bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
 
@@ -399,14 +399,14 @@ class MULTI_BASE:
     # 1. Start with Unambiguous (U + Any)
     # Excludes suffixes to ensure the first term is a strong base (e.g. "Swaps and Options")
     _u_any, _ = MultiBaseGenerator(
-        starters=Groups.UNAMBIGUOUS_BASES, include_suffixes=False
+        starters=Groups.CORE_UNAMBIGUOUS_BASES, include_suffixes=False
     ).generate()
 
     # 2. End with Unambiguous (Any + U)
     # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
     _any_u, _ = MultiBaseGenerator(
-        bases=Groups.UNAMBIGUOUS_BASES,
-        starters=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
+        bases=Groups.CORE_UNAMBIGUOUS_BASES,
+        starters=Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
         include_suffixes=True,
     ).generate()
 
@@ -430,9 +430,10 @@ class DERIVATIVES:
         default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
     )
 
-    # Can add additional to this list, or force the list to be empty or override it
+    # Can add additional to this list,
     ADDITIONAL_BASES: List[Any] = field(default_factory=list)
 
+    # Or force the list to be empty or override it
     _AMB_BASES: List[Any] = field(default_factory=lambda: Groups.AMBIGUOUS_BASES)
 
     # Standalone suffixes will not be a prefix for a base

@@ -45,7 +45,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         lookaheads=[rf"{sep}(?:{_AMBIGUOUS_ALT}\b(?!\s+{_SFX_ALT}))(?!{_STRICT_ALT})"],
         lookahead_sep="",
     )
-    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES) if b not in ambiguous_list]
+    _OTHER_BASES = [b for b in (Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES) if b not in ambiguous_list]
     eq_starters = [_AMBIGUOUS_STRICT] + _OTHER_BASES
 
     # Generate restricted multi-base patterns for Equity context
