@@ -78,41 +78,42 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     fx_prefixes = build_fx_dynamic_pattern()
     currency_name_prefixes = [currency_name_alternation]
     naked_prefixes = [CURRENCY_TERM] # Weak prefix ("currency")
-    
-    strong_prefixes = fx_prefixes + currency_name_prefixes
-    all_prefixes = strong_prefixes + naked_prefixes
-    
+
+    all_prefixes = fx_prefixes + naked_prefixes + currency_name_prefixes
+
     # --- 2. Specific Phrases ---
     fixed_phrases = [
-        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
-        r"net investment hedges?",
-        rf"{CURRENCY_TERM}\s+contracts?",
+        r"(?<!to\s)hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:in|for|to))",
+        r"net\s+investment\s+hedges?",
     ]
-    
+
     # Forward types (non-deliverable, etc.) + Forward/Option
     # These are specific enough to be strict
+    # Nonderivatible forward, non deliverable option
     _FWD_CONFIG = DERIVATIVES(
         PREFIX=forward_types,
-        _BASES=[BASE.FORWARD, BASE.OPTION],
-        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES,
-        MULTI_BASE=[]
+        _BASES=[BASE.FORWARD, BASE.OPTION, BASE.SWAP],
+        _AMB_BASES=[],
+        MULTI_BASE=[],
     )
     _FWD_PATTERN = DerivativeGenerator(config=_FWD_CONFIG).generate()
-    
+
     # --- 3. Strict Generator ---
     # Option is strict in FX context (Foreign Exchange Option)
     # Split into Strong (allows Agreements) and Weak (allows only Contracts)
     _STRICT_CONFIG_STRONG = DERIVATIVES(
-        PREFIX=strong_prefixes,
+        PREFIX=fx_prefixes,
         STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
         MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
     )
     _STRICT_MAIN_STRONG = DerivativeGenerator(config=_STRICT_CONFIG_STRONG).generate()
-    
+
+    # Barebones "currency" -> Currency contract, currency option, currency swap
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
         STANDALONE_BASES=[BASE.OPTION],
-        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES, # No Agreements for "currency"
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[],
     )
     _STRICT_MAIN_WEAK = DerivativeGenerator(config=_STRICT_CONFIG_WEAK).generate()
@@ -121,33 +122,34 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _MULTI_CONFIG = DERIVATIVES(
         PREFIX=all_prefixes,
         _BASES=[],
+        _AMB_BASES=[],
         SUFFIXES=[],
         MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
     )
     _STRICT_MULTI = DerivativeGenerator(config=_MULTI_CONFIG).generate()
-    
+
     strict_fx_regex = build_regex([_STRICT_MAIN_STRONG, _STRICT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
-    
+
     # --- 4. Soft Generator ---
     # Allows ambiguous bases (Caps, Floors) and Hedges
     _SOFT_CONFIG_STRONG = DERIVATIVES(
-        PREFIX=strong_prefixes,
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + [BASE.HEDGE],
+        PREFIX=fx_prefixes,
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         MULTI_BASE=[],
-        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
     )
     _SOFT_MAIN_STRONG = DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate()
 
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + [BASE.HEDGE],
+        STANDALONE_BASES=[BASE.OPTION, BASE.HEDGE],
         MULTI_BASE=[],
-        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES # No Agreements for "currency"
+        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES,
     )
     _SOFT_MAIN_WEAK = DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
 
     soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
-    
+
     # --- 5. Loose Generator ---
     _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, LOOSE=True)
     _LOOSE_MAIN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
@@ -241,7 +243,7 @@ def build_fx_context_terms_advanced() -> Tuple[List[str], List[str], List[str]]:
     fx_risk = [
         rf"exchange\s+rate\s+{_RISK_ALTERNATION}",
         rf"foreign\s+interest[- ]rate\s+{_RISK_ALTERNATION}",
-        rf"currenc(?:y|ies)\s+{_RISK_ALTERNATION}",
+        rf"{CURRENCY_TERM}\s+{_RISK_ALTERNATION}",
         rf"foreign\s+(?:currency|exchange)\s+{_RISK_ALTERNATION}",
     ]
 
