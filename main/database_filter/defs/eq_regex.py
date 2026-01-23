@@ -116,10 +116,10 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _RESTRICTED_CONFIG = DERIVATIVES(
         PREFIX=restricted_core_terms,
         _BASES=Groups.UNAMBIGUOUS_BASES,
-        _AMB_BASES=[], # Explicitly empty to prevent ambiguous bases (Options/Warrants)
+        _AMB_BASES=[],  # Explicitly empty to prevent ambiguous bases (Options/Warrants)
         ADDITIONAL_BASES=Groups.TRADING_BASES,
-        STANDALONE_SUFFIXES=[], # No "Stock Agreement"
-        MULTI_BASE=[], # No multi-base to avoid "Stock options and warrants"
+        STANDALONE_SUFFIXES=[],  # No "Stock Agreement"
+        MULTI_BASE=[eq_triple],  # Allow triple base only to avoid "Stock options and warrants"
     )
     _RESTRICTED_PATTERN = DerivativeGenerator(config=_RESTRICTED_CONFIG).generate()
 
