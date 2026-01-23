@@ -705,19 +705,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?"
     ]
-    soft_specific_phrases = [
-        r"fixed[- ]price(?: purchase)?\s+commitments?",
-    ] + specific_phrases
-
-    # Pre-sort longest-first for Max Munch precedence
-    sorted_specific_phrases = sorted(
-        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
-    )
-
-    sorted_soft_specific_phrases = sorted(
-        soft_specific_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
-    )
 
     _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
     _FREIGHT_BASES = Groups.UNAMBIGUOUS_BASES.copy()
@@ -737,8 +724,20 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
     specific_phrases.append(_FREIGHT_PATTERN)
-    soft_specific_phrases.append(_FREIGHT_PATTERN)
 
+    soft_specific_phrases = [
+        r"fixed[- ]price(?: purchase)?\s+commitments?",
+    ] + specific_phrases
+
+    # Pre-sort longest-first for Max Munch precedence
+    sorted_specific_phrases = sorted(
+        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    )
+
+    sorted_soft_specific_phrases = sorted(
+        soft_specific_phrases,
+        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
+    )
     # -------------------------------------------------------------------------
     # --- A. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
@@ -797,14 +796,22 @@ def run_tests():
         ("natural gas derivative", MatchLevel.STRICT),
         ("fixed price swap", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),
-        ("commodity contract", MatchLevel.SOFT), # Note all cp contracts are derivatives
+        (
+            "commodity contract",
+            MatchLevel.SOFT,
+        ),  # Note all cp contracts are derivatives
         ("oil price contract", MatchLevel.SOFT),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),
         ("oil hedging", MatchLevel.LOOSE),
         ("commodity arrangement", MatchLevel.LOOSE),
         ("commodity options", MatchLevel.SOFT),
-        ("commodity options, swaps and futures", MatchLevel.STRICT), # TRIPLE_BASE
+        ("commodity options, swaps and futures", MatchLevel.STRICT),  # TRIPLE_BASE
+        ("freight swap", MatchLevel.LOOSE),
+        ("freight swap agreement", MatchLevel.STRICT),
+        ("container freight derivative", MatchLevel.STRICT),
+        ("freight forward", MatchLevel.NONE),
+        ("freight forward agreement", MatchLevel.NONE),
     ]
 
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
