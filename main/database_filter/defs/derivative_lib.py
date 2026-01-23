@@ -3,11 +3,11 @@ from defs.ir_regex import IR_CONTEXT_REGEX, IR_REGEX, IR_SOFT_REGEX, IR_STRICT_C
 from defs.cp_regex import COMMODITY_REGEX, CP_CONTEXT_REGEX, CP_REGEX, CP_SOFT_REGEX, CP_STRICT_CONTEXT_REGEX, CP_LOOSE_REGEX, CP_RISK_REGEX
 from defs.cr_regex import CR_CONTEXT_REGEX, CR_REGEX, CR_SOFT_REGEX, CR_STRICT_CONTEXT_REGEX, CR_LOOSE_REGEX, CR_RISK_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX
-from defs.fx_regex import FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
+from defs.fx_regex import CURRENCY_TERM, FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, NOTIONAL_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
 from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
-from defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
+from main.database_filter.defs.derivatives_core_old import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
 
 
 STRICT_REGEX = re.compile(
@@ -109,11 +109,11 @@ GLUE_MAP = {
     ]),
     "fx": build_regex([
         r"(?:foreign|forward)[- ](?:forward|foreign)",
-        r"(?:foreign|forward|cross|multi)[- ](?:currency|exchange rate|exchange)",
-        r"(?<!single[- ])(?<!crypto[- ])currency",
+        r"(?:foreign|forward|cross|multi)[- ](?:currency|exchange rates?|exchange)",
+        CURRENCY_TERM,
         r"fx",
         r"forex",
-        r"exchange\s+rate",
+        r"exchange\s+rates?",
     ]),
     "cp": COMMODITY_REGEX,
     "eq": build_regex([
@@ -122,7 +122,7 @@ GLUE_MAP = {
         r"shares?",
     ]),
     "crypto": build_regex([
-        r"crypto",
+        r"crypto(?:[ -]?currenc(?:y|ies))?",
         r"digital\s+assets?",
     ]),
     "cr": build_regex([

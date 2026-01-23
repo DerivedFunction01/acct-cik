@@ -1,11 +1,20 @@
 import re
 from typing import List, Tuple
-from defs.derivatives_core import SUFFIXES, build_smart_regex, expand_instruments, suffix_alternation
-from defs.regex_lib import build_alternation, build_regex
+from defs.derivatives_core import (
+    BASE,
+    DERIVATIVES,
+    DerivativeGenerator,
+    Groups,
+    MULTI_BASE,
+    SUFFIX,
+)
+from defs.regex_lib import add_restrictions, build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies, build_risk_managment_phrase
 
 
-def build_fx_dynamic_pattern() -> str:
+CURRENCY_TERM = add_restrictions("currency", lookbehinds=["single", "crypto"])
+
+def build_fx_dynamic_pattern() -> List[str]:
     """
     Dynamically build comprehensive FX patterns with optional positions.
 
@@ -25,7 +34,7 @@ def build_fx_dynamic_pattern() -> str:
     )
     word2_alt = build_alternation(
         [
-            r"(?<!single[- ])(?<!crypto[- ])currency",
+            CURRENCY_TERM,
             r"(?<!interest[- ])exchange",
             r"(?<!interest[- ])exchange[- ]rate",
         ],
@@ -53,14 +62,7 @@ def build_fx_dynamic_pattern() -> str:
 
     # CRITICAL: We let build_alternation sort this entire list by length/word count
     # to enforce Max Munch, ensuring "forward foreign currency" matches before "forward".
-    return build_alternation(patterns, sort_longest_first=True)
-
-
-def _replace_dynamic_placeholder(
-    phrases: List[str], replacement_fragment: str
-) -> List[str]:
-    """Replaces the '__DYNAMIC__' placeholder in a list of phrase templates."""
-    return [p.replace(r"__DYNAMIC__", replacement_fragment) for p in phrases]
+    return patterns
 
 
 def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -76,109 +78,65 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         forward_types, sort_longest_first=True
     )
 
-    # -------------------------------------------------------------------------
-    # --- A. UNIFIED TEMPLATE PHRASES ---
-    # -------------------------------------------------------------------------
-
-    # Templates for phrases that attach instrument bases to currency context
-    dynamic_templates = [
-        rf"(?:{currency_name_alternation}[- ](?:denominated|linked|related|based))[- ](?:__DYNAMIC__)",
-        rf"(?:{currency_name_alternation})[- ](?:__DYNAMIC__)",
-        r"(?<!single[- ])(?<!crypto[- ])currency[- ](?:__DYNAMIC__)", # dynamic currency includes swaps and options, but not contracts, agreements, or instruments
-    ]
-
-    # Fixed (non-dynamic) specific phrases
+    # --- 1. Define Prefixes ---
+    fx_prefixes = build_fx_dynamic_pattern()
+    currency_prefixes = [currency_name_alternation]
+    naked_prefixes = [CURRENCY_TERM]
+    
+    all_prefixes = fx_prefixes + currency_prefixes + naked_prefixes
+    
+    # --- 2. Specific Phrases ---
     fixed_phrases = [
-        # Explicitly safe Forward Types
-        rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)\s+(?:{suffix_alternation})",
-        rf"(?:{forward_types_alternation})\s+(?:forwards?|options?)",
-        rf"(?<!single[- ])(?<!crypto[- ])currency\s+contracts?", # currency contracts
+        r"hedges?\s+of\s+(?:the\s+)?net\s+investments?",
+        r"net investment hedges?",
+        rf"{CURRENCY_TERM}\s+contracts?",
     ]
-
-    # -------------------------------------------------------------------------
-    # --- B. STRICT Pattern Construction (High Precision) ---
-    # -------------------------------------------------------------------------
-
-    # Fragment for dynamic replacement (e.g. "USD-denominated ...")
-    # We use exclude_standalone_suffixes=True to strip generic suffixes,
-    # then explicitly add back "options" to ensure precision.
-    strict_dynamic_fragment = expand_instruments(
-        unsafe=False,
-        exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["options?"], # only allow options
+    
+    # Forward types (non-deliverable, etc.) + Forward/Option
+    # These are specific enough to be strict
+    _FWD_CONFIG = DERIVATIVES(
+        PREFIX=forward_types,
+        _BASES=[BASE.FORWARD, BASE.OPTION],
+        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES,
+        MULTI_BASE=[]
     )
-
-    loose_dynamic_fragment = expand_instruments(
-        unsafe=True,
-        exclude_standalone_suffixes=False,
+    _FWD_PATTERN = DerivativeGenerator(config=_FWD_CONFIG).generate()
+    
+    # --- 3. Strict Generator ---
+    # Option is strict in FX context (Foreign Exchange Option)
+    _STRICT_CONFIG = DERIVATIVES(
+        PREFIX=all_prefixes,
+        STANDALONE_BASES=[BASE.OPTION],
+        MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
     )
-
-    # 1. Substitute the dynamic fragment into the templates
-    strict_dynamic_phrases = _replace_dynamic_placeholder(
-        dynamic_templates, strict_dynamic_fragment
+    _STRICT_MAIN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
+    
+    # Multi-Base (Caps and Floors, etc.) attached to prefixes
+    _MULTI_CONFIG = DERIVATIVES(
+        PREFIX=all_prefixes,
+        _BASES=[],
+        SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
     )
-
-    # 2. Combine and sort all specific phrases
-    strict_specific_phrases = sorted(
-        strict_dynamic_phrases + fixed_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
+    _STRICT_MULTI = DerivativeGenerator(config=_MULTI_CONFIG).generate()
+    
+    strict_fx_regex = build_regex([_STRICT_MAIN, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    
+    # --- 4. Soft Generator ---
+    # Allows ambiguous bases (Caps, Floors) and Hedges
+    _SOFT_CONFIG = DERIVATIVES(
+        PREFIX=all_prefixes,
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + [BASE.HEDGE],
+        MULTI_BASE=[],
+        SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
     )
-
-    # 3. Final pattern build
-    # Fragment for Core Terms (e.g. "Foreign Exchange ...")
-    # We use unsafe=False (Strict Mode), which includes UNAMBIGUOUS_SUFFIXES (like "contracts") by default.
-    # We explicitly add "options" because it is normally ambiguous, but safe in FX context ("Foreign Exchange Option").
-    strict_instrument_fragment = expand_instruments(
-        unsafe=False, # unsafe bases excluded
-        additional_standalone_suffixes=SUFFIXES, # but all the suffixes, due to our compound dynamic phrases
-    )
-    # --- 2. Build Core Terms (Prefixes) ---
-    # Precise prefixes (e.g., 'forward foreign currency')
-
-    strict_pattern = build_smart_regex(
-        [fx_dynamic_pattern],  # Precise prefixes
-        strict_instrument_fragment,  # Safe bases only
-        strict_specific_phrases,  # Final list of specific phrases
-    )
-
-    strict_fx_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
-
-    # 3. Final pattern build
-    soft_instrument_fragment = expand_instruments(
-        unsafe=True, 
-        additional_standalone_suffixes=["hedges?"]
-    )
-
-    soft_pattern = build_smart_regex(
-        [fx_dynamic_pattern],  # Broad prefixes
-        soft_instrument_fragment,  # Unsafe bases included
-        strict_specific_phrases,  # Final list of specific phrases
-    )
-    soft_fx_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-
-    # -------------------------------------------------------------------------
-    # --- C. SOFT Pattern Construction (Contextual Precision) ---
-    # -------------------------------------------------------------------------
-
-    # 1. Substitute the dynamic fragment into the templates
-    loose_dynamic_phrases = _replace_dynamic_placeholder(
-        dynamic_templates, loose_dynamic_fragment
-    )
-
-    loose_specific_phrases = sorted(
-        loose_dynamic_phrases + fixed_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
-    )
-
-    loose_instrument_fragment = expand_instruments(
-        unsafe=True, exclude_standalone_suffixes=False, full_alternation=True
-    )
-    loose_pattern = build_smart_regex(
-        [fx_dynamic_pattern, r"(?<!single[- ])(?<!crypto[- ])currency"],
-        loose_instrument_fragment,
-        loose_specific_phrases,
-    )
-    loose_fx_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
+    _SOFT_MAIN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
+    soft_fx_regex = build_regex([_SOFT_MAIN, _STRICT_MULTI, _FWD_PATTERN] + fixed_phrases)
+    
+    # --- 5. Loose Generator ---
+    _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, LOOSE=True)
+    _LOOSE_MAIN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
+    loose_fx_regex = build_regex([_LOOSE_MAIN] + fixed_phrases)
 
     return strict_fx_regex, soft_fx_regex, loose_fx_regex
 
@@ -317,7 +275,7 @@ FX_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
 
 
 def run_tests():
-    from defs.derivatives_core import (
+    from main.database_filter.defs.derivatives_core_old import (
         MatchLevel,
         run_category_tests,
         run_category_tests_counter,
