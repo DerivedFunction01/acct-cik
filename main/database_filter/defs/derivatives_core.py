@@ -306,17 +306,17 @@ class DerivativeGenerator:
         self
     ):
         # 1. Determine Effective Lists (Flattened)
-        
+
         # Bases allowed to stand alone (Part 3)
         # Strict bases + Standalone bases + (Ambiguous bases if LOOSE)
         strict_bases_list = self.config._BASES + self.config.STANDALONE_BASES
         if self.config.LOOSE:
             strict_bases_list += Groups.AMBIGUOUS_BASES
-            
+
         # Bases allowed to have suffixes (Part 1)
         # Ambiguous + Strict + Additional
         ambig_bases_list = self.config._AMB_BASES + strict_bases_list + self.config.ADDITIONAL_BASES
-        
+
         # Suffixes allowed to attach to bases (Part 1)
         # Suffixes + Additional + Standalone + (Misc if LOOSE)
         suffixes_list = (
@@ -326,7 +326,7 @@ class DerivativeGenerator:
         )
         if self.config.LOOSE:
             suffixes_list += Groups.MISC_SUFFIXES
-            
+
         # Suffixes allowed to stand alone (Part 3)
         standalone_suffixes_list = self.config.STANDALONE_SUFFIXES
 
@@ -336,29 +336,34 @@ class DerivativeGenerator:
         if self.config.LOOSE:
             # Combine all unique terms into one massive alternation
             all_terms = set(strict_bases_list + ambig_bases_list + suffixes_list + standalone_suffixes_list)
-            return to_build_alternation(list(all_terms), sort_longest_first=True)
+            prefix_pattern = to_build_alternation(
+                self.config.PREFIX, sort_longest_first=True
+            )
+            suffix_str = to_build_alternation(list(all_terms), sort_longest_first=True)
+            combo_str = rf"{prefix_pattern}[- ]{suffix_str}"
+            return combo_str
 
         # Normal Mode
-        
+
         # Part 1: Base + Suffix
         # ambig_bases_list + suffixes_list
         # Use sets to remove duplicates for cleaner regex, then convert to list
         ambig_str = to_build_alternation(list(set(ambig_bases_list)), sort_longest_first=True)
         suffix_str = to_build_alternation(list(set(suffixes_list)), sort_longest_first=True)
         combo_str = rf"{ambig_str}[- ]{suffix_str}"
-        
+
         # Part 2: Multi Base
         multi_str = to_build_alternation(
             self.config.MULTI_BASE, sort_longest_first=True
         )
-        
+
         # Part 3: Standalone Terms (Bases + Standalone Suffixes)
         standalone_pool = strict_bases_list + standalone_suffixes_list
         standalone_str = to_build_alternation(list(set(standalone_pool)), sort_longest_first=True)
 
         # Combine Suffix Parts
         full_suffix_pattern = to_build_alternation([combo_str, multi_str, standalone_str], sort_longest_first=True)
-        
+
         # Prefix
         prefix_pattern = to_build_alternation(self.config.PREFIX, sort_longest_first=True)
 

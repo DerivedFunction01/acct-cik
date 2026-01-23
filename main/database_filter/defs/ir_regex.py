@@ -455,7 +455,7 @@ def run_tests():
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
         ("interest rate swap agreement", MatchLevel.STRICT),
-        ("interest rate agreement", MatchLevel.SOFT),
+        ("interest rate agreement", MatchLevel.STRICT),
         ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
         ("floating rate cap", MatchLevel.SOFT),
         ("treasury rate locks", MatchLevel.SOFT),
