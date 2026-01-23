@@ -93,9 +93,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"capped calls?",
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
-        r"margin\s+loans?",
-        # Triple Base with Equity Prefixes (overrides compensation logic due to list strength)
-        rf"(?:stock|shares?|treasury|equity)\s+{eq_triple}",
+        r"margin\s+loans?"
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
