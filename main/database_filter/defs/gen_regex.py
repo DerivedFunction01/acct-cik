@@ -21,7 +21,6 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
     OTHER_INSTRUMENTS = build_alternation(
         [
             r"(?:derivative\s+financial|risk[- ]managment)\s+instruments?",
-            build_compound([r"zero[- ]cost"], BASE.COLLAR),
             r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:for|in|at))",
         ]
     )
@@ -244,28 +243,51 @@ def run_tests():
         MatchLevel,
         run_category_tests,
     )
+    # STRICT IS THE ONLY ONE THAT IS USED FOR NO-PREFIX WEB EXTRACTION.
+    # ACTUAL DERIVATIVES MUST BE STRICT, AMBIGUOUS MUST BE SOFT OR LOWER
+    # LOOSE PRECISE MATCHES PLURALS
+    # LOOSE MATCHES ANY
     test_cases = [
-        ("currency options and warrants", MatchLevel.STRICT),
-        (
-            "equity options and warrants",
-            MatchLevel.LOOSE,
-        ),  # Fails double base (equity exclusion), caught as Loose Generic (warrants)
-        ("stock options and warrants", MatchLevel.LOOSE),
-        ("options and warrants", MatchLevel.STRICT),
-        ("swaps and futures", MatchLevel.STRICT),
-        ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE
-        ("swaps and options", MatchLevel.STRICT), # MIXED_DOUBLE (U + A)
-        ("caps and swaps", MatchLevel.STRICT), # MIXED_DOUBLE (A + U)
-        ("caps and floors", MatchLevel.STRICT),
+        # --- STRICT: True Derivatives ---
+        ("swap contract", MatchLevel.STRICT),
+        ("option contract", MatchLevel.STRICT),
+        ("hedging instrument", MatchLevel.STRICT),
+        ("derivative financial instruments", MatchLevel.STRICT),
+        ("cash flow hedge", MatchLevel.STRICT),
+        ("fair value hedge", MatchLevel.STRICT),
+        ("embedded derivative", MatchLevel.STRICT),
+        ("call option", MatchLevel.STRICT),
+        ("put option", MatchLevel.STRICT),
+        ("swap liability", MatchLevel.STRICT),
+        ("derivative asset", MatchLevel.STRICT),
+        ("swaps and options", MatchLevel.STRICT), # Mixed Double
+        ("swaps, options and futures", MatchLevel.STRICT), # Triple Base
         ("contracts such as swaps", MatchLevel.STRICT),
-        ("contracts such as options", MatchLevel.STRICT),
-        ("contracts sets the cap", MatchLevel.STRICT),
-        ("call contract", MatchLevel.STRICT),
-        ("put contract", MatchLevel.STRICT),
         ("hedge contract", MatchLevel.STRICT),
+        ("hedges of net investments", MatchLevel.STRICT),
+        ("swap agreement", MatchLevel.STRICT),
+        ("swaps", MatchLevel.STRICT), # Plural Unambiguous (Restricted)
+        ("futures", MatchLevel.STRICT), # Plural Unambiguous (Restricted)
+
+        # --- SOFT: Ambiguous Plurals / Double Ambiguous / Unambiguous Singular ---
+        ("options", MatchLevel.SOFT), # Plural Ambiguous
+        ("warrants", MatchLevel.SOFT), # Plural Ambiguous (in precise loose)
+        ("caps and floors", MatchLevel.SOFT), # Double Ambiguous
+        ("contracts such as options", MatchLevel.SOFT),
+        ("contracts sets the cap", MatchLevel.SOFT),
+        ("currency options and warrants", MatchLevel.SOFT),
+        ("swap", MatchLevel.SOFT), # Singular Unambiguous is in PRECISE_LOOSE
+        ("to swaps", MatchLevel.SOFT), # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
+
+        # --- LOOSE: Singular Ambiguous / Broad ---
+        ("stock options and warrants", MatchLevel.LOOSE),
+        ("option", MatchLevel.LOOSE), # Singular Ambiguous
+        ("cap", MatchLevel.LOOSE), # Singular Ambiguous
+        ("market cap", MatchLevel.LOOSE), # Matches "cap" in LOOSE
     ]
-    print("\nRunning Double Base Tests...")
+    print("\nRunning Gen Regex Tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
 
 if __name__ == "__main__":
+    
     run_tests()

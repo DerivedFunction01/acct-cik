@@ -168,6 +168,13 @@ class SPEC_BASE(Enum):
             BASE.OPTION,
         ],
     )
+    TRADING_COLLAR = build_compound(
+        [
+            r"zero[- ]cost",
+            BASE.OPTION,
+        ],
+        BASE.COLLAR,
+    )
 
 
 class Groups:
@@ -197,6 +204,7 @@ class Groups:
     TRADING_BASES = [
         SPEC_BASE.TRADING_OPTION,
         SPEC_BASE.SPECIAL_SPREAD,
+        SPEC_BASE.TRADING_COLLAR,
     ]
     MISC_BASES = [
         BASE.WARRANT,
