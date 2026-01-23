@@ -112,14 +112,25 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         ADDITIONAL_BASES=Groups.TRADING_BASES,
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
+    _RESTRICTED_BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    _RESTRICTED_BASES.remove(BASE.SWAP)
+    _RESTRICTED_BASES.remove(BASE.FORWARD)
 
+    _SWP_FWD = [BASE.SWAP, BASE.FORWARD]
+    _SWP_FWD_ALT = to_build_alternation(_SWP_FWD)
+    _RESTRICTED_SWP_FWD = add_restrictions(
+        _SWP_FWD_ALT, lookbehinds=[r"stocks?", r"dividends?", r"shares?"]
+    )
+    _RESTRICTED_BASES.append(_RESTRICTED_SWP_FWD)
     _RESTRICTED_CONFIG = DERIVATIVES(
         PREFIX=restricted_core_terms,
-        _BASES=Groups.UNAMBIGUOUS_BASES,
-        _AMB_BASES=[],  # Explicitly empty to prevent ambiguous bases (Options/Warrants)
+        _BASES=_RESTRICTED_BASES,
+        _AMB_BASES=[],  # Explicitly empty
         ADDITIONAL_BASES=Groups.TRADING_BASES,
         STANDALONE_SUFFIXES=[],  # No "Stock Agreement"
-        MULTI_BASE=[eq_triple],  # Allow triple base only to avoid "Stock options and warrants"
+        MULTI_BASE=[
+            eq_triple
+        ],  # Allow triple base only to avoid "Stock options and warrants"
     )
     _RESTRICTED_PATTERN = DerivativeGenerator(config=_RESTRICTED_CONFIG).generate()
 
@@ -303,7 +314,7 @@ def run_tests():
         ("stock options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE with stock prefix
         ("stock agreement, options and warrants", MatchLevel.NONE), # TRIPLE_BASE with agreement start
         ("equity options and swaps", MatchLevel.STRICT), # Double Base (Ambiguous + Unambiguous)
-        ("stock swap", MatchLevel.STRICT),
+        ("stock swap", MatchLevel.NONE),
         ("dividend futures", MatchLevel.STRICT),
         ("S&P 500 swap", MatchLevel.STRICT),
     ]
