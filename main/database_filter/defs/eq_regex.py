@@ -109,6 +109,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _STRICT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
         MULTI_BASE=[eq_double, eq_triple],
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
 
@@ -116,6 +117,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=restricted_core_terms,
         _BASES=Groups.UNAMBIGUOUS_BASES,
         _AMB_BASES=[], # Explicitly empty to prevent ambiguous bases (Options/Warrants)
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
         STANDALONE_SUFFIXES=[], # No "Stock Agreement"
         MULTI_BASE=[], # No multi-base to avoid "Stock options and warrants"
     )
@@ -130,6 +132,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _SOFT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
         MULTI_BASE=[eq_double, eq_triple],
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
         STANDALONE_BASES=[BASE.OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
@@ -140,7 +143,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
         MULTI_BASE=[eq_double, eq_triple],
-        ADDITIONAL_BASES=[BASE.OPTION],
+        ADDITIONAL_BASES=[BASE.OPTION] + Groups.TRADING_BASES,
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=ALL_SUFFIXES,
     )

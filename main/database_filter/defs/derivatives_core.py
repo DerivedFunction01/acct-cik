@@ -105,7 +105,7 @@ class SPEC_BASE(Enum):
         ],
         BASE.SWAP,
     )
-    SPECIAL_OPTION = build_compound(
+    TRADING_OPTION = build_compound(
         [
             build_compound(
                 [],
@@ -130,11 +130,16 @@ class SPEC_BASE(Enum):
             ),
             r"forward[- ]start",
             r"calendar",
+            BASE.STRADDLE,
+            BASE.STRANGLE,
+        ],
+        BASE.OPTION,
+    )
+    CORE_OPTION = build_compound(
+        [
             BASE.FORWARD,
             BASE.PUT,
             BASE.CALL,
-            BASE.STRADDLE,
-            BASE.STRANGLE,
             BASE.SWAP,
         ],
         BASE.OPTION,
@@ -175,11 +180,8 @@ class Groups:
         BASE.SWAPTION,
         SPEC_BASE.SPECIAL_FUTURES,
         SPEC_BASE.SPECIAL_SWAP,
-        SPEC_BASE.SPECIAL_OPTION,
-        SPEC_BASE.SPECIAL_SPREAD,
+        SPEC_BASE.CORE_OPTION,
         SPEC_BASE.SPECIAL_OTHER,
-        BASE.STRADDLE,
-        BASE.STRANGLE,
     ]
     AMBIGUOUS_BASES = [
         BASE.OPTION,
@@ -189,6 +191,13 @@ class Groups:
         BASE.PUT,
         BASE.CALL,
         BASE.HEDGE,
+    ]
+    TRADING_BASES = [
+        SPEC_BASE.TRADING_OPTION,
+        SPEC_BASE.SPECIAL_SPREAD,
+        BASE.STRADDLE,
+        BASE.STRANGLE,
+        BASE.SPREAD,
     ]
     MISC_BASES = [BASE.WARRANT]
     NON_BASES = [
