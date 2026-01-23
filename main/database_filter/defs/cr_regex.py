@@ -42,26 +42,37 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
 
     # --- 3. Build Patterns ---
-    
+
     # Strict/Soft are identical in CR because exclude_standalone_suffixes=True
     # forces safe bases only, but we explicitly allow Option/Contract/Agreement standalone.
+    BASES = Groups.UNAMBIGUOUS_BASES.copy()
+    if BASE.FORWARD in BASES:
+        BASES.remove(BASE.FORWARD)
+    if BASE.COLLAR in BASES:
+        BASES.remove(BASE.COLLAR)
+    _AMB_BASES = [BASE.SWAP, BASE.COLLAR]
+
     _CR_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        _BASES=BASES,
+        _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
         ADDITIONAL_BASES=Groups.TRADING_BASES,
     )
     _CR_PATTERN = DerivativeGenerator(config=_CR_CONFIG).generate()
-    
+
     strict_cr_regex = build_regex([_CR_PATTERN] + sorted_specific_phrases)
     soft_cr_regex = build_regex([_CR_PATTERN] + sorted_specific_phrases)
 
     # Loose: Allows any base/suffix with the prefix
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        _BASES=BASES,
+        _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
         ADDITIONAL_BASES=Groups.TRADING_BASES,
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
-    
+
     loose_cr_regex = build_regex([_LOOSE_PATTERN] + sorted_specific_phrases)
 
     return strict_cr_regex, soft_cr_regex, loose_cr_regex
