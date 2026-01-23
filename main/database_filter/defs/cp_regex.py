@@ -1,9 +1,11 @@
 import re
 from typing import List, Tuple
-from main.database_filter.defs.derivatives_core_old import (
+from defs.derivatives_core import (
+    BASE,
     COMMODITY_COMMERICIAL_PATTERN,
-    build_smart_regex,
-    expand_instruments,
+    DERIVATIVES,
+    DerivativeGenerator,
+    SUFFIX,
 )
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import (
@@ -681,8 +683,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "based",
         "linked",
         "index",
-        rf"{spread_types_alternation}\s+spreads?",
-        "spreads?",
+        rf"(?:{spread_types_alternation}[- ])?spreads?",
         "capacity",
         "purchase"
     ]
@@ -693,14 +694,9 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
     # This is the original, high-precision core alternation
     strict_core_patterns = [
-        rf"fixed[- ](?:{commodity_alternation})[- ](?:{modifier_alternation})",
-        rf"(?:{commodity_alternation})[- ](?:{modifier_alternation})",
-        rf"(?:{commodity_alternation})",
+        rf"(?:fixed[- ])?(?:{commodity_alternation})(?:[- ](?:{modifier_alternation}))?",
         r"fixed[- ]price(?: purchase)?",
     ]
-    strict_core_alternation = build_alternation(
-        strict_core_patterns, sort_longest_first=True
-    )
 
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
@@ -709,7 +705,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"power purchase agreements?",  # raw string for regex
     ]
     soft_specific_phrases = [
-        r"fixed[- ]price(?: purchase)\s+commitments?",
+        r"fixed[- ]price(?: purchase)?\s+commitments?",
     ] + specific_phrases
 
     # Pre-sort longest-first for Max Munch precedence
@@ -726,49 +722,32 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- A. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment used for attachment to core terms: Requires an instrument base, excludes standalones.
-    # This maintains the high precision of the original function's core logic.
-    strict_attachment_fragment = expand_instruments(
-        unsafe=False,
-        exclude_standalone_suffixes=True,
-        additional_bases=[r"forward\s+purchase"],
+    _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_patterns,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
     )
-
-    strict_pattern = build_smart_regex(
-        [strict_core_alternation],  # Highly precise core prefixes
-        strict_attachment_fragment,  # Must attach a derivative base (e.g., 'swap' or 'future')
-        sorted_specific_phrases,  # All high-priority explicit phrases
-    )
-    strict_cp_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
+    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
+    strict_cp_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
 
     # -------------------------------------------------------------------------
     # --- B. SOFT Pattern Construction (Contextual Precision) ---
     # -------------------------------------------------------------------------
 
-    # Fragment used for general pattern combination: Includes all derivative terminology.
-    soft_instrument_fragment = expand_instruments(
-        unsafe=True,
-        exclude_standalone_suffixes=True,
-        additional_standalone_suffixes=["contracts?", "options?"],
-        additional_bases=[r"forward\s+purchase"]
+    _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_patterns,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, BASE.OPTION],
     )
+    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
+    soft_cp_regex = build_regex([_SOFT_PATTERN] + sorted_soft_specific_phrases)
 
-    # Soft pattern combines simple prefixes ('commodity', 'CP') with the full range of instrument terms.
-    soft_pattern = build_smart_regex(
-        [strict_core_alternation],  # Simple prefixes
-        soft_instrument_fragment,  # Full range of instruments (e.g., 'options', 'futures')
-        sorted_soft_specific_phrases,  # All high-priority explicit phrases
+    _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
+        PREFIX=strict_core_patterns,
+        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
+        LOOSE=True,
     )
-    soft_cp_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-
-    loose_instrument_fragment = expand_instruments(unsafe=True, exclude_standalone_suffixes=False, full_alternation=True)
-
-    loose_pattern = build_smart_regex(
-        [strict_core_alternation],
-        loose_instrument_fragment,
-        sorted_soft_specific_phrases,
-    )
-    loose_cp_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
+    loose_cp_regex = build_regex([_LOOSE_PATTERN] + sorted_soft_specific_phrases)
 
     return strict_cp_regex, soft_cp_regex, loose_cp_regex
 
