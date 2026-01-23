@@ -53,6 +53,7 @@ class BASE(Enum):
     STRADDLE = r"straddles?"
     STRANGLE = r"strangles?"
 
+    SPREAD = r"spreads?"
     # IR bases
     PROTECTION = r"protections?"
 
@@ -112,12 +113,20 @@ class SPEC_BASE(Enum):
         BASE.STRADDLE,
         BASE.STRANGLE,
         BASE.SWAP,
+        BASE.SPREAD,
     ], BASE.OPTION)
     SPECIAL_FUTURES = build_compound(
         [
             r"perpetual",
             BASE.SWAP,
-        ], BASE.FUTURES
+            BASE.FORWARD,
+            r"calendar",
+            BASE.SPREAD,
+            r"synthetic",
+            r"rolling",
+            r"continuous",
+        ],
+        BASE.FUTURES,
     )
 
 class Groups:
