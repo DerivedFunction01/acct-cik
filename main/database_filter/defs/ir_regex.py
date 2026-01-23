@@ -1,10 +1,10 @@
 import re
 from typing import Tuple, List
 
-
 from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups, build_instrument_regex
+
 BENCHMARK_RATES = [
     "SOFR",
     "SONIA",
@@ -81,10 +81,13 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT] + Groups.AMBIGUOUS_BASES + Groups.AMBIGUOUS_SUFFIXES,
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
-    # Simple and fast regex, meant for context, not for instruments
+    # Loose: Allows "Interest Rate" + [Any Base or Any Suffix]
+    # e.g. "Interest rate agreement", "Interest rate option"
     _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
         PREFIX=core_terms,
         ADDITIONAL_BASES=[BASE.PROTECTION],
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
+        STANDALONE_SUFFIXES=ALL_SUFFIXES,
     )
     specific_phrases = [
         r"(?:zero[- ]coupon|overnight[- ]index)\s+swaps?",
@@ -95,44 +98,13 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     ]
     
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
-    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG)
-    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG)
-    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG)
+    
+    # Generate the regex strings
+    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
+    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
+    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
+    
     return build_instrument_regex(_STRICT_PATTERN, _SOFT_PATTERN, _LOOSE_PATTERN, SPECIFIC_PATTERN)
-    # --- 5. Final Build and Compile ---
-    strict_pattern = build_smart_regex(
-        core_terms,
-        expand_instruments(
-            unsafe=False, 
-            additional_bases=["protection"], 
-            additional_standalone_suffixes=["contracts?"]
-        ),  # IR caps, locks, floors is not included without the word contract, etc
-        specific_phrases,
-    )
-    soft_pattern = build_smart_regex(
-        core_terms,
-        expand_instruments(
-            unsafe=True,
-            exclude_standalone_suffixes=True,
-            additional_bases=["protection"],
-            additional_standalone_suffixes=["contracts?", "caps?", "floors?", "locks?"], # Cap can be singular, rest are plural
-        ),  # IR caps, locks, floors
-        specific_phrases,
-    )
-    loose_pattern = build_smart_regex(
-        core_terms,
-        expand_instruments(
-            unsafe=True,
-            exclude_standalone_suffixes=False,
-            additional_bases=["protection"],
-            full_alternation=True,
-        ),
-        specific_phrases,
-    )
-    strict_regex = re.compile(r"\b" + strict_pattern + r"\b", re.IGNORECASE)
-    soft_regex = re.compile(r"\b" + soft_pattern + r"\b", re.IGNORECASE)
-    loose_regex = re.compile(r"\b" + loose_pattern + r"\b", re.IGNORECASE)
-    return strict_regex, soft_regex, loose_regex
 
 IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX = build_ir_regex()
 
@@ -365,10 +337,16 @@ def debt_feature_regex() -> re.Pattern:
     full_suffix_alt = to_build_alternation(ALL_SUFFIXES + [BASE.OPTION])
     safe_list = set(SUFFIXES)
     safe_suffix_alt = to_build_alternation(safe_list)
-
+    targets = [
+        BASE.CAP,
+        BASE.FLOOR,
+        BASE.LOCK,
+        BASE.OPTION,
+    ]
+    target_alt = to_build_alternation(targets)
     targets_embedded = [
-        rf"rate\s+(?:caps?|floors?|locks?|options?)(?!\s+{full_suffix_alt})",
-        rf"(?:caps?|floors?|locks?|options?|rates?)(?!\s+{safe_suffix_alt})",
+        rf"rate\s+{target_alt}(?!\s+{full_suffix_alt})",
+        rf"(?:{target_alt}|rates?)(?!\s+{safe_suffix_alt})",
     ]
     target_pat_embedded = build_alternation(targets_embedded)
 
@@ -419,7 +397,7 @@ from defs.verb_core import build_strict_do_not_mitigate_regex
 
 IR_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [
-        r"(?<!foreign[- ])(?<!currency[- ])(?<!exchange[- ])interest\s+rates?",
+        add_restrictions(r"interest[- ]rates?", lookbehinds = [r"foreign", r"currency", r"exchange"]),
         r"yield\s+curves?",
     ] + BENCHMARK_RATES
 )
