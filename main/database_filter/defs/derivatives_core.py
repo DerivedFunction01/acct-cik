@@ -87,6 +87,7 @@ class SPEC_BASE(Enum):
         r"volatility",
         r"total[- ]return",
         r"back[- ]to[- ]back",
+        r"correlation",
     ], BASE.SWAP)
     SPECIAL_OPTION = build_compound([
         r"asian",

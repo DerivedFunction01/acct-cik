@@ -6,6 +6,7 @@ from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_C
 from defs.fx_regex import CURRENCY_TERM, FX_CONTEXT_REGEX, FX_REGEX, FX_SOFT_REGEX, FX_STRICT_CONTEXT_REGEX, FX_LOOSE_REGEX, FX_RISK_REGEX
 from defs.gen_regex import GEN_REGEX, HEDGING_CONTEXT_REGEX, GEN_STRICT_CONTEXT_REGEX
 from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX
+from defs.misc_regex import MISC_REGEX, MISC_SOFT_REGEX, MISC_STRICT_CONTEXT_REGEX, MISC_CONTEXT_REGEX, MISC_LOOSE_REGEX, MISC_RISK_REGEX
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex, to_build_alternation
 from defs.derivatives_core import ALL_SUFFIXES, SUFFIX, Groups
 from defs.derivatives_core import DOUBLE_BASE_REGEX, LOOSE_GEN_REGEX, PRECISE_LOOSE_GEN_REGEX
@@ -20,6 +21,7 @@ STRICT_REGEX = re.compile(
             EQ_REGEX.pattern,
             CR_REGEX.pattern,
             CRYPTO_REGEX.pattern,
+            MISC_REGEX.pattern,
             GEN_REGEX.pattern
         ]
     ),
@@ -34,6 +36,7 @@ SOFT_REGEX = re.compile(
             EQ_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
             CRYPTO_SOFT_REGEX.pattern,
+            MISC_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
         ]
     ),
@@ -48,6 +51,7 @@ SOFT_CATEGORY_REGEX = re.compile(
             EQ_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
             CRYPTO_SOFT_REGEX.pattern,
+            MISC_SOFT_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
@@ -67,6 +71,7 @@ ALL_REGEX = re.compile(
             IR_SOFT_REGEX.pattern,
             CR_SOFT_REGEX.pattern,
             CRYPTO_SOFT_REGEX.pattern,
+            MISC_SOFT_REGEX.pattern,
             GEN_REGEX.pattern,
             GEN_STRICT_CONTEXT_REGEX.pattern,
         ]
@@ -81,6 +86,7 @@ CATEGORY_MAP = {
     "eq": (EQ_REGEX, EQ_SOFT_REGEX, EQ_STRICT_CONTEXT_REGEX, EQ_CONTEXT_REGEX, EQ_LOOSE_REGEX, EQ_RISK_REGEX),
     "cr": (CR_REGEX, CR_SOFT_REGEX, CR_STRICT_CONTEXT_REGEX, CR_CONTEXT_REGEX, CR_LOOSE_REGEX, CR_RISK_REGEX),
     "crypto": (CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_STRICT_CONTEXT_REGEX, CRYPTO_CONTEXT_REGEX, CRYPTO_LOOSE_REGEX, CRYPTO_RISK_REGEX),
+    "misc": (MISC_REGEX, MISC_SOFT_REGEX, MISC_STRICT_CONTEXT_REGEX, MISC_CONTEXT_REGEX, MISC_LOOSE_REGEX, MISC_RISK_REGEX),
  
 }
 
@@ -129,6 +135,10 @@ GLUE_MAP = {
     "cr": build_regex([
         r"credits?",
         r"defaults?",
+    ]),
+    "misc": build_regex([
+        r"inflation",
+        r"volatility",
     ]),
 }
 def create_target() -> str:

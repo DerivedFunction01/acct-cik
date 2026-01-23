@@ -701,7 +701,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
     specific_phrases = [
-        r"weather derivatives?",  # raw string for regex
         r"power purchase agreements?",  # raw string for regex
     ]
     soft_specific_phrases = [
