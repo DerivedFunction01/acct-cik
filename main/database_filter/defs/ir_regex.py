@@ -1,7 +1,7 @@
 import re
 from typing import Tuple, List
 
-from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
+from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
 from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups
 
@@ -127,7 +127,15 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=weak_core_terms, ADDITIONAL_BASES=[BASE.PROTECTION], LOOSE=True
     )
     specific_phrases = [
-        r"(?:zero[- ]coupon|overnight[- ]index(?:ed)?)\s+swaps?",
+        build_compound(
+            [
+                r"zero[- ]coupon",
+                r"overnight[- ]index(?:ed)?",
+                r"constant[- ]maturity",
+                r"amortizing",
+            ],
+            [BASE.SWAP, BASE.SWAPTION],
+        ),
     ]
 
     SPECIFIC_PATTERN = build_alternation(specific_phrases)

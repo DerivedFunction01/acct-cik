@@ -38,9 +38,8 @@ class BASE(Enum):
     )
     COLLAR = r"collars?"
     DERIVATIVE = r"derivatives?"
-    FUTURES = r"(?:perpetual\s+)?futures"
+    FUTURES = r"futures"
     SWAPTION = r"swaptions?"
-    SWAP_FUTURES = r"swap\s+futures?"
     OPTION = r"options?"
     LOCK = r"locks?"
     CAP = r"caps?"
@@ -89,11 +88,7 @@ class SPEC_BASE(Enum):
         r"total[- ]return",
         r"back[- ]to[- ]back",
         r"correlation",
-        r"dividend",
-        r"amorti[sz]ing",
-        r"constant[- ]maturity",
         r"conditional[- ]variance",
-        r"inflation",
     ], BASE.SWAP)
     SPECIAL_OPTION = build_compound([
         r"asian",
@@ -114,7 +109,14 @@ class SPEC_BASE(Enum):
         BASE.CALL,
         BASE.STRADDLE,
         BASE.STRANGLE,
+        BASE.SWAP,
     ], BASE.OPTION)
+    SPECIAL_FUTURES = build_compound(
+        [
+            r"perpetual",
+            BASE.SWAP,
+        ], BASE.FUTURES
+    )
 
 class Groups:
     UNAMBIGUOUS_BASES = [
@@ -124,7 +126,7 @@ class Groups:
         BASE.DERIVATIVE,
         BASE.FUTURES,
         BASE.SWAPTION,
-        BASE.SWAP_FUTURES,
+        SPEC_BASE.SPECIAL_FUTURES,
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.SPECIAL_OPTION,
         BASE.STRADDLE,
