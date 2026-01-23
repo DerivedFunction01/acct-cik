@@ -46,8 +46,6 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # forces safe bases only, but we explicitly allow Option/Contract/Agreement standalone.
     _CR_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
-        STANDALONE_BASES=[BASE.OPTION],
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
     )
     _CR_PATTERN = DerivativeGenerator(config=_CR_CONFIG).generate()
     
@@ -142,11 +140,11 @@ def run_tests():
         ("credit default swap agreement", MatchLevel.STRICT),
         ("credit linked note", MatchLevel.STRICT),
         ("credit swap", MatchLevel.STRICT),
-        ("credit default option", MatchLevel.STRICT),
+        ("credit default option", MatchLevel.LOOSE),
         ("basket default swap", MatchLevel.STRICT),
         ("credit derivative", MatchLevel.STRICT),
-        ("credit default agreement", MatchLevel.STRICT),
-        ("credit protection agreement", MatchLevel.STRICT),
+        ("credit default agreement", MatchLevel.LOOSE),
+        ("credit protection swap", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, CR_REGEX, CR_SOFT_REGEX, CR_LOOSE_REGEX)
 
