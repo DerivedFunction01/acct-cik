@@ -123,71 +123,121 @@ class Groups:
     AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
     MISC_SUFFIXES = [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION, SUFFIX.ASSET, SUFFIX.LIABILITY, SUFFIX.ACTIVITY, SUFFIX.HOLDING]
 
+SUFFIX_LOOKBEHINDS = [
+    r"equity",
+    r"stock",
+    r"shares?",
+    r"treasury",
+    r"credit",
+    r"loans?",
+    r"debts?",
+    r"bonds?",
+    r"notes?",
+    r"mortgages?",
+    r"sales?",
+    r"leases?",
+    r"licens(?:e|ing)",
+    r"employment",
+    r"service",
+    r"consulting",
+    r"insurance",
+    r"purchase",
+    r"acquisition",
+    r"merger",
+    r"settlement",
+    r"award",
+    r"incentive",
+    r"compensation",
+    r"bonus",
+    r"severance",
+    r"pension",
+    r"retirement",
+]
 
-def build_double_base_pattern() -> Tuple[str, str]:
+EQUITY_LOOKBEHINDS = [
+    r"equity",
+    r"stock",
+    r"shares?",
+    r"treasury",
+    r"purchase",
+    r"acquisition",
+    r"merger",
+    r"award",
+    r"incentive",
+    r"compensation",
+    r"bonus",
+    r"severance",
+    r"pension",
+    r"retirement",
+]
+
+@dataclass
+class MultiBaseGenerator:
     """
-    Final Refined Logic:
-    Matches: 'equity warrants and option contracts'
-    Blocks: 'equity options and warrants'
+    Generates Double and Triple base patterns with optional restrictions.
+    Useful for Equity derivatives where suffixes like "agreements" must be restricted
+    when preceded by "Equity" (e.g. "Equity Agreements" -> False Positive).
     """
-    # 1. Base Values
-    base_vals = [
-        b.value
-        for b in (
-            Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
+    suffix_restrictions: List[str] = field(default_factory=list)
+    starters: Optional[List[Any]] = None
+
+    def generate(self) -> Tuple[str, str]:
+        # 1. Base Values
+        base_vals = [
+            b.value
+            for b in (
+                Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES
+            )
+        ]
+        bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
+
+        _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+        _SFX_ALT = to_build_alternation(_SFX)
+
+        # 2. Logic: The Suffix-Protected Pair Block
+        sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+
+        # Apply restrictions to suffixes if provided (e.g. for Equity)
+        if self.suffix_restrictions:
+            _SFX_STRICT = add_restrictions(_SFX_ALT, lookbehinds=self.suffix_restrictions)
+        else:
+            _SFX_STRICT = _SFX_ALT
+
+        # 3. Fixed-Width Chained Lookbehinds
+        forbidden_endings = (
+            r"(?<!\sa)(?<!\san)(?<!\sthe)" r"(?<!\swho)(?<!\sthat)(?<!\swhich)"
         )
-    ]
-    bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
+        forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
+        gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
-    _SFX = Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
-    _SFX_ALT = to_build_alternation(_SFX)
+        # 4. Assembly
+        # Starters must include:
+        # 1. Suffixes (potentially restricted)
+        # 2. Bases (provided starters OR all bases)
+        _BASE_STARTERS = self.starters if self.starters else base_vals
 
-    # 2. Logic: The Suffix-Protected Pair Block
-    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+        _STARTERS = to_build_alternation(
+            [_SFX_STRICT] + _BASE_STARTERS
+        )
+        start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
 
-    # Block ONLY if partner is 'naked' (no suffix).
-    # If partner has a suffix, the lookahead fails and the match proceeds.
-    _OPT_STRICT = add_restrictions(
-        BASE.OPTION.value, lookaheads=[rf"{sep}{BASE.WARRANT.value}\b(?!\s+{_SFX_ALT})"]
-    )
-    _WARR_STRICT = add_restrictions(
-        BASE.WARRANT.value, lookaheads=[rf"{sep}{BASE.OPTION.value}\b(?!\s+{_SFX_ALT})"]
-    )
+        double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
 
-    # 3. Fixed-Width Chained Lookbehinds
-    forbidden_endings = (
-        r"(?<!\sa)(?<!\san)(?<!\sthe)" r"(?<!\swho)(?<!\sthat)(?<!\swhich)"
-    )
-    forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
-    gap = r"(?:\W+(?:\w+\W+){0,2}?)"
+        # 5. Triple Base (Standalone Catch-all)
+        loose_base_vals = base_vals + [BASE.WARRANT.value]
+        bases_loose_alt = to_build_alternation(loose_base_vals, sort_longest_first=True)
+        triple_base = (
+            rf"(?:{bases_loose_alt})"
+            rf"(?!\s+to){gap}{forbidden_endings}{forbidden_starters}"
+            rf"(?:{bases_loose_alt})"
+            rf"(?:{sep}(?:{bases_loose_alt}))+"
+        )
 
-    # 4. Assembly
-    # Starters must include:
-    # 1. Suffixes ("contracts", "agreements")
-    # 2. Strict Options/Warrants (to enforce the lookahead block)
-    # 3. All other bases ("swaps", "futures", "caps", etc.)
-    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in [BASE.OPTION, BASE.WARRANT]]
-    
-    _STARTERS = to_build_alternation(_SFX + [_OPT_STRICT, _WARR_STRICT] + _OTHER_BASES)
-    start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
-
-    double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
-
-    # 5. Triple Base (Standalone Catch-all)
-    loose_base_vals = base_vals + [BASE.WARRANT.value]
-    bases_loose_alt = to_build_alternation(loose_base_vals, sort_longest_first=True)
-    triple_base = (
-        rf"(?:{bases_loose_alt})"
-        rf"(?!\s+to){gap}{forbidden_endings}{forbidden_starters}"
-        rf"(?:{bases_loose_alt})"
-        rf"(?:{sep}(?:{bases_loose_alt}))+"
-    )
-
-    return double_base, triple_base
+        return double_base, triple_base
 
 
 class MULTI_BASE:
-    DOUBLE_BASE, TRIPLE_BASE = build_double_base_pattern()
+    DOUBLE_BASE, TRIPLE_BASE = MultiBaseGenerator().generate()
 
 @dataclass
 class DERIVATIVES:

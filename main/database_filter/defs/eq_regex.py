@@ -6,11 +6,12 @@ from defs.derivatives_core import (
     BASE,
     DERIVATIVES,
     DerivativeGenerator,
+    EQUITY_LOOKBEHINDS,
     Groups,
-    MULTI_BASE,
+    MultiBaseGenerator,
     SUFFIX,
 )
-from defs.regex_lib import build_alternation, build_regex
+from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
@@ -19,6 +20,26 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     option = r"options?"
     warrant = r"warrants?"
     derivative = r"derivatives?"
+    
+    # --- Construct Restricted Starters for Equity ---
+    # Block "options and warrants" (naked) to avoid compensation noise
+    sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
+    _SFX_ALT = to_build_alternation(Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
+    
+    _OPT_STRICT = add_restrictions(
+        BASE.OPTION.value, lookaheads=[rf"{sep}{BASE.WARRANT.value}\b(?!\s+{_SFX_ALT})"]
+    )
+    _WARR_STRICT = add_restrictions(
+        BASE.WARRANT.value, lookaheads=[rf"{sep}{BASE.OPTION.value}\b(?!\s+{_SFX_ALT})"]
+    )
+    _OTHER_BASES = [b for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES) if b not in [BASE.OPTION, BASE.WARRANT]]
+    eq_starters = [_OPT_STRICT, _WARR_STRICT] + _OTHER_BASES
+
+    # Generate restricted multi-base patterns for Equity context
+    eq_double, eq_triple = MultiBaseGenerator(
+        suffix_restrictions=EQUITY_LOOKBEHINDS, starters=eq_starters
+    ).generate()
+    
     # Strict Core Terms (Precise market/price references)
     strict_core_terms = [
         r"equity",
@@ -60,7 +81,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
         r"margin\s+loans?",
         # Triple Base with Equity Prefixes (overrides compensation logic due to list strength)
-        rf"(?:stock|shares?|treasury|equity)\s+{MULTI_BASE.TRIPLE_BASE}",
+        rf"(?:stock|shares?|treasury|equity)\s+{eq_triple}",
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
@@ -75,6 +96,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _STRICT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        MULTI_BASE=[eq_double, eq_triple],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
     strict_eq_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
@@ -85,6 +107,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _SOFT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        MULTI_BASE=[eq_double, eq_triple],
         STANDALONE_BASES=[BASE.OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
@@ -94,6 +117,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        MULTI_BASE=[eq_double, eq_triple],
         ADDITIONAL_BASES=[BASE.OPTION],
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES + Groups.OTHER_BASES,
         STANDALONE_SUFFIXES=ALL_SUFFIXES,
