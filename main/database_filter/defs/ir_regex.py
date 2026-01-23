@@ -96,12 +96,12 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _STRICT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=strong_core_terms,
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+        ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES,
     )
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=weak_core_terms,
         STANDALONE_SUFFIXES=[], # Weak terms cannot be "Fixed Rate Contract"
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+        ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES,
     )
 
     # 2. Soft: Strong terms allow Ambiguous Bases (Option/Cap) + Contract
@@ -109,22 +109,22 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=strong_core_terms,
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+        ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES,
     )
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=weak_core_terms,
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES, # Weak terms allow "Fixed Rate Option" but NOT "Fixed Rate Contract"
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+        ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES,
     )
 
     # 3. Loose: Context matching
     _LOOSE_CONFIG_STRONG = DERIVATIVES(
         PREFIX=strong_core_terms,
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+        ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES,
         LOOSE=True
     )
     _LOOSE_CONFIG_WEAK = DERIVATIVES(
-        PREFIX=weak_core_terms, ADDITIONAL_BASES=[BASE.PROTECTION], LOOSE=True
+        PREFIX=weak_core_terms, ADDITIONAL_BASES=[BASE.PROTECTION] + Groups.TRADING_BASES, LOOSE=True
     )
     specific_phrases = [
         build_compound(

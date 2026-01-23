@@ -6,6 +6,7 @@ from defs.derivatives_core import (
     DERIVATIVES,
     DerivativeGenerator,
     SUFFIX,
+    Groups,
 )
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import build_risk_managment_phrase
@@ -45,6 +46,7 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _CRYPTO_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
         STANDALONE_BASES=[BASE.OPTION],
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
     )
     _CRYPTO_PATTERN = DerivativeGenerator(config=_CRYPTO_CONFIG).generate()
@@ -55,6 +57,7 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Loose: Allows any base/suffix with the prefix
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()

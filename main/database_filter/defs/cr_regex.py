@@ -6,6 +6,7 @@ from defs.derivatives_core import (
     DERIVATIVES,
     DerivativeGenerator,
     SUFFIX,
+    Groups,
 )
 from defs.regex_lib import build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, build_risk_managment_phrase
@@ -46,6 +47,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # forces safe bases only, but we explicitly allow Option/Contract/Agreement standalone.
     _CR_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
     )
     _CR_PATTERN = DerivativeGenerator(config=_CR_CONFIG).generate()
     
@@ -55,6 +57,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Loose: Allows any base/suffix with the prefix
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
+        ADDITIONAL_BASES=Groups.TRADING_BASES,
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()

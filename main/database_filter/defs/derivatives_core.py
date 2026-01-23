@@ -111,7 +111,7 @@ class SPEC_BASE(Enum):
                 [],
                 [
                     r"asian",
-                    r"bermuda",
+                    r"bermudan?",
                     r"european",
                     r"american",
                     r"basket",
