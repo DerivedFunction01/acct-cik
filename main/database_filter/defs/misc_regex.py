@@ -4,6 +4,7 @@ from typing import Tuple, List
 from defs.derivatives_core import (
     BASE,
     DERIVATIVES,
+    MULTI_BASE,
     DerivativeGenerator,
     SUFFIX,
     Groups,
@@ -22,10 +23,6 @@ STRONG_MISC = [
     r"CPI",
     VOLATILITY,
     VARIANCE,
-]
-
-# Only allow futures
-WEAK_MISC = [
     r"catastrophe",
     r"longevity",
     r"mortality",
@@ -39,7 +36,7 @@ PROPERTY = [
     r"real[- ]estate",
 ]
 
-MISC_CORE_TERMS = STRONG_MISC + WEAK_MISC + STRONG_MISC_WITH_OPT + PROPERTY
+MISC_CORE_TERMS = STRONG_MISC + STRONG_MISC_WITH_OPT + PROPERTY
 
 def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     """
@@ -59,13 +56,13 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     BASES = Groups.UNAMBIGUOUS_BASES.copy()
     if BASE.FORWARD in BASES:
         BASES.remove(BASE.FORWARD)
-    if BASE.COLLAR in BASES:
-        BASES.remove(BASE.COLLAR)
     
     # remove some bases
     STRICTER_BASES = BASES.copy()
     if BASE.SWAP in STRICTER_BASES:
         STRICTER_BASES.remove(BASE.SWAP)
+    if BASE.COLLAR in STRICTER_BASES:
+        STRICTER_BASES.remove(BASE.COLLAR)
 
     _AMB_BASES = [BASE.SWAP, BASE.FORWARD, BASE.COLLAR]
 
@@ -89,16 +86,6 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _WEAK_PATTERN = DerivativeGenerator(config=_WEAK_CONFIG).generate()
 
-    # 3. Weak misc (Freight, Economic)
-    # Allows "Freight Swap". Blocks "Freight Agreement", "Freight Option".
-    _WEAKEST_CONFIG = DERIVATIVES(
-        PREFIX=WEAK_MISC,
-        _BASES=BASES,
-        _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
-        STANDALONE_SUFFIXES=[], 
-    )
-    _WEAKEST_PATTERN = DerivativeGenerator(config=_WEAKEST_CONFIG).generate()
-
     # 4. Property (Land, Real Estate)
     # Allows "Property Futures". Blocks "Property Swap", "Property Option", "Property Agreement".
     _PROPERTY_CONFIG = DERIVATIVES(
@@ -106,13 +93,13 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=STRICTER_BASES,
         _AMB_BASES=[], # No ambiguous bases allowed for property
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.TRIPLE_BASE],
     )
     _PROPERTY_PATTERN = DerivativeGenerator(config=_PROPERTY_CONFIG).generate()
 
     patterns = [
         _STRONG_PATTERN,
         _WEAK_PATTERN,
-        _WEAKEST_PATTERN,
         _PROPERTY_PATTERN,
     ]
     

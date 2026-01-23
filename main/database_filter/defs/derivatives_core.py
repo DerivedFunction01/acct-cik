@@ -109,6 +109,7 @@ class SPEC_BASE(Enum):
         r"cliquet",
         r"compound",
         r"forward[- ]start",
+        BASE.FORWARD,
         BASE.PUT,
         BASE.CALL,
         BASE.STRADDLE,
