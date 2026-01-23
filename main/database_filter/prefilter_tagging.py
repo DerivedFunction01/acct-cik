@@ -54,6 +54,7 @@ from defs.shared_context import COMPARISON_PHRASES
 from defs.derivatives_core import PRECISE_LOOSE_GEN_REGEX
 from defs.verb_core import POSS_VERB_REGEX, TRANS_VERB_REGEX, USAGE_VERB_REGEX
 from prefilter_evidence import FAIR_VALUE_CONTEXT_REGEX, NOTIONAL_CONTEXT_REGEX, BS_LOC_REGEX
+from defs.trading_regex import TRADING_REGEX
 
 
 # =============================================================================
@@ -374,6 +375,10 @@ def is_trading_statement(text: str) -> Optional[NoiseReason]:
     """
     # GATE 0: Quantitative Veto (Actual trades have numbers/currencies)
     if QUANT_REGEX.search(text):
+        return None
+
+    # GATE 0.5: Specific Instrument Veto (New)
+    if TRADING_REGEX.search(text):
         return None
 
     # GATE 1: Core Keyword Check
