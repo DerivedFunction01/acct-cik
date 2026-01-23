@@ -2,7 +2,9 @@ import re
 from typing import Tuple, List
 
 from defs.derivatives_core import (
+    BASE,
     DERIVATIVES,
+    MULTI_BASE,
     SPEC_BASE,
     DerivativeGenerator,
     Groups,
@@ -34,19 +36,21 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _AMB_BASES=[],
         STANDALONE_BASES=[SPEC_BASE.TRADING_OPTION, SPEC_BASE.SPECIAL_SPREAD],
         STANDALONE_SUFFIXES=[],
-        MULTI_BASE=[],
+        SUFFIXES=[],
+        ADDITIONAL_BASES=[],
+        MULTI_BASE=[], # Everything else empty
     )
     _STANDALONE_TRADING_PATTERN = DerivativeGenerator(
         config=_STANDALONE_TRADING_CONFIG
     ).generate()
-    
+
     _TRADING_CONFIG = DERIVATIVES(
         PREFIX=TRADING_CORE_TERMS,
-        _BASES=Groups.UNAMBIGUOUS_BASES + Groups.TRADING_BASES,
-        _AMB_BASES=[],
+        _BASES=Groups.TRADING_BASES + [BASE.DERIVATIVE],
+        _AMB_BASES=Groups.UNAMBIGUOUS_BASES, # allows trading swap agreement, set. Mot trading lock
         STANDALONE_BASES=[],
         STANDALONE_SUFFIXES=[],
-        MULTI_BASE=[],
+        MULTI_BASE=[MULTI_BASE.TRIPLE_BASE], # Enforce stricter matches
     )
     _TRADING_PATTERN = DerivativeGenerator(config=_TRADING_CONFIG).generate()
 
@@ -57,6 +61,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=TRADING_CORE_TERMS,
         _BASES=Groups.UNAMBIGUOUS_BASES + Groups.TRADING_BASES,
+        _AMB_BASES=[], # prevent trading cap, market cap, etc
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()

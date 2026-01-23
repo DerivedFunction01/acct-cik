@@ -182,6 +182,8 @@ class Groups:
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.CORE_OPTION,
         SPEC_BASE.SPECIAL_OTHER,
+        BASE.STRADDLE,
+        BASE.STRANGLE,
     ]
     AMBIGUOUS_BASES = [
         BASE.OPTION,
@@ -195,11 +197,12 @@ class Groups:
     TRADING_BASES = [
         SPEC_BASE.TRADING_OPTION,
         SPEC_BASE.SPECIAL_SPREAD,
-        BASE.STRADDLE,
-        BASE.STRANGLE,
+    ]
+    MISC_BASES = [
+        BASE.WARRANT,
+        # avoid generic standalone spread
         BASE.SPREAD,
     ]
-    MISC_BASES = [BASE.WARRANT]
     NON_BASES = [
         BASE.PROTECTION,
         BASE.FORWARD_PURCHASE,
