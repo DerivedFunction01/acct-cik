@@ -3,7 +3,7 @@ from typing import Tuple, List
 
 from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, ALL_TERM_TERMS, build_risk_managment_phrase
-from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups, build_instrument_regex
+from defs.derivatives_core import ALL_SUFFIXES, BASE, DERIVATIVES, SUFFIX, SUFFIXES, DerivativeGenerator, Groups
 
 _IR_DEBT = Rf"(?:{_DEBT_TERMS}|credit\s+facilit(?:y|ies))"
 BENCHMARK_RATES = [
@@ -28,20 +28,24 @@ INTEREST = add_restrictions(
     r"interest", lookbehinds=[r"foreign", r"currency", r"exchange"]
 )
 IR_RATE = f"{INTEREST}[- ]rates?"
-RATE_ADJECTIVES = [
-    "treasury",
-    "benchmark",
-    "prime",
+
+STRONG_RATE_ADJECTIVES = [
     add_restrictions(
         r"(?:interest|forward)",
         lookbehinds=[r"foreign", r"currency", r"exchange"],
     ),
+]
+
+WEAK_RATE_ADJECTIVES = [
+    "treasury",
+    "benchmark",
+    "prime",
     r"fed(?:eral)?[- ]funds",
 ] + RATE_TYPES
 
+RATE_ADJECTIVES = STRONG_RATE_ADJECTIVES + WEAK_RATE_ADJECTIVES
 def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
-    ir_regex_adjectives = RATE_ADJECTIVES
-    rate_alternation = build_alternation(ir_regex_adjectives, sort_longest_first=True)
+    rate_alternation = build_alternation(STRONG_RATE_ADJECTIVES + WEAK_RATE_ADJECTIVES, sort_longest_first=True)
     rate_adjective_phrases = rf"{rate_alternation}[- ]rate"
     # --- 1. Helper Definitions ---
     def build_pay_receive_structure() -> str:
@@ -66,47 +70,86 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     benchmark_alternation = build_alternation(BENCHMARK_RATES, sort_longest_first=True)
     brate_adjective_phrases = rf"(?:{benchmark_alternation})(?:[- ](?:related|linked|based))?"
 
-    core_terms = [
+    # Split Core Terms into Strong (can take "Contract") and Weak (Must be explicit derivative)
+    strong_rate_alt = build_alternation(STRONG_RATE_ADJECTIVES, sort_longest_first=True)
+    strong_rate_phrases = rf"{strong_rate_alt}[- ]rate"
+
+    weak_rate_alt = build_alternation(WEAK_RATE_ADJECTIVES, sort_longest_first=True)
+    weak_rate_phrases = rf"{weak_rate_alt}[- ]rate"
+
+    strong_core_terms = [
         "single[- ]currency",
         r"(?:cross|multi)[- ]currency\s+interest(?:[- ]rate)?",
         "interest(?:[ -]rate)?[- ]exchange",
         pay_receive_pattern_string,
-        rate_adjective_phrases,
-        brate_adjective_phrases,
+        strong_rate_phrases,
         "treasury locks?",
     ]
 
-    _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=core_terms,
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
+    weak_core_terms = [
+        weak_rate_phrases,
+        brate_adjective_phrases,
+    ]
+
+    # 1. Strict: Strong terms allow "Contract", Weak terms do not
+    _STRICT_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=strong_core_terms,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
-    _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=core_terms,
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT]
-        + Groups.AMBIGUOUS_BASES,
+    _STRICT_CONFIG_WEAK = DERIVATIVES(
+        PREFIX=weak_core_terms,
+        STANDALONE_SUFFIXES=[], # Weak terms cannot be "Fixed Rate Contract"
         ADDITIONAL_BASES=[BASE.PROTECTION],
     )
-    # Loose: Allows "Interest Rate" + [Any Base or Any Suffix]
-    # e.g. "Interest rate agreement", "Interest rate option"
-    _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=core_terms,
-        ADDITIONAL_BASES=[BASE.PROTECTION],
+
+    # 2. Soft: Strong terms allow Ambiguous Bases (Option/Cap) + Contract
+    _SOFT_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=strong_core_terms,
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+    )
+    _SOFT_CONFIG_WEAK = DERIVATIVES(
+        PREFIX=weak_core_terms,
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES, # Weak terms allow "Fixed Rate Option" but NOT "Fixed Rate Contract"
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+    )
+
+    # 3. Loose: Context matching
+    _LOOSE_CONFIG_STRONG = DERIVATIVES(
+        PREFIX=strong_core_terms,
+        ADDITIONAL_BASES=[BASE.PROTECTION],
+        LOOSE=True
+    )
+    _LOOSE_CONFIG_WEAK = DERIVATIVES(
+        PREFIX=weak_core_terms, ADDITIONAL_BASES=[BASE.PROTECTION], LOOSE=True
     )
     specific_phrases = [
         r"(?:zero[- ]coupon|overnight[- ]index)\s+swaps?",
-        r"forward[- ]rate\s+agreements?",
     ]
 
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
 
     # Generate the regex strings
-    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
-    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
-    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
+    _STRICT_PATTERN = build_alternation([
+        DerivativeGenerator(config=_STRICT_CONFIG_STRONG).generate(),
+        DerivativeGenerator(config=_STRICT_CONFIG_WEAK).generate()
+    ])
+    _SOFT_PATTERN = build_alternation([
+        DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate(),
+        DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
+    ])
+    _LOOSE_PATTERN = build_alternation([
+        DerivativeGenerator(config=_LOOSE_CONFIG_STRONG).generate(),
+        DerivativeGenerator(config=_LOOSE_CONFIG_WEAK).generate()
+    ])
 
-    return build_instrument_regex(_STRICT_PATTERN, _SOFT_PATTERN, _LOOSE_PATTERN, SPECIFIC_PATTERN)
+    STRICT = build_regex([_STRICT_PATTERN, SPECIFIC_PATTERN])
+    SOFT = build_regex([_SOFT_PATTERN, SPECIFIC_PATTERN])
+    LOOSE = build_regex([_LOOSE_PATTERN, SPECIFIC_PATTERN])
+
+    return STRICT, SOFT, LOOSE
 
 IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX = build_ir_regex()
 

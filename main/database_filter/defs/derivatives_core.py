@@ -311,7 +311,7 @@ class DerivativeGenerator:
         # Strict bases + Standalone bases + (Ambiguous bases if LOOSE)
         strict_bases_list = self.config._BASES + self.config.STANDALONE_BASES
         if self.config.LOOSE:
-            strict_bases_list += self.config._AMB_BASES
+            strict_bases_list += Groups.AMBIGUOUS_BASES
             
         # Bases allowed to have suffixes (Part 1)
         # Ambiguous + Strict + Additional
@@ -366,20 +366,6 @@ class DerivativeGenerator:
         full_pattern = rf"{prefix_pattern}[- ]{full_suffix_pattern}"
 
         return full_pattern
-def build_instrument_regex(
-    strict_pattern,
-    soft_pattern,
-    loose_pattern,
-    specific_pattern,
-) -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
-    strict = [strict_pattern, specific_pattern]
-    soft = [soft_pattern, specific_pattern]
-    loose = [loose_pattern, specific_pattern]
-    return (
-        build_regex(strict),
-        build_regex(soft),
-        build_regex(loose),
-    )
 
 DOUBLE_BASE_REGEX = build_regex([MULTI_BASE.DOUBLE_BASE])
 
