@@ -2,7 +2,14 @@ import re
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import Any, List, Optional, Tuple
-from defs.regex_lib import build_alternation, build_compound, build_regex, add_restrictions, plural, to_build_alternation
+from defs.regex_lib import (
+    build_alternation,
+    build_compound,
+    build_regex,
+    add_restrictions,
+    plural,
+    to_build_alternation,
+)
 
 
 # ============================================================================
@@ -53,10 +60,14 @@ class BASE(Enum):
     STRADDLE = r"straddles?"
     STRANGLE = r"strangles?"
 
+    # Not used as standalone at all, but are attached as a compounded
     SPREAD = r"spreads?"
-    VOLATILITY = r"volatility"
+
+    # These ones are just prefixes for compounding
     BASIS = r"basis"
+    VOLATILITY = r"volatility"
     QUANTO = r"quanto(?:[- ]style)"
+
     # IR bases
     PROTECTION = r"protections?"
 
@@ -87,62 +98,72 @@ class SPEC_BASE(Enum):
     # Modifiers
     SPECIAL_SWAP = build_compound(
         [
-            BASE.BASIS,
             r"(?:conditional[- ])?variance",
-            BASE.VOLATILITY,
             r"total[- ]return",
             r"back[- ]to[- ]back",
             r"correlation",
-            BASE.QUANTO,
         ],
         BASE.SWAP,
     )
-    SPECIAL_OPTION = build_compound([
-        build_compound([],
-                       [r"asian",
-                        r"bermuda",
-                        r"basket",
-                        r"rainbow",
-                        r"lookback",
-                        r"exotic",
-                        r"barrier",
-                        r"binary",
-                        r"digital",
-                        r"chooser",
-                        r"cliquet",
-                        r"compound",
-                        ], 
-                       suffix=["(?:[- ]style)?"], sep_suffix=""),
-        r"forward[- ]start",
-        r"calendar",
-        BASE.QUANTO,
-        BASE.FORWARD,
-        BASE.PUT,
-        BASE.CALL,
-        BASE.STRADDLE,
-        BASE.STRANGLE,
-        BASE.SWAP,
-        BASE.SPREAD,
-    ], BASE.OPTION)
+    SPECIAL_OPTION = build_compound(
+        [
+            build_compound(
+                [],
+                [
+                    r"asian",
+                    r"bermuda",
+                    r"european",
+                    r"american",
+                    r"basket",
+                    r"rainbow",
+                    r"lookback",
+                    r"exotic",
+                    r"barrier",
+                    r"binary",
+                    r"digital",
+                    r"chooser",
+                    r"cliquet",
+                    r"compound",
+                ],
+                suffix=["(?:[- ]style)?"],
+                sep_suffix="",
+            ),
+            r"forward[- ]start",
+            r"calendar",
+            BASE.FORWARD,
+            BASE.PUT,
+            BASE.CALL,
+            BASE.STRADDLE,
+            BASE.STRANGLE,
+            BASE.SWAP,
+        ],
+        BASE.OPTION,
+    )
     SPECIAL_FUTURES = build_compound(
         [
             r"perpetual",
             BASE.SWAP,
             BASE.FORWARD,
             r"calendar",
-            BASE.SPREAD,
             r"synthetic",
             r"rolling",
             r"continuous",
         ],
         BASE.FUTURES,
     )
-    SPECIAL_SPREAD = build_compound(
+    SPECIAL_SPREAD = build_compound([BASE.CALL, BASE.PUT], BASE.SPREAD)
+    SPECIAL_OTHER = build_compound(
+        [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS],
         [
-            BASE.CALL
+            BASE.SWAP,
+            BASE.FORWARD,
+            BASE.COLLAR,
+            BASE.DERIVATIVE,
+            BASE.FUTURES,
+            BASE.OPTION,
         ],
-        BASE.SPREAD
     )
+
 
 class Groups:
     UNAMBIGUOUS_BASES = [
@@ -155,6 +176,8 @@ class Groups:
         SPEC_BASE.SPECIAL_FUTURES,
         SPEC_BASE.SPECIAL_SWAP,
         SPEC_BASE.SPECIAL_OPTION,
+        SPEC_BASE.SPECIAL_SPREAD,
+        SPEC_BASE.SPECIAL_OTHER,
         BASE.STRADDLE,
         BASE.STRANGLE,
     ]
@@ -176,7 +199,16 @@ class Groups:
     # Suffix Sets
     UNAMBIGUOUS_SUFFIXES = [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT]
     AMBIGUOUS_SUFFIXES = [SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT]
-    MISC_SUFFIXES = [SUFFIX.COMMITMENT, SUFFIX.TRANSACTION, SUFFIX.POSITION, SUFFIX.ASSET, SUFFIX.LIABILITY, SUFFIX.ACTIVITY, SUFFIX.HOLDING]
+    MISC_SUFFIXES = [
+        SUFFIX.COMMITMENT,
+        SUFFIX.TRANSACTION,
+        SUFFIX.POSITION,
+        SUFFIX.ASSET,
+        SUFFIX.LIABILITY,
+        SUFFIX.ACTIVITY,
+        SUFFIX.HOLDING,
+    ]
+
 
 SUFFIX_LOOKBEHINDS = [
     r"equity",
@@ -209,6 +241,7 @@ SUFFIX_LOOKBEHINDS = [
     r"retirement",
 ]
 
+
 @dataclass
 class MultiBaseGenerator:
     """
@@ -216,6 +249,7 @@ class MultiBaseGenerator:
     Useful for Equity derivatives where suffixes like "agreements" must be restricted
     when preceded by "Equity" (e.g. "Equity Agreements" -> False Positive).
     """
+
     suffix_restrictions: List[str] = field(default_factory=list)
     starters: Optional[List[Any]] = None
     bases: Optional[List[Any]] = None
@@ -227,10 +261,7 @@ class MultiBaseGenerator:
             base_vals = [b.value if hasattr(b, "value") else b for b in self.bases]
         else:
             base_vals = [
-                b.value
-                for b in (
-                    Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES
-                )
+                b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES)
             ]
         bases_alt = to_build_alternation(base_vals, sort_longest_first=True)
 
@@ -242,7 +273,9 @@ class MultiBaseGenerator:
 
         # Apply restrictions to suffixes if provided (e.g. for Equity)
         if self.suffix_restrictions:
-            _SFX_STRICT = add_restrictions(_SFX_ALT, lookbehinds=self.suffix_restrictions)
+            _SFX_STRICT = add_restrictions(
+                _SFX_ALT, lookbehinds=self.suffix_restrictions
+            )
         else:
             _SFX_STRICT = _SFX_ALT
 
@@ -258,7 +291,9 @@ class MultiBaseGenerator:
         # 1. Suffixes (potentially restricted)
         # 2. Bases (provided starters OR all bases)
         if self.starters:
-            _BASE_STARTERS = [b.value if hasattr(b, "value") else b for b in self.starters]
+            _BASE_STARTERS = [
+                b.value if hasattr(b, "value") else b for b in self.starters
+            ]
         else:
             _BASE_STARTERS = base_vals
 
@@ -297,12 +332,13 @@ class MULTI_BASE:
     # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
     _any_u, _ = MultiBaseGenerator(
         bases=Groups.UNAMBIGUOUS_BASES,
-        starters=Groups.UNAMBIGUOUS_BASES
-        + Groups.AMBIGUOUS_BASES,
+        starters=Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
         include_suffixes=True,
     ).generate()
 
     MIXED_DOUBLE = to_build_alternation([_u_any, _any_u], sort_longest_first=True)
+
+
 @dataclass
 class DERIVATIVES:
     # Default groups
@@ -316,7 +352,9 @@ class DERIVATIVES:
     _BASES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_BASES)
 
     # Fixed, for all categories (no suffix attachment)
-    MULTI_BASE: List[Any] = field(default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE])
+    MULTI_BASE: List[Any] = field(
+        default_factory=lambda: [MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
+    )
 
     # Can add additional to this list, or force the list to be empty or override it
     ADDITIONAL_BASES: List[Any] = field(default_factory=list)
@@ -328,7 +366,9 @@ class DERIVATIVES:
 
     # Adds suffixes (not standalone) to the pool to add to a base
     ADDITIONAL_SUFFIXES: List[Any] = field(default_factory=list)
-    SUFFIXES: List[Any] = field(default_factory=lambda: Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
+    SUFFIXES: List[Any] = field(
+        default_factory=lambda: Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+    )
 
     LOOSE: bool = False
 
@@ -343,11 +383,10 @@ class DerivativeGenerator:
     # So multiple instances are needed for specific phrases
     # For example, setting multi_base to [] for certain phrases to avoid redundant computation
     """
+
     config: DERIVATIVES
 
-    def generate(
-        self
-    ):
+    def generate(self):
         # 1. Determine Effective Lists (Flattened)
 
         # Bases allowed to stand alone (Part 3)
@@ -358,7 +397,9 @@ class DerivativeGenerator:
 
         # Bases allowed to have suffixes (Part 1)
         # Ambiguous + Strict + Additional
-        ambig_bases_list = self.config._AMB_BASES + strict_bases_list + self.config.ADDITIONAL_BASES
+        ambig_bases_list = (
+            self.config._AMB_BASES + strict_bases_list + self.config.ADDITIONAL_BASES
+        )
 
         # Suffixes allowed to attach to bases (Part 1)
         # Suffixes + Additional + Standalone + (Misc if LOOSE)
@@ -378,7 +419,12 @@ class DerivativeGenerator:
         # If loose, build the simple one and return early (loose is now used for context)
         if self.config.LOOSE:
             # Combine all unique terms into one massive alternation
-            all_terms = set(strict_bases_list + ambig_bases_list + suffixes_list + standalone_suffixes_list)
+            all_terms = set(
+                strict_bases_list
+                + ambig_bases_list
+                + suffixes_list
+                + standalone_suffixes_list
+            )
             if not all_terms:
                 return ""
             prefix_pattern = to_build_alternation(
@@ -394,8 +440,12 @@ class DerivativeGenerator:
         # Part 1: Base + Suffix
         # ambig_bases_list + suffixes_list
         # Use sets to remove duplicates for cleaner regex, then convert to list
-        ambig_str = to_build_alternation(list(set(ambig_bases_list)), sort_longest_first=True)
-        suffix_str = to_build_alternation(list(set(suffixes_list)), sort_longest_first=True)
+        ambig_str = to_build_alternation(
+            list(set(ambig_bases_list)), sort_longest_first=True
+        )
+        suffix_str = to_build_alternation(
+            list(set(suffixes_list)), sort_longest_first=True
+        )
 
         combo_str = ""
         if ambig_str and suffix_str:
@@ -408,7 +458,9 @@ class DerivativeGenerator:
 
         # Part 3: Standalone Terms (Bases + Standalone Suffixes)
         standalone_pool = strict_bases_list + standalone_suffixes_list
-        standalone_str = to_build_alternation(list(set(standalone_pool)), sort_longest_first=True)
+        standalone_str = to_build_alternation(
+            list(set(standalone_pool)), sort_longest_first=True
+        )
 
         # Combine Suffix Parts
         valid_parts = [p for p in [combo_str, multi_str, standalone_str] if p]
@@ -419,7 +471,9 @@ class DerivativeGenerator:
         full_suffix_pattern = to_build_alternation(valid_parts, sort_longest_first=True)
 
         # Prefix
-        prefix_pattern = to_build_alternation(self.config.PREFIX, sort_longest_first=True)
+        prefix_pattern = to_build_alternation(
+            self.config.PREFIX, sort_longest_first=True
+        )
 
         # Create the final pattern
         if prefix_pattern:
@@ -429,7 +483,9 @@ class DerivativeGenerator:
 
         return full_pattern
 
+
 DOUBLE_BASE_REGEX = build_regex([MULTI_BASE.DOUBLE_BASE])
+
 
 def build_smart_regex(
     core_terms: List[str],
@@ -458,6 +514,7 @@ def build_smart_regex(
     # Return sorted so longest specific phrases come first
     # E.g., "interest rate swap agreement" before "interest rate swap"
     return build_alternation([pattern2, pattern1], True)
+
 
 # --- Definitions for Export/Usage in other files ---
 BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
@@ -544,9 +601,19 @@ def expand_instruments(
 def build_loose_gen_regex() -> re.Pattern:
     # Matches any base or suffix
     # Used for broad filtering/denial logic
-    all_bases = [b.value for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.WARRANT])]
-    all_suffixes = [s.value for s in (Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + Groups.MISC_SUFFIXES)]
-    
+    all_bases = [
+        b.value
+        for b in (Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.WARRANT])
+    ]
+    all_suffixes = [
+        s.value
+        for s in (
+            Groups.UNAMBIGUOUS_SUFFIXES
+            + Groups.AMBIGUOUS_SUFFIXES
+            + Groups.MISC_SUFFIXES
+        )
+    ]
+
     return build_regex(all_bases + all_suffixes)
 
 
@@ -557,7 +624,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     plurals = [
         *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
         *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
-        plural(BASE.WARRANT)
+        plural(BASE.WARRANT),
     ]
     return build_regex(unambiguous + plurals)
 
