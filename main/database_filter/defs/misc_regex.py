@@ -30,7 +30,7 @@ WEAK_MISC = [
     r"longevity",
     r"mortality",
     r"economic",
-    r"freight",
+    r"(?:container[- ])?freight",
 ]
 
 PROPERTY = [
