@@ -147,3 +147,46 @@ MISC_RISK_REGEX = build_regex(MISC_RISK_TERMS)
 MISC_REGEX, MISC_SOFT_REGEX, MISC_LOOSE_REGEX = build_misc_regex()
 
 MISC_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(MISC_CORE_TERMS)
+
+def run_tests():
+    from defs.derivatives_core import (
+        MatchLevel,
+        run_category_tests,
+        run_category_tests_counter,
+    )
+
+    test_cases = [
+        # Strong Terms (With Option: Volatility, Variance)
+        ("volatility option", MatchLevel.STRICT),
+        ("volatility swap", MatchLevel.STRICT),
+        ("volatility agreement", MatchLevel.STRICT),
+        
+        # Strong Terms (No Option: Inflation, CPI)
+        ("inflation swap", MatchLevel.STRICT),
+        ("inflation agreement", MatchLevel.STRICT),
+        ("inflation option", MatchLevel.LOOSE), # Caught by LOOSE=True on Strong terms
+
+        # Weak Terms (With Option: Weather, VIX)
+        ("weather option", MatchLevel.STRICT),
+        ("weather swap", MatchLevel.STRICT),
+        ("weather derivatives", MatchLevel.STRICT),
+        
+        # Weak Terms (No Option: Property, Freight, etc.)
+        ("property swap", MatchLevel.STRICT),
+        ("freight futures", MatchLevel.STRICT),
+        
+        # Specific Phrases
+        ("catastrophe bond", MatchLevel.STRICT),
+    ]
+    run_category_tests(test_cases, MISC_REGEX, MISC_SOFT_REGEX, MISC_LOOSE_REGEX)
+
+    counter_cases = [
+        # Weak terms should not match with generic suffixes or disallowed bases
+        ("weather agreement", MatchLevel.NONE),
+        ("property option", MatchLevel.NONE),
+        ("property agreement", MatchLevel.NONE),
+        ("freight contract", MatchLevel.NONE),
+        # Restricted terms (lookbehinds)
+        ("interest rate volatility swap", MatchLevel.NONE),
+    ]
+    run_category_tests_counter(counter_cases, MISC_REGEX, MISC_SOFT_REGEX, MISC_LOOSE_REGEX)

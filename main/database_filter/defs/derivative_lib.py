@@ -156,6 +156,7 @@ def run_tests():
     from defs.eq_regex import run_tests as eq_run
     from defs.cr_regex import run_tests as cr_run
     from defs.crypto_regex import run_tests as crypto_run
+    from defs.misc_regex import run_tests as misc_run
     
     ir_run()
     fx_run()
@@ -163,3 +164,4 @@ def run_tests():
     eq_run()
     cr_run()
     crypto_run()
+    misc_run()
