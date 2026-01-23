@@ -100,11 +100,8 @@ LEGAL_LITIGATION_KEYWORDS = [
 COMPETITOR_KEYWORDS = [
     r"competitors?",
     r"competition",
-    r"other\s+companies",
-    r"other\s+entities",
-    r"other\s+market\s+participants",
-    r"industry\s+peers?",
-    r"industry\s+practice",
+    r"other\s+(?:entities|companies|market\s+participants)",
+    r"industry\s+(?:practice|peers?)",
     r"peer\s+group",
 ]
 # =============================================================================
