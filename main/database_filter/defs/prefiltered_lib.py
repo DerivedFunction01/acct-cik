@@ -10,7 +10,7 @@ from defs.shared_context import (
     CURRENCY_SYMBOL_PATTERN,
     VALUATION_MODELS,
 )
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, add_restrictions
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
 from defs.ir_regex import IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN
 
@@ -111,10 +111,37 @@ class MinimalTextCleaner:
         flexible_sep = r"(?:[\s,]+(?:and|or|&|to)?\s*)"
 
         quant_chain = rf"{quant_token}(?:{flexible_sep}{quant_token})*"
-        pnl_terms = r"(?:income|expenses?|earnings?|prices?|costs?|revenues?|payments?|gains?|sales?|loss|losses)"
-        pnl_connectors = (
-            r"(?:of|by|was|were|is|are|aggregated|totaling|approximately|approx\.?|to|at)"
-        )
+
+        price_term = add_restrictions(r"prices?", lookbehinds=["strike", "exercise"])
+        pnl_term_list = [
+            r"income",
+            r"expenses?",
+            r"earnings?",
+            price_term,
+            r"costs?",
+            r"revenues?",
+            r"payments?",
+            r"gains?",
+            r"sales?",
+            r"loss",
+            r"losses",
+        ]
+        pnl_terms = build_alternation(pnl_term_list)
+        pnl_connectors_list = [
+            "of",
+            "by",
+            "was",
+            "were",
+            "is",
+            "are",
+            "aggregated",
+            "totaling",
+            "approximately",
+            r"approx\.?",
+            "to",
+            "at",
+        ]
+        pnl_connectors = build_alternation(pnl_connectors_list)
         # 2. Define the Gap (0-2 words)
         # \s+\w+ matches a space followed by a word (e.g., " was increased")
         WORD_GAP = r"(?:\s+\w+){0,2}"
@@ -149,11 +176,31 @@ class MinimalTextCleaner:
         # A. Pre-Noun Modifiers (The "2024 Notes" / "2010 Plan" case)
         # STRICT ADJECTIVES: Excludes "Fiscal", "Annual"
         # Includes: Senior, Convertible, Secured, Incentive, Stock, Performance, Share
-        opt_adjectives = r"(?:(?:senior|convertible|secured|unsecured|guaranteed|equity|stock|incentive|share|performance)\s+){0,3}"
+        adjectives_list = [
+            "senior",
+            "convertible",
+            "secured",
+            "unsecured",
+            "guaranteed",
+            "equity",
+            "stock",
+            "incentive",
+            "share",
+            "performance",
+        ]
+        opt_adjectives = rf"(?:{build_alternation(adjectives_list)}\s+){{0,3}}"
 
         # STRICT NOUNS: Excludes "Year", "Quarter", "Report"
         # Includes: Notes, Bonds, Loans, Facility, Plans, Programs, Schemes
-        target_nouns = rf"(?:{_DEBT_TERMS}|facility|plans?|programs?|schemes?|(?:net\s+)?(?:income|expenses?|sales?|revenues?|earnings?))"
+        target_nouns_list = [
+            _DEBT_TERMS,
+            "facility",
+            "plans?",
+            "programs?",
+            "schemes?",
+            r"(?:net\s+)?(?:income|expenses?|sales?|revenues?|earnings?)",
+        ]
+        target_nouns = build_alternation(target_nouns_list)
 
         self.title_regex = re.compile(
             rf"(?P<token>{year_chain})\s+{opt_adjectives}{target_nouns}", re.IGNORECASE
@@ -335,7 +382,7 @@ class MinimalTextCleaner:
 
         if is_nst_warr:
             text = self.warrant_pattern.sub(safe_soph_sub, text)
-        
+
         if is_nst_conv:
             text = self.convertible_pattern.sub(safe_soph_sub, text)
 
@@ -478,11 +525,11 @@ class MinimalTextCleaner:
         print(
             f"NST Stripped (warrant)?                  {'SUCCESS' if 'warrant' not in cleaned_text.lower() else 'FAIL'}"
         )
-        
+
         # 5b. Split Logic Verification
         print("\nSPLIT LOGIC VERIFICATION:")
         split_text = "We issued warrants and convertible notes."
-        
+
         # Case 1: Keep Warrants, Strip Convertibles
         clean_warr = self.clean(split_text, is_nst_warr=False, is_nst_conv=True)
         print(f"Keep Warrants Only:                      {'SUCCESS' if 'warrants' in clean_warr and 'convertible' not in clean_warr else 'FAIL'}")
