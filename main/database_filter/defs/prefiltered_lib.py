@@ -614,6 +614,7 @@ class NoiseReason(Reason):
     COMP = "COMPETE"  # Competitors
     ACCT_STD = "ACCT_STD"  # Accounting Standards
     BANKRUPTCY = "CH11"  # Bankruptcy
+    CATALOGUE = "CATALOGUE" # We manufacture / product catelouge
     NC = "NC"  # Non derivative commodity contracts (No hedging context anywhere)
 
     # 1. Historical / Temporal

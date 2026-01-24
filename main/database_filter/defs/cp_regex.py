@@ -632,6 +632,78 @@ COMMERCIAL_KEYWORDS = [
 
 NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS
 
+# Targets "we manufacture steel/aluminum/copper/plastic instruments"
+_NON_FINANCIAL_INSTRUMENT_TERMS = [
+    # Medical / surgical / clinical
+    "surgical",
+    "medical",
+    "dental",
+    "veterinary",
+    "optical",
+    "scientific",
+    "laboratory",
+    "lab",
+    "diagnostic",
+    "therapeutic",
+    "orthopedic",
+    "prosthetic",
+    "sterile",
+    "clinical",
+    "calipers",
+    "forceps",
+    "clamps",
+    "microscope",
+    # Musical / artistic
+    "music(?:al)?",
+    "woodwinds?",
+    "percussions?",
+    "string",
+    "keyboards?",
+    "acoustics?",
+    "band",
+    "orchestra",
+    # Industrial / mechanical / tools
+    "equipment",
+    "components",
+    "fittings",
+    "fixtures",
+    "hardware",
+    "machinery",
+    "appliances?",
+    "fasteners",
+    "screws",
+    "bolts",
+    "washers",
+    "valves",
+    "gaskets",
+    "bearings",
+    # Fabrication / materials
+    "mold(?:ing)",
+    "extrusions?",
+    "tub(?:e|es?|ing)",
+    "pip(?:e|ing|es?)",
+    # Containers
+    "bottles?",
+    "jars?",
+    "cans",
+    # Kitchen / household
+    "utensils?",
+    "cook(?:ing|ware)?",
+    "furniture",
+    # Navigation / surveying
+    "navigation(?:al)?",
+    "survey(?:ing)?",
+    
+    # Item 1A description
+    "manufactur(?:e|es|ed|ing|er|ers)",
+    "produc(?:e|es|ed|ing|tion)",
+    "fabricat(?:e|es|ed|ing|ion)",
+    "assembl(?:e|es|ed|ing|y)",
+    "industrial",
+]
+
+EXCLUDE_PRODUCT_CATALOGUE_REGEX = build_regex(_NON_FINANCIAL_INSTRUMENT_TERMS)
+
 
 def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
     # Context terms specific to commodity categories
