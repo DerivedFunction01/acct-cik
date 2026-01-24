@@ -249,7 +249,8 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
         r"swap\s+(?:dealers?|participants?)",
-        r"(?<!the\s)(?<!an\s)(?<!a\s)(?:swap|forward|call|put|lock|cap|floor)s?\s+(?:the|a|an|out|off|forward|upon|up)",
+        r"(?<!the\s)(?<!an\s)(?<!a\s)(?:swap|forward|call|put|lock|cap)s?\s+(?:the|a|an|out|off|up)",
+        r"to\s+(?:swap|forward|call|put|lock|cap)s?\s+(?:in|into|upon|forward)",
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
         r"(?:debt|equity)[- ](?:to|for)[- ](?:equity|debt)",
 
