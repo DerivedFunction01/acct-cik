@@ -2,11 +2,12 @@ from enum import Enum
 import re
 
 
-from defs.derivatives_core import BASE, MULTI_BASE, PHYSICAL_COMMERCIAL_TERMS, PRECISE_LOOSE_GEN_REGEX, SPEC_BASE, SUFFIX, VERB_LOOKAHEAD, VERB_LOOKBEHIND, Groups, build_compound
+from defs.derivatives_core import BASE, MULTI_BASE, PRECISE_LOOSE_GEN_REGEX, SPEC_BASE, SUFFIX, VERB_LOOKAHEAD, VERB_LOOKBEHIND, Groups, build_compound
 from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural, to_build_alternation
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
 from defs.exclusion_regex import ENTITY_TOKEN
+from main.database_filter.defs.cp_regex import FWD_LOOKAHEAD
 
 class GEN_DERIVATIVE_PATTERNS(Enum):
     HEDGING_INSTRUMENT_ALONE = build_compound(
@@ -54,7 +55,7 @@ def build_table_regex() -> re.Pattern:
         BASE.FUTURES,
         add_restrictions(
             plural(BASE.FORWARD),
-            lookaheads=PHYSICAL_COMMERCIAL_TERMS + VERB_LOOKAHEAD,
+            lookaheads=FWD_LOOKAHEAD + VERB_LOOKAHEAD,
             lookbehinds=VERB_LOOKBEHIND
             + [
                 r"carry",

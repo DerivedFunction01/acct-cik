@@ -3,15 +3,13 @@ from typing import List, Tuple
 from defs.derivatives_core import (
     ALL_SUFFIXES,
     BASE,
-    COMMODITY_COMMERICIAL_PATTERN,
     DERIVATIVES,
     MULTI_BASE,
-    PHYSICAL_COMMERCIAL_TERMS,
     DerivativeGenerator,
     SUFFIX,
     Groups,
 )
-from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural, to_build_alternation
+from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, plural, to_build_alternation
 from defs.shared_context import (
     _RISK_ALTERNATION,
     DERIVATIVE_EXCHANGES,
@@ -24,6 +22,28 @@ from defs.shared_context import (
 # =============================================================================
 # STRICT CONTEXT DEFINITIONS (Updated)
 # =============================================================================
+
+PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
+    r"deliver(?:y|ies)",
+    r"orders?",
+    r"suppl(?:y|ies)",
+    r"invoices?",
+    r"shipments?",
+    r"receipts?",
+    r"inventor(?:y|ies)",
+    r"purchases?",
+]
+
+FWD_LOOKAHEAD = PHYSICAL_COMMERCIAL_TERMS + [
+    r"sales?",
+    r"confirmation",
+    r"stocks?",
+    r"prices?",
+]
+
+COMM_SUFFIX = build_alternation(
+    FWD_LOOKAHEAD, sort_longest_first=True
+)
 
 
 def build_energy_dynamic_pattern() -> str:
@@ -564,20 +584,40 @@ NPNS_KEYWORDS = [
     r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
     r"NPNS",
     r"own[- ]use\s+exemption",
+    r"physical\s+(?:forward|delivery)\s+(?:contracts?|agreements?)"
 ]
 
+# contract, instrument, arrangement, agreement, commitment, obligation
+_SUFFIX = Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT,  SUFFIX.OBLIGATION]
+
+_COMM_TERMS = build_compound(
+    [
+        # Unconditional Obligations (ASC 440)
+        r"unconditional\s+purchases?",
+        # Others
+        r"supply",
+        r"sales",
+        r"capacity",
+        r"delivery",
+        r"requirements?",
+        r"storage",
+        r"off[- ]take",
+        r"procurement",
+        r"throughput",
+    ],
+    _SUFFIX,
+)
+_COMM_FORWARD = build_compound(
+    PHYSICAL_COMMERCIAL_TERMS,
+    BASE.FORWARD,
+)
+
 COMMERCIAL_KEYWORDS = [
-    # Unconditional Obligations (ASC 440)
-    r"unconditional\s+purchase\s+(?:obligations?|commitments?)",
     r"take[- ]or[- ]pay",
-    r"throughput\s+(?:agreements?|contracts?)",
-    # General Supply Chain (If not caught by Physical Inventory)
-    r"supply\s+(?:arrangements?|agreements?)",
-    r"procurement\s+(?:agreements?|contracts?|arrangements?)",
     r"purchase\s+orders?",
-    r"master\s+supply\s+agreements?",
-    r"off[- ]take\s+agreements?",
-    r"requirements?\s+contracts?",
+    r"master\s+supply",
+    _COMM_TERMS,
+    _COMM_FORWARD,
 ]
 
 NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS
@@ -658,11 +698,11 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
     ] + DERIVATIVE_EXCHANGES
 
     soft_terms = (
-        all_context_terms +
-        COMMON_COMMODITIES +
-        CP_UNITS_STRICT +
-        NON_DERIVATIVE_COMMERCIAL_KEYWORDS +
-        [rf"{_COMMODITY_NAMES}\s+{COMMODITY_COMMERICIAL_PATTERN}"]
+        all_context_terms
+        + COMMON_COMMODITIES
+        + CP_UNITS_STRICT
+        + NON_DERIVATIVE_COMMERCIAL_KEYWORDS
+        + [rf"{_COMMODITY_NAMES}\s+{COMM_SUFFIX}"]
     )
 
     return strict_terms, soft_terms, risk_terms
@@ -686,47 +726,12 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "related",
         "based",
         "linked",
-        "index",
-        "capacity",
-        "purchase",
-        "price",
+        r"(?:fixed[- ])?price(?: purchase)?",
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
-    fixed_modifier_terms = [
-        "costs?",
-        "purchase",
-        "price",
-    ]
-    fixed_modifier_alternation = build_alternation(fixed_modifier_terms, sort_longest_first=True)
-
-    # --- OPTIMIZED PATTERNS ---
-
-    # 1. Fixed Commodity Prefix (Strict)
-    # Matches: "fixed corn contract", "fixed oil agreement"
-    # Structure: fixed [commodity] [filler] [suffix]
-    _FIXED_PRICE = add_restrictions(
-        plural(BASE.FIXED_PRICE.value),
-        lookaheads=[BASE.OPTION.value], # prevent fixed price purchase options
-    )
-    fixed_commodity_prefix = [
-        rf"fixed[- ](?:{commodity_alternation})(?:[- ](?:{fixed_modifier_alternation}))?",
-        _FIXED_PRICE,
-    ]
-
-    _FIXED_COMMODITY_CONFIG = DERIVATIVES(
-        PREFIX=fixed_commodity_prefix,
-        # fixed price purchase contract, fixed price purchase commitment, 
-        STANDALONE_SUFFIXES=[BASE.OPTION, SUFFIX.COMMITMENT, SUFFIX.CONTRACT],
-        SUFFIXES=[],
-        _BASES=[],
-        MULTI_BASE=[],
-        _AMB_BASES=[],
-    )
-    _FIXED_COMMODITY_PATTERN = DerivativeGenerator(config=_FIXED_COMMODITY_CONFIG).generate()
-
     # 2. General Commodity + Base (Strict Base)
-    # Matches: "corn swap", "oil future", "corn fixed price", "corn forward purchase"
+    # Matches: "corn swap", "oil futures", "corn fixed price", "corn forward purchase"
     # Structure: [optional fixed] [commodity] [base] [suffix]
 
     general_commodity_prefix = [
@@ -738,17 +743,17 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES.remove(BASE.FORWARD)
 
     # naked forward requires restrictions to avoid natural gas forward sales/delivery
-    _FWD = add_restrictions(BASE.FORWARD.value, lookaheads=PHYSICAL_COMMERCIAL_TERMS)
+    _FWD = add_restrictions(BASE.FORWARD.value, lookaheads=FWD_LOOKAHEAD)
 
-    # Allows natural gas derivatives
+    # Allows natural gas derivatives, commodity derivatives, commodity forward, etc
     _COMMODITY_BASE_CONFIG = DERIVATIVES(
         PREFIX=general_commodity_prefix,
-        # Require a specific base (including fixed price/forward purchase)
-        ADDITIONAL_BASES=[BASE.FIXED_PRICE, BASE.FORWARD_PURCHASE, BASE.FORWARD], # forward contracts without complex lookahead
-        _BASES=_BASES,
-        # DISALLOW standalone suffixes to prevent "corn contract"
+        # Require a specific base (forward purchase)
+        ADDITIONAL_BASES=[BASE.FORWARD, BASE.FORWARD_PRICE], # forward (price) contracts without complex lookahead
+        _BASES=_BASES, 
+        ADDITIONAL_SUFFIXES=[], 
         STANDALONE_SUFFIXES=[BASE.OPTION, _FWD], # Standalone forward and options
-        MULTI_BASE=[] # leave empty
+        MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE]
     )
 
     _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
@@ -772,17 +777,49 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
 
+    _GEN_COMMODITY = [
+        rf"(?:fixed[- ])?commodity(?:[- ](?:{modifier_alternation}))?",
+    ]
+    _GEN_CONFIG = DERIVATIVES(
+        PREFIX=_GEN_COMMODITY,
+        _BASES=[],
+        _AMB_BASES=[],
+        ADDITIONAL_BASES=[],
+        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR],
+        MULTI_BASE=[], # Leave empty, mixed double captures it.
+    )
+    _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
+
+    _FIXED_PRICE = [
+        r"fixed[- ]price purchase",
+    ]
+    
+    # Fixed price purchase commitment/contracts/arrangements, etc
+    _FIXED_PRICE_CONFIG = DERIVATIVES(
+        PREFIX=_FIXED_PRICE,
+        _BASES=[],
+        _AMB_BASES=[],
+        ADDITIONAL_BASES=[],
+        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT],
+        MULTI_BASE=[],
+    )
+    _FIXED_PRICE_PATTERN = DerivativeGenerator(config=_FIXED_PRICE_CONFIG).generate()
+
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
     _SPECIFIC_PHRASES = [
         _COMMODITY_BASE_PATTERN,
         _FREIGHT_PATTERN,
+        _GEN_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
-        r"fixed[- ]price\s+swaps?"
+        r"fixed[- ]price\s+swaps?", # Only swaps, the rest
     ]
     # make commodity contracts, fixed price purchase commitments soft
-    _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [ r"commodity(?:[- ]price)?\s+contracts?", _FIXED_COMMODITY_PATTERN]
+    _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
+        r"(?:fixed[- ])?commodity(?:[- ]price)?\s+contracts?",
+        _FIXED_PRICE_PATTERN,
+    ]
 
     _UNIFIED_MULTI_BASE = DERIVATIVES(
         PREFIX=[_FREIGHT] + general_commodity_prefix,

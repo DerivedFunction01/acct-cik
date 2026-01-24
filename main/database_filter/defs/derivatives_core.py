@@ -20,25 +20,6 @@ from defs.regex_lib import (
 VERB_LOOKBEHIND = [r"to"]
 VERB_LOOKAHEAD = [r"the", r"an", r"a", r"its", r"rate", r"interest", r"forward"]
 
-PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliverable forward receipt" from being matched
-    r"deliver(?:y|ies)",
-    r"orders?",
-    r"sales?",
-    r"suppl(?:y|ies)",
-    r"confirmation",
-    r"invoices?",
-    r"shipments?",
-    r"receipts?",
-    r"inventor(?:y|ies)",
-    r"stocks?",
-    r"prices?",
-    r"purchases?",
-]
-
-COMMODITY_COMMERICIAL_PATTERN = build_alternation(
-    PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
-)
-
 
 class BASE(Enum):
     SWAP = r"swaps?"
@@ -75,8 +56,7 @@ class BASE(Enum):
     PROTECTION = r"protections?"
 
     # CP bases
-    FORWARD_PURCHASE = r"forward\s+purchase"
-    FIXED_PRICE = r"fixed[- ]price(?: purchase)?"
+    FORWARD_PRICE = r"forward\s+price"
 
 
 class SUFFIX(Enum):
@@ -266,7 +246,6 @@ class Groups:
     ]
     NON_BASES = [
         BASE.PROTECTION,
-        BASE.FORWARD_PURCHASE,
         BASE.QUANTO,
         BASE.SPREAD,
         BASE.VOLATILITY,
