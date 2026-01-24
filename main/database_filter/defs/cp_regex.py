@@ -753,7 +753,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         ADDITIONAL_BASES=[BASE.FORWARD, BASE.FORWARD_PRICE], # forward (price) contracts without complex lookahead
         _BASES=_BASES, 
         ADDITIONAL_SUFFIXES=[], 
-        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD], # Standalone forward and options
+        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD, SUFFIX.INSTRUMENT], # Standalone forward and options
         MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE]
     )
 
@@ -786,7 +786,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR, SUFFIX.INSTRUMENT],
+        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR], # Instrument already in base config
         MULTI_BASE=[], # Leave empty, mixed double captures it.
     )
     _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
@@ -822,18 +822,17 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _FIXED_PRICE_PATTERN,
     ]
 
-    _UNIFIED_MULTI_BASE = DERIVATIVES(
-        PREFIX=[_FREIGHT] + general_commodity_prefix,
-        _BASES=[],
-        ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[],
-        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
-    )
-    _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
+    # _UNIFIED_MULTI_BASE = DERIVATIVES(
+    #     PREFIX=[_FREIGHT] + general_commodity_prefix,
+    #     _BASES=[],
+    #     ADDITIONAL_BASES=[],
+    #     STANDALONE_SUFFIXES=[],
+    #     MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
+    # )
+    # _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
 
-    strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
-    soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SOFT_SPECIFIC_PHRASES])
-
+    strict_cp_regex = build_regex([_SPECIFIC_PHRASES])
+    soft_cp_regex = build_regex([_SOFT_SPECIFIC_PHRASES])
     return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES, "freight"])
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
