@@ -377,10 +377,6 @@ def is_trading_statement(text: str) -> Optional[NoiseReason]:
     if QUANT_REGEX.search(text):
         return None
 
-    # GATE 0.5: Specific Instrument Veto (New)
-    if TRADING_REGEX.search(text):
-        return None
-
     # GATE 1: Core Keyword Check
     if not TRADING_CORE_REGEX.search(text):
         return None
@@ -395,12 +391,15 @@ def is_trading_statement(text: str) -> Optional[NoiseReason]:
         return NoiseReason.NO_TRADING
 
     # Path C: Structural Denial (Instrument required, e.g. "No trading swaps")
-    # Note: Ensure build_absence_regex includes "trading" in its modifiers
+    # Allows most generic "we do not have derivative instruments for trading purposes"
     if DID_NOT_HOLD_REGEX.search(text) or ABSENCE_REGEX.search(text):
         return NoiseReason.NO_TRADING
-
+    
     # Path D: They engage in speculative trading
     if not HEDGING_CORE_REGEX.search(text):
+        # PATH D.2: Specific Instrument Veto (New)
+        if TRADING_REGEX.search(text):
+            return None
         return NoiseReason.TRADING
 
     # Path E: Implicit Denial via Hedging Core (e.g. "only for hedging")
