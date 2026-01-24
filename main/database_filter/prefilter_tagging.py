@@ -343,7 +343,6 @@ def get_quantitative_noise_reason(
 _HEDGING_CORE = [
     r"for\s+any\s+(?:other\s+)?purposes?",  # Not for any other (trading) purpose
     r"(?:(?:except|only|other\s+than)(?:\s+for)?)\s+(?:to\s+hedge|hedging)",  # Negation: Not (not) hedging -> not trading
-    r"hedging\s+purposes?", # For hedging purposes
 ]
 _TRADING_CORE = [
     r"trad(?:ing|es?|ed)",
