@@ -81,6 +81,11 @@ def build_trading_context_terms() -> Tuple[List[str], List[str], List[str]]:
         r"exercise\s+prices?",
         r"initial\s+prices?",
         r"options?\s+strateg(?:y|ies)",
+        r"mark(?:ed)?[- ]to[- ]market",
+        r"(?:cash|net)\s+settl(?:e|es|ed|ing|ement)",
+        r"(?:initial|variation|maintenance)\s+margins?",
+        r"option\s+premiums?",
+        r"settlement\s+prices?",
     ]
     
     # Risk Management Glue
