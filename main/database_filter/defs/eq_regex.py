@@ -206,6 +206,7 @@ EQUITY_COMP_KEYWORDS = [
     "stock appreciation rights?",
     "(?:phantom|employee|common) stocks?",
     "employees?",
+    "options? granted",
     # 2. Plan/HR Terminology
     "compensations?",
     "(?:benefit|incentive|treasury) plans?",
@@ -215,7 +216,7 @@ EQUITY_COMP_KEYWORDS = [
     "grant dates?",
     "service period",
     "unrecognized compensation",
-    "weighted-average exercise price",
+    "weighted-average (?:strike|exercise) price",
     # 3. Income Statement Noise
     "bonus(?:es)?",
     "salar(?:y|ies)?",
