@@ -207,6 +207,7 @@ EQUITY_COMP_KEYWORDS = [
     "(?:phantom|employee|common) stocks?",
     "employees?",
     "options? granted",
+    "fiduciary",
     # 2. Plan/HR Terminology
     "compensations?",
     "(?:benefit|incentive|treasury) plans?",
@@ -215,7 +216,6 @@ EQUITY_COMP_KEYWORDS = [
     "exercisable",
     "grant dates?",
     "service period",
-    "unrecognized compensation",
     "weighted-average (?:strike|exercise) price",
     # 3. Income Statement Noise
     "bonus(?:es)?",
@@ -224,7 +224,6 @@ EQUITY_COMP_KEYWORDS = [
     "payroll",
     "severance",
     "(?:common|treasury|outstanding) shares?",
-    "fiduciary",
 ]
 
 
