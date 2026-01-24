@@ -330,9 +330,10 @@ def build_ir_context_terms() -> Tuple[List[str], List[str], List[str]]:
     ] + BENCHMARK_RATES
 
     strict_terms = [
-        rf"(?<!foreign[- ])(?<!currency[- ])interest[- ]rate\s+{_RISK_ALTERNATION}",
+        rf"{INTEREST}[- ]rate\s+{_RISK_ALTERNATION}",
         r"(?:pay|receive)[- ](?:fixed|variable|floating)",
         r"fed(?:eral)?\s+funds\s+rates?",
+        r"forward[- ]starting",
     ] + BENCHMARK_RATES
 
     soft_terms = common_terms + [
