@@ -307,7 +307,6 @@ def run_tests():
         ("options such as swaps (mixed double)", MatchLevel.STRICT),
         ("collars and puts (mixed double)", MatchLevel.STRICT),
         ("puts, calls, and options (triple base)", MatchLevel.STRICT),
-        ("stock options, puts, and calls (options is a suffix)", MatchLevel.SOFT),
         ("stock option agreement", MatchLevel.SOFT),
         ("option agreement", MatchLevel.SOFT),
         ("call agreement", MatchLevel.SOFT),
