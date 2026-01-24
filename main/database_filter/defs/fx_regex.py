@@ -353,6 +353,7 @@ def run_tests():
 
     counter_cases = [
         ("foreign currency commitments", MatchLevel.SOFT),
+        ("digital currency swaps", MatchLevel.SOFT),
         ("currency rate", MatchLevel.LOOSE),
         ("exchange rate", MatchLevel.LOOSE),
         ("cap contract", MatchLevel.LOOSE),

@@ -26,17 +26,12 @@ BENCHMARK_RATES = [
 
 RATE_TYPES = ["fixed", "variable", "floating"]
 INTEREST = add_restrictions(
-    r"interest",
-    lookbehinds=[r"foreign", r"currency", r"exchange", r"cross[- ]currency"],
+    r"(?:forward(?:[- ]starting)?\s)?interest",
+    lookbehinds=[r"foreign"],
 )
 IR_RATE = f"{INTEREST}[- ]rates?"
 
-STRONG_RATE_ADJECTIVES = [
-    add_restrictions(
-        r"(?:interest|forward)",
-        lookbehinds=[r"foreign", r"currency", r"exchange", r"cross[- ]currency"],
-    ),
-]
+STRONG_RATE_ADJECTIVES = [INTEREST]
 
 TREASURY_RATE_LOCK = r"treasury(?:[- ]rate)? locks?"
 WEAK_RATE_ADJECTIVES = [
@@ -153,6 +148,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             [BASE.SWAP, BASE.SWAPTION],
         ),
         TREASURY_RATE_LOCK,
+        r"forward[- ]rate[- ]agreements?",
     ]
 
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
@@ -487,9 +483,8 @@ def run_tests():
 
     test_cases = [
         ("interest rate swap", MatchLevel.STRICT),
-        ("interest rate swap agreement", MatchLevel.STRICT),
+        ("interest rate cap agreement", MatchLevel.STRICT),
         ("interest rate agreement", MatchLevel.STRICT),
-        ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
         ("floating rate cap", MatchLevel.LOOSE),
         ("treasury rate locks", MatchLevel.STRICT),
         ("fixed rate swap", MatchLevel.STRICT),
@@ -502,7 +497,10 @@ def run_tests():
         ("interest rate hedging", MatchLevel.SOFT),
         ("Eurodollar futures", MatchLevel.STRICT),
         ("Eurodollar options", MatchLevel.STRICT),
+        ("single currency basis swap", MatchLevel.STRICT),
     ]
+
+    print("Interest Rate Derivatives tests:")
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 
     counter_cases = [
@@ -510,5 +508,7 @@ def run_tests():
         ("treasury rate floor", MatchLevel.STRICT),
         ("fixed rate agreement", MatchLevel.SOFT),
         ("floating rate arrangement", MatchLevel.SOFT),
+        ("forward rate swap", MatchLevel.STRICT),
+        ("swap agreement", MatchLevel.STRICT),  # Should NOT match IR (no core)
     ]
     run_category_tests_counter(counter_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
