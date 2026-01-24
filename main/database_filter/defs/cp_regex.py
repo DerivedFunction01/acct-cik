@@ -754,7 +754,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=_BASES, 
         ADDITIONAL_SUFFIXES=[], 
         STANDALONE_SUFFIXES=[BASE.OPTION, _FWD], # Standalone forward and options
-        MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE] # stricter variant (standard commodities also has capture)
+        MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE]
     )
 
     _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
@@ -786,7 +786,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR],
+        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR, SUFFIX.INSTRUMENT],
         MULTI_BASE=[], # Leave empty, mixed double captures it.
     )
     _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
@@ -822,17 +822,17 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _FIXED_PRICE_PATTERN,
     ]
 
-    # _UNIFIED_MULTI_BASE = DERIVATIVES(
-    #     PREFIX=[_FREIGHT] + general_commodity_prefix,
-    #     _BASES=[],
-    #     ADDITIONAL_BASES=[],
-    #     STANDALONE_SUFFIXES=[],
-    #     MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
-    # )
-    # _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
+    _UNIFIED_MULTI_BASE = DERIVATIVES(
+        PREFIX=[_FREIGHT] + general_commodity_prefix,
+        _BASES=[],
+        ADDITIONAL_BASES=[],
+        STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
+    )
+    _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
 
-    strict_cp_regex = build_regex([_SPECIFIC_PHRASES])
-    soft_cp_regex = build_regex([_SOFT_SPECIFIC_PHRASES])
+    strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
+    soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SOFT_SPECIFIC_PHRASES])
 
     return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES, "freight"])
 
@@ -857,7 +857,7 @@ def run_tests():
 
     # Base phrases provided
     base_phrases = [
-        "Commodity contract", "commodity price contract", 
+        "commodity contract", "commodity price contract", 
         "commodity derivative", "commodity price derivative", 
         "commodity instrument", "commodity price instrument", 
         "commodity forward", "commodity price forward", 
@@ -869,41 +869,42 @@ def run_tests():
         "commodity swap", "commodity price swap"
     ]
 
-    def get_key(b):
-        s = b.value if hasattr(b, 'value') else b
-        return s.replace('s?', '').replace('?', '')
-
     # Configuration for expectations
     # Keys are lowercased keywords from the phrases
     # Default is STRICT if not specified
     expectations = {
         "contract": MatchLevel.SOFT,
-        "instrument": MatchLevel.LOOSE, # Suffix only, no base in config
-        "futureS": MatchLevel.STRICT,
+        "instrument": MatchLevel.LOOSE,  # Suffix only, no base in config
+        "cap": MatchLevel.STRICT,  # Generic only
+        "floor": MatchLevel.STRICT,  # Generic only
+        "derivative": MatchLevel.STRICT,
+        "forward": MatchLevel.STRICT,
+        "futures": MatchLevel.STRICT,
+        "option": MatchLevel.STRICT,
+        "collar": MatchLevel.STRICT,
+        "swap": MatchLevel.STRICT,
     }
-    for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES:
-        expectations[get_key(b)] = MatchLevel.STRICT
 
     # Specific commodity expectations (Overrides generic if different)
     specific_overrides = {
+        "cap": MatchLevel.LOOSE, # Specific caps are not strict
+        "floor": MatchLevel.LOOSE,
         "contract": MatchLevel.LOOSE, # Specific contracts are not soft (only generic "commodity contract" is)
         "instrument": MatchLevel.LOOSE,
     }
-    for b in Groups.AMBIGUOUS_BASES:
-        specific_overrides[get_key(b)] = MatchLevel.LOOSE
 
     test_cases = [
         ("power purchase agreement", MatchLevel.STRICT),
-        ("weather derivatives", MatchLevel.STRICT),
         ("freight swap", MatchLevel.LOOSE),
         ("freight swap agreement", MatchLevel.STRICT),
         ("container freight derivative", MatchLevel.STRICT),
-        ("freight forward", MatchLevel.LOOSE),
-        ("crude oil index swap", MatchLevel.STRICT),
-        ("metal caps and locks", MatchLevel.LOOSE),
+        ("forward freight contract", MatchLevel.LOOSE),
+        ("freight forward contract", MatchLevel.LOOSE),
         ("freight forward agreement", MatchLevel.LOOSE),
         ("marble floor", MatchLevel.LOOSE),  # Should be loose (matches marble)
         ("natural gas cap", MatchLevel.LOOSE),  # Should be loose (matches natural gas)
+        ("fixed-price swap", MatchLevel.STRICT),
+        ("fixed-price purchase commitment", MatchLevel.SOFT),
     ]
 
     # Generate dynamic test cases

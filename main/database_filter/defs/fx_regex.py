@@ -121,7 +121,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=naked_prefixes,
         STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK, BASE.FLOOR, BASE.HEDGE],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.CONTRACT],
+        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES,
         MULTI_BASE=[],
     )
     _STRICT_MAIN_WEAK = DerivativeGenerator(config=_STRICT_CONFIG_WEAK).generate()
