@@ -87,7 +87,6 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         pay_receive_pattern_string,
         strong_rate_phrases,
         brate_adjective_phrases,
-        TREASURY_RATE_LOCK,
     ]
 
     weak_core_terms = [
@@ -153,6 +152,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             ],
             [BASE.SWAP, BASE.SWAPTION],
         ),
+        TREASURY_RATE_LOCK,
     ]
 
     SPECIFIC_PATTERN = build_alternation(specific_phrases)
