@@ -58,11 +58,8 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         MULTI_BASE=[],
     )
     _TRADING_PATTERN = DerivativeGenerator(config=_TRADING_CONFIG).generate()
-    
-    # Captures the actual trading options 
-    strict_trading_regex = build_regex([_TRADING_PATTERN])
-    
-    # Generic fallback, so that "we do not use trading derivatives" are just trading statements, not trading options
+
+    strict_trading_regex = build_regex([_TRADING_PATTERN, _STANDALONE_TRADING_PATTERN])
     soft_trading_regex = build_regex([_TRADING_PATTERN, _STANDALONE_TRADING_PATTERN])
 
     # Loose: Allows any base with Trading prefix
