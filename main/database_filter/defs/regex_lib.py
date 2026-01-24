@@ -93,8 +93,17 @@ def to_build_alternation(items: Any, sort_longest_first: bool = True) -> str:
     return build_alternation(to_list(items), sort_longest_first=sort_longest_first)
 
 
-def build_compound(prefix: Any, core: Any, suffix: Optional[Any] = None, sep_suffix = "[- ]") -> str:
-    return f"{to_build_alternation(prefix)}[- ]{to_build_alternation(core)}{sep_suffix + to_build_alternation(suffix) if suffix else ''}"
+def build_compound(
+    prefix: Any,
+    core: Any,
+    suffix: Optional[Any] = None,
+    sep_prefix: str = "[- ]",
+    sep_suffix: str = "[- ]",
+) -> str:
+    prefix_part = f"{to_build_alternation(prefix)}{sep_prefix}" if prefix else ""
+    core_part = to_build_alternation(core)
+    suffix_part = f"{sep_suffix}{to_build_alternation(suffix)}" if suffix else ""
+    return f"{prefix_part}{core_part}{suffix_part}"
 
 def plural(string: str | Enum) -> str:
     if isinstance(string, Enum):
