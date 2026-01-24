@@ -84,7 +84,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "interest(?:[ -]rate)?[- ]exchange",
         pay_receive_pattern_string,
         strong_rate_phrases,
-        "treasury locks?",
+        "treasury(?:[- ]rate)? locks?",
     ]
 
     weak_core_terms = [
@@ -116,7 +116,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=weak_core_terms,
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES, # Weak terms allow "Fixed Rate Option" but NOT "Fixed Rate Contract"
+        STANDALONE_BASES=[BASE.OPTION], # allow none to reduce FP
         ADDITIONAL_BASES=[BASE.PROTECTION],
         MULTI_BASE=[]
     )
@@ -490,8 +490,8 @@ def run_tests():
         ("interest rate swap agreement", MatchLevel.STRICT),
         ("interest rate agreement", MatchLevel.STRICT),
         ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
-        ("floating rate cap", MatchLevel.SOFT),
-        ("treasury rate locks", MatchLevel.SOFT),
+        ("floating rate cap", MatchLevel.LOOSE),
+        ("treasury rate locks", MatchLevel.LOOSE),
         ("fixed rate swap", MatchLevel.STRICT),
         ("pay fixed receive floating swap", MatchLevel.STRICT),
         ("interest rate protection", MatchLevel.LOOSE),
