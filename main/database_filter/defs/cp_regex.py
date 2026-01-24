@@ -933,12 +933,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[
-            BASE.CAP,
-            BASE.PUT,
-            BASE.CALL,
-            BASE.FLOOR,
-        ],  # Instrument already in base config
+        STANDALONE_SUFFIXES=Groups.AMBIGUOUS_BASES,  # Instrument already in base config
         MULTI_BASE=[],  # Leave empty, mixed double captures it.
     )
     _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
