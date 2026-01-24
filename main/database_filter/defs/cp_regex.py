@@ -727,7 +727,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     general_commodity_prefix = [
         rf"(?:fixed[- ])?{commodity_alternation}(?:[- ](?:{modifier_alternation}))?",
-        _FIXED_PRICE,  # Allow fixed price swaps
     ]
 
     _BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
@@ -777,8 +776,9 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _FREIGHT_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
-        r"commodity\s+contracts?",
+        r"fixed[- ]price\s+swaps?"
     ]
+    _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [ r"commodity\s+contracts?"]
 
     _UNIFIED_MULTI_BASE = DERIVATIVES(
         PREFIX=[_FREIGHT] + general_commodity_prefix,
@@ -790,7 +790,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
 
     strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
-    soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
+    soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SOFT_SPECIFIC_PHRASES])
 
     return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES])
 
@@ -823,7 +823,7 @@ def run_tests():
             "commodity contract",
             MatchLevel.SOFT,
         ),  # Note all cp contracts are derivatives
-        ("oil price contract", MatchLevel.SOFT),
+        ("oil price contract", MatchLevel.LOOSE),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),
         ("oil hedging", MatchLevel.LOOSE),
