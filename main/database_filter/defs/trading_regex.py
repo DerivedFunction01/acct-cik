@@ -53,7 +53,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _AMB_BASES=Groups.CORE_UNAMBIGUOUS_BASES,  # allows trading swap agreement, set. Mot trading lock
         STANDALONE_BASES=[],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
-        MULTI_BASE=[MULTI_BASE.TRIPLE_BASE],  # Enforce stricter matches
+        MULTI_BASE=[],
     )
     _TRADING_PATTERN = DerivativeGenerator(config=_TRADING_CONFIG).generate()
 
@@ -66,6 +66,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
         _AMB_BASES=[], # prevent trading cap, market cap, etc
         LOOSE=True,
+        MULTI_BASE=[]
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
 

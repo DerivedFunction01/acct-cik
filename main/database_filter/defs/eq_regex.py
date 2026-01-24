@@ -115,7 +115,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _STRICT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
-        MULTI_BASE=[eq_double, eq_triple],
+        MULTI_BASE=[eq_double],
         ADDITIONAL_BASES=[],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
@@ -149,7 +149,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _SOFT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
-        MULTI_BASE=[eq_double, eq_triple],
+        MULTI_BASE=[eq_double],
         ADDITIONAL_BASES=[],
         STANDALONE_BASES=[BASE.OPTION],
     )
@@ -160,10 +160,8 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
-        MULTI_BASE=[eq_double, eq_triple],
-        ADDITIONAL_BASES=[BASE.OPTION],
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
-        STANDALONE_SUFFIXES=ALL_SUFFIXES,
+        MULTI_BASE=[],
+        LOOSE=True
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
     loose_eq_regex = build_regex(

@@ -4,6 +4,7 @@ from typing import Tuple, List
 from defs.derivatives_core import (
     BASE,
     DERIVATIVES,
+    MULTI_BASE,
     DerivativeGenerator,
     SUFFIX,
     Groups,
@@ -48,6 +49,7 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_BASES=[BASE.OPTION],
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _CRYPTO_PATTERN = DerivativeGenerator(config=_CRYPTO_CONFIG).generate()
     
@@ -59,6 +61,7 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=strict_core_terms,
         ADDITIONAL_BASES=[],
         LOOSE=True,
+        MULTI_BASE=[],
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
     

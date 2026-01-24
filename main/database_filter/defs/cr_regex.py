@@ -4,6 +4,7 @@ from typing import Tuple, List
 from defs.derivatives_core import (
     BASE,
     DERIVATIVES,
+    MULTI_BASE,
     DerivativeGenerator,
     SUFFIX,
     Groups,
@@ -57,6 +58,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=BASES,
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE]
     )
     _CR_PATTERN = DerivativeGenerator(config=_CR_CONFIG).generate()
 
@@ -69,6 +71,7 @@ def build_cr_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=BASES,
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[],
         LOOSE=True,
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()

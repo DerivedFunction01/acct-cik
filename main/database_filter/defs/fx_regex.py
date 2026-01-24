@@ -134,7 +134,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
         SUFFIXES=[],
-        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE]
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE]
     )
     _STRICT_MULTI = DerivativeGenerator(config=_MULTI_CONFIG).generate()
 

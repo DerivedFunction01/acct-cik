@@ -60,7 +60,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     if BASE.FORWARD in BASES:
         BASES.remove(BASE.FORWARD)
-    
+
     # remove some bases
     STRICTER_BASES = BASES.copy()
     if BASE.SWAP in STRICTER_BASES:
@@ -77,6 +77,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=BASES + [BASE.OPTION],
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES, # redundant for swaps but fixed in the generator
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _STRONG_PATTERN = DerivativeGenerator(config=_STRONG_CONFIG).generate()
 
@@ -87,6 +88,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=BASES,
         _AMB_BASES=_AMB_BASES + Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _WEAK_PATTERN = DerivativeGenerator(config=_WEAK_CONFIG).generate()
 
@@ -106,7 +108,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _WEAK_PATTERN,
         _PROPERTY_PATTERN,
     ]
-    
+
     strict_misc_regex = build_regex(patterns + sorted_specific_phrases)
     soft_misc_regex = build_regex(patterns + sorted_specific_phrases)
 
@@ -114,6 +116,7 @@ def build_misc_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _LOOSE_CONFIG = DERIVATIVES(
         PREFIX=MISC_CORE_TERMS,
         LOOSE=True,
+        MULTI_BASE=[]
     )
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
 
