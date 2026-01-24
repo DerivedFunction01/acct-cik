@@ -749,7 +749,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _INSTRUMENT = add_restrictions(
         SUFFIX.INSTRUMENT.value,
         lookbehinds=[
-            "(?:stainless[- ]?steel",
+            "(?:stainless[- ])?steel",
             "plastic",
             "rubber",
             "wood",
