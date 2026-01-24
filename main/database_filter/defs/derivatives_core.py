@@ -31,10 +31,12 @@ PHYSICAL_COMMERCIAL_TERMS = [  # words against "oil forward shipment, or deliver
     r"receipts?",
     r"inventor(?:y|ies)",
     r"stocks?",
+    r"prices?",
+    r"purchases?",
 ]
 
 COMMODITY_COMMERICIAL_PATTERN = build_alternation(
-    PHYSICAL_COMMERCIAL_TERMS + [r"purchases?"], sort_longest_first=True
+    PHYSICAL_COMMERCIAL_TERMS, sort_longest_first=True
 )
 
 
