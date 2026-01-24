@@ -26,22 +26,24 @@ BENCHMARK_RATES = [
 
 RATE_TYPES = ["fixed", "variable", "floating"]
 INTEREST = add_restrictions(
-    r"interest", lookbehinds=[r"foreign", r"currency", r"exchange"]
+    r"interest",
+    lookbehinds=[r"foreign", r"currency", r"exchange", r"cross[- ]currency"],
 )
 IR_RATE = f"{INTEREST}[- ]rates?"
 
 STRONG_RATE_ADJECTIVES = [
     add_restrictions(
         r"(?:interest|forward)",
-        lookbehinds=[r"foreign", r"currency", r"exchange"],
+        lookbehinds=[r"foreign", r"currency", r"exchange", r"cross[- ]currency"],
     ),
 ]
 
+TREASURY_RATE_LOCK = r"treasury(?:[- ]rate)? locks?"
 WEAK_RATE_ADJECTIVES = [
-    "treasury",
     "benchmark",
     "prime",
     r"fed(?:eral)?[- ]funds",
+    r"treasury" # completeness
 ] + RATE_TYPES
 
 RATE_ADJECTIVES = STRONG_RATE_ADJECTIVES + WEAK_RATE_ADJECTIVES
@@ -84,21 +86,22 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "interest(?:[ -]rate)?[- ]exchange",
         pay_receive_pattern_string,
         strong_rate_phrases,
-        "treasury(?:[- ]rate)? locks?",
+        brate_adjective_phrases,
+        TREASURY_RATE_LOCK,
     ]
 
     weak_core_terms = [
-        weak_rate_phrases,
-        brate_adjective_phrases,
+        weak_rate_phrases
     ]
 
     # 1. Strict: Strong terms allow "Contract", Weak terms do not
     _STRICT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=strong_core_terms,
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT, BASE.OPTION], # Assume option has been stripped by debt feature
         ADDITIONAL_BASES=[BASE.PROTECTION],
-        MULTI_BASE=[]
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
+
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=weak_core_terms,
         STANDALONE_SUFFIXES=[], # Weak terms cannot be "Fixed Rate Contract"
@@ -112,7 +115,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
         ADDITIONAL_BASES=[BASE.PROTECTION],
-        MULTI_BASE=[]
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=weak_core_terms,
@@ -122,27 +125,23 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
 
     # 3. Loose: Context matching
-    _LOOSE_CONFIG_STRONG = DERIVATIVES(
-        PREFIX=strong_core_terms,
+    _LOOSE_CONFIG= DERIVATIVES(
+        PREFIX=strong_core_terms + weak_core_terms,
         ADDITIONAL_BASES=[BASE.PROTECTION],
         LOOSE=True,
-        MULTI_BASE=[]
+        MULTI_BASE=[],
     )
-    _LOOSE_CONFIG_WEAK = DERIVATIVES(
-        PREFIX=weak_core_terms, ADDITIONAL_BASES=[BASE.PROTECTION], LOOSE=True, MULTI_BASE=[]
-    )
-    
-    
-    _MULTIBASE_CONFIG = DERIVATIVES(
-        PREFIX=strong_core_terms + weak_core_terms,
-        STANDALONE_SUFFIXES=[],
-        _BASES = [],
-        _AMB_BASES = [],
-        SUFFIXES=[],
-        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE]
-    )
-    _MULTIBASE_PATTERN = DerivativeGenerator(config=_MULTIBASE_CONFIG).generate()
-    
+
+    # _MULTIBASE_CONFIG = DERIVATIVES(
+    #     PREFIX=strong_core_terms + [],
+    #     STANDALONE_SUFFIXES=[],
+    #     _BASES = [],
+    #     _AMB_BASES = [],
+    #     SUFFIXES=[],
+    #     MULTI_BASE=[]
+    # )
+    # _MULTIBASE_PATTERN = DerivativeGenerator(config=_MULTIBASE_CONFIG).generate()
+
     specific_phrases = [
         build_compound(
             [
@@ -166,15 +165,14 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate(),
         DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
     ])
-    
+
     _LOOSE_PATTERN = build_alternation([
-        DerivativeGenerator(config=_LOOSE_CONFIG_STRONG).generate(),
-        DerivativeGenerator(config=_LOOSE_CONFIG_WEAK).generate()
+        DerivativeGenerator(config=_LOOSE_CONFIG).generate(),
     ])
 
-    STRICT = build_regex([_STRICT_PATTERN, SPECIFIC_PATTERN, _MULTIBASE_PATTERN])
-    SOFT = build_regex([_SOFT_PATTERN, SPECIFIC_PATTERN, _MULTIBASE_PATTERN])
-    
+    STRICT = build_regex([_STRICT_PATTERN, SPECIFIC_PATTERN])
+    SOFT = build_regex([_SOFT_PATTERN, SPECIFIC_PATTERN])
+
     LOOSE = build_regex([_LOOSE_PATTERN, SPECIFIC_PATTERN])
 
     return STRICT, SOFT, LOOSE
@@ -501,7 +499,7 @@ def run_tests():
         ("floating rate hedge contract", MatchLevel.STRICT),
         ("interest rate hedging", MatchLevel.SOFT),
         ("Eurodollar futures", MatchLevel.STRICT),
-        ("Eurodollar options", MatchLevel.SOFT),
+        ("Eurodollar options", MatchLevel.STRICT),
     ]
     run_category_tests(test_cases, IR_REGEX, IR_SOFT_REGEX, IR_LOOSE_REGEX)
 

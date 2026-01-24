@@ -832,8 +832,8 @@ def run_tests():
         ("freight swap", MatchLevel.LOOSE),
         ("freight swap agreement", MatchLevel.STRICT),
         ("container freight derivative", MatchLevel.STRICT),
-        ("freight forward", MatchLevel.NONE),
-        ("freight forward agreement", MatchLevel.NONE),
+        ("freight forward", MatchLevel.LOOSE),
+        ("freight forward agreement", MatchLevel.LOOSE),
     ]
 
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
@@ -841,6 +841,6 @@ def run_tests():
     counter_cases = [
         ("commodity arrangement", MatchLevel.SOFT),
         ("commodity contracts", MatchLevel.STRICT),
-        ("natural gas", MatchLevel.LOOSE),
+        ("natural gas", MatchLevel.NONE),
     ]
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
