@@ -37,7 +37,7 @@ from defs.fx_regex import FX_REGEX, FX_SOFT_REGEX
 from defs.cr_regex import CR_REGEX, CR_SOFT_REGEX
 from defs.crypto_regex import CRYPTO_REGEX, CRYPTO_SOFT_REGEX
 from defs.misc_regex import MISC_REGEX, MISC_SOFT_REGEX
-from defs.trading_regex import TRADING_REGEX, TRADING_SOFT_REGEX
+from defs.trading_regex import TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_CONTEXT_REGEX
 from defs.exclusion_regex import (
     EXCLUDE_REGEX_FORWARD_LOOKING,
     ENTITY_EXCLUSION_REGEX,
@@ -142,7 +142,6 @@ FOOTNOTE_PATTERN = re.compile(r"<FN>(.*?)</FN>\s*</TABLE>", re.DOTALL | re.IGNOR
 INDIVIDUAL_FOOTNOTE_PATTERN = re.compile(
     r"<F\s+(\d+)>\s*(.*?)(?=<F\s+\d+>|$)", re.DOTALL
 )
-TRADING_CONTEXT_REGEX = re.compile(r"\b(?:trad(?:e|es|ing|ed)|speculat(?:e|ion|ing|ive))\b", re.IGNORECASE)
 
 TAG_PATTERN = re.compile(r"<[^>]+>")
 

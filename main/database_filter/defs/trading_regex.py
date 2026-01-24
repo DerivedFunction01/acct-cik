@@ -6,6 +6,7 @@ from defs.derivatives_core import (
     DERIVATIVES,
     MULTI_BASE,
     SPEC_BASE,
+    SUFFIX,
     DerivativeGenerator,
     Groups,
 )
@@ -15,7 +16,7 @@ from defs.verb_core import build_strict_do_not_mitigate_regex
 
 TRADING_CORE_TERMS = [
     r"trading",
-    r"speculative",
+    r"speculat(?:e|ion|ing|ive)",
     r"arbitrage",
     r"market[- ]making",
     r"proprietary",
@@ -51,7 +52,7 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=Groups.TRADING_BASES + [BASE.DERIVATIVE],
         _AMB_BASES=Groups.CORE_UNAMBIGUOUS_BASES,  # allows trading swap agreement, set. Mot trading lock
         STANDALONE_BASES=[],
-        STANDALONE_SUFFIXES=[],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[MULTI_BASE.TRIPLE_BASE],  # Enforce stricter matches
     )
     _TRADING_PATTERN = DerivativeGenerator(config=_TRADING_CONFIG).generate()
@@ -79,6 +80,7 @@ def build_trading_context_terms() -> Tuple[List[str], List[str], List[str]]:
         r"strike\s+prices?",
         r"exercise\s+prices?",
         r"initial\s+prices?",
+        r"options?\s+strateg(?:y|ies)",
     ]
     
     # Risk Management Glue
