@@ -180,6 +180,7 @@ WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)\n(?!\n)")
 SPACE_PATTERN = re.compile(r"\s+")
 DOC_PATTERN = re.compile(r'<document>\s*(.*?)\s*</document>', re.DOTALL | re.IGNORECASE)
 HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
+XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 # %%
 # =============================================================================
 # LOAD DATA
@@ -1274,6 +1275,9 @@ def parse_multi_document_content(raw_text: str) -> List[str]:
             if is_html:
                 debug_print(f"  📄 Document {i+1}: Parsing as HTML")
                 content = extract_content(doc_content, asHTML=True)
+            elif XML_REGEX.search(doc_content): # just check if the word "xml exists"
+                debug_print(f"  📄 Document {i+1}: Is XML, skipping")
+                continue
             else:
                 debug_print(f"  📄 Document {i+1}: Parsing as plain text")
                 content = extract_content(doc_content, asHTML=False)
