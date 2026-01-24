@@ -149,6 +149,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
                 r"overnight[- ]index(?:ed)?",
                 r"constant[- ]maturity",
                 r"amortizing",
+                r"forward[- ]start(?:ing)?",
             ],
             [BASE.SWAP, BASE.SWAPTION],
         ),
