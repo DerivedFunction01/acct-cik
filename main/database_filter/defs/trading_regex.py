@@ -118,11 +118,22 @@ def run_tests():
         ("trading derivatives", MatchLevel.STRICT),
         ("speculative swap agreement", MatchLevel.STRICT),
         ("trading swap", MatchLevel.LOOSE),
+        ("barrier option", MatchLevel.STRICT),
+        ("binary option", MatchLevel.STRICT),
+        ("straddle", MatchLevel.STRICT),
+        ("strangle", MatchLevel.STRICT),
+        ("zero-cost collar", MatchLevel.STRICT),
+        ("trading futures contract", MatchLevel.STRICT),
+        ("short sale contract", MatchLevel.STRICT),
+        ("speculative options", MatchLevel.LOOSE),
+        ("naked option", MatchLevel.LOOSE),
     ]
     run_category_tests(test_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
 
     counter_cases = [
         ("trading cap", MatchLevel.NONE),
         ("market cap", MatchLevel.NONE),
+        ("trading strategy", MatchLevel.LOOSE),
+        ("market making", MatchLevel.LOOSE),
     ]
     run_category_tests_counter(counter_cases, TRADING_REGEX, TRADING_SOFT_REGEX, TRADING_LOOSE_REGEX)
