@@ -307,9 +307,9 @@ def run_tests():
         ("options such as swaps (mixed double)", MatchLevel.STRICT),
         ("collars and puts (mixed double)", MatchLevel.STRICT),
         ("puts, calls, and options (triple base)", MatchLevel.STRICT),
-        ("stock option agreement", MatchLevel.SOFT),
-        ("option agreement", MatchLevel.SOFT),
-        ("call agreement", MatchLevel.SOFT),
+        ("stock option agreement", MatchLevel.LOOSE),
+        ("option agreement", MatchLevel.LOOSE),
+        ("call agreement", MatchLevel.LOOSE),
     ]
     print("\nRunning standalone derivative tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)

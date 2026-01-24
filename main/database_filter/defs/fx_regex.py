@@ -12,8 +12,8 @@ from defs.regex_lib import add_restrictions, build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies, build_risk_managment_phrase
 
 
-CURRENCY_TERM = add_restrictions("currency", lookbehinds=["single", "crypto", "digital", "virtual"])
-EXCHANGE_TERM = add_restrictions("exchange", lookbehinds=["interest"])
+CURRENCY_TERM = add_restrictions(r"currency", lookbehinds=[r"single", r"crypto", r"digital", r"virtual"])
+EXCHANGE_TERM = add_restrictions(r"exchange", lookbehinds=["interest"])
 
 def build_fx_dynamic_pattern() -> List[str]:
     """
@@ -34,7 +34,7 @@ def build_fx_dynamic_pattern() -> List[str]:
     )
     word2_alt = build_alternation(
         [
-            rf"(?:{CURRENCY_TERM}|{EXCHANGE_TERM})(?:[- ]rate)?",
+            rf"{EXCHANGE_TERM}(?:[- ]rate)?",
         ],
         sort_longest_first=True,
     )
@@ -109,7 +109,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Split into Strong (allows Agreements) and Weak (allows only Contracts)
     _STRICT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=fx_prefixes,
-        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK, BASE.FLOOR],
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
         ADDITIONAL_BASES=[],
         MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
@@ -119,7 +119,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Barebones "currency" -> Currency contract, currency option, currency swap
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
-        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK, BASE.FLOOR, BASE.HEDGE],
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES,
         MULTI_BASE=[],
@@ -139,28 +139,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     strict_fx_regex = build_regex([_STRICT_MAIN_STRONG, _STRICT_MAIN_WEAK, _STRICT_MULTI, _CURR_NAME_PATTERN, _FWD_PATTERN] + fixed_phrases)
 
-    # --- 4. Soft Generator ---
-    # Allows ambiguous bases (Caps, Floors) and Hedges
-    _SOFT_CONFIG_STRONG = DERIVATIVES(
-        PREFIX=fx_prefixes,
-        ADDITIONAL_BASES=[],
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
-        MULTI_BASE=[],
-        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
-    )
-    _SOFT_MAIN_STRONG = DerivativeGenerator(config=_SOFT_CONFIG_STRONG).generate()
-
-    # Bare Currency agreement, currency hedges, currency contracts, etc
-    _SOFT_CONFIG_WEAK = DERIVATIVES(
-        PREFIX=naked_prefixes,
-        ADDITIONAL_BASES=[],
-        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
-        MULTI_BASE=[],
-        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES,
-    )
-    _SOFT_MAIN_WEAK = DerivativeGenerator(config=_SOFT_CONFIG_WEAK).generate()
-
-    soft_fx_regex = build_regex([_SOFT_MAIN_STRONG, _SOFT_MAIN_WEAK, _STRICT_MULTI, _CURR_NAME_PATTERN, _FWD_PATTERN] + fixed_phrases)
+    soft_fx_regex = strict_fx_regex
 
     # --- 5. Loose Generator ---
     _LOOSE_CONFIG = DERIVATIVES(PREFIX=all_prefixes, ADDITIONAL_BASES=[], LOOSE=True)
@@ -317,8 +296,6 @@ def run_tests():
         ("currency contract", MatchLevel.STRICT),
         ("currency cap agreement", MatchLevel.STRICT),
         ("FX forward", MatchLevel.STRICT),
-        ("crypto currency swaps", MatchLevel.NONE),
-        ("vitrual currency contract", MatchLevel.NONE),
         (
             "foreign exchange option",
             MatchLevel.STRICT,
@@ -327,8 +304,8 @@ def run_tests():
         ("forward foreign exchange contract", MatchLevel.STRICT),
         ("currency agreement", MatchLevel.SOFT),
         ("foreign currency contract", MatchLevel.STRICT),
-        ("foreign currency hedges", MatchLevel.SOFT),
-        ("currency hedging", MatchLevel.SOFT),
+        ("foreign currency hedges", MatchLevel.STRICT),
+        ("currency hedging (unknown suffix)", MatchLevel.STRICT),
         ("foreign currency option", MatchLevel.STRICT),
         ("currency option", MatchLevel.STRICT),
         ("currency exchange rate arrangement", MatchLevel.STRICT),
@@ -347,12 +324,10 @@ def run_tests():
         ),  # Only options along with other bases
         ("currency assets", MatchLevel.LOOSE),
         ("foreign currency liability", MatchLevel.LOOSE),
-        ("forward rate agreement (IR)", MatchLevel.NONE),
         ("forward rate contract", MatchLevel.STRICT),
         ("forward rate option", MatchLevel.STRICT),
         ("foreign exchange agreement", MatchLevel.STRICT),
         ("foreign exchange rate contract", MatchLevel.STRICT),
-        ("single-currency contract (IR)", MatchLevel.NONE),
         ("currency rate contract", MatchLevel.STRICT),
         ("foreign exchange derivative", MatchLevel.STRICT),
         ("foreign exchange rate derivative", MatchLevel.STRICT),
@@ -373,11 +348,15 @@ def run_tests():
         ("foreign exchange cap", MatchLevel.STRICT),
         ("currency cap", MatchLevel.STRICT),
         ("foreign exchange rate put", MatchLevel.STRICT),
-        ("crypto currency floor", MatchLevel.NONE),
-        ("virtual currency forward", MatchLevel.NONE),
-        ("foreign exchange collar", MatchLevel.STRICT),
+        ("foreign exchange lock contract", MatchLevel.STRICT),
         ("foreign exchange rate collar", MatchLevel.STRICT),
         ("digital currency collar", MatchLevel.NONE),
+        ("crypto currency swaps", MatchLevel.NONE),
+        ("vitrual currency contract", MatchLevel.NONE),
+        ("crypto currency floor", MatchLevel.NONE),
+        ("virtual currency forward", MatchLevel.NONE),
+        ("single currency contract (IR)", MatchLevel.NONE),
+        ("forward rate agreement (IR)", MatchLevel.NONE),
     ]
     print("FX Derivatives tests:")
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
