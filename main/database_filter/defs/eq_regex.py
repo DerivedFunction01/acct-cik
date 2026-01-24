@@ -224,6 +224,7 @@ EQUITY_COMP_KEYWORDS = [
     "payroll",
     "severance",
     "(?:common|treasury|outstanding) shares?",
+    "asset swaps?",
 ]
 
 
