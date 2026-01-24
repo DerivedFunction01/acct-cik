@@ -74,6 +74,7 @@ class BASE(Enum):
 
     # CP bases
     FORWARD_PURCHASE = r"forward\s+purchase"
+    FIXED_PRICE = r"fixed[- ]price(?: purchase)?"
 
 
 class SUFFIX(Enum):

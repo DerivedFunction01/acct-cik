@@ -1,6 +1,7 @@
 import re
 from typing import List, Tuple
 from defs.derivatives_core import (
+    ALL_SUFFIXES,
     BASE,
     COMMODITY_COMMERICIAL_PATTERN,
     DERIVATIVES,
@@ -9,7 +10,7 @@ from defs.derivatives_core import (
     SUFFIX,
     Groups,
 )
-from defs.regex_lib import build_alternation, build_regex
+from defs.regex_lib import build_alternation, build_regex, plural, to_build_alternation
 from defs.shared_context import (
     _RISK_ALTERNATION,
     DERIVATIVE_EXCHANGES,
@@ -629,18 +630,21 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
     for cat, terms in category_context.items():
         if cat != "general":
             specific_context_terms.extend(terms)
-            
+
     # Selectively add safe general terms that imply market risk
     # Note: "raw materials" is already in COMMON_COMMODITIES
     safe_general_terms = ["procurements?", "wholesale"]
-    
+
     cp_risk_glue = COMMON_COMMODITIES + specific_context_terms + safe_general_terms
 
     risk_terms = [build_risk_managment_phrase(cp_risk_glue)]
 
+    # Allows natural gas contracts, etc
+    suffix_alternation = to_build_alternation(ALL_SUFFIXES)
+
     strict_terms = [
-        # General terms
-        rf"{_COMMODITY_NAMES}(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}",
+        # General terms (natural gas contracts, natural gas price risks)
+        rf"{_COMMODITY_NAMES}(?:(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}|{suffix_alternation})",
         r"raw\s+material\s+costs?",
         r"fuel\s+surcharges?",
         # Financial Modifier + Specific Commodity
@@ -670,40 +674,65 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     commodity_alternation = build_alternation(
         COMMON_COMMODITIES, sort_longest_first=True
     )
-    spread_types = [
-        "crack",
-        "spark",
-        "dark",
-    ]
-    spread_types_alternation = build_alternation(spread_types, sort_longest_first=True)
+
     # Optimized modifiers (Max Munch applied internally)
     modifier_terms = [
-        "(?:fixed[- ])?prices?",
         "costs?",
         "related",
         "based",
         "linked",
         "index",
-        rf"(?:{spread_types_alternation}[- ])?spreads?",
         "capacity",
         "purchase"
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
-    # 2. Generate Core Terms (Prefixes) for STRICT pattern
+    # --- OPTIMIZED PATTERNS ---
 
-    # Optimized Core: Commodity Name + Modifier (e.g., Crude Oil[- ]price)
-    # This is the original, high-precision core alternation
-    strict_core_patterns = [
-        rf"(?:fixed[- ])?(?:{commodity_alternation})(?:[- ](?:{modifier_alternation}))?",
-        r"fixed[- ]price(?: purchase)?",
+    # 1. Fixed Commodity Prefix (Strict)
+    # Matches: "fixed corn contract", "fixed oil agreement"
+    # Structure: fixed [commodity] [filler] [suffix]
+    fixed_commodity_prefix = [
+        rf"fixed[- ](?:{commodity_alternation})(?:[- ](?:{modifier_alternation}))?",
     ]
+
+    _FIXED_COMMODITY_CONFIG = DERIVATIVES(
+        PREFIX=fixed_commodity_prefix,
+        # Allow weak suffixes because "fixed corn" is already specific enough
+        STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
+        SUFFIXES=[],
+        _BASES=[],
+        MULTI_BASE=[],
+        _AMB_BASES=[],
+    )
+    _FIXED_COMMODITY_PATTERN = DerivativeGenerator(config=_FIXED_COMMODITY_CONFIG).generate()
+
+    # 2. General Commodity + Base (Strict Base)
+    # Matches: "corn swap", "oil future", "corn fixed price", "corn forward purchase"
+    # Structure: [optional fixed] [commodity] [base] [suffix]
+    general_commodity_prefix = [
+        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ](?:{modifier_alternation}))?",
+        BASE.FIXED_PRICE, # Allow fixed price swaps
+    ]
+
+    # Allows natural gas derivatives
+    _COMMODITY_BASE_CONFIG = DERIVATIVES(
+        PREFIX=general_commodity_prefix,
+        # Require a specific base (including fixed price/forward purchase)
+        ADDITIONAL_BASES=[BASE.FIXED_PRICE, BASE.FORWARD_PURCHASE],
+        ADDITIONAL_SUFFIXES=[SUFFIX.COMMITMENT], # also targets fixed price purchase commitments
+        # DISALLOW standalone suffixes to prevent "corn contract"
+        STANDALONE_SUFFIXES=[BASE.OPTION], # Safe to add?
+    )
+    _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
 
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
     specific_phrases = [
+        _FIXED_COMMODITY_PATTERN,
+        _COMMODITY_BASE_PATTERN,
         r"power purchase agreements?",  # raw string for regex
-        r"forward\s+freight\s+agreements?"
+        r"forward\s+freight\s+agreements?",
     ]
 
     _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
@@ -725,53 +754,25 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
     specific_phrases.append(_FREIGHT_PATTERN)
 
-    soft_specific_phrases = [
-        r"fixed[- ]price(?: purchase)?\s+commitments?",
-    ] + specific_phrases
-
     # Pre-sort longest-first for Max Munch precedence
     sorted_specific_phrases = sorted(
         specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
     )
 
     sorted_soft_specific_phrases = sorted(
-        soft_specific_phrases,
+        specific_phrases,
         key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
     )
-    # -------------------------------------------------------------------------
-    # --- A. STRICT Pattern Construction (High Precision) ---
-    # -------------------------------------------------------------------------
 
-    _STRICT_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
-        STANDALONE_SUFFIXES=[],
+    # Final Regex Compilation
+    cp_strict_pattern = build_alternation(sorted_specific_phrases)
+    cp_soft_pattern = build_alternation(sorted_soft_specific_phrases)
+
+    return (
+        re.compile(rf"\b{cp_strict_pattern}\b", re.IGNORECASE),
+        re.compile(rf"\b{cp_soft_pattern}\b", re.IGNORECASE),
+        re.compile(rf"\b{commodity_alternation}\b", re.IGNORECASE)
     )
-    _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_DERIVATIVE_CONFIG).generate()
-    strict_cp_regex = build_regex([_STRICT_PATTERN] + sorted_specific_phrases)
-
-    # -------------------------------------------------------------------------
-    # --- B. SOFT Pattern Construction (Contextual Precision) ---
-    # -------------------------------------------------------------------------
-
-    _SOFT_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, BASE.OPTION],
-    )
-    _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_DERIVATIVE_CONFIG).generate()
-    soft_cp_regex = build_regex([_SOFT_PATTERN] + sorted_soft_specific_phrases)
-
-    _LOOSE_DERIVATIVE_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_patterns,
-        ADDITIONAL_BASES=[BASE.FORWARD_PURCHASE],
-        LOOSE=True,
-    )
-    _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_DERIVATIVE_CONFIG).generate()
-    loose_cp_regex = build_regex([_LOOSE_PATTERN] + sorted_soft_specific_phrases + [rf"{_FREIGHT}\s+swap"])
-
-    return strict_cp_regex, soft_cp_regex, loose_cp_regex
-
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 NPNS_REGEX = build_regex(NPNS_KEYWORDS)
