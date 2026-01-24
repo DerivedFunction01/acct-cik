@@ -44,7 +44,7 @@ import subprocess
 # =============================================================================
 DEBUG = False
 ALL_FIRMS_DATA = "derivatives_data.csv"
-REPORT_CSV_PATH = "report_data2.csv"
+REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 MAX_LEN = 1000
 
