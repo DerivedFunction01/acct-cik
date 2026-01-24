@@ -573,7 +573,11 @@ COMMERCIAL_KEYWORDS = [
     r"throughput\s+(?:agreements?|contracts?)",
     # General Supply Chain (If not caught by Physical Inventory)
     r"supply\s+(?:arrangements?|agreements?)",
-    r"procurement\s+(?:agreements?|contracts?|arrangements)",
+    r"procurement\s+(?:agreements?|contracts?|arrangements?)",
+    r"purchase\s+orders?",
+    r"master\s+supply\s+agreements?",
+    r"off[- ]take\s+agreements?",
+    r"requirements?\s+contracts?",
 ]
 
 NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS

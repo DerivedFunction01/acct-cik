@@ -23,7 +23,7 @@ from defs.prefiltered_lib import (
     is_convertible_target
 )
 from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
-from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX
+from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX, EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, GEN_REGEX
 from defs.shared_context import (
@@ -654,6 +654,47 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     continue
             elif exclusion_reason:
                 local_discards.append((url, p, exclusion_reason))
+                continue
+
+            # === SALVAGE: CP COMMERCIAL ===
+            if EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(p_masked):
+                try:
+                    sentences = SENTENCE_SPLIT_PATTERN.split(p)
+                    sentences_masked = SENTENCE_SPLIT_PATTERN.split(p_masked)
+
+                    if len(sentences) != len(sentences_masked):
+                        local_discards.append(
+                            (url, p, NoiseReason.NC.value)
+                        )
+                        continue
+
+                    kept_indices = []
+                    for sent_idx, (sent_masked,) in enumerate(zip(sentences_masked)):
+                        if (
+                            STRICT_REGEX.search(sent_masked)
+                            or GEN_STRICT_CONTEXT_REGEX.search(sent_masked)
+                        ):
+                            kept_indices.append(sent_idx)
+                        elif SOFT_REGEX.search(sent_masked):
+                            if (
+                                HEDGING_CONTEXT_REGEX.search(sent_masked)
+                                or is_sophisticated_content(sent_masked)
+                            ):
+                                kept_indices.append(sent_idx)
+
+                    if kept_indices:
+                        if len(kept_indices) == len(sentences):
+                            append_to_buffer("clean", idx, p, p_masked)
+                        else:
+                            salvaged_p = " ".join(sentences[i] for i in kept_indices)
+                            salvaged_p_masked = " ".join(sentences_masked[i] for i in kept_indices)
+                            buffer_type = "sophisticated" if is_sophisticated_content(salvaged_p_masked) else "clean"
+                            append_to_buffer(buffer_type, idx, salvaged_p, salvaged_p_masked)
+                            local_discards.append((url, "PARTIAL_COMMERCIAL_DISCARD", NoiseReason.NC.value))
+                    else:
+                        local_discards.append((url, p, NoiseReason.NC.value))
+                except Exception:
+                    local_discards.append((url, p[:100], NoiseReason.NC.value))
                 continue
 
             # === SALVAGE: EQUITY COMP ===
