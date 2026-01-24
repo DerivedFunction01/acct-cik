@@ -457,32 +457,166 @@ def normalize_unicode(text: str) -> str:
     # Now that dashes are fixed, 'ignore' is safe to use for truly weird characters
     return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("utf-8")
 
+def _has_border_top(tag) -> bool:
+    """Check if cell has border-top style."""
+    style = tag.get("style", "").lower().replace(" ", "")
+    return bool(re.search(r"border-top:\s*\w+", style))
+
+
+def _has_border_bottom(tag) -> bool:
+    """Check if cell has border-bottom style."""
+    style = tag.get("style", "").lower().replace(" ", "")
+    return bool(re.search(r"border-bottom:\s*\w+", style))
+
+
+def _is_bold_style(tag) -> bool:
+    """Check if cell has bold font-weight style."""
+    style = tag.get("style", "").lower().replace(" ", "")
+    return (
+        "font-weight:bold" in style
+        or "font-weight:700" in style
+        or "font-weight:600" in style
+        or "font-weight:bolder" in style
+    )
+
+
+def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
+    """
+    Detect number of header rows using hierarchical detection logic:
+    1. Explicit <th> tags
+    2. Border-based detection (top or bottom)
+    3. Bold style detection
+    4. Fallback: treat first row as header
+
+    Also validates that the first data row has content in the first column.
+    """
+    if not rows:
+        return 0
+
+    trs = table_soup.find_all("tr")
+
+    # Filter TRs to match non-empty rows (same as in main logic)
+    filtered_trs = []
+    for tr in trs:
+        if tr.get_text(strip=True):
+            filtered_trs.append(tr)
+
+    if not filtered_trs:
+        return 0
+
+    # Rule 1: Check for explicit <th> tags in the opening rows
+    header_count = 0
+    for tr in filtered_trs:
+        if tr.find("th"):
+            header_count += 1
+        else:
+            break
+
+    if header_count > 0:
+        # Verify first data row has content in first column
+        if header_count < len(filtered_trs):
+            first_data_tr = filtered_trs[header_count]
+            first_cell = first_data_tr.find(["td", "th"])
+            if first_cell and first_cell.get_text(strip=True):
+                return header_count
+        else:
+            return header_count
+
+    # Rule 2: Border-based detection (border-top or border-bottom)
+    border_header_count = _detect_by_border(filtered_trs, rows)
+    if border_header_count > 0:
+        # Verify first data row has content in first column
+        if border_header_count < len(filtered_trs):
+            first_data_tr = filtered_trs[border_header_count]
+            first_cell = first_data_tr.find(["td", "th"])
+            if first_cell and first_cell.get_text(strip=True):
+                return border_header_count
+
+    # Rule 3: Bold style detection
+    header_count = 0
+    for tr in filtered_trs:
+        has_bold = tr.find(["b", "strong"]) or any(
+            _is_bold_style(cell) for cell in tr.find_all(["td", "th"])
+        )
+        if has_bold:
+            header_count += 1
+        else:
+            break
+
+    if header_count > 0:
+        # Verify first data row has content in first column
+        if header_count < len(filtered_trs):
+            first_data_tr = filtered_trs[header_count]
+            first_cell = first_data_tr.find(["td", "th"])
+            if first_cell and first_cell.get_text(strip=True):
+                return header_count
+
+    # Rule 4: Fallback - treat first row as header if we have data rows
+    if rows and filtered_trs:
+        first_cell = filtered_trs[0].find(["td", "th"])
+        if first_cell and first_cell.get_text(strip=True):
+            return 1
+
+    return 1  # Safe default
+
+
+def _detect_by_border(filtered_trs: List, rows: List[List[str]]) -> int:
+    """
+    Detect header rows by analyzing borders (top or bottom).
+
+    Strategy:
+    - border-top on cells suggests previous row is header (row boundary)
+    - border-bottom on cells suggests next row is data (row boundary)
+    - Handle multi-level headers: track when borders stop
+    """
+    if not filtered_trs or not rows:
+        return 0
+
+    border_transitions = []  # List of (row_idx, border_type)
+
+    for row_idx, tr in enumerate(filtered_trs):
+        cells = tr.find_all(["td", "th"])
+
+        has_border_top = any(_has_border_top(cell) for cell in cells)
+        has_border_bottom = any(_has_border_bottom(cell) for cell in cells)
+
+        if has_border_top:
+            border_transitions.append((row_idx, "border_top"))
+        if has_border_bottom:
+            border_transitions.append((row_idx, "border_bottom"))
+
+    if not border_transitions:
+        return 0
+
+    # Interpret borders
+    # border_top on row N means row N-1 (or rows up to N-1) could be headers
+    # border_bottom on row N means row N is the last header row
+
+    first_border_row = border_transitions[0][0]
+    first_border_type = border_transitions[0][1]
+
+    if first_border_type == "border_bottom":
+        # The row with border_bottom is the last header row
+        return first_border_row + 1
+
+    elif first_border_type == "border_top":
+        # The row with border_top is the first data row, so headers end at row before
+        return first_border_row
+
+    # Fallback
+    return 0
+
 
 def extract_content(data: str, asHTML=True) -> str:
     """
     Extract content using html2text for better recursion handling.
     Preserves tables and structure without deep recursion issues.
     """
-
-    def is_bold_style(tag):
-        style = tag.get("style", "")
-        if not style:
-            return False
-
-        style = style.lower().replace(" ", "")
-        # Check for common bold patterns
-        return (
-            "font-weight:bold" in style
-            or "font-weight:700" in style
-            or "font-weight:600" in style
-            or "font-weight:bolder" in style
-        )
-
     if not data:
         return ""
 
     if asHTML:
-        # Use lxml for significantly faster parsing. Ensure you have it installed: pip install lxml
+        # Use lxml for significantly faster parsing
         soup = BeautifulSoup(data, "lxml")
 
         # Decompose hidden elements
@@ -504,14 +638,18 @@ def extract_content(data: str, asHTML=True) -> str:
         for table in tables:
             title = ""
             prologue_text = ""
+
             if table.caption:
                 title = table.caption.get_text(strip=True)
 
-            prev_text = table.find_previous(string=lambda s: s.strip() and len(s.strip()) > 20)  # type: ignore
+            prev_text = table.find_previous(
+                string=lambda s: s.strip() and len(s.strip()) > 20 # type: ignore
+            )
             if prev_text:
                 prev_string = prev_text.strip()
                 if len(prev_string) < 500 and TABLE_HINT_PATTERN.search(prev_string):
                     prologue_text = prev_string
+
             if title and prologue_text:
                 title = f"{prologue_text} | {title}"
             elif prologue_text:
@@ -520,15 +658,9 @@ def extract_content(data: str, asHTML=True) -> str:
             rows = []
             col_count = 0
 
-            # --- NEW: INTEGRATED HEADER DETECTION ---
-            header_count = 0
-            in_header_block = True  # We assume we start in the header section
-
             try:
                 for tr in table.find_all("tr"):
-                    # 1. Filter Spacers IMMEDIATELY
-                    # If the row has no visible text, skip it entirely.
-                    # This removes "Table Width" rows and empty spacing rows.
+                    # Skip rows with no visible text
                     if not tr.get_text(strip=True):
                         continue
 
@@ -536,7 +668,7 @@ def extract_content(data: str, asHTML=True) -> str:
                     for cell in tr.find_all(["td", "th"]):
                         text = cell.get_text(strip=True)
                         try:
-                            colspan = int(cell.get("colspan", 1))  # type: ignore
+                            colspan = int(cell.get("colspan", 1)) # type: ignore
                         except (ValueError, TypeError):
                             colspan = 1
 
@@ -545,39 +677,13 @@ def extract_content(data: str, asHTML=True) -> str:
                             row_cells.extend([""] * (colspan - 1))
 
                     if row_cells:
-                        # 2. Check for Header Status (Synced with filtered rows)
-                        # Only check if we are still conceptually in the top "header block"
-                        if in_header_block:
-                            is_header = False
-
-                            # Criteria A: Explicit <th> tags
-                            if tr.find("th"):
-                                is_header = True
-
-                            # Criteria B: Bold tags
-                            elif tr.find(["b", "strong"]):
-                                is_header = True
-
-                            # Criteria C: Inline bold style
-                            else:
-                                for cell in tr.find_all(["td", "th"]):
-                                    if is_bold_style(cell):
-                                        is_header = True
-                                        break
-
-                            if is_header:
-                                header_count += 1
-                            else:
-                                in_header_block = False
-
                         rows.append(row_cells)
                         col_count = max(col_count, len(row_cells))
             except Exception as e:
                 print(f"⚠️  Table extraction failed: {e}")
 
-            # Fallback: If logic found 0 headers but we have data, treat first row as header
-            if header_count == 0 and rows:
-                header_count = 1
+            # Detect header row count using improved logic
+            header_count = _detect_header_rows(rows, table)
 
             # Only convert if there is at least one row and two cols
             if len(rows) > 1 and col_count > 1:
@@ -600,9 +706,10 @@ def extract_content(data: str, asHTML=True) -> str:
                             td.replace_with(p_tag)
                 table.unwrap()
 
-        # remove headers and titles, they are false positives
+        # Remove headers and titles, they are false positives
         for header in soup(["h1", "h2", "h3", "h4", "h5", "h6"]):
             header.decompose()
+
         # Use html2text to convert remaining HTML to text
         h = html2text.HTML2Text()
         h.ignore_links = True
@@ -640,7 +747,6 @@ def extract_content(data: str, asHTML=True) -> str:
         text = "".join(processed_parts)
 
     for pattern, replacement in HEADER_CLEANUP_PATTERNS:
-        text = pattern.sub(replacement, text)
         text = pattern.sub(replacement, text)
     for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
         text = pattern.sub(replacement, text)
