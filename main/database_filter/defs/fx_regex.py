@@ -119,9 +119,9 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Barebones "currency" -> Currency contract, currency option, currency swap
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
-        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK, BASE.FLOOR],
+        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK, BASE.FLOOR, BASE.HEDGE],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.CONTRACT],
         MULTI_BASE=[],
     )
     _STRICT_MAIN_WEAK = DerivativeGenerator(config=_STRICT_CONFIG_WEAK).generate()
@@ -360,7 +360,7 @@ def run_tests():
         ("currency rate derivative", MatchLevel.STRICT),
         ("foreign exchange instrument", MatchLevel.STRICT),
         ("foreign exchange rate instrument", MatchLevel.STRICT),
-        ("currency instrument", MatchLevel.SOFT),
+        ("currency instrument", MatchLevel.STRICT),
         ("currency rate instruments", MatchLevel.STRICT),
         ("foreign exchange forward", MatchLevel.STRICT),
         ("foreign exchange rate forward", MatchLevel.STRICT),
