@@ -23,7 +23,7 @@ from defs.prefiltered_lib import (
     is_convertible_target
 )
 from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
-from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX, EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX
+from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX, EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, EXCLUDE_PRODUCT_CATALOGUE_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, GEN_REGEX
 from defs.shared_context import (
@@ -193,6 +193,8 @@ def check_hard_exclusions(text: str) -> Optional[str]:
         return NoiseReason.BANKRUPTCY.value
     if EXCLUDE_REGEX_LEGAL_LITIGATION.search(text):
         return NoiseReason.LEGAL.value
+    if EXCLUDE_PRODUCT_CATALOGUE_REGEX.search(text):
+        return NoiseReason.CATALOGUE.value
 
     if EXCLUDE_NON_FINANCIAL_REGEX.search(text):
         return NoiseReason.NON_FIN.value
