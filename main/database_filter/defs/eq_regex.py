@@ -206,6 +206,9 @@ EQUITY_COMP_KEYWORDS = [
     "employees?",
     "options? granted",
     "fiduciary",
+    "chief (?:executives?|financial|accounting|officers?|operating|technology)",
+    "(?:executive|financial|accounting|technology|operating) (?:officers?|directors?)",
+    "board of directors?",
     # 2. Plan/HR Terminology
     "compensations?",
     "(?:benefit|incentive|treasury) plans?",
