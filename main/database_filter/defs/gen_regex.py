@@ -252,6 +252,7 @@ def run_tests():
     # ACTUAL DERIVATIVES MUST BE STRICT, AMBIGUOUS MUST BE SOFT OR LOWER
     # LOOSE PRECISE MATCHES PLURALS
     # LOOSE MATCHES ANY
+    print("Generic Derivatives tests (ONLY STRICT WILL EXTRACT):")
     test_cases = [
         # --- STRICT: True Derivatives ---
         ("swap contract", MatchLevel.STRICT),
@@ -282,7 +283,10 @@ def run_tests():
         ("currency options and warrants", MatchLevel.SOFT),
         ("stock options and warrants", MatchLevel.SOFT),
         ("swap", MatchLevel.SOFT),  # Singular Unambiguous is in PRECISE_LOOSE
-        ("to swaps",MatchLevel.SOFT,),  # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
+        (
+            "to swaps",
+            MatchLevel.SOFT,
+        ),  # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
         # --- LOOSE: Singular Ambiguous / Broad ---
         ("option", MatchLevel.LOOSE),  # Singular Ambiguous
         ("cap", MatchLevel.LOOSE),  # Singular Ambiguous
@@ -292,13 +296,23 @@ def run_tests():
         ("look forward", MatchLevel.SOFT),
         ("carry forward", MatchLevel.SOFT),
         ("forward shipment", MatchLevel.SOFT),
-        ("derivative market", MatchLevel.SOFT),
+        ("derivative market (captured by context, not by this regex)", MatchLevel.SOFT),
         ("swap participants", MatchLevel.SOFT),
         ("asset swaps", MatchLevel.SOFT),
         ("asset swap", MatchLevel.SOFT),
         ("debt-for-equity swaps", MatchLevel.SOFT),
+        ("derivative (singular, no prefix)", MatchLevel.SOFT),
+        ("shareholder derivatives (must not be strict)", MatchLevel.SOFT),
+        ("derivative liability", MatchLevel.STRICT),
+        ("options such as swaps (mixed double)", MatchLevel.STRICT),
+        ("collars and puts (mixed double)", MatchLevel.STRICT),
+        ("puts, calls, and options (triple base)", MatchLevel.STRICT),
+        ("stock options, puts, and calls (options is a suffix)", MatchLevel.SOFT),
+        ("stock option agreement", MatchLevel.SOFT),
+        ("option agreement", MatchLevel.SOFT),
+        ("call agreement", MatchLevel.SOFT),
     ]
-    print("\nRunning Gen Regex Tests...")
+    print("\nRunning standalone derivative tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
 
 if __name__ == "__main__":

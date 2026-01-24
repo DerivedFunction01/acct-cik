@@ -132,7 +132,9 @@ def run_tests():
         ("cryptocurrency derivative", MatchLevel.STRICT),
         ("virtual currency contract", MatchLevel.STRICT),
         ("crypto assets", MatchLevel.LOOSE),
+        ("crypto currency forwards", MatchLevel.STRICT)
     ]
+    print("Crypto Derivatives tests:")
     run_category_tests(test_cases, CRYPTO_REGEX, CRYPTO_SOFT_REGEX, CRYPTO_LOOSE_REGEX)
 
     counter_cases = [

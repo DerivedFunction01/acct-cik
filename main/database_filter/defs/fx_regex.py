@@ -392,6 +392,7 @@ def run_tests():
         ("currency collar", MatchLevel.STRICT),
         ("currency rate collar", MatchLevel.STRICT),
     ]
+    print("FX Derivatives tests:")
     run_category_tests(test_cases, FX_REGEX, FX_SOFT_REGEX, FX_LOOSE_REGEX)
 
     counter_cases = [

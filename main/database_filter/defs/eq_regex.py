@@ -309,15 +309,29 @@ def run_tests():
         ("market index option", MatchLevel.SOFT),
         ("embedded conversion option", MatchLevel.STRICT),
         ("warrant liability", MatchLevel.STRICT),
+        ("bond warrants", MatchLevel.SOFT),
+        ("derivative warrants", MatchLevel.STRICT),
         ("equity contract", MatchLevel.LOOSE),
         ("equity hedges", MatchLevel.LOOSE),
         ("convertible debt", MatchLevel.SOFT),
         ("convertible debt hedge", MatchLevel.STRICT),
         ("equity option and warrants", MatchLevel.SOFT),
-        ("equity options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE overrides equity exclusion
-        ("stock options, warrants and futures", MatchLevel.STRICT), # TRIPLE_BASE with stock prefix
-        ("stock agreement, options and warrants", MatchLevel.NONE), # TRIPLE_BASE with agreement start
-        ("equity options and swaps", MatchLevel.STRICT), # Double Base (Ambiguous + Unambiguous)
+        (
+            "equity options, warrants and futures",
+            MatchLevel.STRICT,
+        ),  # TRIPLE_BASE overrides equity exclusion
+        (
+            "stock options, warrants and futures",
+            MatchLevel.STRICT,
+        ),  # TRIPLE_BASE with stock prefix
+        (
+            "stock agreement, options and warrants",
+            MatchLevel.NONE,
+        ),  # TRIPLE_BASE with agreement start
+        (
+            "equity options and swaps",
+            MatchLevel.STRICT,
+        ),  # Double Base (Ambiguous + Unambiguous)
         ("stock swap", MatchLevel.NONE),
         ("dividend futures", MatchLevel.STRICT),
         ("S&P 500 swap", MatchLevel.STRICT),
@@ -325,10 +339,13 @@ def run_tests():
         ("market index swap", MatchLevel.STRICT),
         ("commodity market index swap", MatchLevel.NONE),
     ]
+    print("Equity Derivatives tests:")
     run_category_tests(test_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
 
     counter_cases = [
         ("stock option", MatchLevel.LOOSE),
+        ("stock option agreement", MatchLevel.LOOSE),
+        ("dividend option", MatchLevel.LOOSE),
         ("share option", MatchLevel.LOOSE),
         ("equity option and warrants", MatchLevel.STRICT),
         ("equity compensation", MatchLevel.LOOSE),
@@ -337,5 +354,7 @@ def run_tests():
         ("convertible debt", MatchLevel.STRICT),
         ("equity", MatchLevel.LOOSE),
         ("stock hedging", MatchLevel.LOOSE),
+        ("warranty liability", MatchLevel.LOOSE),
+        ("derivative warranty", MatchLevel.LOOSE),
     ]
     run_category_tests_counter(counter_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)

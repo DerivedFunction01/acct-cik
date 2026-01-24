@@ -151,10 +151,10 @@ def run_tests():
         run_category_tests,
         run_category_tests_counter,
     )
-
+    print("Credit Derivatives tests:")
     test_cases = [
         ("credit default swap", MatchLevel.STRICT),
-        ("credit default swap agreement", MatchLevel.STRICT),
+        ("credit default cap agreement", MatchLevel.STRICT),
         ("credit linked note", MatchLevel.STRICT),
         ("credit swap", MatchLevel.STRICT),
         ("credit default option", MatchLevel.LOOSE),

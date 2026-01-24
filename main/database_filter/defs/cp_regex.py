@@ -1052,7 +1052,7 @@ def run_tests():
     # Default is STRICT if not specified
     expectations = {
         "contract": MatchLevel.SOFT,
-        "instrument": MatchLevel.LOOSE,  # Suffix only, no base in config
+        "instrument": MatchLevel.STRICT,
         "cap": MatchLevel.STRICT,  # Generic only
         "floor": MatchLevel.STRICT,  # Generic only
         "derivative": MatchLevel.STRICT,
@@ -1068,7 +1068,7 @@ def run_tests():
         "cap": MatchLevel.LOOSE,  # Specific caps are not strict
         "floor": MatchLevel.LOOSE,
         "contract": MatchLevel.LOOSE,  # Specific contracts are not soft (only generic "commodity contract" is)
-        "instrument": MatchLevel.LOOSE,
+        "instrument": MatchLevel.STRICT,
     }
 
     test_cases = [
@@ -1084,6 +1084,7 @@ def run_tests():
         ("fixed-price swap", MatchLevel.STRICT),
         ("fixed-price purchase commitment", MatchLevel.SOFT),
         ("commodity hedges", MatchLevel.STRICT),
+        ("oil hedge", MatchLevel.LOOSE)
     ]
 
     # Generate dynamic test cases
@@ -1096,7 +1097,7 @@ def run_tests():
         test_cases.append((phrase, expected))
 
         # 2. Create 2 Duplicates with Random Commodities
-        for _ in range(2):
+        for _ in range(random.randint(1, 2)):
             specific_comm = "commodity"
             while specific_comm == "commodity":
                 specific_comm = random.choice(safe_commodities)
@@ -1111,7 +1112,8 @@ def run_tests():
             spec_expected = specific_overrides.get(keyword, expected)
             test_cases.append((new_phrase, spec_expected))
 
-    print(f"Running {len(test_cases)} CP Regex Tests...")
+    print("Commodity Derivatives tests:")
+    print("(Assume that steel instruments refer to commodity derivatives and not manufactured goods)")
     run_category_tests(test_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
 
     counter_cases = [
