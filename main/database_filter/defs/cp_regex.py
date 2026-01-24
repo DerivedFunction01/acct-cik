@@ -775,14 +775,14 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
     _SPECIFIC_PHRASES = [
-        _FIXED_COMMODITY_PATTERN,
         _COMMODITY_BASE_PATTERN,
         _FREIGHT_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
         r"fixed[- ]price\s+swaps?"
     ]
-    _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [ r"commodity\s+contracts?"]
+    # make commodity contracts, fixed price purchase commitments soft
+    _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [ r"commodity(?:[- ]price)?\s+contracts?", _FIXED_COMMODITY_PATTERN]
 
     _UNIFIED_MULTI_BASE = DERIVATIVES(
         PREFIX=[_FREIGHT] + general_commodity_prefix,
@@ -825,7 +825,8 @@ def run_tests():
         (
             "commodity contract",
             MatchLevel.SOFT,
-        ),  # Note all cp contracts are derivatives
+        ),  # Note not all cp contracts are derivatives
+        ("fixed commodity price contract", MatchLevel.SOFT),
         ("oil price contract", MatchLevel.LOOSE),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),
