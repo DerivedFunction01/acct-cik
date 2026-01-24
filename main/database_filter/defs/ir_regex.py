@@ -22,7 +22,6 @@ BENCHMARK_RATES = [
     "PRIBOR",
     "MOSPRIME",
     r"euro(?:\s|\-)?dollars?",
-    r"fed(?:eral)?[- ]funds",
 ]
 
 RATE_TYPES = ["fixed", "variable", "floating"]
@@ -42,6 +41,7 @@ WEAK_RATE_ADJECTIVES = [
     "treasury",
     "benchmark",
     "prime",
+    r"fed(?:eral)?[- ]funds",
 ] + RATE_TYPES
 
 RATE_ADJECTIVES = STRONG_RATE_ADJECTIVES + WEAK_RATE_ADJECTIVES
