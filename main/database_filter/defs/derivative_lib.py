@@ -70,22 +70,15 @@ SOFT_CATEGORY_REGEX = re.compile(
 ALL_REGEX = re.compile(
     r"|".join(
         [
-            IR_REGEX.pattern,
-            FX_REGEX.pattern,
-            CP_REGEX.pattern,
-            EQ_REGEX.pattern,
-            CR_REGEX.pattern,
-            CRYPTO_REGEX.pattern,
+            GEN_REGEX.pattern,
+            GEN_STRICT_CONTEXT_REGEX.pattern,
+            IR_SOFT_REGEX.pattern,
             FX_SOFT_REGEX.pattern,
             CP_SOFT_REGEX.pattern,
             EQ_SOFT_REGEX.pattern,
-            IR_SOFT_REGEX.pattern,
-            CR_SOFT_REGEX.pattern,
-            CRYPTO_SOFT_REGEX.pattern,
-            MISC_SOFT_REGEX.pattern,
             TRADING_SOFT_REGEX.pattern,
-            GEN_REGEX.pattern,
-            GEN_STRICT_CONTEXT_REGEX.pattern,
+            CR_REGEX.pattern,
+            CRYPTO_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
