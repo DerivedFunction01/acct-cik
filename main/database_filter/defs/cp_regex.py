@@ -749,7 +749,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _INSTRUMENT = add_restrictions(
         SUFFIX.INSTRUMENT.value,
         lookbehinds=[
-            "steel",
+            "(?:stainless[- ]?steel",
             "plastic",
             "rubber",
             "wood",
@@ -767,16 +767,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
             "tin",
             "polymer",
             "resin",
-            "sharp",
-            "blunt",
-            "musical",
-            "medical",
-            "surgical",
-            "optical",
-            "precision",
-            "measuring",
-            "writing",
-            "drawing",
         ]
     )
 
@@ -996,7 +986,16 @@ def run_tests():
             MatchLevel.STRICT,
         ),  # Forward lookahead blocks strict
         ("steel instrument", MatchLevel.STRICT),  # Should NOT be strict (physical tool)
-        ("plastic instrument", MatchLevel.STRICT),
         ("fixed-price contract", MatchLevel.SOFT)
     ]
+
+    # Restricted modifiers that should NOT form strict instruments
+    restricted_instrument_modifiers = [
+        "stainless-steel", "plastic", "rubber", "wood", "glass", "iron", "stone", 
+        "aluminum", "copper", "brass", "bronze", "titanium", "metal", 
+        "lead", "zinc", "tin", "polymer", "resin"
+    ]
+    for mod in restricted_instrument_modifiers:
+        counter_cases.append((f"{mod} instrument", MatchLevel.STRICT))
+
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
