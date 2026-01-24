@@ -401,19 +401,21 @@ class MULTI_BASE:
     # Mixed Double: At least one unambiguous base
     # 1. Start with Unambiguous (U + Any)
     # Excludes suffixes to ensure the first term is a strong base (e.g. "Swaps and Options")
-    _u_any, _ = MultiBaseGenerator(
+    UNAMB_START, _ = MultiBaseGenerator(
         starters=Groups.CORE_UNAMBIGUOUS_BASES, include_suffixes=False
     ).generate()
 
     # 2. End with Unambiguous (Any + U)
     # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
-    _any_u, _ = MultiBaseGenerator(
+    END_UNAMB, _ = MultiBaseGenerator(
         bases=Groups.CORE_UNAMBIGUOUS_BASES,
         starters=Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
         include_suffixes=True,
     ).generate()
 
-    MIXED_DOUBLE = to_build_alternation([_u_any, _any_u], sort_longest_first=True)
+    MIXED_DOUBLE = to_build_alternation(
+        [UNAMB_START, END_UNAMB], sort_longest_first=True
+    )
 
 
 @dataclass

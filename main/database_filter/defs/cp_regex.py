@@ -813,11 +813,11 @@ def run_tests():
     test_cases = [
         ("commodity swap", MatchLevel.STRICT),
         ("commodity swap agreement", MatchLevel.STRICT),
-        ("crude oil swap", MatchLevel.STRICT),
+        ("crude oil options", MatchLevel.STRICT),
         ("natural gas forward", MatchLevel.STRICT),
         ("natural gas derivative", MatchLevel.STRICT),
+        ("natural gas contracts such as caps", MatchLevel.STRICT),
         ("fixed price swap", MatchLevel.STRICT),
-        ("fixed price option", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),
         (
             "commodity contract",
