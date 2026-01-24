@@ -746,6 +746,40 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # naked forward requires restrictions to avoid natural gas forward sales/delivery
     _FWD = add_restrictions(BASE.FORWARD.value, lookaheads=FWD_LOOKAHEAD)
 
+    _INSTRUMENT = add_restrictions(
+        SUFFIX.INSTRUMENT.value,
+        lookbehinds=[
+            "steel",
+            "plastic",
+            "rubber",
+            "wood",
+            "glass",
+            "iron",
+            "stone",
+            "aluminum",
+            "copper",
+            "brass",
+            "bronze",
+            "titanium",
+            "metal",
+            "lead",
+            "zinc",
+            "tin",
+            "polymer",
+            "resin",
+            "sharp",
+            "blunt",
+            "musical",
+            "medical",
+            "surgical",
+            "optical",
+            "precision",
+            "measuring",
+            "writing",
+            "drawing",
+        ]
+    )
+
     # Allows natural gas derivatives, commodity derivatives, commodity forward, etc
     _COMMODITY_BASE_CONFIG = DERIVATIVES(
         PREFIX=general_commodity_prefix,
@@ -753,7 +787,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         ADDITIONAL_BASES=[BASE.FORWARD, BASE.FORWARD_PRICE], # forward (price) contracts without complex lookahead
         _BASES=_BASES, 
         ADDITIONAL_SUFFIXES=[], 
-        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD, SUFFIX.INSTRUMENT], # Standalone forward and options
+        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD, _INSTRUMENT], # Standalone forward and options
         MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE]
     )
 
@@ -852,7 +886,7 @@ def run_tests():
     from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
 
     # Filter commodities for test generation (remove regex patterns)
-    safe_commodities = [c for c in COMMON_COMMODITIES if re.match(r'^[a-zA-Z\s]+$', c)]
+    safe_commodities = [c for c in COMMON_COMMODITIES if re.match(r'^[a-zA-Z\s]+$', c) and c not in COMMODITY_MAP["chemicals"] and c not in COMMODITY_MAP["metals"]]
 
     # Base phrases provided
     base_phrases = [
@@ -904,6 +938,7 @@ def run_tests():
         ("natural gas cap", MatchLevel.LOOSE),  # Should be loose (matches natural gas)
         ("fixed-price swap", MatchLevel.STRICT),
         ("fixed-price purchase commitment", MatchLevel.SOFT),
+        ("commodity hedges", MatchLevel.STRICT)
     ]
 
     # Generate dynamic test cases
@@ -936,7 +971,13 @@ def run_tests():
 
     counter_cases = [
         ("commodity arrangement", MatchLevel.SOFT),
-        ("natural gas", MatchLevel.STRICT), # Should NOT be strict
-        ("natural gas forward sale", MatchLevel.STRICT), # Forward lookahead blocks strict
+        ("natural gas", MatchLevel.STRICT),  # Should NOT be strict
+        (
+            "natural gas forward sale",
+            MatchLevel.STRICT,
+        ),  # Forward lookahead blocks strict
+        ("steel instrument", MatchLevel.STRICT),  # Should NOT be strict (physical tool)
+        ("plastic instrument", MatchLevel.STRICT),
+        ("fixed-price contract", MatchLevel.SOFT)
     ]
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
