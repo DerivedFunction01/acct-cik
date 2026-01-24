@@ -253,7 +253,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         r"to\s+(?:swap|forward|call|put|lock|cap)s?\s+(?:in|into|upon|forward)",
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
         r"(?:debt|equity)[- ](?:to|for)[- ](?:equity|debt)",
-
+        r"(?:stock|share|debt|loan|bond|note)s?\s+swaps?",
     ]
 
     suffix_alternation = to_build_alternation(suffixes)
