@@ -66,7 +66,7 @@ class BASE(Enum):
     # These ones are just prefixes for compounding
     BASIS = r"basis"
     VOLATILITY = r"volatility"
-    QUANTO = r"quanto(?:[- ]style)"
+    QUANTO = r"quanto(?:[- ]style)?"
     INDEX = r"index"
 
     # IR bases
