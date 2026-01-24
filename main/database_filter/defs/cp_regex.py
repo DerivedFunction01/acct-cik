@@ -792,8 +792,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
     soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SOFT_SPECIFIC_PHRASES])
 
-    return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES])
-
+    return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES, "freight"])
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 NPNS_REGEX = build_regex(NPNS_KEYWORDS)
@@ -805,7 +804,7 @@ CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
-CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES+ ["freight"])
+CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES + ["freight"])
 
 
 def run_tests():
