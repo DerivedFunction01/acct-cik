@@ -110,7 +110,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Split into Strong (allows Agreements) and Weak (allows only Contracts)
     _STRICT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=fx_prefixes,
-        STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK],
         STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
         ADDITIONAL_BASES=[],
         MULTI_BASE=[], # Add separately to avoid redundancy/complexity in one regex
@@ -120,7 +120,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Barebones "currency" -> Currency contract, currency option, currency swap
     _STRICT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
-        STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.PUT, BASE.CALL, BASE.LOCK],
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[],
@@ -155,7 +155,7 @@ def build_fx_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _SOFT_CONFIG_WEAK = DERIVATIVES(
         PREFIX=naked_prefixes,
         ADDITIONAL_BASES=[],
-        STANDALONE_BASES=[BASE.OPTION, BASE.HEDGE],
+        STANDALONE_BASES=Groups.AMBIGUOUS_BASES,
         MULTI_BASE=[],
         STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES,
     )
@@ -318,6 +318,8 @@ def run_tests():
         ("currency contract", MatchLevel.STRICT),
         ("currency cap agreement", MatchLevel.STRICT),
         ("FX forward", MatchLevel.STRICT),
+        ("crypto currency swaps", MatchLevel.NONE),
+        ("vitrual currency contract", MatchLevel.NONE),
         (
             "foreign exchange option",
             MatchLevel.STRICT,
