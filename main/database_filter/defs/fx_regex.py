@@ -28,14 +28,13 @@ def build_fx_dynamic_pattern() -> List[str]:
     compound = build_alternation(
         [
             r"(?:cross|multi)[- ]currency(?:\s+interest[- ]rate)?",
-            rf"{EXCHANGE_TERM}[- ]rate",
+            rf"(?:{EXCHANGE_TERM}|{CURRENCY_TERM})[- ]rate",
         ],
         sort_longest_first=True,
     )
     word2_alt = build_alternation(
         [
-            CURRENCY_TERM,
-            rf"{EXCHANGE_TERM}(?:[- ]rate)?",
+            rf"(?:{CURRENCY_TERM}|{EXCHANGE_TERM})(?:[- ]rate)?",
         ],
         sort_longest_first=True,
     )
@@ -53,7 +52,7 @@ def build_fx_dynamic_pattern() -> List[str]:
         rf"(?:{word2_alt})[- ](?:{word2_alt})",  # exchange currency, currency exchange
         # Two-word descriptive terms
         rf"(?:{word1})[- ](?:{word2_alt})",  # forward exchange, foreign currency, currency exchange rate, forward currency
-        rf"(?:{compound})",  # cross currency, ccirs
+        rf"(?:{compound})",  # cross currency, ccirs, exchange rate, currency rate
         # Single-word descriptive terms (low priority, included for completeness)
         r"FX",
         r"forex",
