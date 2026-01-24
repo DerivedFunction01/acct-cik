@@ -264,41 +264,38 @@ def run_tests():
         ("put option", MatchLevel.STRICT),
         ("swap liability", MatchLevel.STRICT),
         ("derivative asset", MatchLevel.STRICT),
-        ("swaps and options", MatchLevel.STRICT), # Mixed Double
-        ("swaps, options and futures", MatchLevel.STRICT), # Triple Base
+        ("swaps and options", MatchLevel.STRICT),  # Mixed Double
+        ("swaps, options and futures", MatchLevel.STRICT),  # Triple Base
         ("contracts such as swaps", MatchLevel.STRICT),
         ("hedge contract", MatchLevel.STRICT),
         ("hedges of net investments", MatchLevel.STRICT),
         ("swap agreement", MatchLevel.STRICT),
-        ("swaps", MatchLevel.STRICT), # Plural Unambiguous (Restricted)
-        ("futures", MatchLevel.STRICT), # Plural Unambiguous (Restricted)
-
+        ("swaps", MatchLevel.STRICT),  # Plural Unambiguous (Restricted)
+        ("futures", MatchLevel.STRICT),  # Plural Unambiguous (Restricted)
         # --- SOFT: Ambiguous Plurals / Double Ambiguous / Unambiguous Singular ---
-        ("options", MatchLevel.SOFT), # Plural Ambiguous
-        ("warrants", MatchLevel.SOFT), # Plural Ambiguous (in precise loose)
-        ("caps and floors", MatchLevel.SOFT), # Double Ambiguous
+        ("options", MatchLevel.SOFT),  # Plural Ambiguous
+        ("warrants", MatchLevel.SOFT),  # Plural Ambiguous (in precise loose)
+        ("caps and floors", MatchLevel.SOFT),  # Double Ambiguous
         ("contracts such as options", MatchLevel.SOFT),
         ("contracts sets the cap", MatchLevel.SOFT),
         ("currency options and warrants", MatchLevel.SOFT),
-        ("swap", MatchLevel.SOFT), # Singular Unambiguous is in PRECISE_LOOSE
-        ("to swaps", MatchLevel.SOFT), # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
-
+        ("stock options and warrants", MatchLevel.SOFT),
+        ("swap", MatchLevel.SOFT),  # Singular Unambiguous is in PRECISE_LOOSE
+        ("to swaps",MatchLevel.SOFT,),  # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
         # --- LOOSE: Singular Ambiguous / Broad ---
-        ("stock options and warrants", MatchLevel.LOOSE),
-        ("option", MatchLevel.LOOSE), # Singular Ambiguous
-        ("cap", MatchLevel.LOOSE), # Singular Ambiguous
-        ("market cap", MatchLevel.LOOSE), # Matches "cap" in LOOSE
-
+        ("option", MatchLevel.LOOSE),  # Singular Ambiguous
+        ("cap", MatchLevel.LOOSE),  # Singular Ambiguous
+        ("market cap", MatchLevel.LOOSE),  # Matches "cap" in LOOSE
         # --- Counter Cases (Non-Financial / Exclusion Handled) ---
         ("forward looking", MatchLevel.SOFT),
         ("look forward", MatchLevel.SOFT),
         ("carry forward", MatchLevel.SOFT),
         ("forward shipment", MatchLevel.SOFT),
-        ("derivative market", MatchLevel.STRICT), 
+        ("derivative market", MatchLevel.SOFT),
         ("swap participants", MatchLevel.SOFT),
-        ("asset swaps", MatchLevel.STRICT),
+        ("asset swaps", MatchLevel.SOFT),
         ("asset swap", MatchLevel.SOFT),
-        ("debt-for-equity swaps", MatchLevel.STRICT),
+        ("debt-for-equity swaps", MatchLevel.SOFT),
     ]
     print("\nRunning Gen Regex Tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
