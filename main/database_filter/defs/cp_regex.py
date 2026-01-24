@@ -689,6 +689,13 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
+    fixed_modifier_terms = [
+        "costs?",
+        "purchase",
+        "price",
+    ]
+    fixed_modifier_alternation = build_alternation(fixed_modifier_terms, sort_longest_first=True)
+
     # --- OPTIMIZED PATTERNS ---
 
     # 1. Fixed Commodity Prefix (Strict)
@@ -699,7 +706,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         lookaheads=[BASE.OPTION.value], # prevent fixed price purchase options
     )
     fixed_commodity_prefix = [
-        rf"fixed[- ](?:{commodity_alternation})(?:[- ](?:{modifier_alternation}))?",
+        rf"fixed[- ](?:{commodity_alternation})(?:[- ](?:{fixed_modifier_alternation}))?",
         _FIXED_PRICE,
     ]
 
@@ -770,6 +777,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _FREIGHT_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
+        r"commodity\s+contracts?",
     ]
 
     _UNIFIED_MULTI_BASE = DERIVATIVES(
@@ -777,12 +785,14 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=[],
         ADDITIONAL_BASES=[],
         STANDALONE_SUFFIXES=[],
-        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
 
     strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
-    soft_cp
+    soft_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
+
+    return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES])
 
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
