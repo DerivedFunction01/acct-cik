@@ -7,7 +7,7 @@ from defs.regex_lib import add_restrictions, build_alternation, build_regex, plu
 from defs.shared_context import _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
 from defs.acct_std import DERIVATIVE_STDS
 from defs.exclusion_regex import ENTITY_TOKEN
-from main.database_filter.defs.cp_regex import FWD_LOOKAHEAD
+from defs.cp_regex import FWD_LOOKAHEAD
 
 class GEN_DERIVATIVE_PATTERNS(Enum):
     HEDGING_INSTRUMENT_ALONE = build_compound(

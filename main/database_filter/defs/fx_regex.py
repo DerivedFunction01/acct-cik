@@ -12,7 +12,7 @@ from defs.regex_lib import add_restrictions, build_alternation, build_regex
 from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, build_currency_descriptor_pattern, all_currencies, build_risk_managment_phrase
 
 
-CURRENCY_TERM = add_restrictions("currency", lookbehinds=["single", "crypto"])
+CURRENCY_TERM = add_restrictions("currency", lookbehinds=["single", "crypto", "digital", "virtual"])
 EXCHANGE_TERM = add_restrictions("exchange", lookbehinds=["interest"])
 
 def build_fx_dynamic_pattern() -> List[str]:
