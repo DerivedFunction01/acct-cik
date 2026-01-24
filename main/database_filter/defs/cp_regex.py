@@ -864,7 +864,7 @@ def run_tests():
             MatchLevel.SOFT,
         ),  # Note not all cp contracts are derivatives
         ("fixed commodity price contract", MatchLevel.SOFT),
-        ("oil price contract", MatchLevel.LOOSE),
+        ("oil price contract", MatchLevel.SOFT),
         ("corn futures", MatchLevel.STRICT),
         ("commodity hedges", MatchLevel.LOOSE),
         ("oil hedging", MatchLevel.LOOSE),
