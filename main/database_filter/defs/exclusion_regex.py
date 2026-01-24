@@ -249,14 +249,10 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
         r"swap\s+(?:dealers?|participants?)",
-        r"derivative\s+counterpart(?:y|ies)",
-        r"(?:the|an)\s+options?\s+(?:to|for)",
-        r"to\s+(?:swap|forward|call|put)s?",
+        r"(?:swap|forward|call|put)s?\s+(?:the|a|an|out|off|forward|upon|up)",
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
-        r"calls?\s+(?:upon)",
-        r"puts?\s+(?:in|up|forward|off|out)",
-        r"asset\s+swaps?",
-        r"swap\s+rates?",
+        r"(?:debt|equity)[- ](?:to|for)[- ](?:equity|debt)",
+
     ]
 
     suffix_alternation = to_build_alternation(suffixes)
