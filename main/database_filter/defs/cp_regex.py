@@ -240,7 +240,7 @@ COMMODITY_MAP = {
         "asparagus",
         "celery",
         # --- Grains / Cereals ---
-        "corn",
+        "corns",
         "grain",
         "wheat",
         "rice",
@@ -678,7 +678,7 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "gaskets",
     "bearings",
     # Fabrication / materials
-    "mold(?:ing)",
+    "mold(?:ing)?",
     "extrusions?",
     "tub(?:e|es?|ing)",
     "pip(?:e|ing|es?)",
@@ -735,11 +735,9 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
             "off-peak",
             "on-peak",
             "capacity",
-            "power generation",
-            "power assets",
+            "power (?:assets|generation|supply)",
             "fuel",
             "energy",
-            "power",
             "(?:dark|crack|spark) spreads?",
         ],
         "crops": [
