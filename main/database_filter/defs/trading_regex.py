@@ -47,6 +47,8 @@ def build_trading_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         config=_STANDALONE_TRADING_CONFIG
     ).generate()
 
+    # We are not trying to capture every trading derivative; 
+    # This is just a fallback for classification, for those that don't fit in other cats like ir/fx/cp/eq/crypto
     _TRADING_CONFIG = DERIVATIVES(
         PREFIX=TRADING_CORE_TERMS,
         _BASES=Groups.TRADING_BASES + [BASE.DERIVATIVE],
