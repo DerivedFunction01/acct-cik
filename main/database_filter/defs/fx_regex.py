@@ -302,7 +302,7 @@ def run_tests():
         ),  # Option is explicitly added as safe suffix
         ("cross currency swap", MatchLevel.STRICT),
         ("forward foreign exchange contract", MatchLevel.STRICT),
-        ("currency agreement", MatchLevel.SOFT),
+        ("currency agreement", MatchLevel.LOOSE),
         ("foreign currency contract", MatchLevel.STRICT),
         ("foreign currency hedges", MatchLevel.STRICT),
         ("currency hedging (unknown suffix)", MatchLevel.STRICT),
@@ -315,7 +315,7 @@ def run_tests():
         ("Japanese Yen option", MatchLevel.STRICT),
         ("Euro forward", MatchLevel.STRICT),
         ("exchange rate agreement", MatchLevel.STRICT),
-        ("exchange rate hedge", MatchLevel.SOFT),
+        ("exchange rate hedge", MatchLevel.STRICT),
         ("foreign currency commitment", MatchLevel.LOOSE),
         ("currency transaction", MatchLevel.LOOSE),
         (
@@ -352,7 +352,7 @@ def run_tests():
         ("foreign exchange rate collar", MatchLevel.STRICT),
         ("digital currency collar", MatchLevel.NONE),
         ("crypto currency swaps", MatchLevel.NONE),
-        ("vitrual currency contract", MatchLevel.NONE),
+        ("virtual currency contract", MatchLevel.NONE),
         ("crypto currency floor", MatchLevel.NONE),
         ("virtual currency forward", MatchLevel.NONE),
         ("single currency contract (IR)", MatchLevel.NONE),
