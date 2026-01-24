@@ -684,7 +684,8 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         "linked",
         "index",
         "capacity",
-        "purchase"
+        "purchase",
+        "price",
     ]
     modifier_alternation = build_alternation(modifier_terms, sort_longest_first=True)
 
@@ -737,19 +738,13 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=_BASES,
         # DISALLOW standalone suffixes to prevent "corn contract"
         STANDALONE_SUFFIXES=[BASE.OPTION, _FWD], # Standalone forward and options
+        MULTI_BASE=[] # leave empty
     )
+
     _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
 
-    # 3. Unified Specific Phrases
-    # These contain the max-munch phrases and apply to both strict and soft.
-    specific_phrases = [
-        _FIXED_COMMODITY_PATTERN,
-        _COMMODITY_BASE_PATTERN,
-        r"power purchase agreements?",  # raw string for regex
-        r"forward\s+freight\s+agreements?",
-    ]
-
     _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
+
     _FREIGHT_BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
     # prevent freight forward contracts (in case)
     if BASE.FORWARD in _FREIGHT_BASES:
@@ -763,29 +758,32 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=_FREIGHT_BASES,
         ADDITIONAL_BASES=[BASE.SWAP],  # Force swap to have a suffix
         STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[],
     )
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
-    specific_phrases.append(_FREIGHT_PATTERN)
 
-    # Pre-sort longest-first for Max Munch precedence
-    sorted_specific_phrases = sorted(
-        specific_phrases, key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:"))
+    # 3. Unified Specific Phrases
+    # These contain the max-munch phrases and apply to both strict and soft.
+    _SPECIFIC_PHRASES = [
+        _FIXED_COMMODITY_PATTERN,
+        _COMMODITY_BASE_PATTERN,
+        _FREIGHT_PATTERN,
+        r"power purchase agreements?",  # raw string for regex
+        r"forward\s+freight\s+agreements?",
+    ]
+
+    _UNIFIED_MULTI_BASE = DERIVATIVES(
+        PREFIX=[_FREIGHT] + general_commodity_prefix,
+        _BASES=[],
+        ADDITIONAL_BASES=[],
+        STANDALONE_SUFFIXES=[],
+        MULTI_BASE=[MULTI_BASE.DOUBLE_BASE, MULTI_BASE.TRIPLE_BASE],
     )
+    _UNIFIED_MULTI_BASE_PATTERN = DerivativeGenerator(config=_UNIFIED_MULTI_BASE).generate()
 
-    sorted_soft_specific_phrases = sorted(
-        specific_phrases,
-        key=lambda x: (-len(x), -x.count(r"\s+"), -x.count(r"(?:")),
-    )
+    strict_cp_regex = build_regex([_UNIFIED_MULTI_BASE_PATTERN, _SPECIFIC_PHRASES])
+    soft_cp
 
-    # Final Regex Compilation
-    cp_strict_pattern = build_alternation(sorted_specific_phrases)
-    cp_soft_pattern = build_alternation(sorted_soft_specific_phrases)
-
-    return (
-        re.compile(rf"\b{cp_strict_pattern}\b", re.IGNORECASE),
-        re.compile(rf"\b{cp_soft_pattern}\b", re.IGNORECASE),
-        re.compile(rf"\b{commodity_alternation}\b", re.IGNORECASE)
-    )
 
 EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
 NPNS_REGEX = build_regex(NPNS_KEYWORDS)
