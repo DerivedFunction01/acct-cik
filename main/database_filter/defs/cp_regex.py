@@ -886,7 +886,26 @@ def run_tests():
     from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
 
     # Filter commodities for test generation (remove regex patterns)
-    safe_commodities = [c for c in COMMON_COMMODITIES if re.match(r'^[a-zA-Z\s]+$', c) and c not in COMMODITY_MAP["chemicals"] and c not in COMMODITY_MAP["metals"]]
+    safe_commodities = []
+
+    for c in COMMON_COMMODITIES:
+        # Must be alphabetic + spaces only
+        if not re.match(r'^[a-zA-Z\s]+$', c):
+            continue
+
+        # Exclude chemicals (testing plastic)
+        if c in COMMODITY_MAP["chemicals"]:
+            continue
+
+        # Exclude metals ( need to test steel/copper instruments)
+        if c in COMMODITY_MAP["metals"]:
+            continue
+        
+        # Exclude forestry (targeting wood)
+        if c in COMMODITY_MAP["forestry"]:
+            continue
+
+        safe_commodities.append(c)
 
     # Base phrases provided
     base_phrases = [
