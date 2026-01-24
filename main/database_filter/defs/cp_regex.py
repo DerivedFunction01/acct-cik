@@ -10,7 +10,14 @@ from defs.derivatives_core import (
     SUFFIX,
     Groups,
 )
-from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, plural, to_build_alternation
+from defs.regex_lib import (
+    add_restrictions,
+    build_alternation,
+    build_compound,
+    build_regex,
+    plural,
+    to_build_alternation,
+)
 from defs.shared_context import (
     _RISK_ALTERNATION,
     DERIVATIVE_EXCHANGES,
@@ -42,9 +49,7 @@ FWD_LOOKAHEAD = PHYSICAL_COMMERCIAL_TERMS + [
     r"prices?",
 ]
 
-COMM_SUFFIX = build_alternation(
-    FWD_LOOKAHEAD, sort_longest_first=True
-)
+COMM_SUFFIX = build_alternation(FWD_LOOKAHEAD, sort_longest_first=True)
 
 
 def build_energy_dynamic_pattern() -> str:
@@ -585,11 +590,15 @@ NPNS_KEYWORDS = [
     r"normal\s+purchases?\s+(?:and|&)\s+(?:normal\s+)?sales?",
     r"NPNS",
     r"own[- ]use\s+exemption",
-    r"physical\s+(?:forward|delivery)\s+(?:contracts?|agreements?)"
+    r"physical\s+(?:forward|delivery)\s+(?:contracts?|agreements?)",
 ]
 
 # contract, instrument, arrangement, agreement, commitment, obligation
-_SUFFIX = Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT,  SUFFIX.OBLIGATION]
+_SUFFIX = (
+    Groups.AMBIGUOUS_SUFFIXES
+    + Groups.UNAMBIGUOUS_SUFFIXES
+    + [SUFFIX.COMMITMENT, SUFFIX.OBLIGATION]
+)
 
 _COMM_TERMS = build_compound(
     [
@@ -623,51 +632,110 @@ COMMERCIAL_KEYWORDS = [
 
 NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS
 
+
 def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
     # Context terms specific to commodity categories
     category_context = {
         "energy": [
             # Markets/Hubs
-            "PJM", "ERCOT", "MISO", "SPP", "CAISO", "NYISO", "ISO-NE",
-            "Henry Hub", "WTI", "West Texas Intermediate", "Cushing",
-            "Mont Belvieu", "TTF", "JKM", "Dominion South", "Platts",
-            "Argus", "OPIS", "Brent",
+            "PJM",
+            "ERCOT",
+            "MISO",
+            "SPP",
+            "CAISO",
+            "NYISO",
+            "ISO-NE",
+            "Henry Hub",
+            "WTI",
+            "West Texas Intermediate",
+            "Cushing",
+            "Mont Belvieu",
+            "TTF",
+            "JKM",
+            "Dominion South",
+            "Platts",
+            "Argus",
+            "OPIS",
+            "Brent",
             # Terms
-            "baseload", "peak load", "off-peak", "on-peak", "capacity",
-            "power generation", "power assets", "fuel", "energy", "power",
-            "(?:dark|crack|spark) spreads?"
+            "baseload",
+            "peak load",
+            "off-peak",
+            "on-peak",
+            "capacity",
+            "power generation",
+            "power assets",
+            "fuel",
+            "energy",
+            "power",
+            "(?:dark|crack|spark) spreads?",
         ],
         "crops": [
-            "crops?", "harvest(?:s|ing)?", "yields?", "acreage", "plant(?:ing|ed)",
-            "bushels?", "grains?",
+            "crops?",
+            "harvest(?:s|ing)?",
+            "yields?",
+            "acreage",
+            "plant(?:ing|ed)",
+            "bushels?",
+            "grains?",
         ],
         "livestock": [
-            "livestock", "feed", "herd", "breeding", "heads?",
+            "livestock",
+            "feed",
+            "herd",
+            "breeding",
+            "heads?",
         ],
         "environmental": [
-            "greenhouse", "carbon",
+            "greenhouse",
+            "carbon",
         ],
         "seafood": [
-            "catch", "aquaculture", "fishery", "fisheries",
+            "catch",
+            "aquaculture",
+            "fishery",
+            "fisheries",
         ],
         "metals": [
-            "mining", "mines?", "ores?", "smelt(?:ing|er)?", "refin(?:ing|ery|ed)",
+            "mining",
+            "mines?",
+            "ores?",
+            "smelt(?:ing|er)?",
+            "refin(?:ing|ery|ed)",
             "bullion",
         ],
         "forestry": [
-            "logging", "mills?", "pulp", "paper",
+            "logging",
+            "mills?",
+            "pulp",
+            "paper",
         ],
         "general": [
-            "packaging", "manufactur(?:ing|ers?)", "raw materials?",
-            "suppl(?:y|ies|iers?)", "containers?", "shipp(?:ing|ed)", "transportation",
-            "inventor(?:y|ies)", "shipments?", "warehouses?", "storage",
-            "logistic(?:s|al)?", "procurements?", "productions?", "wholesale",
-            "factor(?:y|ies)", "deliver(?:y|ies)", "products?",
-        ]
+            "packaging",
+            "manufactur(?:ing|ers?)",
+            "raw materials?",
+            "suppl(?:y|ies|iers?)",
+            "containers?",
+            "shipp(?:ing|ed)",
+            "transportation",
+            "inventor(?:y|ies)",
+            "shipments?",
+            "warehouses?",
+            "storage",
+            "logistic(?:s|al)?",
+            "procurements?",
+            "productions?",
+            "wholesale",
+            "factor(?:y|ies)",
+            "deliver(?:y|ies)",
+            "products?",
+        ],
     }
 
     # Flatten context terms
-    all_context_terms = [term for sublist in category_context.values() for term in sublist]
+    all_context_terms = [
+        term for sublist in category_context.values() for term in sublist
+    ]
 
     # Glue for risk phrase: Commodities + Specific Context Terms
     # We exclude generic operational terms (packaging, shipping, etc.) from the risk phrase
@@ -746,42 +814,27 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # naked forward requires restrictions to avoid natural gas forward sales/delivery
     _FWD = add_restrictions(BASE.FORWARD.value, lookaheads=FWD_LOOKAHEAD)
 
-    _INSTRUMENT = add_restrictions(
-        SUFFIX.INSTRUMENT.value,
-        lookbehinds=[
-            "(?:stainless[- ])?steel",
-            "plastic",
-            "rubber",
-            "wood",
-            "glass",
-            "iron",
-            "stone",
-            "aluminum",
-            "copper",
-            "brass",
-            "bronze",
-            "titanium",
-            "metal",
-            "lead",
-            "zinc",
-            "tin",
-            "polymer",
-            "resin",
-        ]
-    )
-
     # Allows natural gas derivatives, commodity derivatives, commodity forward, etc
     _COMMODITY_BASE_CONFIG = DERIVATIVES(
         PREFIX=general_commodity_prefix,
         # Require a specific base (forward purchase)
-        ADDITIONAL_BASES=[BASE.FORWARD, BASE.FORWARD_PRICE], # forward (price) contracts without complex lookahead
-        _BASES=_BASES, 
-        ADDITIONAL_SUFFIXES=[], 
-        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD, _INSTRUMENT], # Standalone forward and options
-        MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE]
+        ADDITIONAL_BASES=[
+            BASE.FORWARD,
+            BASE.FORWARD_PRICE,
+        ],  # forward (price) contracts without complex lookahead
+        _BASES=_BASES,
+        ADDITIONAL_SUFFIXES=[],
+        STANDALONE_SUFFIXES=[
+            BASE.OPTION,
+            _FWD,
+            SUFFIX.INSTRUMENT,
+        ],  # Standalone forward and options
+        MULTI_BASE=[MULTI_BASE.MIXED_DOUBLE],
     )
 
-    _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
+    _COMMODITY_BASE_PATTERN = DerivativeGenerator(
+        config=_COMMODITY_BASE_CONFIG
+    ).generate()
 
     _FREIGHT = r"(?:container[- ])?freight(?!\s+forward)"
 
@@ -810,22 +863,29 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[BASE.CAP, BASE.PUT, BASE.CALL, BASE.FLOOR], # Instrument already in base config
-        MULTI_BASE=[], # Leave empty, mixed double captures it.
+        STANDALONE_SUFFIXES=[
+            BASE.CAP,
+            BASE.PUT,
+            BASE.CALL,
+            BASE.FLOOR,
+        ],  # Instrument already in base config
+        MULTI_BASE=[],  # Leave empty, mixed double captures it.
     )
     _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
 
     _FIXED_PRICE = [
         r"fixed[- ]price purchase",
     ]
-    
+
     # Fixed price purchase commitment/contracts/arrangements, etc
     _FIXED_PRICE_CONFIG = DERIVATIVES(
         PREFIX=_FIXED_PRICE,
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + [SUFFIX.COMMITMENT],
+        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES
+        + Groups.AMBIGUOUS_SUFFIXES
+        + [SUFFIX.COMMITMENT],
         MULTI_BASE=[],
     )
     _FIXED_PRICE_PATTERN = DerivativeGenerator(config=_FIXED_PRICE_CONFIG).generate()
@@ -838,7 +898,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _GEN_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
-        r"fixed[- ]price\s+swaps?", # Only swaps, the rest
+        r"fixed[- ]price\s+swaps?",  # Only swaps, the rest
     ]
     # make commodity contracts, fixed price purchase commitments soft
     _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
@@ -859,7 +919,10 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     soft_cp_regex = build_regex([_SOFT_SPECIFIC_PHRASES])
     return strict_cp_regex, soft_cp_regex, build_regex([_COMMODITY_NAMES, "freight"])
 
-EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(NON_DERIVATIVE_COMMERCIAL_KEYWORDS)
+
+EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX = build_regex(
+    NON_DERIVATIVE_COMMERCIAL_KEYWORDS
+)
 NPNS_REGEX = build_regex(NPNS_KEYWORDS)
 COMMERCIAL_CONTRACT_REGEX = build_regex(COMMERCIAL_KEYWORDS)
 CP_STRICT_CONTEXT_REGEX = build_regex(CP_STRICT_TERMS + CP_RISK_TERMS)
@@ -869,46 +932,49 @@ CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX = build_cp_regex()
 
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
-CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(COMMON_COMMODITIES + ["freight"])
+CP_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
+    COMMON_COMMODITIES + ["freight"]
+)
 
 
 def run_tests():
-    from defs.derivatives_core import MatchLevel, run_category_tests, run_category_tests_counter
+    from defs.derivatives_core import (
+        MatchLevel,
+        run_category_tests,
+        run_category_tests_counter,
+    )
 
     # Filter commodities for test generation (remove regex patterns)
-    safe_commodities = []
-
-    for c in COMMON_COMMODITIES:
-        # Must be alphabetic + spaces only
-        if not re.match(r'^[a-zA-Z\s]+$', c):
-            continue
-
-        # Exclude chemicals (testing plastic)
-        if c in COMMODITY_MAP["chemicals"]:
-            continue
-
-        # Exclude metals ( need to test steel/copper instruments)
-        if c in COMMODITY_MAP["metals"]:
-            continue
-        
-        # Exclude forestry (targeting wood)
-        if c in COMMODITY_MAP["forestry"]:
-            continue
-
-        safe_commodities.append(c)
+    safe_commodities = [
+        c
+        for c in COMMON_COMMODITIES
+        if re.match(r"^[a-zA-Z\s]+$", c)
+        and c not in COMMODITY_MAP["chemicals"]
+        and c not in COMMODITY_MAP["metals"]
+    ]
 
     # Base phrases provided
     base_phrases = [
-        "commodity contract", "commodity price contract", 
-        "commodity derivative", "commodity price derivative", 
-        "commodity instrument", "commodity price instrument", 
-        "commodity forward", "commodity price forward", 
-        "commodity futures", "commodity price futures", 
-        "commodity option", "commodity price option", 
-        "commodity cap", "commodity price cap", 
-        "commodity floor", "commodity price floor", 
-        "commodity collar", "commodity price collar", 
-        "commodity swap", "commodity price swap"
+        "commodity contract",
+        "commodity price contract",
+        "commodity derivative",
+        "commodity price derivative",
+        "commodity instrument",
+        "commodity price instrument",
+        "commodity forward",
+        "commodity price forward",
+        "commodity futures",
+        "commodity price futures",
+        "commodity option",
+        "commodity price option",
+        "commodity cap",
+        "commodity price cap",
+        "commodity floor",
+        "commodity price floor",
+        "commodity collar",
+        "commodity price collar",
+        "commodity swap",
+        "commodity price swap",
     ]
 
     # Configuration for expectations
@@ -929,9 +995,9 @@ def run_tests():
 
     # Specific commodity expectations (Overrides generic if different)
     specific_overrides = {
-        "cap": MatchLevel.LOOSE, # Specific caps are not strict
+        "cap": MatchLevel.LOOSE,  # Specific caps are not strict
         "floor": MatchLevel.LOOSE,
-        "contract": MatchLevel.LOOSE, # Specific contracts are not soft (only generic "commodity contract" is)
+        "contract": MatchLevel.LOOSE,  # Specific contracts are not soft (only generic "commodity contract" is)
         "instrument": MatchLevel.LOOSE,
     }
 
@@ -947,7 +1013,7 @@ def run_tests():
         ("natural gas cap", MatchLevel.LOOSE),  # Should be loose (matches natural gas)
         ("fixed-price swap", MatchLevel.STRICT),
         ("fixed-price purchase commitment", MatchLevel.SOFT),
-        ("commodity hedges", MatchLevel.STRICT)
+        ("commodity hedges", MatchLevel.STRICT),
     ]
 
     # Generate dynamic test cases
@@ -985,17 +1051,6 @@ def run_tests():
             "natural gas forward sale",
             MatchLevel.STRICT,
         ),  # Forward lookahead blocks strict
-        ("steel instrument", MatchLevel.STRICT),  # Should NOT be strict (physical tool)
-        ("fixed-price contract", MatchLevel.SOFT)
+        ("fixed-price contract", MatchLevel.SOFT),
     ]
-
-    # Restricted modifiers that should NOT form strict instruments
-    restricted_instrument_modifiers = [
-        "stainless-steel", "plastic", "rubber", "wood", "glass", "iron", "stone", 
-        "aluminum", "copper", "brass", "bronze", "titanium", "metal", 
-        "lead", "zinc", "tin", "polymer", "resin"
-    ]
-    for mod in restricted_instrument_modifiers:
-        counter_cases.append((f"{mod} instrument", MatchLevel.STRICT))
-
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
