@@ -491,7 +491,7 @@ def run_tests():
         ("interest rate agreement", MatchLevel.STRICT),
         ("swap agreement", MatchLevel.NONE),  # Should NOT match IR (no core)
         ("floating rate cap", MatchLevel.LOOSE),
-        ("treasury rate locks", MatchLevel.LOOSE),
+        ("treasury rate locks", MatchLevel.STRICT),
         ("fixed rate swap", MatchLevel.STRICT),
         ("pay fixed receive floating swap", MatchLevel.STRICT),
         ("interest rate protection", MatchLevel.LOOSE),
