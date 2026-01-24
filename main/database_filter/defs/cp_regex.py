@@ -6,11 +6,12 @@ from defs.derivatives_core import (
     COMMODITY_COMMERICIAL_PATTERN,
     DERIVATIVES,
     MULTI_BASE,
+    PHYSICAL_COMMERCIAL_TERMS,
     DerivativeGenerator,
     SUFFIX,
     Groups,
 )
-from defs.regex_lib import build_alternation, build_regex, plural, to_build_alternation
+from defs.regex_lib import add_restrictions, build_alternation, build_regex, plural, to_build_alternation
 from defs.shared_context import (
     _RISK_ALTERNATION,
     DERIVATIVE_EXCHANGES,
@@ -692,14 +693,19 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 1. Fixed Commodity Prefix (Strict)
     # Matches: "fixed corn contract", "fixed oil agreement"
     # Structure: fixed [commodity] [filler] [suffix]
+    _FIXED_PRICE = add_restrictions(
+        plural(BASE.FIXED_PRICE.value),
+        lookaheads=[BASE.OPTION.value], # prevent fixed price purchase options
+    )
     fixed_commodity_prefix = [
         rf"fixed[- ](?:{commodity_alternation})(?:[- ](?:{modifier_alternation}))?",
+        _FIXED_PRICE,
     ]
 
     _FIXED_COMMODITY_CONFIG = DERIVATIVES(
         PREFIX=fixed_commodity_prefix,
-        # Allow weak suffixes because "fixed corn" is already specific enough
-        STANDALONE_SUFFIXES=Groups.AMBIGUOUS_SUFFIXES + Groups.UNAMBIGUOUS_SUFFIXES,
+        # fixed price purchase contract, fixed price purchase commitment, 
+        STANDALONE_SUFFIXES=[BASE.OPTION, SUFFIX.COMMITMENT, SUFFIX.CONTRACT],
         SUFFIXES=[],
         _BASES=[],
         MULTI_BASE=[],
@@ -710,19 +716,27 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 2. General Commodity + Base (Strict Base)
     # Matches: "corn swap", "oil future", "corn fixed price", "corn forward purchase"
     # Structure: [optional fixed] [commodity] [base] [suffix]
+
     general_commodity_prefix = [
         rf"(?:fixed[- ])?{commodity_alternation}(?:[- ](?:{modifier_alternation}))?",
-        BASE.FIXED_PRICE, # Allow fixed price swaps
+        _FIXED_PRICE,  # Allow fixed price swaps
     ]
+
+    _BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
+    if BASE.FORWARD in _BASES:
+        _BASES.remove(BASE.FORWARD)
+
+    # naked forward requires restrictions to avoid natural gas forward sales/delivery
+    _FWD = add_restrictions(BASE.FORWARD.value, lookaheads=PHYSICAL_COMMERCIAL_TERMS)
 
     # Allows natural gas derivatives
     _COMMODITY_BASE_CONFIG = DERIVATIVES(
         PREFIX=general_commodity_prefix,
         # Require a specific base (including fixed price/forward purchase)
-        ADDITIONAL_BASES=[BASE.FIXED_PRICE, BASE.FORWARD_PURCHASE],
-        ADDITIONAL_SUFFIXES=[SUFFIX.COMMITMENT], # also targets fixed price purchase commitments
+        ADDITIONAL_BASES=[BASE.FIXED_PRICE, BASE.FORWARD_PURCHASE, BASE.FORWARD], # forward contracts without complex lookahead
+        _BASES=_BASES,
         # DISALLOW standalone suffixes to prevent "corn contract"
-        STANDALONE_SUFFIXES=[BASE.OPTION], # Safe to add?
+        STANDALONE_SUFFIXES=[BASE.OPTION, _FWD], # Standalone forward and options
     )
     _COMMODITY_BASE_PATTERN = DerivativeGenerator(config=_COMMODITY_BASE_CONFIG).generate()
 
@@ -747,8 +761,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _FREIGHT_DERIVATIVES = DERIVATIVES(
         PREFIX=[_FREIGHT],
         _BASES=_FREIGHT_BASES,
-        _AMB_BASES=[BASE.SWAP], # Force swap to have a suffix
-        ADDITIONAL_BASES=[],
+        ADDITIONAL_BASES=[BASE.SWAP],  # Force swap to have a suffix
         STANDALONE_SUFFIXES=[],
     )
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
@@ -796,6 +809,7 @@ def run_tests():
         ("natural gas forward", MatchLevel.STRICT),
         ("natural gas derivative", MatchLevel.STRICT),
         ("fixed price swap", MatchLevel.STRICT),
+        ("fixed price option", MatchLevel.STRICT),
         ("power purchase agreement", MatchLevel.STRICT),
         (
             "commodity contract",
@@ -806,7 +820,7 @@ def run_tests():
         ("commodity hedges", MatchLevel.LOOSE),
         ("oil hedging", MatchLevel.LOOSE),
         ("commodity arrangement", MatchLevel.LOOSE),
-        ("commodity options", MatchLevel.SOFT),
+        ("commodity options", MatchLevel.STRICT),
         ("commodity options, swaps and futures", MatchLevel.STRICT),  # TRIPLE_BASE
         ("freight swap", MatchLevel.LOOSE),
         ("freight swap agreement", MatchLevel.STRICT),
