@@ -343,7 +343,7 @@ class MultiBaseGenerator:
             r"(?<!\sa)(?<!\san)(?<!\sthe)" r"(?<!\swho)(?<!\sthat)(?<!\swhich)"
         )
         forbidden_starters = r"(?!\s+(?:to|in|on|for|of|with|by|as|at))"
-        gap = r"(?:\s+(?:\w+\W+){0,2}?)"
+        gap = r"(?:\W+(?:\w+\W+){0,2}?)"
 
         # 4. Assembly
         # Starters must include:
