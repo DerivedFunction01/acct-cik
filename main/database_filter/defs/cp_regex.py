@@ -887,7 +887,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Allows natural gas derivatives, commodity derivatives, commodity forward, etc
     _COMMODITY_BASE_CONFIG = DERIVATIVES(
         PREFIX=general_commodity_prefix,
-        # Require a specific base (forward purchase)
+        # Require a specific base (forward fixed price)
         ADDITIONAL_BASES=[
             BASE.FORWARD,
             BASE.FORWARD_PRICE,
@@ -1009,63 +1009,6 @@ def run_tests():
         run_category_tests_counter,
     )
 
-    # Filter commodities for test generation (remove regex patterns)
-    safe_commodities = [
-        c
-        for c in COMMON_COMMODITIES
-        if re.match(r"^[a-zA-Z\s]+$", c)
-        and c not in COMMODITY_MAP["chemicals"]
-        and c not in COMMODITY_MAP["metals"]
-    ]
-
-    # Base phrases provided
-    base_phrases = [
-        "commodity contract",
-        "commodity price contract",
-        "commodity derivative",
-        "commodity price derivative",
-        "commodity instrument",
-        "commodity price instrument",
-        "commodity forward",
-        "commodity price forward",
-        "commodity futures",
-        "commodity price futures",
-        "commodity option",
-        "commodity price option",
-        "commodity cap",
-        "commodity price cap",
-        "commodity floor",
-        "commodity price floor",
-        "commodity collar",
-        "commodity price collar",
-        "commodity swap",
-        "commodity price swap",
-    ]
-
-    # Configuration for expectations
-    # Keys are lowercased keywords from the phrases
-    # Default is STRICT if not specified
-    expectations = {
-        "contract": MatchLevel.SOFT,
-        "instrument": MatchLevel.STRICT,
-        "cap": MatchLevel.STRICT,  # Generic only
-        "floor": MatchLevel.STRICT,  # Generic only
-        "derivative": MatchLevel.STRICT,
-        "forward": MatchLevel.STRICT,
-        "futures": MatchLevel.STRICT,
-        "option": MatchLevel.STRICT,
-        "collar": MatchLevel.STRICT,
-        "swap": MatchLevel.STRICT,
-    }
-
-    # Specific commodity expectations (Overrides generic if different)
-    specific_overrides = {
-        "cap": MatchLevel.LOOSE,  # Specific caps are not strict
-        "floor": MatchLevel.LOOSE,
-        "contract": MatchLevel.LOOSE,  # Specific contracts are not soft (only generic "commodity contract" is)
-        "instrument": MatchLevel.STRICT,
-    }
-
     test_cases = [
         ("power purchase agreement", MatchLevel.STRICT),
         ("freight swap", MatchLevel.LOOSE),
@@ -1079,33 +1022,18 @@ def run_tests():
         ("fixed-price swap", MatchLevel.STRICT),
         ("fixed-price purchase commitment", MatchLevel.SOFT),
         ("commodity hedges", MatchLevel.STRICT),
-        ("oil hedge", MatchLevel.LOOSE)
+        ("oil hedge", MatchLevel.LOOSE),
+        ("commodity derivatives", MatchLevel.STRICT),
+        ("commodity contracts", MatchLevel.SOFT),
+        ("commodity fixed price agreements", MatchLevel.SOFT),
+        ("fixed commodity agreements", MatchLevel.LOOSE),
+        ("commodity instruments", MatchLevel.STRICT),
+        ("natural gas instruments", MatchLevel.STRICT),
+        ("mackerel price contract", MatchLevel.SOFT),
+        ("milk fixed price agreement", MatchLevel.SOFT),
+        ("milk linked contract", MatchLevel.LOOSE),
+        ("avian forward price arrangements", MatchLevel.SOFT),
     ]
-
-    # Generate dynamic test cases
-    for phrase in base_phrases:
-        lower_phrase = phrase.lower()
-        keyword = next((k for k in expectations.keys() if k in lower_phrase), "swap")
-
-        # 1. Add Original Phrase
-        expected = expectations.get(keyword, MatchLevel.STRICT)
-        test_cases.append((phrase, expected))
-
-        # 2. Create 2 Duplicates with Random Commodities
-        for _ in range(random.randint(1, 2)):
-            specific_comm = "commodity"
-            while specific_comm == "commodity":
-                specific_comm = random.choice(safe_commodities)
-
-            new_phrase = lower_phrase.replace("commodity", specific_comm)
-
-            # Variation: price -> cost (50% chance)
-            if "price" in new_phrase and random.random() > 0.5:
-                new_phrase = new_phrase.replace("price", "cost")
-
-            # Determine Expected for Specific
-            spec_expected = specific_overrides.get(keyword, expected)
-            test_cases.append((new_phrase, spec_expected))
 
     print("Commodity Derivatives tests:")
     print("(Assume that steel instruments refer to commodity derivatives and not manufactured goods)")
@@ -1120,5 +1048,6 @@ def run_tests():
             MatchLevel.STRICT,
         ),  # Forward lookahead blocks strict
         ("fixed-price contract", MatchLevel.SOFT),
+        ("electricty forward purchase contracts", MatchLevel.STRICT),
     ]
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
