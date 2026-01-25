@@ -114,13 +114,13 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     # Warrant liabilities (Financial Warrants only)
     warrant_phrases = [
-        # Direct warrant + (liability OR derivative)
-        rf"{warrant}\s+(?:and\s+|or\s+)?(?:{derivative}[- ]{liability}|{liability}|{derivative})",
-        # Inverted: liability/derivative + warrant
-        rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
+        # Warrant liability/derivative
+        rf"{warrant}\s+(?:and\s+|or\s+)?(?:{liability}|{derivative})",
+        # Inverted: liability/derivative (classified) warrants
+        rf"(?:{liability}|{derivative})(?:[- ]classified)?\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
         rf"{warrant}(?:(?!\bnot\b).)*(?:accounted|classified)(?:(?!\bnot\b).)*(?:{liability}|{derivative})",
-        rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
+        # call/put warrants
         rf"(?:call|put)\s+{warrant}",
     ]
     _soft_warr = build_compound([r"pre[- ]funded", r"bridge", r"detachable"], warrant)
