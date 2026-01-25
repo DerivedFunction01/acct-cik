@@ -313,6 +313,7 @@ def run_tests():
         ("to hedge, sell power forward", MatchLevel.SOFT),
         ("swap to forward", MatchLevel.SOFT),
         ("options and caps", MatchLevel.SOFT),
+        ("to swap forward", MatchLevel.SOFT),
     ]
     print("\nRunning standalone derivative tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
