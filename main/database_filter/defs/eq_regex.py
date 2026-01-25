@@ -349,7 +349,7 @@ def run_tests():
 
     test_cases = [
         ("equity swap", MatchLevel.STRICT),
-        ("equity option", MatchLevel.SOFT),
+        ("equity option", MatchLevel.LOOSE),
         ("equity derivative", MatchLevel.STRICT),
         ("equity linked swap", MatchLevel.STRICT),
         ("market index option", MatchLevel.SOFT),
