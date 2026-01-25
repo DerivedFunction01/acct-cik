@@ -52,6 +52,7 @@ class BASE(Enum):
     QUANTO = r"quanto(?:[- ]style)?"
     INDEX = r"index"
     OTC = r"(?:over[- ]the[- ]counter|otc)"
+    EMBED = r"embedded"
 
     # IR bases
     PROTECTION = r"protections?"

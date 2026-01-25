@@ -25,7 +25,7 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
             r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:for|in|at))",
         ]
     )
-    EMBEDDED_INSTRUMENT = build_compound([r"embedded", r"over[- ]the[- ]counter", r"otc"], BASE.DERIVATIVE)
+    EMBEDDED_INSTRUMENT = build_compound([BASE.EMBED, BASE.OTC], BASE.DERIVATIVE)
     HEDGES = build_compound([r"fair[- ]value", r"cash[- ]flow", r"net[- ]investment"], BASE.HEDGE)
     # Base + Suffix combinations
     INSTRUMENT_COMPOUND = build_compound(
@@ -33,10 +33,12 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
         [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
     )
 
-    DERIVATIVE_CONTRACT = build_compound(Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES, SUFFIX.CONTRACT)
+    DERIVATIVE_CONTRACT = build_compound(Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.OTC], SUFFIX.CONTRACT)
     ASSET_LIABILITY = build_compound(
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
+    # Swap transaction
+    TRANSACTION = build_compound([BASE.SWAP, BASE.COLLAR], [SUFFIX.TRANSACTION])
 
 
 # =============================================================================
@@ -146,6 +148,7 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         GEN_DERIVATIVE_PATTERNS.DERIVATIVE_CONTRACT,
         GEN_DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
         GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
+        GEN_DERIVATIVE_PATTERNS.TRANSACTION,
         MULTI_BASE.TRIPLE_BASE,
         MULTI_BASE.MIXED_DOUBLE,
         add_restrictions(
