@@ -7,6 +7,8 @@ import queue
 import string
 import sys
 
+from main.database_filter.defs.prefiltered_lib import SOPHISTICATED_CONTEXT_REGEX
+
 
 # Increase recursion limit to handle deeply nested HTML structures
 # Default is usually 1000, increase to 5000 for robust handling
@@ -844,8 +846,7 @@ def filter_by_keywords(content: str) -> list[str]:
                         STRICT_REGEX.search(part)
                         or GEN_STRICT_CONTEXT_REGEX.search(part)
                         or DER_STD_REGEX.search(part)
-                        or VALUATION_MODELS_REGEX.search(part)
-                        
+                        or SOPHISTICATED_CONTEXT_REGEX.search(part)
                     ):
                         continue
 
@@ -920,7 +921,7 @@ def filter_by_keywords(content: str) -> list[str]:
                     # STRICT_REGEX now contains "Equity Swaps" but NOT "Equity Options".
                     # So "Equity Options" (without hedge accounting) will fail this check and be discarded.
                     if not (
-                        SOFT_REGEX.search(para) or DER_STD_REGEX.search(para)
+                        SOFT_REGEX.search(para) or DER_STD_REGEX.search(para) or SOPHISTICATED_CONTEXT_REGEX.search(para)
                     ):
                         i += 1
                         continue
