@@ -79,6 +79,7 @@ ALL_REGEX = re.compile(
             TRADING_SOFT_REGEX.pattern,
             CR_REGEX.pattern,
             CRYPTO_REGEX.pattern,
+            MISC_SOFT_REGEX.pattern,
         ]
     ),
     re.IGNORECASE,
