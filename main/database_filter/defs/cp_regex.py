@@ -874,7 +874,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Structure: [optional fixed] [commodity] [base] [suffix]
 
     general_commodity_prefix = [
-        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ](?:{modifier_alternation}))?",
+        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ]{modifier_alternation})?",
     ]
 
     _BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
@@ -926,7 +926,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _FREIGHT_PATTERN = DerivativeGenerator(config=_FREIGHT_DERIVATIVES).generate()
 
     _GEN_COMMODITY = [
-        rf"(?:fixed[- ])?commodity(?:[- ](?:{modifier_alternation}))?",
+        rf"(?:fixed[- ])?commodity(?:[- ]{modifier_alternation})?",
     ]
     _GEN_CONFIG = DERIVATIVES(
         PREFIX=_GEN_COMMODITY,
@@ -938,22 +938,21 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _GEN_PATTERN = DerivativeGenerator(config=_GEN_CONFIG).generate()
 
-    _FIXED_PRICE = [
+    # Allow fix price contracts to
+    _SOFT_PRICE = [
         r"fixed[- ]price purchase",
+        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ]{modifier_alternation})?",
     ]
 
-    # Fixed price purchase commitment/contracts/arrangements, etc
-    _FIXED_PRICE_CONFIG = DERIVATIVES(
-        PREFIX=_FIXED_PRICE,
+    _SOFT_PRICE_CONTRACT_CONFIG = DERIVATIVES(
+        PREFIX=_SOFT_PRICE,
         _BASES=[],
         _AMB_BASES=[],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=Groups.UNAMBIGUOUS_SUFFIXES
-        + Groups.AMBIGUOUS_SUFFIXES
-        + [SUFFIX.COMMITMENT],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[],
     )
-    _FIXED_PRICE_PATTERN = DerivativeGenerator(config=_FIXED_PRICE_CONFIG).generate()
+    _FIXED_PRICE_PATTERN = DerivativeGenerator(config=_SOFT_PRICE_CONTRACT_CONFIG).generate()
 
     # 3. Unified Specific Phrases
     # These contain the max-munch phrases and apply to both strict and soft.
@@ -964,10 +963,12 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
         r"(?:fixed|open)[- ]price\s+swaps?",  # Only swaps, the rest
+        r"fixed[- ]price purchase instruments?", # Missing one
     ]
     # make commodity contracts, fixed price purchase commitments soft
     _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
-        r"(?:fixed[- ])?commodity(?:[- ]price)?\s+contracts?",
+        r"(?:fixed[- ])?commodity(?:(?:\sfixed)?[- ]price)?\s+contracts?",
+        r"fixed[- ]price purchase (?:commitments?|agreements?)", # additional
         _FIXED_PRICE_PATTERN,
     ]
 
@@ -1025,15 +1026,20 @@ def run_tests():
         ("oil hedge", MatchLevel.LOOSE),
         ("commodity derivatives", MatchLevel.STRICT),
         ("commodity contracts", MatchLevel.SOFT),
-        ("commodity fixed price agreements", MatchLevel.SOFT),
-        ("fixed commodity agreements", MatchLevel.LOOSE),
+        ("commodity price contracts", MatchLevel.SOFT),
+        ("commodity fixed price contracts", MatchLevel.SOFT),
         ("commodity instruments", MatchLevel.STRICT),
+        ("commodity fixed price instruments", MatchLevel.STRICT),
+        ("commodity-price instruments", MatchLevel.STRICT),
+        ("corn price instruments", MatchLevel.STRICT),
         ("natural gas instruments", MatchLevel.STRICT),
         ("mackerel price contract", MatchLevel.SOFT),
-        ("milk fixed price agreement", MatchLevel.SOFT),
+        ("milk fixed price agreement", MatchLevel.LOOSE),
         ("zucchini index contract", MatchLevel.LOOSE),
-        ("ginger put option", MatchLevel.STRICT),
-        ("avian forward price arrangements", MatchLevel.SOFT),
+        ("ginger related put option", MatchLevel.STRICT),
+        ("fish-linked call contracts", MatchLevel.STRICT),
+        ("salmon price swaps", MatchLevel.STRICT),
+        ("avian forward price arrangements", MatchLevel.STRICT),
     ]
 
     print("Commodity Derivatives tests:")
