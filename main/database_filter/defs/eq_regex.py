@@ -150,10 +150,11 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- A. STRICT Pattern Construction (High Precision) ---
     # -------------------------------------------------------------------------
 
+    _RESTRICTED_OPTION = add_restrictions(BASE.OPTION.value, lookbehinds=[r"equity"])
     _STRICT_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
         MULTI_BASE=[eq_double, eq_triple],
-        ADDITIONAL_BASES=[],
+        ADDITIONAL_BASES=[_RESTRICTED_OPTION],
     )
     _STRICT_PATTERN = DerivativeGenerator(config=_STRICT_CONFIG).generate()
     _RESTRICTED_BASES = Groups.CORE_UNAMBIGUOUS_BASES.copy()
@@ -198,7 +199,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         PREFIX=strict_core_terms,
         MULTI_BASE=[eq_double, eq_triple],
         ADDITIONAL_BASES=[],
-        STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_BASES=[_RESTRICTED_OPTION],
     )
     _SOFT_PATTERN = DerivativeGenerator(config=_SOFT_CONFIG).generate()
     soft_eq_regex = build_regex(
