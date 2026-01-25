@@ -100,7 +100,8 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"capped calls?",
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
-        r"margin\s+loans?"
+        r"margin\s+loans?",
+        r"(?:call|put)\s+warrants?",
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
