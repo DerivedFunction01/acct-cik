@@ -1042,6 +1042,10 @@ class ThreadSafeRateLimiter:
             self._rate_limit = min(self._rate_limit * 1.5, 60.0)
             print(f"🛑 429 Rate Limited! Increasing sleep to {self._rate_limit:.2f}s")
 
+            if self._rate_limit >= 60.0:
+                print("🛑 CRITICAL: Rate limit reached 60s. Pausing for 10 minutes...")
+                time.sleep(600)
+
     def signal_timeout(self):
         """Signal that a timeout error occurred (NOT a rate limit)."""
         with self._lock:
