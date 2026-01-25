@@ -1031,7 +1031,8 @@ def run_tests():
         ("natural gas instruments", MatchLevel.STRICT),
         ("mackerel price contract", MatchLevel.SOFT),
         ("milk fixed price agreement", MatchLevel.SOFT),
-        ("milk linked contract", MatchLevel.LOOSE),
+        ("zucchini index contract", MatchLevel.LOOSE),
+        ("ginger put option", MatchLevel.STRICT),
         ("avian forward price arrangements", MatchLevel.SOFT),
     ]
 
