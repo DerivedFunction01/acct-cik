@@ -38,7 +38,7 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
     # Swap transaction
-    TRANSACTION = build_compound([BASE.SWAP, BASE.COLLAR], [SUFFIX.TRANSACTION])
+    TRANSACTION = build_compound([BASE.SWAP, BASE.COLLAR, BASE.DERIVATIVE], [SUFFIX.TRANSACTION])
 
 
 # =============================================================================
