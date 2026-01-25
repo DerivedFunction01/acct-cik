@@ -90,8 +90,8 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     ]
     soft_phrases = [
         CONV,
-        rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?{warrant}",
-        rf"{warrant}(?:[- ](?:linked|attached)){_DEBT_TERMS}",
+        rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?\s+{warrant}",
+        rf"{warrant}(?:[- ](?:linked|attached))\s+{_DEBT_TERMS}",
     ]
 
     # Other Explicitly Safe Phrases
