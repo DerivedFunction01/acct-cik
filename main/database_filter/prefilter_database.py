@@ -578,6 +578,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
     all_text_parts = []  # Track all text for metadata counting (even if discarded)
     explicit_non_derivative_warr = False
     explicit_non_derivative_conv = False
+    non_derivative_treatment = []
+
     paragraphs = split_mega_paragraph(paragraphs)
     has_warr = False
     has_conv = False
@@ -623,6 +625,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                     is_sophisticated_content(p_masked) and CONVERTIBLE_TARGETS.search(p_masked)
                 ):
                     explicit_non_derivative_conv = True
+                
+                non_derivative_treatment.extend(SOFT_REGEX.findall(p_masked))
 
             # --- HYPOTHETICAL SALVAGE LOGIC ---
             # Reasons we want to drop, UNLESS they contain specific definitions
@@ -631,7 +635,8 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                 NoiseReason.CONTRACT.value,
                 NoiseReason.REG.value,
                 NoiseReason.BANK.value,
-                NoiseReason.NC.value
+                NoiseReason.NC.value,
+                NoiseReason.NON_DERIV.value
             }
 
             if exclusion_reason in SALVAGEABLE_REASONS:
@@ -838,6 +843,7 @@ def process_item(item: Tuple) -> Optional[Tuple]:
             "NST_WARR": is_nst_warr,
             "NST_CONV": is_nst_conv,
             "is_empty": is_empty,
+            "non_deriv": non_derivative_treatment,
             **counts,
         }
 
