@@ -360,7 +360,7 @@ class MultiBaseGenerator:
         if self.include_suffixes:
             starter_list = [_SFX_STRICT] + starter_list
         _STARTERS = to_build_alternation(starter_list)
-        start_pattern = rf"(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
+        start_pattern = rf"(?<!to\s)(?:{_STARTERS})(?!\s+to){gap}{forbidden_endings}{forbidden_starters}(?:{bases_alt})"
 
         double_base = rf"{start_pattern}(?:{sep}(?:{bases_alt})(?:\s+{_SFX_ALT})?)*"
 
@@ -368,7 +368,7 @@ class MultiBaseGenerator:
         loose_base_vals = base_vals + [BASE.WARRANT.value]
         bases_loose_alt = to_build_alternation(loose_base_vals, sort_longest_first=True)
         triple_base = (
-            rf"(?:{bases_loose_alt})"
+            rf"(?<!to\s)(?:{bases_loose_alt})"
             rf"(?!\s+to){gap}{forbidden_endings}{forbidden_starters}"
             rf"(?:{bases_loose_alt})"
             rf"(?:{sep}(?:{bases_loose_alt}))+"
