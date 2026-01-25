@@ -1279,6 +1279,13 @@ SOPHISTICATED_CONTEXT_TERMS = [
     r"fair\s+value\s+options?",
     r"warrants?.*not indexed to.*stock",
     r"warrants?.*(?:accounted|classified).*liability",
+    r"down[- ]round\s+protections?",
+    r"fixed[- ]for[- ]fixed",
+    r"anti[- ]dilution",
+    r"ratchet",
+    r"price\s+reset",
+    r"net\s+cash\s+settl(?:e|ement|ed|ing)",
+    r"fundamental\s+transactions?",
 ] + VALUATION_MODELS  # Black-Scholes, Monte Carlo, etc.
 
 SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
