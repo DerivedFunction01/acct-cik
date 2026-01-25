@@ -264,65 +264,91 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+
 # Use build_regex for consistency
 AOCI_STRICT_TERMS = [
     r"accumulated\s+other\s+comprehensive",  # Strict "Accumulated"
     r"AOCI\b",
     r"reclassifi.{0,20}(?:AOCI|O\.?C\.?I|comprehensive)",  # Reclassification implies moving OUT (History)
 ]
-
 def build_non_derivative_treatment_regex() -> re.Pattern:
+    # Negation cues
     neg = [
-        "not",
-        "no longer",
-        "does not",
-        "did not",
+        r"not",
+        r"no\s+longer",
+        r"does\s+not",
+        r"did\s+not",
+        r"exception\s+from",
     ]
+
+    # Verbs describing classification/treatment
     verbs = [
-        "qualif(?:ied|y)",
-        "classif(?:ied|y)",
-        "account(?:ed)?",
-        "designate(?:d)?",
-        "treat(?:ed)?",
-        "elect(?:ed)?",
-        "apply",
-        "require(?:d)?",
-        "meet",
+        r"qualif(?:ied|y|ication)",
+        r"classif(?:ied|y|ication)",
+        r"account(?:ed)?",
+        r"designate(?:d)?",  # we will explicitly exclude "not designated as a hedging instrument"
+        r"treat(?:ed)?",
+        r"elect(?:ed)?",
+        r"apply|application",
+        r"require(?:d)?",
+        r"meet",
+        r"subject(?:ed)?",
+        r"consider(?:ed)?",
     ]
 
     prepositions = [
-        "for",
-        "as",
-        "under",
-        "to",
+        r"for",
+        r"as",
+        r"under",
+        r"to",
+        r"to\s+be",
     ]
 
     targets = [
-        "derivatives?",
-        "hedges?",
-        "hedging",
-        "bifurcation",
-        r"derivative\s+accounting",
-        "criteria",
+        r"derivatives?",
+        r"hedges?",
+        r"hedging",
+        r"bifurcation",
+        r"criteria",
     ]
 
     contexts = [
-        "treatment",
-        "accounting",
+        r"treatment",
+        r"accounting",
+        r"criteria",
     ]
+
     neg_pat = build_alternation(neg)
     verb_pat = build_alternation(verbs)
     prep_pat = build_alternation(prepositions)
     target_pat = build_alternation(targets)
     context_pat = build_alternation(contexts)
+
     phrases = [
+        # 1. General negation template
         rf"{neg_pat}\s+{verb_pat}\s+{prep_pat}\s+(?:an?\s+)?{target_pat}\s+{context_pat}",
+        # 2. Simple "not a derivative"
         rf"{neg_pat}\s+a\s+derivative",
+        # 3. Hedge/derivative classification not applying
         r"(?:hedge|derivative)\s+(?:classification|accounting)\s+(?:does|did)\s+not\s+apply",
+        # 4. No bifurcation required
         r"no\s+bifurcation\s+is\s+(?:required|needed)",
-        r"accounted\s+for\s+as\s+debt",
+        # 5. Accounted for as debt/equity
+        r"(?<!not\s)accounted\s+for\s+as\s+(?:debt|equity|permanent\s+equity)",
+        # 6. Meets criteria for equity classification (positive form)
         r"(?<!not\s)meet(?:s)?\s+the\s+criteria\s+for\s+classification\s+in\s+(?:stock|share)holders['’]?\s+equity",
+        # 7. Not considered derivative financial instruments
+        r"not\s+considered\s+(?:to\s+be\s+)?derivative\s+financial\s+instruments?",
+        # 8. Does not meet definition of a derivative
+        r"(?:do|does|did)\s+not\s+meet\s+the\s+definition\s+of\s+a\s+derivative",
+        # 9. Indexed to own stock (positive form only)
+        r"(?<!not\s)indexed\s+to(?:\s+\w+){0,3}\s+own\s+stock",
+        # 10. Exception from derivative accounting
+        r"exception\s+from\s+derivative\s+accounting",
+        # 11. Regular-way security trades
+        r"regular[- ]way\s+security\s+trades?",
     ]
+
     return build_regex(phrases)
 
 
