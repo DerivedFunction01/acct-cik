@@ -10,8 +10,19 @@ from defs.derivatives_core import (
     Groups,
     MultiBaseGenerator,
 )
-from defs.regex_lib import add_restrictions, build_alternation, build_regex, to_build_alternation
-from defs.shared_context import _DEBT_TERMS, _RISK_ALTERNATION, VALUATION_MODELS, build_risk_managment_phrase
+from defs.regex_lib import (
+    add_restrictions,
+    build_alternation,
+    build_compound,
+    build_regex,
+    to_build_alternation,
+)
+from defs.shared_context import (
+    _DEBT_TERMS,
+    _RISK_ALTERNATION,
+    VALUATION_MODELS,
+    build_risk_managment_phrase,
+)
 
 EQ_INDICES = [
     r"S\&P\s+(?:500|400|600|1500)(?:\s+total\s+return)?(?:\s+index)?",
@@ -21,8 +32,23 @@ EQ_INDICES = [
     r"MSCI\s+(?:World|ACWI|EAFE|Europe|Emerging\s+Markets|Asia[-\s]?Pacific|Frontier\s+Markets)(?:\s+index)?",
     r"FTSE\s+(?:100|250|350|All[-\s]?Share|Developed|Emerging)(?:\s+index)?",
     r"(?:Nikkei\s+225|TOPIX|Hang\s+Seng|HSI|DAX|Euro\s+Stoxx\s+50|CAC\s+40|IBEX\s+35|SMI|ASX\s+200|TSX\s+Composite)(?:\s+index)?",
-    add_restrictions(r"market[- ]index", lookbehinds=[r"commodity", r"energy", r"oil", r"gas", r"power", r"bond", r"debt", r"credit", r"gold", r"silver"]),
+    add_restrictions(
+        r"market[- ]index",
+        lookbehinds=[
+            r"commodity",
+            r"energy",
+            r"oil",
+            r"gas",
+            r"power",
+            r"bond",
+            r"debt",
+            r"credit",
+            r"gold",
+            r"silver",
+        ],
+    ),
 ]
+
 
 def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- 1. Build Core Terms (Prefixes) ---
@@ -34,7 +60,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # --- Construct Restricted Starters for Equity ---
     # Block "options and warrants" (naked) to avoid compensation noise
     sep = r"(?:\s*,?\s*(?:and|or|&)\s+|[\s,]+)"
-    _SFX_ALT = to_build_alternation(Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES)
+    _SFX_ALT = to_build_alternation(
+        Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES
+    )
 
     # Define ambiguous group that needs restriction (Option, Warrant, Cap, Floor, Lock)
     ambiguous_list = [BASE.OPTION, BASE.WARRANT, BASE.CAP, BASE.FLOOR, BASE.LOCK]
@@ -45,7 +73,11 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         lookaheads=[rf"{sep}(?:{_AMBIGUOUS_ALT}\b(?!\s+{_SFX_ALT}))(?!{_STRICT_ALT})"],
         lookahead_sep="",
     )
-    _OTHER_BASES = [b for b in (Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES) if b not in ambiguous_list]
+    _OTHER_BASES = [
+        b
+        for b in (Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES)
+        if b not in ambiguous_list
+    ]
     eq_starters = [_AMBIGUOUS_STRICT] + _OTHER_BASES
 
     # Generate restricted multi-base patterns for Equity context
@@ -66,7 +98,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"stocks?",
         r"shares?",
     ]
-    restricted_core_terms = [rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"]
+    restricted_core_terms = [
+        rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"
+    ]
     CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
 
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
@@ -85,13 +119,14 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Inverted: liability/derivative + warrant
         rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
-        rf"(?:{derivative}\s+)?{warrant}.*(?:classified|accounted(?: for)?)\s+as\s+(?:a\s+)?(?:{derivative}[- ]{liability}|{derivative}|{liability})",
         rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
     ]
+    _soft_warr = build_compound([r"pre[- ]funded", r"stock" , r"placement\s+agent", r"investor", r"bridge", r"financing", r"detachable"], warrant)
     soft_phrases = [
         CONV,
         rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?\s+{warrant}",
         rf"{warrant}(?:[- ](?:linked|attached))\s+{_DEBT_TERMS}",
+        _soft_warr
     ]
 
     # Other Explicitly Safe Phrases
@@ -127,7 +162,15 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _SWP_FWD = [BASE.SWAP, BASE.FORWARD]
     _SWP_FWD_ALT = to_build_alternation(_SWP_FWD)
     _RESTRICTED_SWP_FWD = add_restrictions(
-        _SWP_FWD_ALT, lookbehinds=[r"stocks", r"dividends", r"shares", r"stock", r"dividend", r"share"]
+        _SWP_FWD_ALT,
+        lookbehinds=[
+            r"stocks",
+            r"dividends",
+            r"shares",
+            r"stock",
+            r"dividend",
+            r"share",
+        ],
     )
     _RESTRICTED_BASES.append(_RESTRICTED_SWP_FWD)
     _RESTRICTED_CONFIG = DERIVATIVES(
@@ -142,7 +185,9 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     )
     _RESTRICTED_PATTERN = DerivativeGenerator(config=_RESTRICTED_CONFIG).generate()
 
-    strict_eq_regex = build_regex([_STRICT_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases)
+    strict_eq_regex = build_regex(
+        [_STRICT_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases
+    )
 
     # -------------------------------------------------------------------------
     # --- B. SOFT Pattern Construction (Contextual Precision) ---
@@ -159,11 +204,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         [_SOFT_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases + soft_phrases
     )
 
-    _LOOSE_CONFIG = DERIVATIVES(
-        PREFIX=strict_core_terms,
-        MULTI_BASE=[],
-        LOOSE=True
-    )
+    _LOOSE_CONFIG = DERIVATIVES(PREFIX=strict_core_terms, MULTI_BASE=[], LOOSE=True)
     _LOOSE_PATTERN = DerivativeGenerator(config=_LOOSE_CONFIG).generate()
     loose_eq_regex = build_regex(
         [_LOOSE_PATTERN, _RESTRICTED_PATTERN] + sorted_specific_phrases + soft_phrases
@@ -291,9 +332,11 @@ EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX = build_eq_regex()
 EXCLUDE_REGEX_EQUITY_COMP = build_regex(EQUITY_COMP_KEYWORDS)
 
 from defs.verb_core import build_strict_do_not_mitigate_regex
+
 EQ_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex(
     [rf"(?:stock|share|equity|treasury)\s+{stock_alt}"]
 )
+
 
 def run_tests():
     from defs.derivatives_core import (

@@ -1278,7 +1278,7 @@ SOPHISTICATED_CONTEXT_TERMS = [
     r"conversion\s+(?:options?|features?)",
     r"fair\s+value\s+options?",
     r"warrants?.*not indexed to.*stock",
-    r"warrants?.*(?:accounted|classified).*liability",
+    r"warrants?(?:(?!\bnot\b).)*(?:accounted|classified)(?:(?!\bnot\b).)*liability",
     r"down[- ]round\s+protections?",
     r"fixed[- ]for[- ]fixed",
     r"anti[- ]dilution",
