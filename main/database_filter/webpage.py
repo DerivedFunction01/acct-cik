@@ -1366,192 +1366,192 @@ def format_time(seconds):
         return f"{int(seconds)}s"
 
 
-def process_all_reports_fully():
-    # Initialize a thread-safe rate limiter for the fetching stage.
-    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+# def process_all_reports_fully():
+#     # Initialize a thread-safe rate limiter for the fetching stage.
+#     rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
 
-    processed_set = get_processed_urls()
+#     processed_set = get_processed_urls()
 
-    reports_to_process = [
-        (r.url)
-        for r in existing_report_df.itertuples(index=False)
-        if (r.url,) not in processed_set and r.url
-    ]
+#     reports_to_process = [
+#         (r.url)
+#         for r in existing_report_df.itertuples(index=False)
+#         if (r.url,) not in processed_set and r.url
+#     ]
 
-    total_reports = len(reports_to_process)
-    print(f"Processing {total_reports:,} new reports")
-    print(f"Already processed: {len(processed_set):,} reports")
-    print(f"\n⚙️  Rate Limiting Configuration:")
-    print(f"  • {NUM_FETCHERS} parallel fetchers")
-    print(f"  • Each worker waits {SEC_RATE_LIMIT:.2f}s between requests")
-    print(f"  • Effective rate: ~{NUM_FETCHERS / SEC_RATE_LIMIT:.2f} req/sec")
-    total_results = 0
-    total_empty = 0
+#     total_reports = len(reports_to_process)
+#     print(f"Processing {total_reports:,} new reports")
+#     print(f"Already processed: {len(processed_set):,} reports")
+#     print(f"\n⚙️  Rate Limiting Configuration:")
+#     print(f"  • {NUM_FETCHERS} parallel fetchers")
+#     print(f"  • Each worker waits {SEC_RATE_LIMIT:.2f}s between requests")
+#     print(f"  • Effective rate: ~{NUM_FETCHERS / SEC_RATE_LIMIT:.2f} req/sec")
+#     total_results = 0
+#     total_empty = 0
 
-    chunks = [
-        reports_to_process[i : i + CHUNK_SIZE]
-        for i in range(0, total_reports, CHUNK_SIZE)
-    ]
+#     chunks = [
+#         reports_to_process[i : i + CHUNK_SIZE]
+#         for i in range(0, total_reports, CHUNK_SIZE)
+#     ]
 
-    print(f"\nProcessing in {len(chunks)} chunks of {CHUNK_SIZE} reports each")
-    print("=" * 70)
+#     print(f"\nProcessing in {len(chunks)} chunks of {CHUNK_SIZE} reports each")
+#     print("=" * 70)
 
-    chunk_times = []
-    total_time = 0
+#     chunk_times = []
+#     total_time = 0
 
-    last_drive_save_time = time.time()
-    results_since_last_save = 0
+#     last_drive_save_time = time.time()
+#     results_since_last_save = 0
 
-    for chunk_idx, chunk in enumerate(chunks, 1):
-        start_chunk_time = time.time()
-        print(f"\n📦 Chunk {chunk_idx}/{len(chunks)} ({len(chunk)} reports)")
+#     for chunk_idx, chunk in enumerate(chunks, 1):
+#         start_chunk_time = time.time()
+#         print(f"\n📦 Chunk {chunk_idx}/{len(chunks)} ({len(chunk)} reports)")
 
-        # Stage 1: Fetch this chunk
-        print(f"  → Fetching with {NUM_FETCHERS} workers...")
-        fetched_data = []
-        with ThreadPoolExecutor(max_workers=NUM_FETCHERS) as fetch_executor:
-            fetch_futures = [
-                fetch_executor.submit(fetch_raw_content, url, rate_limiter)
-                for url in chunk
-                if isinstance(url, str)
-            ]
+#         # Stage 1: Fetch this chunk
+#         print(f"  → Fetching with {NUM_FETCHERS} workers...")
+#         fetched_data = []
+#         with ThreadPoolExecutor(max_workers=NUM_FETCHERS) as fetch_executor:
+#             fetch_futures = [
+#                 fetch_executor.submit(fetch_raw_content, url, rate_limiter)
+#                 for url in chunk
+#                 if isinstance(url, str)
+#             ]
 
-            # Create the tqdm bar instance
-            tqdm_bar = tqdm(
-                as_completed(fetch_futures),
-                total=len(fetch_futures),
-                desc=f"  Fetching chunk {chunk_idx}",
-                leave=False,
-            )
+#             # Create the tqdm bar instance
+#             tqdm_bar = tqdm(
+#                 as_completed(fetch_futures),
+#                 total=len(fetch_futures),
+#                 desc=f"  Fetching chunk {chunk_idx}",
+#                 leave=False,
+#             )
 
-            # Start the background thread for rate adjustment
-            stop_event = threading.Event()
-            adjuster_thread = threading.Thread(
-                target=adjust_rate_in_background,
-                args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
-                daemon=True,  # Must be True to prevent deadlock on exit
-            )
-            adjuster_thread.start()
+#             # Start the background thread for rate adjustment
+#             stop_event = threading.Event()
+#             adjuster_thread = threading.Thread(
+#                 target=adjust_rate_in_background,
+#                 args=(tqdm_bar, rate_limiter, SEC_RATE, stop_event),
+#                 daemon=True,  # Must be True to prevent deadlock on exit
+#             )
+#             adjuster_thread.start()
 
-            try:
-                for future in tqdm_bar:
-                    try:
-                        result = future.result()
-                        if result and result[0] != "RATE_LIMITED":
-                            fetched_data.append(result)
-                        elif result and result[0] == "RATE_LIMITED":
-                            # Rate limit detected. Notify the limiter and increase sleep time a bit.
-                            try:
-                                rate_limiter.signal_429()
-                                tqdm_bar.set_postfix_str(
-                                    f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
-                                )
-                            except Exception:
-                                pass
+#             try:
+#                 for future in tqdm_bar:
+#                     try:
+#                         result = future.result()
+#                         if result and result[0] != "RATE_LIMITED":
+#                             fetched_data.append(result)
+#                         elif result and result[0] == "RATE_LIMITED":
+#                             # Rate limit detected. Notify the limiter and increase sleep time a bit.
+#                             try:
+#                                 rate_limiter.signal_429()
+#                                 tqdm_bar.set_postfix_str(
+#                                     f"RATE LIMITED! New sleep: {rate_limiter.value*1000:.1f}ms"
+#                                 )
+#                             except Exception:
+#                                 pass
 
-                    except Exception as e:
-                        print(f"Fetch error: {e}")
-            finally:
-                # Ensure the background thread is stopped when the loop is done
-                stop_event.set()
+#                     except Exception as e:
+#                         print(f"Fetch error: {e}")
+#             finally:
+#                 # Ensure the background thread is stopped when the loop is done
+#                 stop_event.set()
 
-        print(f"  ✓ Fetched {len(fetched_data)} reports.")
+#         print(f"  ✓ Fetched {len(fetched_data)} reports.")
 
-        # Stage 2: Parse this chunk
-        print(f"  → Parsing with {NUM_PARSERS} workers...")
-        chunk_results = 0
-        chunk_empty = 0
+#         # Stage 2: Parse this chunk
+#         print(f"  → Parsing with {NUM_PARSERS} workers...")
+#         chunk_results = 0
+#         chunk_empty = 0
 
-        batch_results = []
-        with ProcessPoolExecutor(max_workers=NUM_PARSERS) as parse_executor:
-            parse_futures = [
-                parse_executor.submit(parse_content, data) for data in fetched_data
-            ]
+#         batch_results = []
+#         with ProcessPoolExecutor(max_workers=NUM_PARSERS) as parse_executor:
+#             parse_futures = [
+#                 parse_executor.submit(parse_content, data) for data in fetched_data
+#             ]
 
-            for future in tqdm(
-                as_completed(parse_futures),
-                total=len(parse_futures),
-                desc=f"  Parsing chunk {chunk_idx}",
-                leave=False,
-            ):
-                try:
-                    result = future.result()
-                    if result is not None:
-                        debug_print("Parse successful")
-                        batch_results.append(result)  # Collect it
-                        chunk_results += 1
-                    else:
-                        chunk_empty += 1
-                        debug_print("Error with processing")
-                except Exception as e:
-                    print(f"Parse error: {e}")
-                    chunk_empty += 1
+#             for future in tqdm(
+#                 as_completed(parse_futures),
+#                 total=len(parse_futures),
+#                 desc=f"  Parsing chunk {chunk_idx}",
+#                 leave=False,
+#             ):
+#                 try:
+#                     result = future.result()
+#                     if result is not None:
+#                         debug_print("Parse successful")
+#                         batch_results.append(result)  # Collect it
+#                         chunk_results += 1
+#                     else:
+#                         chunk_empty += 1
+#                         debug_print("Error with processing")
+#                 except Exception as e:
+#                     print(f"Parse error: {e}")
+#                     chunk_empty += 1
 
-        if batch_results:
-            print(f"  💾 Saving batch of {len(batch_results)} records...")
-            # Convert list of Series to DataFrame
-            df_batch = pd.DataFrame(batch_results)
-            save_process_result_batch(df_batch)
+#         if batch_results:
+#             print(f"  💾 Saving batch of {len(batch_results)} records...")
+#             # Convert list of Series to DataFrame
+#             df_batch = pd.DataFrame(batch_results)
+#             save_process_result_batch(df_batch)
 
-        chunk_time = time.time() - start_chunk_time
-        chunk_times.append(chunk_time)
-        total_time += chunk_time
-        avg_chunk_time = sum(chunk_times) / len(chunk_times)
-        remaining_chunks = len(chunks) - chunk_idx
-        est_time_remaining = avg_chunk_time * remaining_chunks
+#         chunk_time = time.time() - start_chunk_time
+#         chunk_times.append(chunk_time)
+#         total_time += chunk_time
+#         avg_chunk_time = sum(chunk_times) / len(chunk_times)
+#         remaining_chunks = len(chunks) - chunk_idx
+#         est_time_remaining = avg_chunk_time * remaining_chunks
 
-        total_results += chunk_results
-        total_empty += chunk_empty
-        results_since_last_save += chunk_results
+#         total_results += chunk_results
+#         total_empty += chunk_empty
+#         results_since_last_save += chunk_results
 
-        print(f"  ✓ Parsed {chunk_results} reports successfully")
-        print(f"  Time taken: {format_time(chunk_time)}")
-        print(f"  Current sleep rate: {rate_limiter.value:.2f}")
-        print(f"  Avg chunk time: {format_time(avg_chunk_time)}")
-        print(f"  Est. time remaining: {format_time(est_time_remaining)}")
+#         print(f"  ✓ Parsed {chunk_results} reports successfully")
+#         print(f"  Time taken: {format_time(chunk_time)}")
+#         print(f"  Current sleep rate: {rate_limiter.value:.2f}")
+#         print(f"  Avg chunk time: {format_time(avg_chunk_time)}")
+#         print(f"  Est. time remaining: {format_time(est_time_remaining)}")
 
-        # Clear memory
-        del fetched_data
-        import gc
+#         # Clear memory
+#         del fetched_data
+#         import gc
 
-        gc.collect()
+#         gc.collect()
 
-        time_since_last_save = time.time() - last_drive_save_time
-        if IS_COLAB and (
-            time_since_last_save >= DRIVE_SAVE_INTERVAL_SECONDS
-            or results_since_last_save >= DRIVE_SAVE_INTERVAL_RESULTS
-        ):
-            try:
-                subprocess.Popen(
-                    SAVE_SHELL_CMD,
-                    shell=True,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                print(f"  → Saving to database in background.")
-                last_drive_save_time = time.time()
-                results_since_last_save = 0
-            except Exception as e:
-                print(f"  ⚠️  Background save failed: {e}")
+#         time_since_last_save = time.time() - last_drive_save_time
+#         if IS_COLAB and (
+#             time_since_last_save >= DRIVE_SAVE_INTERVAL_SECONDS
+#             or results_since_last_save >= DRIVE_SAVE_INTERVAL_RESULTS
+#         ):
+#             try:
+#                 subprocess.Popen(
+#                     SAVE_SHELL_CMD,
+#                     shell=True,
+#                     stdout=subprocess.DEVNULL,
+#                     stderr=subprocess.DEVNULL,
+#                 )
+#                 print(f"  → Saving to database in background.")
+#                 last_drive_save_time = time.time()
+#                 results_since_last_save = 0
+#             except Exception as e:
+#                 print(f"  ⚠️  Background save failed: {e}")
 
-        print(f"  Total time: {format_time(total_time)}")
+#         print(f"  Total time: {format_time(total_time)}")
 
-        # Progress summary
-        processed_so_far = chunk_idx * CHUNK_SIZE
-        percent_complete = (processed_so_far / total_reports) * 100
-        print(
-            f"  📊 Overall: {total_results:,}/{min(processed_so_far, total_reports):,} ({percent_complete:.1f}% complete)"
-        )
+#         # Progress summary
+#         processed_so_far = chunk_idx * CHUNK_SIZE
+#         percent_complete = (processed_so_far / total_reports) * 100
+#         print(
+#             f"  📊 Overall: {total_results:,}/{min(processed_so_far, total_reports):,} ({percent_complete:.1f}% complete)"
+#         )
 
-    print("\n" + "=" * 70)
-    print(f"🎉 FINAL RESULTS:")
-    print(f"  ✓ Successfully processed: {total_results:,} reports")
-    print(f"  ✗ Empty/failed: {total_empty:,} reports")
-    if total_results + total_empty > 0:
-        print(
-            f"  📈 Success rate: {(total_results/(total_results+total_empty)*100):.1f}%"
-        )
-    print("=" * 70)
+#     print("\n" + "=" * 70)
+#     print(f"🎉 FINAL RESULTS:")
+#     print(f"  ✓ Successfully processed: {total_results:,} reports")
+#     print(f"  ✗ Empty/failed: {total_empty:,} reports")
+#     if total_results + total_empty > 0:
+#         print(
+#             f"  📈 Success rate: {(total_results/(total_results+total_empty)*100):.1f}%"
+#         )
+#     print("=" * 70)
 
 
 # =============================================================================
