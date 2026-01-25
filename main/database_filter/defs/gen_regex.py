@@ -310,6 +310,7 @@ def run_tests():
         ("stock option agreement", MatchLevel.LOOSE),
         ("option agreement", MatchLevel.LOOSE),
         ("call agreement", MatchLevel.LOOSE),
+        ("hedge, sell power forward", MatchLevel.SOFT),
     ]
     print("\nRunning standalone derivative tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
