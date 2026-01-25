@@ -30,15 +30,13 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
     # Base + Suffix combinations
     INSTRUMENT_COMPOUND = build_compound(
         Groups.CORE_UNAMBIGUOUS_BASES,
-        [SUFFIX.CONTRACT, SUFFIX.INSTRUMENT, SUFFIX.AGREEMENT, SUFFIX.ARRANGEMENT],
+        Groups.UNAMBIGUOUS_SUFFIXES + Groups.AMBIGUOUS_SUFFIXES + [SUFFIX.TRANSACTION, SUFFIX.COMMITMENT],
     )
 
     DERIVATIVE_CONTRACT = build_compound(Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES + [BASE.OTC], SUFFIX.CONTRACT)
     ASSET_LIABILITY = build_compound(
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
-    # Swap transaction
-    TRANSACTION = build_compound([BASE.SWAP, BASE.COLLAR, BASE.DERIVATIVE], [SUFFIX.TRANSACTION])
 
 
 # =============================================================================
@@ -148,7 +146,6 @@ def build_strict_gen_regex() -> tuple[re.Pattern, re.Pattern]:
         GEN_DERIVATIVE_PATTERNS.DERIVATIVE_CONTRACT,
         GEN_DERIVATIVE_PATTERNS.INSTRUMENT_COMPOUND,
         GEN_DERIVATIVE_PATTERNS.ASSET_LIABILITY,
-        GEN_DERIVATIVE_PATTERNS.TRANSACTION,
         MULTI_BASE.TRIPLE_BASE,
         MULTI_BASE.MIXED_DOUBLE,
         add_restrictions(
