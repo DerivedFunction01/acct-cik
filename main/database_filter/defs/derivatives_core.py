@@ -57,7 +57,7 @@ class BASE(Enum):
     PROTECTION = r"protections?"
 
     # CP bases
-    FORWARD_PRICE = r"forward\s+price"
+    FORWARD_PRICE = r"forward(?:\s+fixed)?[- ]price"
 
 
 class SUFFIX(Enum):
