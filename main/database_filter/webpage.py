@@ -7,8 +7,6 @@ import queue
 import string
 import sys
 
-from main.database_filter.defs.prefiltered_lib import SOPHISTICATED_CONTEXT_REGEX
-
 
 # Increase recursion limit to handle deeply nested HTML structures
 # Default is usually 1000, increase to 5000 for robust handling
@@ -116,7 +114,7 @@ from defs.exclusion_regex import (
     EXCLUDE_REGEX_LEGAL_LITIGATION,
 )
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, TABLE_REGEX
-from defs.shared_context import VALUATION_MODELS_REGEX
+from defs.prefiltered_lib import SOPHISTICATED_CONTEXT_REGEX
 
 # New Header and Structural Cleanup Patterns
 HEADER_CLEANUP_PATTERNS = [
