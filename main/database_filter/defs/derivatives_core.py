@@ -51,6 +51,7 @@ class BASE(Enum):
     VOLATILITY = r"volatility"
     QUANTO = r"quanto(?:[- ]style)?"
     INDEX = r"index"
+    OTC = r"(?:over[- ]the[- ]counter|otc)"
 
     # IR bases
     PROTECTION = r"protections?"
@@ -163,7 +164,7 @@ class SPEC_BASE(Enum):
         BASE.SPREAD,
     )
     SPECIAL_OTHER = build_compound(
-        [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS, BASE.INDEX],
+        [BASE.QUANTO, BASE.VOLATILITY, BASE.BASIS, BASE.INDEX, BASE.OTC],
         [
             BASE.SWAP,
             BASE.FORWARD,
