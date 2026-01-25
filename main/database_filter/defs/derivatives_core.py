@@ -130,6 +130,7 @@ class SPEC_BASE(Enum):
             BASE.PUT,
             BASE.CALL,
             BASE.SWAP,
+            BASE.DERIVATIVE,
         ],
         BASE.OPTION,
     )
