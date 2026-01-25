@@ -119,9 +119,11 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Inverted: liability/derivative + warrant
         rf"(?:{liability}|{derivative})[- ]classified\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
+        rf"{warrant}(?:(?!\bnot\b).)*(?:accounted|classified)(?:(?!\bnot\b).)*(?:{liability}|{derivative})",
         rf"(?:{derivative}[- ]{liability}|{derivative}|{liability})[- ]{warrant}",
+        rf"(?:call|put)\s+{warrant}",
     ]
-    _soft_warr = build_compound([r"pre[- ]funded", r"stock" , r"placement\s+agent", r"investor", r"bridge", r"financing", r"detachable"], warrant)
+    _soft_warr = build_compound([r"pre[- ]funded", r"bridge", r"detachable"], warrant)
     soft_phrases = [
         CONV,
         rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?\s+{warrant}",
@@ -136,7 +138,6 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         r"accelerated\s+share\s+repurchases?",
         r"(?:forward|prepaid)\s+contracts?\s+on\s+(?:own\s+)?shares?",
         r"margin\s+loans?",
-        r"(?:call|put)\s+warrants?",
     ]
 
     # Combine and pre-sort all high-confidence specific phrases
