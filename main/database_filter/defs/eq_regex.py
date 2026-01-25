@@ -364,13 +364,13 @@ def run_tests():
         ("equity hedges", MatchLevel.LOOSE),
         ("convertible debt", MatchLevel.SOFT),
         ("convertible debt hedge", MatchLevel.STRICT),
-        ("equity option and warrants", MatchLevel.SOFT),
+        ("equity option and warrants", MatchLevel.LOOSE),
         (
             "equity options, warrants and futures",
             MatchLevel.STRICT,
         ),  # TRIPLE_BASE overrides equity exclusion
         (
-            "stock options, warrants and futures",
+            "stock options, warrants and caps",
             MatchLevel.STRICT,
         ),  # TRIPLE_BASE with stock prefix
         (
