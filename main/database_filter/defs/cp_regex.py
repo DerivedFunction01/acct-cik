@@ -963,7 +963,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _GEN_PATTERN,
         r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
-        r"fixed[- ]price\s+swaps?",  # Only swaps, the rest
+        r"(?:fixed|open)[- ]price\s+swaps?",  # Only swaps, the rest
     ]
     # make commodity contracts, fixed price purchase commitments soft
     _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
