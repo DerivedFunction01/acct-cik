@@ -1113,6 +1113,7 @@ def run_tests():
 
     counter_cases = [
         ("commodity arrangement", MatchLevel.SOFT),
+        ("power forward", MatchLevel.LOOSE),
         ("natural gas", MatchLevel.STRICT),  # Should NOT be strict
         (
             "natural gas forward sale",
