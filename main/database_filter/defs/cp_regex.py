@@ -1055,6 +1055,6 @@ def run_tests():
             MatchLevel.STRICT,
         ),  # Forward lookahead blocks strict
         ("fixed-price contract", MatchLevel.SOFT),
-        ("electricty forward purchase contracts", MatchLevel.STRICT),
+        ("electricity forward purchase contracts", MatchLevel.STRICT),
     ]
     run_category_tests_counter(counter_cases, CP_REGEX, CP_SOFT_REGEX, CP_LOOSE_REGEX)
