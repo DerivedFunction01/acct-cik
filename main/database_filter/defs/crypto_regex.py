@@ -46,9 +46,9 @@ def build_crypto_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Strict/Soft are identical in Crypto context
     _CRYPTO_CONFIG = DERIVATIVES(
         PREFIX=strict_core_terms,
-        STANDALONE_BASES=[BASE.OPTION],
+        STANDALONE_BASES=[BASE.OPTION, BASE.HEDGE],
         ADDITIONAL_BASES=[],
-        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
+        STANDALONE_SUFFIXES=[SUFFIX.CONTRACT],
         MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
     )
     _CRYPTO_PATTERN = DerivativeGenerator(config=_CRYPTO_CONFIG).generate()
