@@ -123,12 +123,10 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # call/put warrants
         rf"(?:call|put)\s+{warrant}",
     ]
-    _soft_warr = build_compound([r"pre[- ]funded", r"bridge", r"detachable"], warrant)
     soft_phrases = [
         CONV,
         rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?\s+{warrant}",
         rf"{warrant}(?:[- ](?:linked|attached))\s+{_DEBT_TERMS}",
-        _soft_warr
     ]
 
     # Other Explicitly Safe Phrases
@@ -357,7 +355,6 @@ def run_tests():
         ("warrant liability", MatchLevel.STRICT),
         ("warrant accounted for as a liability", MatchLevel.STRICT),
         ("call warrants", MatchLevel.STRICT),
-        ("bridge warrants", MatchLevel.SOFT),
         ("bond warrants", MatchLevel.SOFT),
         ("derivative warrants", MatchLevel.STRICT),
         ("equity contract", MatchLevel.LOOSE),
