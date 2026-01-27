@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Set, Tuple
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.verb_regex import (
     ABSENCE_REGEX,
+    ACTIVE_VERB_REGEX,
     DID_NOT_HOLD_REGEX,
     STRICT_DO_NOT_MITIGATE_REGEX,
     VAGUE_TIMING_REGEX,
@@ -471,11 +472,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
         # --- TIER 1: CONTEXT & TIME (The "Gatekeepers") ---
         # If it's not about derivatives or it's ancient history, nothing else matters.
         if not reason:
-            if not (
-                PRECISE_LOOSE_GEN_REGEX.search(masked)
-                or is_sophisticated_target(masked)
+            if not ( 
+                is_sophisticated_target(masked)
                 or SOFT_REGEX.search(masked)
                 or is_value(masked)  # allow "The notional value is XX to bypass"
+                or ACTIVE_VERB_REGEX.search(masked)
             ):
                 if is_hypothetical_noise(masked, threshold=2):
                     reason = NoiseReason.HYP_SCORE
