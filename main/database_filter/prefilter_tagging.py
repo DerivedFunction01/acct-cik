@@ -421,7 +421,7 @@ cumulative translation adjustment accounts within equity.
 """
 def is_gen_hedge_doc(text: str) -> bool:
     # Mark generic hedge documentation/policy sentences: Must not have the words interest rate swap, etc
-    if QUANT_REGEX.search(text):  # No valid quant
+    if QUANT_REGEX.search(text) or ZERO_QUANT_REGEX.search(text):  # No valid quant
         return False
     if YEAR_REGEX.search(text): # No years
         return False
