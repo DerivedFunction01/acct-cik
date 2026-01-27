@@ -419,11 +419,13 @@ cumulative translation adjustment accounts within equity.
 """
 def is_gen_hedge_doc(text: str) -> bool:
     # Mark generic hedge documentation/policy sentences: Must not have the words interest rate swap, etc
-    if QUANT_REGEX.search(text):
+    if QUANT_REGEX.search(text):  # No valid quant
         return False
-    if YEAR_REGEX.search(text):
+    if YEAR_REGEX.search(text): # No years
         return False
     if SOFT_CATEGORY_REGEX.search(text): # Excludes GEN_REGEX
+        if not ACTIVE_VERB_REGEX.search(text): # not in active state ("IR swap is ..."), no quants, and no years
+            return True
         return False
     if HEDGE_DOC_REGEX.search(text):
         return True
@@ -514,8 +516,6 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
                 # "We do not trade..." -> Critical End User Signal
                 # Run before intent to prevent "do not trade" from being captured as NEG (Exclusion)
                 reason = is_trading_statement(masked)
-            if not reason and is_gen_hedge_doc(masked):
-                reason = NoiseReason.DOC
 
             # 1. Strict Termination (Anchored) - High Confidence
             if not reason:
@@ -532,6 +532,9 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
             # 3. Loose Termination (Unanchored) - Low Confidence
             if not reason:
                 reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
+
+            if not reason and is_gen_hedge_doc(masked):
+                reason = NoiseReason.DOC
 
         # --- TIER 3: STRUCTURAL NOISE (The "Format" Tags) ---
         # Only check these if we didn't find a strong Evidence signal above.
