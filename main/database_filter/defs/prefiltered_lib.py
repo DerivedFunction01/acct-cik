@@ -1062,7 +1062,7 @@ ZERO_QUANT_REGEX = re.compile(
     # 4. Commodity / Shares / Units: 0 barrels, 0 shares
     rf"\b{ZERO_NUM}(?:\s+{SCALE_WORDS})?\s+(?:{COMMODITY_UNIT_PATTERN}|shares)\b"
     # Custom Tabular data (custom and consistent)
-    rf"(?:amount|value)\s+of\s+\b{ZERO_NUM}\b",  # we do not do ignore case here
+    rf"(?:amount|value|volume|strike\s+price)\s+of\s+\b{ZERO_NUM}\b",  # we do not do ignore case here
 )
 
 
