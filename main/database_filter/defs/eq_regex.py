@@ -402,5 +402,6 @@ def run_tests():
         ("stock hedging", MatchLevel.LOOSE),
         ("warranty liability", MatchLevel.LOOSE),
         ("derivative warranty", MatchLevel.LOOSE),
+        ("equity instruments", MatchLevel.SOFT)
     ]
     run_category_tests_counter(counter_cases, EQ_REGEX, EQ_SOFT_REGEX, EQ_LOOSE_REGEX)
