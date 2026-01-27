@@ -1183,6 +1183,14 @@ def should_retry_with_plaintext(url: str, raw_text: str, rate_limiter: Optional[
         if not is_pre_2011:
             return None
         
+        # Construct plain text URL filename to check against current URL
+        accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
+        txt_filename = f"{accession_dashed}.txt"
+
+        # Prevent infinite loop: if we are already at the target .txt file, stop.
+        if url.endswith(txt_filename):
+            return None
+
         # Check length (alphanumeric only)
         if len(raw_text) < 2000000:  # 2MB limit for check
             clean_len = len(re.sub(r'[^a-zA-Z0-9]', '', raw_text))
@@ -1191,8 +1199,7 @@ def should_retry_with_plaintext(url: str, raw_text: str, rate_limiter: Optional[
                 # Check for strict derivative mentions
                 if not STRICT_REGEX.search(raw_text):
                     # Construct plain text URL
-                    accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
-                    txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_part}/{accession}/{accession_dashed}.txt"
+                    txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_part}/{accession}/{txt_filename}"
                     
                     if txt_url != url:
                         debug_print(f"  🔄 Retry with plain text for {url} (Len: {clean_len})")
