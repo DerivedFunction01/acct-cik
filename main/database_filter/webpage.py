@@ -1342,16 +1342,16 @@ def parse_content(data):
                 continue
         
         # 3. If we found any matches across all documents, save the result
-        if all_matches:
-            result_row = pd.Series({
+        result_row = pd.Series({
                 "url": url, 
                 "matches": all_matches,
-            })
+        })
+        if all_matches:
             debug_print(f"✓ Successfully parsed {len(parsed_documents)} documents from {url}")
-            return result_row
         else:
             debug_print(f"No keyword matches found in any document from {url}")
-            return None
+            
+        return result_row
 
     except Exception as e:
         print(f"Parse error for {url}: {e}")
