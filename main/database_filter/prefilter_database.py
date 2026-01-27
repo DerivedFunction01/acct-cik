@@ -23,7 +23,7 @@ from defs.prefiltered_lib import (
     is_convertible_target
 )
 from defs.derivative_lib import STRICT_REGEX, SOFT_REGEX, find_hedging_context
-from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX, EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, EXCLUDE_PRODUCT_CATALOGUE_REGEX
+from defs.cp_regex import COMMODITY_REGEX, CP_REGEX, CP_SOFT_REGEX, EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, EXCLUDE_PRODUCT_CATALOGUE_REGEX, NPNS_REGEX
 from defs.eq_regex import EQ_CONTEXT_REGEX, EQ_REGEX, EQ_SOFT_REGEX, EXCLUDE_REGEX_EQUITY_COMP
 from defs.gen_regex import GEN_STRICT_CONTEXT_REGEX, HEDGING_CONTEXT_REGEX, GEN_REGEX
 from defs.shared_context import (
@@ -688,6 +688,9 @@ def process_item(item: Tuple) -> Optional[Tuple]:
                                 or is_sophisticated_content(sent_masked)
                             ):
                                 kept_indices.append(sent_idx)
+                        elif NPNS_REGEX.search(sent_masked): # store npns
+                            kept_indices.append(sent_idx)
+
 
                     if kept_indices:
                         if len(kept_indices) == len(sentences):
