@@ -683,13 +683,23 @@ def build_loose_gen_regex() -> re.Pattern:
 def build_loose_gen_regex_precise() -> re.Pattern:
     # Matches unambiguous bases + specific plurals of ambiguous ones
     # Used for stricter context checks
-    unambiguous = [b.value for b in Groups.CORE_UNAMBIGUOUS_BASES ]
-    plurals = [
-        *[plural(b.value) for b in Groups.AMBIGUOUS_BASES],
-        *[plural(s.value) for s in Groups.UNAMBIGUOUS_SUFFIXES],
-        plural(BASE.WARRANT),
-    ]
-    return build_regex(unambiguous + plurals)
+    unambiguous = [b.value for b in Groups.CORE_UNAMBIGUOUS_BASES]
+    # remove forward
+    unambiguous.remove(BASE.FORWARD.value)
+
+    _UNAMB = add_restrictions(
+        to_build_alternation(
+            [plural(b.value) for b in Groups.AMBIGUOUS_BASES]
+            + [plural(BASE.WARRANT)]
+            + [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
+            + unambiguous
+        ),
+        lookbehinds=VERB_LOOKBEHIND,
+        lookaheads=VERB_LOOKAHEAD,
+    )
+    unambiguous.append(_UNAMB)
+
+    return build_regex(unambiguous)
 
 
 LOOSE_GEN_REGEX = build_loose_gen_regex()
