@@ -1105,7 +1105,14 @@ def process_row(row: Tuple) -> Tuple:
         sentences = [s.strip() for s in SENTENCE_SPLIT_PATTERN.split(p) if s.strip()]
         for sent in sentences:
             _, tag_reason, sent_content = parse_tags(sent)
-            if tag_reason in (NoiseReason.NO_HEDGE.value, NoiseReason.NEG.value, NoiseReason.POT.value, NoiseReason.NPNS):
+            if tag_reason in (
+                NoiseReason.NO_HEDGE.value, 
+                NoiseReason.NEG.value, 
+                NoiseReason.POT.value, 
+                NoiseReason.NPNS.value,
+                NoiseReason.TERM.value,
+                NoiseReason.ZERO.value
+            ):
                 exclusion_tracker.add_exclusion(sent_content, tag_reason)
 
     # --- SINGLE PASS Processing ---
