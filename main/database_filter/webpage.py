@@ -1056,7 +1056,7 @@ class ThreadSafeRateLimiter:
                     f"⏱️  {self._timeout_count} timeouts detected (not increasing sleep rate)"
                 )
 
-    def adjust(self, current_rate: float, target_rate: float):
+    def adjust(self, current_rate: float, target_rate: float, inventory_full: bool = False):
         """Atomically adjust the rate limit based on performance."""
         with self._lock:
             time_since_last_429 = time.time() - self._last_429_time
@@ -1087,7 +1087,7 @@ class ThreadSafeRateLimiter:
             elif current_rate < target_rate_adjusted * 0.95:  # Under target - TOO SLOW
                 # Fetching too slow - decrease sleep to speed up
                 # NO LOWER BOUND - can go below initial rate if needed!
-                if not self._recovery_mode:
+                if not self._recovery_mode and not inventory_full:
                     decrease_factor = 0.98
                     self._rate_limit *= decrease_factor
 
@@ -1466,7 +1466,7 @@ def process_producer_consumer_adaptive():
     # 8. Start RATE ADJUSTER thread (monitors and adjusts sleep rate)
     rate_adjuster = threading.Thread(
         target=rate_adjuster_worker,
-        args=(rate_limiter, fetch_metrics, metrics_lock, stop_event, SEC_RATE),
+        args=(rate_limiter, fetch_metrics, metrics_lock, stop_event, SEC_RATE, raw_queue),
         daemon=False,
     )
     rate_adjuster.start()
@@ -1576,7 +1576,7 @@ def process_producer_consumer_adaptive():
 
 
 def rate_adjuster_worker(
-    rate_limiter, fetch_metrics, metrics_lock, stop_event, target_rate
+    rate_limiter, fetch_metrics, metrics_lock, stop_event, target_rate, raw_queue=None
 ):
     """
     BACKGROUND THREAD: Continuously monitors fetch rate and adjusts sleep dynamically.
@@ -1608,10 +1608,21 @@ def rate_adjuster_worker(
             prev_fetch_count = current_fetch_count
             prev_time = now
 
+            # Check inventory pressure
+            inventory_full = False
+            if raw_queue is not None:
+                try:
+                    # If inventory is nearly full (e.g. > 90%), we are blocked by consumers.
+                    # Don't decrease sleep time (don't speed up fetching) in this case.
+                    if raw_queue.qsize() >= CHUNK_SIZE * 0.9:
+                        inventory_full = True
+                except Exception:
+                    pass
+
             # Call the rate limiter's atomic adjust method
             # This returns updated sleep value and recovery mode status
             new_sleep, in_recovery, target_rate_adjusted = rate_limiter.adjust(
-                current_rate, target_rate
+                current_rate, target_rate, inventory_full=inventory_full
             )
 
             # Log periodically (every 5 seconds)
