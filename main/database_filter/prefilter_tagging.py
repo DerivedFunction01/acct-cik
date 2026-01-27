@@ -478,7 +478,7 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
                 is_sophisticated_target(masked)
                 or SOFT_REGEX.search(masked)
                 or is_value(masked)  # allow "The notional value is XX to bypass"
-                or ACTIVE_VERB_REGEX.search(masked)
+                or ACTIVE_VERB_REGEX.search(masked) # Allow "we have swaps"
             ):
                 if is_hypothetical_noise(masked, threshold=2):
                     reason = NoiseReason.HYP_SCORE
