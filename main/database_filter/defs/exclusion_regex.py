@@ -167,14 +167,15 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         # --- Existing ---
         "debt",
         "credit",
+        "equity",
         # --- Explicit Exemptions (SEC Item 305) ---
         "lease",  #
         "insurance",  #
         "pension",  #
         "retirement",
         "warranty",  #
-        "trade",  # Matches "Trade agreement
-        "deferred compensation",  #
+        "trad(?:e|ing)",  # Matches "Trade agreement
+        "compensation",  #
         "stock option",  #
         "stock purchase",  #
         "equity method",  # Matches "Equity method contract"
