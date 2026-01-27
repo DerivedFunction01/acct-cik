@@ -174,7 +174,7 @@ def get_loose_termination_reason(
 COMPARISON_REGEX = build_regex(COMPARISON_PHRASES)
 
 COUNTERPARTY_POLICY_TERMS = [
-    r"credit\s+risk",
+    r"credit\s+risks?",
     r"counterpart(?:y|ies)",
     r"credit\s+quality",
     r"credit\s+worthiness",
