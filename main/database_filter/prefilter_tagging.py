@@ -12,6 +12,7 @@ from defs.verb_regex import (
     ABSENCE_REGEX,
     ACTIVE_VERB_REGEX,
     DID_NOT_HOLD_REGEX,
+    PASSIVE_VERB_REGEX,
     STRICT_DO_NOT_MITIGATE_REGEX,
     TERMINATION_ALL_REGEX,
     VAGUE_TIMING_REGEX,
@@ -425,8 +426,6 @@ def is_gen_hedge_doc(text: str) -> bool:
     if YEAR_REGEX.search(text): # No years
         return False
     if SOFT_CATEGORY_REGEX.search(text): # Excludes GEN_REGEX
-        if not ACTIVE_VERB_REGEX.search(text): # not in active state ("IR swap is ..."), no quants, and no years
-            return True
         return False
     if HEDGE_DOC_REGEX.search(text):
         return True
