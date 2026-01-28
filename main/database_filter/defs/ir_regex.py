@@ -439,6 +439,14 @@ def debt_feature_regex() -> re.Pattern:
     pattern = build_alternation(patterns)
     return re.compile(pattern, re.IGNORECASE)
 
+def rename_cap_floor_regex() -> Tuple[re.Pattern, str]:
+    BASES = [BASE.CAP, BASE.FLOOR]
+    _CP_FLR_RATE = to_build_alternation(BASES)
+    pattern = [
+        rf"{_CP_FLR_RATE}[- ]interest(?:[- ]rates?)?",
+        rf"{_CP_FLR_RATE}[- ]rates?",
+    ]
+    return build_regex(pattern), " interest rate"
 
 def debt_expiration_regex() -> re.Pattern:
     # 1. We use a non-greedy gap (?:\s+\S+){0,3}?
@@ -462,6 +470,8 @@ IR_CONTEXT_REGEX = build_regex(IR_CONTEXT_TERMS)
 IR_STRICT_CONTEXT_REGEX = build_regex(IR_STRICT_TERMS + IR_RISK_TERMS)
 IR_RISK_REGEX = build_regex(IR_RISK_TERMS)
 EXCLUDE_REGEX_LIBOR_TRANSITION = build_regex(LIBOR_TRANSITION_KEYWORDS)
+CAP_FLOOR_REGEX, IR_TOK = rename_cap_floor_regex()
+
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
 
