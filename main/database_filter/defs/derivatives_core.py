@@ -384,14 +384,15 @@ class MULTI_BASE:
     # 1. Start with Unambiguous (U + Any)
     # Excludes suffixes to ensure the first term is a strong base (e.g. "Swaps and Options")
     UNAMB_START, _ = MultiBaseGenerator(
-        starters=Groups.CORE_UNAMBIGUOUS_BASES, include_suffixes=False
+        starters=[b for b in Groups.CORE_UNAMBIGUOUS_BASES if b != BASE.FORWARD], include_suffixes=False
     ).generate()
 
     # 2. End with Unambiguous (Any + U)
     # Allows suffixes at start (e.g. "Contracts such as Swaps", "Options and Swaps")
     END_UNAMB, _ = MultiBaseGenerator(
-        bases=Groups.CORE_UNAMBIGUOUS_BASES,
-        starters=Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES,
+        bases=[b for b in Groups.CORE_UNAMBIGUOUS_BASES if b != BASE.FORWARD],
+        starters=[b for b in Groups.CORE_UNAMBIGUOUS_BASES if b != BASE.FORWARD]
+        + Groups.AMBIGUOUS_BASES,
         include_suffixes=True,
     ).generate()
 
