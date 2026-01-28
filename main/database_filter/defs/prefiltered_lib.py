@@ -1116,7 +1116,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     pnl_targets = rf"(?:the\s+)?(?:net\s+)?(?:\d{{4}}\s+)?(?:interest\s+)?(?:net\s+)?{pnl_target_bases}"
 
     # 2. The Prepositions (The "Connector")
-    preps = r"(?:on|to|in|at|of|from)"
+    preps = r"(?:on|to|in|at|of|from|incur(?:red|s|ring)?)"
 
     # 3. The Action Words (The "How")
     # Nouns: "an impact", "an increase"
