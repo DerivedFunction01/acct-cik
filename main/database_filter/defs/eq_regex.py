@@ -119,7 +119,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         # Inverted: liability/derivative (classified) warrants
         rf"(?:{liability}|{derivative})(?:[- ]classified)?\s+{warrant}",
         # Classified context: warrant...classified as (liability|derivative)
-        rf"{warrant}(?:\s+\b(?!not\b)\w+\b){{0,3}}(?:accounted|classified)(?:\s+\b(?!not\b)\w+\b){{0,3}}(?:{liability}|{derivative})",
+        rf"{warrant}(?:\s+\b(?!not\b)\w+\b){{0,3}}\s+(?:accounted|classified)(?:\s+\b(?!not\b)\w+\b){{0,3}}\s+(?:{liability}|{derivative})",
         # call/put warrants
         rf"(?:call|put)\s+{warrant}",
     ]
