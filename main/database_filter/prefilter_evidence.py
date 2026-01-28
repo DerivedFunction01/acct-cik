@@ -285,7 +285,7 @@ def check_quantitative_evidence(
 
     # 3. FAIR VALUE LOGIC
     # If global hierarchy context exists, assume generic values are Fair Value
-    if is_fair_value or is_strict_fv_hierarchy:
+    if has_mention and (is_fair_value or is_strict_fv_hierarchy):
         # 1. STRICT PNL CHECK (The Override)
         if HAD_CHANGE_REGEX.search(text):
             return NoiseReason.PNL
@@ -306,7 +306,7 @@ def check_quantitative_evidence(
             return EvidenceReason.FVAIY if has_relevant_year else EvidenceReason.FVAINY
 
     # ...UNLESS we see an Active Verb elsewhere in the sentence.
-    if verbs.has_active_verb or verbs.has_passive_verb:
+    if has_mention and (verbs.has_active_verb or verbs.has_passive_verb):
         # But we need more restrictions: This interest swap agreement had a positive impact on 2003 earnings, reducing interest expense by $0.3 million.
         # Maybe perform a quant sub -> $10 = _Q, then check sub out earnings/expense/income/ (of/by) _Q: if _Q still exists, next step
         # Check if it is _Q {debt_terms} and sub that out. if _Q still exists next step
