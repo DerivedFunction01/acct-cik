@@ -22,6 +22,7 @@ EXHIBIT_NOUNS = [
     "p.",
     "figures?",
     "charts?",
+    "summary",
     EXB_TOKEN
 ]
 
@@ -50,7 +51,7 @@ def build_simple_reference_regex() -> re.Pattern:
     pointer_alt = build_alternation(pointers)
 
     # 2. Directions (for "Table below")
-    directions = ["below", "above", "following", "accompanying", "attached", "herein"]
+    directions = ["below", "above", "following", "accompanying", "attached", "herein", "of"]
     direction_alt = build_alternation(directions)
 
     # PATTERN A: "See Note 5", "Refer to the Table"
