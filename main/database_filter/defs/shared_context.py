@@ -341,7 +341,7 @@ def build_risk_managment_phrase(
     tiny_gap = r"(?:\S+\s+){0,3}"
     if required_glue:
         req_alt = build_alternation(required_glue, sort_longest_first=True)
-        new_pattern_parts.append(rf"{verbs}\s+{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})?")
+        new_pattern_parts.append(rf"{verbs}\s+{tiny_gap}{_RISK_ALTERNATION}(?:\s+{tiny_gap}{req_alt})")
     else:
         new_pattern_parts.append(rf"{verbs}\s+{tiny_gap}{_RISK_ALTERNATION}")
 
