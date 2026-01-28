@@ -213,7 +213,7 @@ def check_verbs(text: str) -> VerbCheckResults:
 
 def check_mention(text: str) -> bool:
     """Check if text mentions any derivative instrument."""
-    return bool(SOFT_REGEX.search(text))
+    return bool(SOFT_REGEX.search(text) or PRECISE_LOOSE_GEN_REGEX.search(text))
 
 
 def check_derivative_global(text: str) -> bool:
