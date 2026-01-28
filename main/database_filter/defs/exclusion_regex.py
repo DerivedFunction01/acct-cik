@@ -4,8 +4,8 @@ from collections import defaultdict
 import re
 from typing import List, Tuple
 
-from defs.regex_lib import build_alternation, build_regex, to_build_alternation
-from defs.derivatives_core import ALL_SUFFIXES
+from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, to_build_alternation
+from defs.derivatives_core import ALL_SUFFIXES, VERB_LOOKBEHIND
 from defs.shared_context import TRADING_ENTITIES
 
 def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
@@ -247,11 +247,12 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "sales?",
     ]
     suffixes = ALL_SUFFIXES.copy()
+    
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
         r"swap\s+(?:dealers?|participants?)",
         r"(?<!the\s)(?<!an\s)(?<!a\s)(?:swap|forward|call|put|lock|cap)s?\s+(?:the|a|an|out|off|up)",
-        r"to\s+(?:swap|forward|call|put|lock|cap)s?\s+(?:in|into|upon|forward)",
+        build_compound(VERB_LOOKBEHIND, r"(?:swap|forward|call|put|lock|cap)s?"),
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
         r"(?:debt|equity)[- ](?:to|for)[- ](?:equity|debt)",
         r"(?:stock|share|debt|loan|bond|note)s?\s+swaps?",
