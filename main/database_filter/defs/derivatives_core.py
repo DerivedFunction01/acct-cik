@@ -698,8 +698,8 @@ def build_loose_gen_regex_precise() -> re.Pattern:
             + [BASE.WARRANT]
             + [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
         )),
-        lookbehinds=VERB_LOOKBEHIND,
-        lookaheads=VERB_LOOKAHEAD,
+        # lookbehinds=VERB_LOOKBEHIND, Unneeded
+        # lookaheads=VERB_LOOKAHEAD, unneeded
     )
     # caps, locks, swap etc standalone
     _UNAMB_PLURAL = add_restrictions(
