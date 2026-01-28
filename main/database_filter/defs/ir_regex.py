@@ -504,7 +504,7 @@ def run_tests():
         ("interest rate contract", MatchLevel.STRICT),
         ("interest rate hedges", MatchLevel.SOFT),
         ("floating rate hedge contract", MatchLevel.STRICT),
-        ("interest rate hedging", MatchLevel.LOOSE),
+        ("interest rate hedging", MatchLevel.SOFT),
         ("Eurodollar futures", MatchLevel.STRICT),
         ("Eurodollar options", MatchLevel.STRICT),
         ("single currency basis swap", MatchLevel.STRICT),
