@@ -337,7 +337,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         # 5. Accounted for as debt/equity
         r"(?<!not\s)accounted\s+for\s+as\s+(?:debt|equity|permanent\s+equity)",
         # 6. Meets criteria for equity classification (positive form)
-        r"(?<!not\s)meet(?:s)?\s+the\s+criteria\s+for\s+classification\s+in\s+(?:stock|share)holders['’]?\s+equity",
+        r"(?<!not\s)meet(?:s)?\s+(?:the\s+)?criteria(?:\s+for)?(?:\s+\b\w+\b){0,2}?\s*classification(?:\s+in)?\s+(?:stock|share)holders['’]?\s+equity"
         # 7. Not considered derivative financial instruments
         r"not\s+considered\s+(?:to\s+be\s+)?derivative\s+financial\s+instruments?",
         # 8. Does not meet definition of a derivative
