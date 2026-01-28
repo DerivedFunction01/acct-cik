@@ -463,7 +463,10 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
 
         # --- TIER 0: STRICT IMMATERIALITY ---
         if is_immaterial(masked):
-            reason = NoiseReason.IMM 
+            if is_pnl(masked):
+                reason = NoiseReason.PNL
+            else:
+                reason = NoiseReason.IMM 
         # --- STRICT WE DID NOT HEDGE/MITIGATE ---
         if not reason and not YEAR_REGEX.search(masked):
             reason = get_no_mitigation(masked)
