@@ -636,6 +636,7 @@ NON_DERIVATIVE_COMMERCIAL_KEYWORDS = NPNS_KEYWORDS + COMMERCIAL_KEYWORDS
 _NON_FINANCIAL_INSTRUMENT_TERMS = [
     # Medical / surgical / clinical
     "surgical",
+    "surgery",
     "medical",
     "dental",
     "veterinary",
@@ -653,6 +654,7 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "forceps",
     "clamps",
     "microscope",
+    "nasal",
     # Musical / artistic
     "music(?:al)?",
     "woodwinds?",
@@ -663,13 +665,9 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "band",
     "orchestra",
     # Industrial / mechanical / tools
-    "equipment",
-    "components",
     "fittings",
     "fixtures",
     "hardware",
-    "machinery",
-    "appliances?",
     "fasteners",
     "screws",
     "bolts",
@@ -682,24 +680,13 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "extrusions?",
     "tub(?:e|es?|ing)",
     "pip(?:e|ing|es?)",
-    # Containers
-    "bottles?",
-    "jars?",
-    "cans",
+
     # Kitchen / household
     "utensils?",
     "cook(?:ing|ware)?",
     "furniture",
     # Navigation / surveying
     "navigation(?:al)?",
-    "survey(?:ing)?",
-    
-    # Item 1A description
-    "manufactur(?:e|es|ed|ing|er|ers)",
-    "produc(?:e|es|ed|ing|tion)",
-    "fabricat(?:e|es|ed|ing|ion)",
-    "assembl(?:e|es|ed|ing|y)",
-    "industrial",
 ]
 
 EXCLUDE_PRODUCT_CATALOGUE_REGEX = build_regex(_NON_FINANCIAL_INSTRUMENT_TERMS)
