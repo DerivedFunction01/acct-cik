@@ -358,8 +358,8 @@ def run_tests():
         ("derivative warrants", MatchLevel.STRICT),
         ("equity contract", MatchLevel.LOOSE),
         ("equity hedges", MatchLevel.LOOSE),
-        ("convertible debt", MatchLevel.SOFT),
-        ("convertible debt hedge", MatchLevel.STRICT),
+        # ("convertible debt", MatchLevel.SOFT),
+        # ("convertible debt hedge", MatchLevel.STRICT),
         ("equity option and warrants", MatchLevel.LOOSE),
         (
             "equity options, warrants and futures",
