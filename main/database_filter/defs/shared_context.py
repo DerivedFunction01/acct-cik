@@ -646,11 +646,7 @@ def dynamic_clearing() -> str:
         "Warrants",
         "Equities",
         "Clearing",
-        "International",
-        "National",
         "Commodity",
-        "Securities",
-        "Financial",
     ]
     trigger_pat = build_alternation(triggers)
     
