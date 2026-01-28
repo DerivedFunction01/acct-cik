@@ -104,6 +104,16 @@ UNAMBIGUOUS_EVIDENCE = SAFEGUARD_EVIDENCE | {
     EvidenceReason.ACT_GEN.value,
 }
 
+STRONG_EXCLUSION_REASONS = {
+    NoiseReason.NEG.value,
+    NoiseReason.ZERO.value,
+    NoiseReason.NPNS.value,
+}
+
+WEAK_EXCLUSION_REASONS = {
+    NoiseReason.TERM.value,
+    NoiseReason.POT.value,
+}
 
 _cleaner = MinimalTextCleaner()
 
@@ -194,22 +204,25 @@ class GlobalInstrumentTracker:
 class GlobalExclusionTracker:
     """Tracks categories and commodities that the firm explicitly states it does NOT hedge."""
     def __init__(self):
-        self.excluded_categories = set()
-        self.excluded_commodities = set()
-        self.negated_instruments = defaultdict(set)
+        self.excluded_categories = defaultdict(set)
+        self.excluded_commodities = defaultdict(set)
+        self.negated_instruments = defaultdict(lambda: defaultdict(set))
 
     def add_exclusion(self, text: str, reason: Optional[str] = None):
+        if not reason:
+            reason = "UNKNOWN"
+
         # Check categories
         if IR_DO_NOT_MITIGATE_REGEX.search(text):
-            self.excluded_categories.add("ir")
+            self.excluded_categories["ir"].add(reason)
         if FX_DO_NOT_MITIGATE_REGEX.search(text):
-            self.excluded_categories.add("fx")
+            self.excluded_categories["fx"].add(reason)
         if EQ_DO_NOT_MITIGATE_REGEX.search(text):
-            self.excluded_categories.add("eq")
+            self.excluded_categories["eq"].add(reason)
         if CR_DO_NOT_MITIGATE_REGEX.search(text):
-            self.excluded_categories.add("cr")
+            self.excluded_categories["cr"].add(reason)
         if CRYPTO_DO_NOT_MITIGATE_REGEX.search(text):
-            self.excluded_categories.add("crypto")
+            self.excluded_categories["crypto"].add(reason)
 
         
         # Check CP and extract commodities
@@ -224,12 +237,12 @@ class GlobalExclusionTracker:
             
             if specifics:
                 for c in specifics:
-                    self.excluded_commodities.add(c.lower())
+                    self.excluded_commodities[c.lower()].add(reason)
             
             if generics and not specifics:
-                self.excluded_categories.add("cp")
+                self.excluded_categories["cp"].add(reason)
             elif not commodities:
-                self.excluded_categories.add("cp")
+                self.excluded_categories["cp"].add(reason)
 
         # Check NPNS
         if NPNS_REGEX.search(text):
@@ -240,12 +253,12 @@ class GlobalExclusionTracker:
             
             if specifics:
                 for c in specifics:
-                    self.excluded_commodities.add(c.lower())
+                    self.excluded_commodities[c.lower()].add(reason)
             
             if generics and not specifics:
-                self.excluded_categories.add("cp")
+                self.excluded_categories["cp"].add(reason)
             elif not commodities:
-                self.excluded_categories.add("cp")
+                self.excluded_categories["cp"].add(reason)
 
         # Check NEG logic (Specific Instrument Negation) - The "Exclusion Killers"
         # These signals create a global presumption of non-use for the mentioned instruments.
@@ -255,33 +268,54 @@ class GlobalExclusionTracker:
                 for pat in [strict_inst, soft_inst, weak_inst]:
                     if pat:
                         for m in pat.finditer(text):
-                            self.negated_instruments[cat].add(m.group(0).lower())
+                            self.negated_instruments[cat][m.group(0).lower()].add(reason)
 
-    def is_excluded(self, category: str, text_match: str = "", match_type: str = "strict") -> Tuple[bool, bool]:
+    def is_excluded(self, category: str, text_match: str = "", match_type: str = "strict", evidence_tags: Optional[Set[str]] = None) -> Tuple[bool, bool]:
         """Returns (is_excluded, is_blocked)."""
+        reasons = set()
+
         # 1. Global category exclusion (downgrade)
         if category in self.excluded_categories:
-            return True, False
+            reasons.update(self.excluded_categories[category])
 
         # 2. Specific Commodity Block
         if category == "cp" and text_match:
             text_lower = text_match.lower()
-            for comm in self.excluded_commodities:
+            for comm, comm_reasons in self.excluded_commodities.items():
                 if comm in text_lower:
-                    return True, True
+                    reasons.update(comm_reasons)
         
         # 3. Specific Instrument Negation
         if text_match:
             text_lower = text_match.lower()
             if text_lower in self.negated_instruments[category]:
-                return True, True
+                reasons.update(self.negated_instruments[category][text_lower])
             
             if match_type == "weak":
-                for neg_inst in self.negated_instruments[category]:
+                for neg_inst, neg_reasons in self.negated_instruments[category].items():
                     if "derivative" in neg_inst:
-                        return True, True
+                        reasons.update(neg_reasons)
 
-        return False, False
+        if not reasons:
+            return False, False
+
+        # Check Safeguards
+        if evidence_tags:
+            has_true_safeguard = not evidence_tags.isdisjoint(TRUE_SAFEGUARD_EVIDENCE)
+            has_std_safeguard = not evidence_tags.isdisjoint(SAFEGUARD_EVIDENCE)
+            
+            # If any STRONG reason exists, require TRUE safeguard
+            if not reasons.isdisjoint(STRONG_EXCLUSION_REASONS):
+                if has_true_safeguard:
+                    return False, False
+            else:
+                # Only WEAK reasons exist
+                if has_std_safeguard:
+                    return False, False
+
+        # If we are here, exclusion applies and wasn't safeguarded.
+        # For both STRONG and WEAK reasons, we Block (True, True) if safeguard fails.
+        return True, True
 
 # =============================================================================
 # HELPERS
@@ -431,6 +465,7 @@ def extract_instrument_evidence(
     global_cats: Optional[Set[str]] = None,
     sent_scores: Optional[Dict[str, int]] = None,
     exclusion_tracker: Optional[GlobalExclusionTracker] = None,
+    evidence_tags: Optional[Set[str]] = None,
 ) -> List[InstrumentDetail]:
     """
     Links detected instruments with their quantitative data found in the same sentence.
@@ -478,14 +513,16 @@ def extract_instrument_evidence(
         if resolved:
             target_category = resolved
 
+    # 1. Determine Accounting Context from Evidence Tags (Primary)
+    # We do this early so we can pass tags to exclusion tracker if needed
+    if evidence_tags is None:
+        evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
+
     # Check Global Exclusion for the Category
     if exclusion_tracker:
-        is_excl, is_block = exclusion_tracker.is_excluded(target_category)
+        is_excl, is_block = exclusion_tracker.is_excluded(target_category, evidence_tags=evidence_tags)
         if is_block:
             return []
-
-    # 1. Determine Accounting Context from Evidence Tags (Primary)
-    evidence_tags = set(EVIDENCE_TAG_PARSER.findall(sentence))
 
     if evidence_tags.intersection(fv_tags):
         val_type = "fv"
@@ -520,7 +557,7 @@ def extract_instrument_evidence(
     if exclusion_tracker:
         filtered_names = []
         for name in instrument_names:
-            is_excl, is_block = exclusion_tracker.is_excluded(target_category, name, match_type="strict")
+            is_excl, is_block = exclusion_tracker.is_excluded(target_category, name, match_type="strict", evidence_tags=evidence_tags)
             if not is_block:
                 filtered_names.append(name)
         instrument_names = filtered_names
@@ -810,7 +847,7 @@ PRIORITY_ORDER = [
 CONJ = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
 FULL_CONJ = re.compile(r"[,;]|\b(?:and|or)\b", re.IGNORECASE)
 WHITESPACE = re.compile(r"\s+", re.IGNORECASE)
-def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None) -> Dict[str, int]:
+def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None, evidence_tags: Optional[Set[str]] = None) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -837,7 +874,7 @@ def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusi
 
     def check_exclusion(cat, text_match, match_type):
         if exclusion_tracker:
-            return exclusion_tracker.is_excluded(cat, text_match, match_type)
+            return exclusion_tracker.is_excluded(cat, text_match, match_type, evidence_tags)
         return False, False
 
     # ═══════════════════════════════════════════════════════════
@@ -1027,6 +1064,7 @@ def process_confirmed_evidence(
     evidence_details: List[InstrumentDetail],
     sent_scores: Optional[Dict[str, int]] = None,
     exclusion_tracker: Optional[GlobalExclusionTracker] = None,
+    evidence_tags: Optional[Set[str]] = None,
 ) -> None:
     """Helper to process confirmed evidence (strict matches or promoted soft matches)."""
     # Capture instruments from valid evidence
@@ -1036,7 +1074,7 @@ def process_confirmed_evidence(
 
     for cat in categories:
         if exclusion_tracker:
-            is_excl, is_block = exclusion_tracker.is_excluded(cat)
+            is_excl, is_block = exclusion_tracker.is_excluded(cat, evidence_tags=evidence_tags)
             if is_block:
                 continue
         strict_categories.add(cat)
@@ -1053,6 +1091,7 @@ def process_confirmed_evidence(
             global_cats=strict_categories,
             sent_scores=sent_scores,
             exclusion_tracker=exclusion_tracker,
+            evidence_tags=evidence_tags,
         )
         evidence_details.extend(details)
 
@@ -1180,14 +1219,8 @@ def process_row(row: Tuple) -> Tuple:
             clean_sent = _cleaner.clean(sent_content_no_meta, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
             
-            # Check for Safeguard Evidence (Overrides Exclusions)
             evidence_tags_set = {tag for tag in evidence_tags_found}
-            is_safeguarded = not evidence_tags_set.isdisjoint(SAFEGUARD_EVIDENCE)
-            
-            # If safeguarded, disable exclusion tracker for this sentence
-            current_exclusion_tracker = None if is_safeguarded else exclusion_tracker
-
-            sent_scores = get_text_categories(clean_sent, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=current_exclusion_tracker)
+            sent_scores = get_text_categories(clean_sent, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker, evidence_tags=evidence_tags_set)
 
             # Handle explicit block signal
             explicit_block = sent_scores.get('gen', 0) == -1
@@ -1255,7 +1288,8 @@ def process_row(row: Tuple) -> Tuple:
                         valid_instruments,
                         evidence_details,
                         sent_scores=sent_scores,
-                        exclusion_tracker=current_exclusion_tracker,
+                        exclusion_tracker=exclusion_tracker,
+                        evidence_tags=evidence_tags_set,
                     )
                     continue
 
