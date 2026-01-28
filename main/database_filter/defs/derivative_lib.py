@@ -117,7 +117,7 @@ def find_hedging_context(paragraph: str) -> bool:
 
 GLUE_MAP = {
     "ir": build_regex([
-        r"(?:interest|fixed|variable|floating)[- ]rates?",
+        r"(?:interest|fixed|variable|floating|treasury)[- ]rates?",
         r"interest\s+exchange",
     ]),
     "fx": build_regex([
@@ -126,7 +126,7 @@ GLUE_MAP = {
         CURRENCY_TERM,
         r"fx",
         r"forex",
-        r"exchange\s+rates?",
+        r"(?:exchange|forward)\s+rates?",
     ]),
     "cp": COMMODITY_REGEX,
     "eq": build_regex([
