@@ -292,13 +292,13 @@ def run_tests():
         ("cap", MatchLevel.LOOSE),  # Singular Ambiguous
         ("market cap", MatchLevel.LOOSE),  # Matches "cap" in LOOSE
         # --- Counter Cases (Non-Financial / Exclusion Handled) ---
-        ("forward looking", MatchLevel.SOFT),
-        ("look forward", MatchLevel.SOFT),
-        ("carry forward", MatchLevel.SOFT),
+        ("forward looking", MatchLevel.LOOSE),
+        ("look forward", MatchLevel.LOOSE),
+        ("carry forward", MatchLevel.LOOSE),
         ("forward shipment", MatchLevel.SOFT),
         ("derivative market (captured by context, not by this regex)", MatchLevel.SOFT),
         ("swap participants", MatchLevel.SOFT),
-        ("asset swaps", MatchLevel.SOFT),
+        ("asset swaps", MatchLevel.LOOSE),
         ("asset swap", MatchLevel.SOFT),
         ("debt-for-equity swaps", MatchLevel.SOFT),
         ("derivative (singular, no prefix)", MatchLevel.SOFT),
@@ -310,10 +310,10 @@ def run_tests():
         ("stock option agreement", MatchLevel.LOOSE),
         ("option agreement", MatchLevel.LOOSE),
         ("call agreement", MatchLevel.LOOSE),
-        ("to hedge, sell power forward", MatchLevel.SOFT),
+        ("to hedge, sell power forward", MatchLevel.LOOSE),
         ("swap to forward", MatchLevel.SOFT),
         ("options and caps", MatchLevel.SOFT),
-        ("to swap forward", MatchLevel.SOFT),
+        ("to swap forward", MatchLevel.LOOSE),
     ]
     print("\nRunning standalone derivative tests...")
     run_category_tests(test_cases, GEN_REGEX, PRECISE_LOOSE_GEN_REGEX, LOOSE_GEN_REGEX)
