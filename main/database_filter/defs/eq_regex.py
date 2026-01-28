@@ -101,7 +101,6 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     restricted_core_terms = [
         rf"{to_build_alternation(restricted_core)}(?:[- ](?:based|related|linked|index))?"
     ]
-    CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))"
 
     # 2. Build Specific Phrases (Max Munch) - UNIFIED LIST
     # Convertible phrases (Structural Embedded Derivatives)
