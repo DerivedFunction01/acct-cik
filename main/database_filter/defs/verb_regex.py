@@ -122,7 +122,7 @@ def build_immaterial_regexes() -> List[re.Pattern]:
     subjects = [
         r"The(?:se)?\s+(?:amounts?|values?)", # Tighten what value/amount
         r"The\s+(?:fair|carrying|market|notional)\s+values?",
-        r"The\s+notional\s+:amounts?",
+        r"The\s+notional\s+amounts?",
     ]
     subj_pat = build_alternation(subjects)
     
@@ -144,14 +144,8 @@ def build_immaterial_regexes() -> List[re.Pattern]:
     )
     regex_pat_instrument = re.compile(pat_instrument)
 
-    # 3. Instrument as Subject (Strict)
-    # "The interest rate swap was immaterial"
-    pat_instrument_subject = (
-        rf"\b{_DENIAL_TARGET}\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
-    )
-    regex_pat_instrument_subject = re.compile(pat_instrument_subject)
 
-    return [regex_strict, regex_pat_instrument, regex_pat_instrument_subject]
+    return [regex_strict, regex_pat_instrument]
 
 
 def build_did_not_hold_regex() -> re.Pattern:
