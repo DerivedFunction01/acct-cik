@@ -16,8 +16,8 @@ from defs.regex_lib import (
 # HELPERS
 # ============================================================================
 
-
-VERB_LOOKBEHIND = [r"to"]
+# lookbehind (fixed width required, but reduce length)
+VERB_LOOKBEHIND = [r"(?:t|d)o", r"(?:can|may)", r"(?:will|does)", r"(?:w|c)ould", r"no(?:t|r)", r"neither", r"shall"]
 VERB_LOOKAHEAD = [r"the", r"an", r"a", r"its", r"rate", r"interest", r"forward", r"their", r"our", r"in"]
 
 
