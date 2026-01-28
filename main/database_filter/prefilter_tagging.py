@@ -505,7 +505,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
                 if reason:
                     if AOCI_NOISE_REGEX.search(masked):
                         reason = NoiseReason.AOCI
-                    if TRANS_VERB_REGEX.search(masked): # We entered, secured, etc
+                    if TRANS_VERB_REGEX.search(masked) and not TERMINATION_ALL_REGEX.search(masked): # We entered, secured, etc
+                        # skip those that expired
                         reason = NoiseReason.TRANSACT
 
         # --- TIER 2: EVIDENCE / SIGNAL (The "High Value" Tags) ---
