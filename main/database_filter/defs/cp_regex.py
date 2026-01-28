@@ -655,6 +655,13 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "clamps",
     "microscope",
     "nasal",
+    "organs?",
+    "osteoporotic",
+    "bones?",
+    "bowels?",
+    "lungs?",
+    "chest",
+    "fractured",
     # Musical / artistic
     "music(?:al)?",
     "woodwinds?",
@@ -680,7 +687,6 @@ _NON_FINANCIAL_INSTRUMENT_TERMS = [
     "extrusions?",
     "tub(?:e|es?|ing)",
     "pip(?:e|ing|es?)",
-
     # Kitchen / household
     "utensils?",
     "cook(?:ing|ware)?",
