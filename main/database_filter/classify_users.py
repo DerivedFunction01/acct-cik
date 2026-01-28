@@ -71,8 +71,8 @@ METADATA_TAG_PARSER = re.compile(r"_M<([^>]+)>")
 # Evidence that overrides Global Exclusions (Safeguard)
 # We use ONLY the Strict (Year-Anchored) evidence here.
 # If a firm says "We do not use derivatives", we respect that unless we see a specific DATED transaction/position.
-SAFEGUARD_EVIDENCE = {
-    # active state for the current year
+TRUE_SAFEGUARD_EVIDENCE = {
+    # True active state for the current year
     EvidenceReason.AS_YEAR.value,
     EvidenceReason.MAT_FUT.value,
     EvidenceReason.MAT_FUT_NV.value,
@@ -82,9 +82,13 @@ SAFEGUARD_EVIDENCE = {
     EvidenceReason.FVY.value,
     EvidenceReason.VY.value,
     EvidenceReason.ACT_YEAR.value,
+}
+
+SAFEGUARD_EVIDENCE = TRUE_SAFEGUARD_EVIDENCE | {
     # IR swap of a different paragraph is a different transaction (provided it survived)
     # even if one of them is terminated, they plainly state they have potential usage, or no swaps for a different subsidiary.
-    EvidenceReason.ACT_NV_YEAR.value, 
+    EvidenceReason.ACT_YEAR.value,
+    EvidenceReason.ACT_NV_YEAR.value,
     EvidenceReason.ACT_FV_YEAR.value,
     EvidenceReason.ACT_V_YEAR.value,
 }
