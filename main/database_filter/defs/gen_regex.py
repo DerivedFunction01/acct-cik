@@ -16,6 +16,8 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
             SUFFIX.CONTRACT,
             SUFFIX.INSTRUMENT,
             BASE.DERIVATIVE,
+            SUFFIX.AGREEMENT,
+            SUFFIX.ARRANGEMENT,
         ],
     )
     # Miscellaneous complex patterns
