@@ -106,7 +106,7 @@ def build_ir_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 2. Soft: Strong terms allow Ambiguous Bases (Option/Cap) + Contract
     _SOFT_CONFIG_STRONG = DERIVATIVES(
         PREFIX=strong_core_terms,
-        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.FLOOR, BASE.LOCK],
+        STANDALONE_BASES=[BASE.OPTION, BASE.CAP, BASE.FLOOR, BASE.LOCK, BASE.HEDGE],
         STANDALONE_SUFFIXES=[SUFFIX.CONTRACT, SUFFIX.AGREEMENT],
         ADDITIONAL_BASES=[BASE.PROTECTION],
         MULTI_BASE=[MULTI_BASE.DOUBLE_BASE],
