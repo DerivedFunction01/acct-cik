@@ -333,7 +333,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         # 3. Hedge/derivative classification not applying
         r"(?:hedge|derivative)\s+(?:classification|accounting)\s+(?:does|did)\s+not\s+apply",
         # 4. No bifurcation required
-        r"no\s+bifurcation\s+is\s+(?:required|needed)",
+        r"no\s+bifurcation\s+(?:is\s+)?(?:required|needed)",
         # 5. Accounted for as debt/equity
         r"(?<!not\s)accounted\s+for\s+as\s+(?:debt|equity|permanent\s+equity)",
         # 6. Meets criteria for equity classification (positive form)
@@ -341,7 +341,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         # 7. Not considered derivative financial instruments
         r"not\s+considered\s+(?:to\s+be\s+)?derivative\s+financial\s+instruments?",
         # 8. Does not meet definition of a derivative
-        r"(?:do|does|did)\s+not\s+meet\s+the\s+definition\s+of\s+a\s+derivative",
+        r"(?<!if\sit\s)(?:do|does|did)\s+not\s+meet\s+the\s+definition\s+of\s+a\s+derivative",
         # 9. Indexed to own stock (positive form only)
         r"(?<!not\s)indexed\s+to(?:\s+\w+){0,3}\s+own\s+stock",
         # 10. Exception from derivative accounting
