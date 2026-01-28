@@ -18,7 +18,7 @@ from defs.regex_lib import (
 
 
 VERB_LOOKBEHIND = [r"to"]
-VERB_LOOKAHEAD = [r"the", r"an", r"a", r"its", r"rate", r"interest", r"forward"]
+VERB_LOOKAHEAD = [r"the", r"an", r"a", r"its", r"rate", r"interest", r"forward", r"their", r"our", r"in"]
 
 
 class BASE(Enum):
@@ -681,16 +681,17 @@ def build_loose_gen_regex() -> re.Pattern:
 
 
 def build_loose_gen_regex_precise() -> re.Pattern:
-    # Matches unambiguous bases + specific plurals of ambiguous ones
+    # Matches unambiguous bases + requires specific restrictions to make sure it is not a verb
     # Used for stricter context checks
+    # Swap, futures, etc
     unambiguous = [b.value for b in Groups.CORE_UNAMBIGUOUS_BASES]
     # remove forward
     unambiguous.remove(BASE.FORWARD.value)
 
     _UNAMB = add_restrictions(
         to_build_alternation(
-            [plural(b.value) for b in Groups.AMBIGUOUS_BASES]
-            + [plural(BASE.WARRANT)]
+            [b.value for b in Groups.AMBIGUOUS_BASES]
+            + [BASE.WARRANT]
             + [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
             + unambiguous
         ),
