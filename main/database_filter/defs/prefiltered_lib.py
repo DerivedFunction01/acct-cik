@@ -12,7 +12,7 @@ from defs.shared_context import (
 )
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, add_restrictions
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
-from defs.ir_regex import IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN
+from defs.ir_regex import CAP_FLOOR_REGEX, IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN, IR_TOK
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
@@ -395,7 +395,7 @@ class MinimalTextCleaner:
             return DEBT_TOKEN  # " debt "
 
         text = DEBT_FT_REGEX.sub(safe_debt_sub, text)
-
+        text = CAP_FLOOR_REGEX.sub(IR_TOK, text)
         text = self.normalize_whitespace(text)
         return text
 
