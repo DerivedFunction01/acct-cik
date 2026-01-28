@@ -444,7 +444,8 @@ class MinimalTextCleaner:
         # --- 2. THE ULTIMATE TORTURE TEST PARAGRAPH ---
         test_paragraph = (
             "1) Context: During the 2023 Fiscal Year, per ASC 815-20 and ASU 2025-12, the Company held several "
-            "interest rate swaps maturing in 2029. The swap has a notional amount (from December 25, 2039) of $500 million. (2) These were "
+            "interest rate swaps maturing in 2029. The swap has a notional amount (from December 25, 2039) of $500 million, setting "
+            "the cap interest rate to 10% and the floor interest rate to 5%. (2) These were "
             "used to fix the rate of our 2024 Convertible Senior Notes due December 31, 2029 and our 2025 Secured "
             "Debentures maturing in 2030. (ii) Quantitative: We recorded a gain of $42 million; however, the interest "
             "rate swap mechanics had an impact on 2023 earnings of $120 million, $80 million, and $15.5 million respectively. "
@@ -474,6 +475,9 @@ class MinimalTextCleaner:
 
         # --- 4. UPDATED VERIFICATION CHECKLIST ---
         print("\nVISUAL CHECKLIST:")
+        print(
+            f"cap interest rate neutralized             {'SUCCESS' if 'cap interest rate' not in cleaned_text else 'FAIL'}"
+        )
         print(
             f"Date protected? 2039 still exists        {'SUCCESS' if '2039' in cleaned_text else 'FAIL'}"
         )
