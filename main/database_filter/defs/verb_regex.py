@@ -217,9 +217,10 @@ def build_strict_termination_regex() -> List[re.Pattern]:
     Matches termination events anchored to derivative instruments.
     1. Verb + Target: "terminated the swap"
     2. Target + Verb: "swap expired"
+    3. Advanced Termination: "terminated early", "terminated in advance"
     """
     verbs = build_alternation(TERMINATION_VERBS)
-    
+
     # 1. Verb ... Target
     # "terminated [the] [interest rate] swap"
     pat_verb_target = (
@@ -238,9 +239,31 @@ def build_strict_termination_regex() -> List[re.Pattern]:
         rf"{verbs}\b"
     )
 
+    # 3. Advanced Termination (No target required)
+    # Matches: "terminated early", "settled in advance", "cancelled prior to maturity"
+    # Allows a gap for things like "terminated during 2002 in advance"
+
+    adv_indicators = [
+        r"early",
+        r"prematurely",
+        r"in\s+advance",
+        r"(?:prior\s+to|before)\s+(?:\S+\s+){0,6}(?:maturity|expiration|termination|settlement|expiry)",
+    ]
+    adv_alt = build_alternation(adv_indicators)
+
+    # Allow reasonable gap (e.g. "terminated [during 2002] in advance")
+    adv_gap = r"(?:\S+\s+){0,4}"
+
+    pat_advanced = (
+        rf"\b{verbs}\s+"
+        rf"{adv_gap}"
+        rf"{adv_alt}\b"
+    )
+
     return [
         re.compile(pat_verb_target, re.IGNORECASE),
-        re.compile(pat_target_verb, re.IGNORECASE)
+        re.compile(pat_target_verb, re.IGNORECASE),
+        re.compile(pat_advanced, re.IGNORECASE)
     ]
 
 def build_prior_statement_pattern_2() -> re.Pattern:
