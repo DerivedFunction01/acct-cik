@@ -109,7 +109,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"embedded\s+conversion\s+(?:{option}|features?|{derivative})",
         rf"conversion\s+option\s+{liability}",
         rf"bifurcated\s+conversion\s+{option}",
-        rf"{CONV}\s+(?:hedges?|derivatives?)",
+        # rf"{CONV}\s+(?:hedges?|derivatives?)",
     ]
 
     # Warrant liabilities (Financial Warrants only)
@@ -124,7 +124,7 @@ def build_eq_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"(?:call|put)\s+{warrant}",
     ]
     soft_phrases = [
-        CONV,
+        # CONV,
         rf"{_DEBT_TERMS}(?:[- ](?:linked|attached))?\s+{warrant}",
         rf"{warrant}(?:[- ](?:linked|attached))\s+{_DEBT_TERMS}",
     ]
