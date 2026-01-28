@@ -218,6 +218,7 @@ def build_early_termination_regex() -> re.Pattern:
     adv_gap = r"(?:\S+\s+){0,5}"
     adv_indicators = [
         r"early",
+        r"(?<!no\s)ealier\s+than",
         r"prematurely",
         r"in\s+advance",
         rf"(?:prior\s+to|before)\s+{adv_gap}(?:maturity|expiration|termination|settlement|expiry|closing)",
