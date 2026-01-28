@@ -23,7 +23,7 @@ from defs.verb_core import (
 _DENIAL_TARGET = create_target()
 
 
-def build_potential_regex() -> re.Pattern:
+def build_potential_regex() -> List[re.Pattern]:
     """
     Matches: "may enter", "might use", "expect to hedge"
     Relaxed middle group catches: "may [occasionally] use", "may [typically] enter"
@@ -47,10 +47,13 @@ def build_potential_regex() -> re.Pattern:
         rf"{build_alternation(POTENTIAL_SUFFIX_ADVERBS)}\b"
     )
 
-    return re.compile(
-        rf"(?:{prefix}|{suffix})",
+    return [re.compile(
+        prefix,
         re.IGNORECASE,
-    )
+    ), re.compile(
+        suffix,
+        re.IGNORECASE,
+    )]
 
 def build_passive_verb_regex(past_only: bool = False) -> re.Pattern:
     """
@@ -324,6 +327,11 @@ STRICT_TERMINATION_REGEXES = build_strict_termination_regex()
 
 def is_strict_termination(text: str) -> bool:
     for regex in STRICT_TERMINATION_REGEXES:
+        if regex.search(text):
+            return True
+    return False
+def is_potential(text: str) -> bool:
+    for regex in POTENTIAL_REGEX:
         if regex.search(text):
             return True
     return False
