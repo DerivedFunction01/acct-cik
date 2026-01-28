@@ -689,32 +689,13 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     unambiguous.remove(BASE.FORWARD.value)
     # remove swap
     unambiguous.remove(BASE.SWAP.value)
-    ambiguous = [b.value for b in Groups.AMBIGUOUS_BASES]
-    ambiguous.remove(BASE.OPTION.value)
-    ambiguous.remove(BASE.HEDGE.value)
-    # The cap, , etc
-    _UNAMB = add_restrictions(
-        build_compound(
-            [r"the", r"a", r"an", r"th(?:o|e)se", r"this"],
-            to_build_alternation(
-            ambiguous
-            + [BASE.WARRANT]
-        )),
-        # lookbehinds=VERB_LOOKBEHIND, Unneeded
-        # lookaheads=VERB_LOOKAHEAD, unneeded
-    )
-    # caps, locks, swap etc standalone
-    _UNAMB_PLURAL = add_restrictions(
-        to_build_alternation(
-            [plural(b) for b in ambiguous]
-            + [plural(BASE.WARRANT)]
-            + [BASE.SWAP]
-        ),
+
+    _SWAP = add_restrictions(
+        BASE.SWAP.value,
         lookbehinds=VERB_LOOKBEHIND,
         lookaheads=VERB_LOOKAHEAD,
     )
-    unambiguous.append(_UNAMB_PLURAL)
-    unambiguous.append(_UNAMB)
+    unambiguous.append(_SWAP)
 
     return build_regex(unambiguous)
 
