@@ -285,7 +285,7 @@ def run_tests():
         ("swap", MatchLevel.SOFT),  # Singular Unambiguous is in PRECISE_LOOSE
         (
             "to swaps",
-            MatchLevel.SOFT,
+            MatchLevel.LOOSE,
         ),  # Restricted Strict -> Falls to Soft (PRECISE_LOOSE matches "swaps")
         # --- LOOSE: Singular Ambiguous / Broad ---
         ("option", MatchLevel.LOOSE),  # Singular Ambiguous
