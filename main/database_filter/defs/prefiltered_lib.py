@@ -1119,7 +1119,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
 
     # 3. The Action Words (The "How")
     # Nouns: "an impact", "an increase"
-    impact_nouns = r"(?:impact|effect|increase|decrease|gain|loss(?:es)?)"
+    impact_nouns = r"(?:impact|effect|increase|decrease|gain|loss(?:es)?|adjustments?|changes?)"
     # Verbs: "increased", "reducing"
     change_verbs = r"(?:increas|decreas|reduc)(?:ed?|es|ing)"
 
@@ -1142,6 +1142,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         # Matches: "had a material impact on earnings", "has no effect on results"
         # Logic: Had/Have + (optional words) + Noun + Prep + Target
         rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
+        rf"fair value {impact_nouns}",
     ]
 
     pnl_terms2 = [
