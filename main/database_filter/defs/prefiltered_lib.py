@@ -10,8 +10,9 @@ from defs.shared_context import (
     CURRENCY_SYMBOL_PATTERN,
     VALUATION_MODELS,
 )
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, add_restrictions
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_compound, build_regex, add_restrictions
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
+from defs.derivative_lib import create_target
 from defs.ir_regex import CAP_FLOOR_REGEX, IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN, IR_TOK
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
@@ -1107,7 +1108,7 @@ HEDGE_DOC_TERMS = [
 
 HEDGE_DOC_REGEX = build_regex(HEDGE_DOC_TERMS, use_sep=False)
 
-def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
+def pnl_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # 1. The Financial Targets (The "What")
     # Captures: "net income", "interest expense", "2024 earnings", "revenues"
     # Structure handles optional prefixes: "the", "net", "2024", "interest"
@@ -1142,7 +1143,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         # Matches: "had a material impact on earnings", "has no effect on results"
         # Logic: Had/Have + (optional words) + Noun + Prep + Target
         rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
-        rf"fair value {impact_nouns}",
+        rf"fair[- ]value {impact_nouns}",
         rf"unamortized debt discounts?",
         rf"write[- ]?offs?",
     ]
@@ -1158,11 +1159,37 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         rf"{change_verbs}(?:\W+\w+){{0,3}}\s+{pnl_targets}",
         
     ]
+    connectors = r"(?:the\s+|our\s+|a\s+|an\s+|these\s+|those\s+|any\s+|such\s+)?"
+    # Extended prepositions for this specific context
+    preps_extended = r"(?:of|on|from|related\s+to|associated\s+with|in)"
+    target = create_target()
+    ending = rf"{preps_extended}\s+{connectors}{target}"
 
-    return build_regex(pnl_terms), build_regex(pnl_terms2)
+    pnl_terms3 = [
+        # "Changes in (the) fair value of (the) [Swap]"
+        rf"{impact_nouns}\s+in\s+(?:{connectors})",
+        # "Fair value changes of (the) [Swap]"
+        rf"fair\s+value\s+{impact_nouns}",
+        # "Gain/Loss on (the) [Swap]"
+        rf"(?:realized|unrealized\s+)?(?:net\s+)?(?:gains?|loss(?:es)?)",
+        # "Impact of (the) [Swap]"
+        rf"{impact_nouns}",
+        # "Ineffectiveness of (the) [Swap]"
+        rf"(?:hedge\s+)?ineffectiveness",
+        # "Amortization of (the) [Swap]"
+        rf"amortization",
+        # "Settlements on (the) [Swap]"
+        rf"(?:cash\s+)?settlements?",
+    ]
+
+    return (
+        build_regex(pnl_terms),
+        build_regex(pnl_terms2),
+        build_regex([build_compound(pnl_terms3, ending)]),
+    )
 
 
-PNL_CONTEXT_REGEX, PNL_CONTEXT_REGEX2 = pnl_regex()
+PNL_CONTEXT_REGEX, PNL_CONTEXT_REGEX2, PNL_CONTEXT_REGEX3 = pnl_regex()
 
 _prep_pattern = build_alternation([r"in", r"of", r"on"])
 
@@ -1224,9 +1251,10 @@ def is_pnl(text, context_only = True):
     if NOTIONAL_REGEX.search(text):
         return False
     if context_only:
-        return bool(PNL_CONTEXT_REGEX.search(text))
+        return bool(PNL_CONTEXT_REGEX.search(text) or PNL_CONTEXT_REGEX3.search(text))
     return bool(PNL_CONTEXT_REGEX2.search(text) or 
                 PNL_CONTEXT_REGEX.search(text) or 
+                PNL_CONTEXT_REGEX3.search(text) or 
                 HAD_CHANGE_REGEX.search(text) or 
                 CHANGE_FV_REGEX.search(text))
 
