@@ -120,9 +120,9 @@ def build_immaterial_regexes() -> List[re.Pattern]:
     imm_pat = build_alternation(immaterial)
 
     subjects = [
-        r"(?:the|these)\s+(?:amounts?|values?)", # Tighten what value/amount
-        r"(?:fair|carrying|market|notional)\s+values?",
-        r"notional\s+(?:amounts?|values?)",
+        r"The(?:se)?\s+(?:amounts?|values?)", # Tighten what value/amount
+        r"The\s+(?:fair|carrying|market|notional)\s+values?",
+        r"The\s+notional\s+:amounts?",
     ]
     subj_pat = build_alternation(subjects)
     
@@ -132,7 +132,7 @@ def build_immaterial_regexes() -> List[re.Pattern]:
     # "The notional amount was immaterial"
     # Gap: Subject -> [0-2 words] -> Verb -> [0-2 words] -> Immaterial
     pat_strict = rf"\b(?:{subj_pat})\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
-    regex_strict = re.compile(pat_strict, re.IGNORECASE)
+    regex_strict = re.compile(pat_strict)
 
     # 2. Instrument-Anchored (Permissive)
     # "The fair value of the interest rate swaps was immaterial"
@@ -142,14 +142,14 @@ def build_immaterial_regexes() -> List[re.Pattern]:
         rf"{_DENIAL_TARGET}\s+"
         rf"(?:\w+\s+){{0,5}}{imm_pat}\b"
     )
-    regex_pat_instrument = re.compile(pat_instrument, re.IGNORECASE)
+    regex_pat_instrument = re.compile(pat_instrument)
 
     # 3. Instrument as Subject (Strict)
     # "The interest rate swap was immaterial"
     pat_instrument_subject = (
         rf"\b{_DENIAL_TARGET}\s+(?:\w+\s+){{0,2}}{verbs}\s+(?:\w+\s+){{0,2}}{imm_pat}\b"
     )
-    regex_pat_instrument_subject = re.compile(pat_instrument_subject, re.IGNORECASE)
+    regex_pat_instrument_subject = re.compile(pat_instrument_subject)
 
     return [regex_strict, regex_pat_instrument, regex_pat_instrument_subject]
 
