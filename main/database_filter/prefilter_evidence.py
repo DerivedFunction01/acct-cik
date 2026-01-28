@@ -7,6 +7,7 @@ from typing import Optional, Set, NamedTuple, List, Tuple
 
 from tqdm import tqdm
 from defs.verb_regex import (
+    EARLY_TERMINATION_REGEX,
     TERMINATION_ALL_REGEX,
     ACTIVE_VERB_REGEX,
     PASSIVE_VERB_REGEX,
@@ -175,6 +176,7 @@ class VerbCheckResults(NamedTuple):
     has_poss_verb: bool
     has_usage_verb: bool
     is_specific: bool
+    has_premature: bool
 
 
 def check_verbs(text: str) -> VerbCheckResults:
@@ -188,6 +190,7 @@ def check_verbs(text: str) -> VerbCheckResults:
     has_active = bool(ACTIVE_VERB_REGEX.search(text))
     has_passive = bool(PASSIVE_VERB_REGEX.search(text))
     has_passive_past = bool(PASSIVE_PAST_VERB_REGEX.search(text))
+    has_premature = bool(EARLY_TERMINATION_REGEX.search(text))
     is_specific = False
     if (STRICT_REGEX.search(text) or IR_SOFT_REGEX.search(text) or FX_SOFT_REGEX.search(text)): # avoid false positives for equity options, natural gas contracts
         is_specific = True
@@ -199,6 +202,7 @@ def check_verbs(text: str) -> VerbCheckResults:
         has_poss_verb=has_poss,
         has_usage_verb=has_usage,
         is_specific=is_specific and (has_active or has_passive),
+        has_premature=has_premature,
     )
 
 
@@ -258,7 +262,7 @@ def check_quantitative_evidence(
     has_relevant_year = (
         any(y >= reporting_year for y in years_found) if not skip_year else True
     )
-    
+
     if not has_relevant_year and has_active_context:
         has_relevant_year = True
 
@@ -320,6 +324,7 @@ def check_quantitative_evidence(
 
     return None
 
+    
 
 def check_future_maturity(
     text: str,
@@ -346,7 +351,8 @@ def check_future_maturity(
         if SETTLEMENT_MECHANICS_REGEX.search(text):
             return NoiseReason.STL_MECH
         return NoiseReason.PNL
-
+    if verbs.premature:
+        return NoiseReason.TERM
     if verbs.has_transaction:
         # Skip
         return None

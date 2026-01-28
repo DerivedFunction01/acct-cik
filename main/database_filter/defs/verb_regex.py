@@ -212,6 +212,23 @@ def build_absence_regex() -> re.Pattern:
         re.IGNORECASE,
     )
 
+def build_early_termination_regex() -> re.Pattern:
+    verbs = build_alternation(TERMINATION_VERBS)
+    # Allow reasonable gap (e.g. "terminated [during 2002] in advance")
+    adv_gap = r"(?:\S+\s+){0,5}"
+    adv_indicators = [
+        r"early",
+        r"prematurely",
+        r"in\s+advance",
+        rf"(?:prior\s+to|before)\s+{adv_gap}(?:maturity|expiration|termination|settlement|expiry|closing)",
+    ]
+    
+    adv_alt = build_alternation(adv_indicators)
+
+    pat_advanced =( rf"\b{verbs}\s+" rf"{adv_gap}" rf"{adv_alt}\b")
+
+    return re.compile(pat_advanced, re.IGNORECASE)
+
 def build_strict_termination_regex() -> List[re.Pattern]:
     """
     Matches termination events anchored to derivative instruments.
@@ -239,31 +256,9 @@ def build_strict_termination_regex() -> List[re.Pattern]:
         rf"{verbs}\b"
     )
 
-    # 3. Advanced Termination (No target required)
-    # Matches: "terminated early", "settled in advance", "cancelled prior to maturity"
-    # Allows a gap for things like "terminated during 2002 in advance"
-
-    adv_indicators = [
-        r"early",
-        r"prematurely",
-        r"in\s+advance",
-        r"(?:prior\s+to|before)\s+(?:\S+\s+){0,6}(?:maturity|expiration|termination|settlement|expiry)",
-    ]
-    adv_alt = build_alternation(adv_indicators)
-
-    # Allow reasonable gap (e.g. "terminated [during 2002] in advance")
-    adv_gap = r"(?:\S+\s+){0,4}"
-
-    pat_advanced = (
-        rf"\b{verbs}\s+"
-        rf"{adv_gap}"
-        rf"{adv_alt}\b"
-    )
-
     return [
         re.compile(pat_verb_target, re.IGNORECASE),
         re.compile(pat_target_verb, re.IGNORECASE),
-        re.compile(pat_advanced, re.IGNORECASE)
     ]
 
 def build_prior_statement_pattern_2() -> re.Pattern:
@@ -343,7 +338,7 @@ VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
 IMMATERIAL_REGEX = build_immaterial_regexes()
 STRICT_DO_NOT_MITIGATE_REGEX = build_strict_do_not_mitigate_regex()
-
+EARLY_TERMINATION_REGEX = build_early_termination_regex()
 TERMINATION_ALL_REGEX = build_regex(ALL_TERM_TERMS)
 TERMINATION_REGEX = build_regex(TERMINATION_VERBS)
 STRICT_TERMINATION_REGEXES = build_strict_termination_regex()
@@ -537,6 +532,12 @@ def run_tests():
             "TERMINATION: Settlement Date",
             TERMINATION_ALL_REGEX,
             "The settlement date of the swap",
+            True,
+        ),
+        (
+            "TERMINATION: Settlement Date",
+            EARLY_TERMINATION_REGEX,
+            "terminated during December 2025 in advance",
             True,
         ),
         (
