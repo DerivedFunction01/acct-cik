@@ -204,6 +204,9 @@ class GlobalExclusionTracker:
             self.excluded_categories.add("eq")
         if CR_DO_NOT_MITIGATE_REGEX.search(text):
             self.excluded_categories.add("cr")
+        if CRYPTO_DO_NOT_MITIGATE_REGEX.search(text):
+            self.excluded_categories.add("crypto")
+
         
         # Check CP and extract commodities
         # Use finditer to scope commodity extraction to the negation phrase only
