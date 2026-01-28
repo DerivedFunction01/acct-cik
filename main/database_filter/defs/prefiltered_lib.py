@@ -1143,6 +1143,8 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern]:
         # Logic: Had/Have + (optional words) + Noun + Prep + Target
         rf"(?:had|have|has)(?:\W+\w+){{0,3}}\s+{impact_nouns}\s+{preps}\s+{pnl_targets}",
         rf"fair value {impact_nouns}",
+        rf"unamortized debt discounts?",
+        rf"write[- ]offs?",
     ]
 
     pnl_terms2 = [
