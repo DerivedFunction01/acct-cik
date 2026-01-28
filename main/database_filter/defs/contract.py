@@ -100,7 +100,7 @@ CONTRACTUAL_KEYWORDS_PHRASE = [
     r"poison\s+pill",
     # Definition indicators
     # 1. "Shall mean" (The classic legal definition)
-    r"shall\s+(?:mean|refers?)",
+    r"shall\s+(?:mean|refers?|have|has|do|give|get|expire|mature|settle|terminate|be)",
     # 2. "Have the meaning ascribed"
     r"have\s+the\s+meanings?\s+(?:ascribed|assigned|given|set\s+forth)",
     # 3. "As defined in/under" (Pointer to definition)
