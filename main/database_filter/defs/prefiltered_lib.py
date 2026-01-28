@@ -1297,7 +1297,8 @@ SOPHISTICATED_CONTEXT_TERMS = [
 
 SOPHISTICATED_CONTEXT_REGEX = build_regex(SOPHISTICATED_CONTEXT_TERMS)
 
-
+CONV = rf"convertible\s+(?:{_DEBT_TERMS}|securit(?:y|ies))" 
+CONV_REGEX = re.compile(rf"\b{CONV}\b", re.IGNORECASE)
 def is_sophisticated_target(text: str) -> bool:
     """
     Returns True if text contains a sophisticated target (convertible/warrant/conversion)
@@ -1313,8 +1314,8 @@ def is_sophisticated_target(text: str) -> bool:
     if IR_SOFT_REGEX.search(text):
         return False
 
-    # Required: target must have equity context
-    if EQ_SOFT_REGEX.search(text):
+    # Required: target must have conv context
+    if CONV_REGEX.search(text):
         return True
 
     return False
@@ -1333,7 +1334,7 @@ def is_convertible_target(text: str) -> bool:
         return False
     if IR_SOFT_REGEX.search(text):
         return False
-    if EQ_SOFT_REGEX.search(text):
+    if CONV_REGEX.search(text):
         return True
     return False
 
