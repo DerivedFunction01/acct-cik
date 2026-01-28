@@ -32,12 +32,18 @@ def build_potential_regex() -> re.Pattern:
     prefix = (
         rf"\b{build_alternation(POTENTIAL_INDICATORS)}[, ]"
         r"(?:\w+\s+){0,4}"
-        rf"(?:, )?({INTENT_VERB_PATTERN})\b"
+        rf"(?:, )?({INTENT_VERB_PATTERN})\s+"
+        rf"{GAP_CHAIN}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b"
     )
     
     suffix = (
         rf"\b({INTENT_VERB_PATTERN})\s+"
-        r"(?:\w+\s+){0,8}"
+        rf"{GAP_CHAIN}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\s+"
+        r"(?:\w+\s+){0,5}"
         rf"{build_alternation(POTENTIAL_SUFFIX_ADVERBS)}\b"
     )
 
