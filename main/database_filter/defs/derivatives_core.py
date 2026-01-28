@@ -699,7 +699,6 @@ def build_loose_gen_regex_precise() -> re.Pattern:
             to_build_alternation(
             ambiguous
             + [BASE.WARRANT]
-            + [s.value for s in Groups.UNAMBIGUOUS_SUFFIXES]
         )),
         # lookbehinds=VERB_LOOKBEHIND, Unneeded
         # lookaheads=VERB_LOOKAHEAD, unneeded
