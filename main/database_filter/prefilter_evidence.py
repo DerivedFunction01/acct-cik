@@ -351,7 +351,7 @@ def check_future_maturity(
         if SETTLEMENT_MECHANICS_REGEX.search(text):
             return NoiseReason.STL_MECH
         return NoiseReason.PNL
-    if verbs.premature:
+    if verbs.has_premature:
         return NoiseReason.TERM
     if verbs.has_transaction:
         # Skip
