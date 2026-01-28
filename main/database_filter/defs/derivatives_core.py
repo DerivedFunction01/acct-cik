@@ -695,7 +695,7 @@ def build_loose_gen_regex_precise() -> re.Pattern:
     # The cap, , etc
     _UNAMB = add_restrictions(
         build_compound(
-            [r"the", r"a", r"an"],
+            [r"the", r"a", r"an", r"th(?:o|e)se", r"this"],
             to_build_alternation(
             ambiguous
             + [BASE.WARRANT]
