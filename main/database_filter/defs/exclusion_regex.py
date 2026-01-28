@@ -294,6 +294,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         r"apply|application",
         r"require(?:d)?",
         r"meet",
+        r"met",
         r"subject(?:ed)?",
         r"consider(?:ed)?",
     ]
@@ -304,6 +305,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         r"under",
         r"to",
         r"to\s+be",
+        r"the",
     ]
 
     targets = [
@@ -318,6 +320,7 @@ def build_non_derivative_treatment_regex() -> re.Pattern:
         r"treatment",
         r"accounting",
         r"criteria",
+        r"for",
     ]
 
     neg_pat = build_alternation(neg)
