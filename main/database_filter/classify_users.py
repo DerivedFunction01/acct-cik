@@ -1138,6 +1138,7 @@ EVIDENCE_GROUPS = {
     "zero": {NoiseReason.ZERO.value},
     "no_hedge": {NoiseReason.NO_HEDGE.value},
     "npns": {NoiseReason.NPNS.value},
+    "routine": {NoiseReason.ROUTINE.value},
 }
 def process_row(row: Tuple) -> Tuple:
     url, matches_json, cik, year = row
