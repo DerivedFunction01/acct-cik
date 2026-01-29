@@ -12,11 +12,11 @@ from defs.verb_core import (
     INTENT_VERB_PATTERN,
     POTENTIAL_INDICATORS,
     POTENTIAL_SUFFIX_ADVERBS,
+    ROUTINE_SUFFIX_ADVERBS,
     NEGATIVE_AUXILIARY,
     PRE_VERB_GAP,
     SPECULATIVE_PHRASES,
     build_negation_prefix_pattern,
-    NEGATIVE_AUXILIARY,
     build_strict_do_not_mitigate_regex,
 )
 
@@ -45,6 +45,37 @@ def build_potential_regex() -> List[re.Pattern]:
         rf"{_DENIAL_TARGET}\s+"
         r"(?:\w+\s+){0,5}"
         rf"{build_alternation(POTENTIAL_SUFFIX_ADVERBS)}\b"
+    )
+
+    return [re.compile(
+        prefix,
+        re.IGNORECASE,
+    ), re.compile(
+        suffix,
+        re.IGNORECASE,
+    )]
+
+
+def build_routine_regex() -> List[re.Pattern]:
+    """
+    Matches: "routinely use", "use ... typically"
+    """
+    prefix = (
+        rf"\b{build_alternation(ROUTINE_SUFFIX_ADVERBS)}[, ]"
+        r"(?:\w+\s+){0,4}"
+        rf"(?:, )?({INTENT_VERB_PATTERN})\s+"
+        rf"{GAP_CHAIN}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\b"
+    )
+    
+    suffix = (
+        rf"\b({INTENT_VERB_PATTERN})\s+"
+        rf"{GAP_CHAIN}"
+        rf"{_DENIAL_FILLER}"
+        rf"{_DENIAL_TARGET}\s+"
+        r"(?:\w+\s+){0,5}"
+        rf"{build_alternation(ROUTINE_SUFFIX_ADVERBS)}\b"
     )
 
     return [re.compile(
@@ -333,6 +364,7 @@ PASSIVE_PAST_VERB_REGEX = build_passive_verb_regex(past_only=True)
 DID_NOT_HOLD_REGEX = build_did_not_hold_regex()
 ABSENCE_REGEX = build_absence_regex()
 POTENTIAL_REGEX = build_potential_regex()
+ROUTINE_REGEX = build_routine_regex()
 POT_MITIGATION_REGEX = build_potential_mitigation_regex()
 VAGUE_TIMING_REGEX = build_vague_timing_regex()
 PRIOR_INDICATOR = build_prior_statement_pattern_2()
@@ -350,6 +382,12 @@ def is_strict_termination(text: str) -> bool:
     return False
 def is_potential(text: str) -> bool:
     for regex in POTENTIAL_REGEX:
+        if regex.search(text):
+            return True
+    return False
+
+def is_routine(text: str) -> bool:
+    for regex in ROUTINE_REGEX:
         if regex.search(text):
             return True
     return False

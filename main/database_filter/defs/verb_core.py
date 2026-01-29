@@ -70,6 +70,11 @@ SPECULATIVE_PHRASES = [
 POTENTIAL_SUFFIX_ADVERBS = [
     r"occasionally",
     r"selectively",
+    r"sometimes",
+    r"rarely",
+]
+
+ROUTINE_SUFFIX_ADVERBS = [
     r"typically",
     r"generally",
     r"routinely",
@@ -78,8 +83,6 @@ POTENTIAL_SUFFIX_ADVERBS = [
     r"normally",
     r"often",
     r"frequently",
-    r"sometimes",
-    r"rarely",
 ]
 
 # Potential / Hypothetical Modals & Phrases
@@ -91,7 +94,7 @@ POTENTIAL_INDICATORS = [
     r"would",
     r"will",
     r"seeks?\s+to",
-    r"intends>\s+to",
+    r"intends?\s+to",
     r"plan(?:s|ned)?\s+to",
     # r"if",
     # r"whether",

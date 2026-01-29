@@ -588,6 +588,7 @@ class NoiseReason(Reason):
     RISK = "RISK" # Risk management text
     NON_DERIV = "NON_DERIV" # Non-derivative accounting
     STL_MECH = "STL_MECH" # Settlement mechanics
+    ROUTINE = "ROUTINE" # We routinely use
 
     # --- Business Logic / Signals ---
     NO_TRADING = "NO_TRADING"  # Trading Denial ("We do not trade")
