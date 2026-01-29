@@ -352,7 +352,7 @@ def check_future_maturity(
             return NoiseReason.STL_MECH
         if not years:
             return NoiseReason.PNL
-        
+        return None
     if verbs.has_premature:
         return NoiseReason.TERM
     if verbs.has_transaction:
