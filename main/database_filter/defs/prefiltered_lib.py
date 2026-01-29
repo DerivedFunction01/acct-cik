@@ -1342,8 +1342,9 @@ def is_sophisticated_target(text: str) -> bool:
     if IR_SOFT_REGEX.search(text):
         return False
 
-    # Required: target must have conv context
-    if CONV_REGEX.search(text):
+    # Required: Must have equity or sophisticated context (e.g. "shares", "embedded", "bifurcation")
+    # This filters out "repaid convertible notes" (Debt Settlement) vs "convertible into shares" (Derivative)
+    if EQ_SOFT_REGEX.search(text) or SOPHISTICATED_CONTEXT_REGEX.search(text):
         return True
 
     return False
@@ -1362,7 +1363,8 @@ def is_convertible_target(text: str) -> bool:
         return False
     if IR_SOFT_REGEX.search(text):
         return False
-    if CONV_REGEX.search(text):
+    # Enforce context to avoid pure debt settlement
+    if CONV_REGEX.search(text) and (EQ_SOFT_REGEX.search(text) or SOPHISTICATED_CONTEXT_REGEX.search(text)):
         return True
     return False
 
