@@ -81,10 +81,6 @@ TRUE_SAFEGUARD_EVIDENCE = {
     EvidenceReason.NVY.value,
     EvidenceReason.FVY.value,
     EvidenceReason.VY.value,
-    EvidenceReason.ACT_YEAR.value,
-}
-
-SAFEGUARD_EVIDENCE = TRUE_SAFEGUARD_EVIDENCE | {
     # IR swap of a different paragraph is a different transaction (provided it survived)
     # even if one of them is terminated, they plainly state they have potential usage, or no swaps for a different subsidiary.
     EvidenceReason.ACT_YEAR.value,
@@ -92,6 +88,8 @@ SAFEGUARD_EVIDENCE = TRUE_SAFEGUARD_EVIDENCE | {
     EvidenceReason.ACT_FV_YEAR.value,
     EvidenceReason.ACT_V_YEAR.value,
 }
+
+SAFEGUARD_EVIDENCE = TRUE_SAFEGUARD_EVIDENCE
 
 # Evidence that promotes Soft matches to Strict (Unambiguous)
 # This includes No-Year values because they are strong indicators of type if not excluded.
