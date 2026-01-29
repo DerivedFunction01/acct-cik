@@ -1035,6 +1035,50 @@ def adjust_rate_in_background(
             last_sleep = current_sleep
 
 
+def extract_accession_info(url: str) -> Optional[dict]:
+    """
+    Extracts accession number, CIK, and year from an SEC EDGAR URL.
+    Returns None if not a valid EDGAR URL or accession not found.
+    """
+    if "Archives/edgar/data" not in url:
+        return None
+
+    parts = url.split("/")
+    accession = None
+    cik_part = None
+
+    # Find the part that looks like an accession (18 digits)
+    for i, part in enumerate(parts):
+        if len(part) == 18 and part.isdigit():
+            accession = part
+            if i > 0:
+                cik_part = parts[i - 1]
+            break
+
+    if not accession:
+        return None
+
+    # Extract year from accession (digits 10-12)
+    year_str = accession[10:12]
+    try:
+        year = int(year_str)
+    except ValueError:
+        return None
+        
+    # Determine if pre-2011 (approximate logic based on 2-digit year)
+    # 90-99 -> 1990-1999
+    # 00-10 -> 2000-2010
+    is_pre_2011 = (0 <= year <= 10) or (90 <= year <= 99)
+
+    return {
+        "accession": accession,
+        "cik": cik_part,
+        "year_short": year,
+        "is_pre_2011": is_pre_2011,
+        "filename": parts[-1] if parts else ""
+    }
+
+
 def update_report_url(old_url: str, new_url: str):
     """Updates the URL in report_data table to maintain consistency."""
     try:
@@ -1055,20 +1099,15 @@ def is_url_from_accession(url: str) -> bool:
     """
     if not url.endswith(".txt"):
         return False
-    if "Archives/edgar/data" not in url:
+        
+    info = extract_accession_info(url)
+    if not info:
         return False
         
-    parts = url.split("/")
-    if len(parts) < 2:
-        return False
-        
-    filename = parts[-1]
-    accession_folder = parts[-2]
+    accession = info["accession"]
+    filename = info["filename"]
     
-    if not (len(accession_folder) == 18 and accession_folder.isdigit()):
-        return False
-        
-    expected_filename = f"{accession_folder[:10]}-{accession_folder[10:12]}-{accession_folder[12:]}.txt"
+    expected_filename = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}.txt"
     return filename == expected_filename
 
 
@@ -1082,32 +1121,12 @@ def should_retry_with_plaintext(
       - None if no retry needed
     """
     try:
-        # Check if URL looks like an EDGAR filing
-        if "Archives/edgar/data" not in url:
+        info = extract_accession_info(url)
+        if not info or not info["is_pre_2011"] or not info["cik"]:
             return None
 
-        parts = url.split("/")
-        accession = None
-        cik_part = None
-
-        # Find the part that looks like an accession (18 digits)
-        for i, part in enumerate(parts):
-            if len(part) == 18 and part.isdigit():
-                accession = part
-                if i > 0:
-                    cik_part = parts[i - 1]
-                break
-
-        if not accession or not cik_part:
-            return None
-
-        # Extract year from accession (digits 10-12)
-        year_str = accession[10:12]
-        year = int(year_str)
-        is_pre_2011 = (0 <= year <= 10) or (90 <= year <= 99)
-
-        if not is_pre_2011:
-            return None
+        accession = info["accession"]
+        cik_part = info["cik"]
 
         # Construct plain text URL filename to check against current URL
         accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
