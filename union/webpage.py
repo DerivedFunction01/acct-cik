@@ -1838,43 +1838,6 @@ def parse_worker(raw_queue, result_queue):
         except Exception as e:
             print(f"Parse worker error: {e}")
 
-
-# =============================================================================
-# MAIN EXECUTION
-# =============================================================================
-# %%
-if __name__ == "__main__":
-    create_db()
-    existing_report_df = fetch_report_data()
-    print(f"Found {len(existing_report_df)} reports in database")
-    NUM_FETCHERS, NUM_PARSERS, CHUNK_SIZE, SEC_RATE_LIMIT = get_system_config()
-    all_derivatives_df = pd.read_csv(ALL_FIRMS_DATA)
-    if IS_COLAB:
-        print("Running in Google Colab environment")
-        if not Path(DB_PATH).exists():
-            print("Loading database from Google Drive...")
-            subprocess.run(LOAD_SHELL_CMD, shell=True)
-    else:
-        print("Running in local environment")
-
-    print("=" * 70)
-    print("STEP 1: Fetch all 10-K report URLs from SEC")
-    print("=" * 70)
-    # Uncomment to run:
-    # fetch_all_grouped()
-
-    print("\n" + "=" * 70)
-    print(f"STEP 2: Perform keyword extraction in parallel (ADAPTIVE)")
-    print("=" * 70)
-
-    # Use the adaptive version
-    process_producer_consumer_adaptive()
-
-    print("\n" + "=" * 70)
-    print("All done!")
-    print("=" * 70)
-
-
 existing_report_df = pd.DataFrame()
 # =============================================================================
 # MAIN EXECUTION
