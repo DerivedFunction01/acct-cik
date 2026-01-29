@@ -1107,6 +1107,29 @@ def process_confirmed_evidence(
 # =============================================================================
 # MAIN PROCESSING
 # =============================================================================
+EVIDENCE_GROUPS = {
+    "possession": {
+        EvidenceReason.NVY.value,
+        EvidenceReason.FVY.value,
+        EvidenceReason.VY.value,
+        EvidenceReason.AS_YEAR.value,
+        EvidenceReason.MAT_FUT.value,
+        EvidenceReason.MAT_FUT_NV.value,
+        EvidenceReason.MAT_FUT_FV.value,
+        EvidenceReason.MAT_FUT_V.value,
+        EvidenceReason.TABLE.value,
+    },
+    "transaction": {
+        EvidenceReason.ACT_YEAR.value,
+        EvidenceReason.ACT_NV_YEAR.value,
+        EvidenceReason.ACT_FV_YEAR.value,
+        EvidenceReason.ACT_V_YEAR.value,
+    },
+    "termination": {NoiseReason.TERM.value},
+    "potential": {NoiseReason.POT.value},
+    "negation": {NoiseReason.NEG.value},
+    "npns": {NoiseReason.NPNS.value},
+}
 def process_row(row: Tuple) -> Tuple:
     url, matches_json, cik, year = row
 
@@ -1121,13 +1144,13 @@ def process_row(row: Tuple) -> Tuple:
     strict_counts = defaultdict(float)
     valid_instruments = defaultdict(set)  # Track instrument keywords by category
     evidence_details: List[InstrumentDetail] = []  # Track detailed instrument evidence
+    category_counters = defaultdict(lambda: defaultdict(int))
     attributes: Dict[str, Any] = {
         "no_trading_statement": False,
         "documents_hedge_accounting": False,
         "has_aoci_activity": False,
         "manages_credit_risk": False,
         "curr_termination": False,
-        "is_explicit_trader": False,
     }
     
     tracker = GlobalInstrumentTracker()
@@ -1244,6 +1267,22 @@ def process_row(row: Tuple) -> Tuple:
                     soft_cats.add("gen")
                 elif PRECISE_LOOSE_GEN_REGEX.search(clean_sent) and HEDGING_CONTEXT_REGEX.search(clean_sent):
                     soft_cats.add("gen")
+
+            # --- POPULATE COUNTERS ---
+            # Count tags for any category identified in this sentence (Strict or Soft)
+            cats_to_count = strict_cats if strict_cats else soft_cats
+            tags_for_sentence = []
+            
+            if is_para_deadweight and para_tag_reason:
+                tags_for_sentence.append(para_tag_reason)
+            if sent_tag_reason:
+                tags_for_sentence.append(sent_tag_reason)
+            tags_for_sentence.extend(evidence_tags_found)
+
+            if cats_to_count and tags_for_sentence:
+                for cat in cats_to_count:
+                    for tag in tags_for_sentence:
+                        category_counters[cat][tag] += 1
 
             accumulated_cats.update({c for c in soft_cats if c not in ("gen", "other")})
 
@@ -1371,6 +1410,19 @@ def process_row(row: Tuple) -> Tuple:
         attributes["normalization_warnings"] = validation_warnings
 
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
+    attributes["category_counters"] = {k: dict(v) for k, v in category_counters.items()}
+
+    # --- Aggregate Counters ---
+    grouped_counters = defaultdict(lambda: defaultdict(int))
+
+    for cat, counts in category_counters.items():
+        for tag, count in counts.items():
+            for group_name, tags in EVIDENCE_GROUPS.items():
+                if tag in tags:
+                    grouped_counters[cat][group_name] += count
+                    break
+    
+    attributes["grouped_category_counters"] = {k: dict(v) for k, v in grouped_counters.items()}
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
 # =============================================================================
