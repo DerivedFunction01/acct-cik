@@ -232,8 +232,19 @@ def create_db():
         """
         )
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON report_data (url)")
+        c.execute("CREATE INDEX IF NOT EXISTS report_acc_idx ON report_data (accession)")
         c.execute("CREATE INDEX IF NOT EXISTS acc_idx ON webpage_result (accession)")
         c.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
+        
+        # Cleanup: Remove duplicates from report_data based on accession
+        # Keeps the row with the minimum rowid (oldest)
+        c.execute("""
+            DELETE FROM report_data 
+            WHERE accession IS NOT NULL 
+            AND rowid NOT IN (
+                SELECT MIN(rowid) FROM report_data WHERE accession IS NOT NULL GROUP BY accession
+            )
+        """)
         # WAL
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError:
@@ -262,6 +273,9 @@ def save_batch_report_urls(df):
                 
             report["accession"] = report["url"].apply(get_acc)
             
+            # Deduplicate by accession to ensure integrity before insertion
+            report = report.drop_duplicates(subset=["accession"])
+            
             report.to_sql("report_data", conn, if_exists="append", index=False)
             return True
         except sqlite3.IntegrityError:
@@ -289,19 +303,22 @@ def fetch_report_data(valid=True):
         try:
             df = pd.read_csv(REPORT_CSV_PATH)
             if {'cik', 'year', 'url'}.issubset(df.columns):
-                records = []
+                # Use a dictionary to deduplicate by accession
+                unique_records = {}
                 for _, row in df.iterrows():
                     u = row['url']
                     info = extract_accession_info(u)
                     acc = info['accession'] if info else None
-                    records.append((row['cik'], row['year'], u, acc, u))
+                    # Only add if we have an accession and haven't seen it yet
+                    if acc and acc not in unique_records:
+                        unique_records[acc] = (row['cik'], row['year'], u, acc, u)
                 
                 c.executemany(
                     "INSERT INTO report_data (cik, year, url, accession, original_url) VALUES (?, ?, ?, ?, ?)", 
-                    records
+                    list(unique_records.values())
                 )
                 conn.commit()
-                print(f"✅ Imported {len(records)} rows.")
+                print(f"✅ Imported {len(unique_records)} unique rows.")
         except Exception as e:
             print(f"❌ Error importing CSV: {e}")
             
