@@ -403,7 +403,7 @@ def check_active_state_year(
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
-    if not years:
+    if not years and not has_current_state:
         return None
 
     has_relevant_year = any(y >= reporting_year for y in years)
