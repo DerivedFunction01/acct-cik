@@ -344,13 +344,15 @@ def check_future_maturity(
 
     years = [int(y) for y in YEAR_REGEX.findall(text)]
 
-    if not any(y > reporting_year for y in years):
+    if not any(y >= reporting_year for y in years):
         is_notional = bool(NOTIONAL_CONTEXT_REGEX.search(text))
         if is_notional:
             return None
         if SETTLEMENT_MECHANICS_REGEX.search(text):
             return NoiseReason.STL_MECH
-        return NoiseReason.PNL
+        if not years:
+            return NoiseReason.PNL
+        
     if verbs.has_premature:
         return NoiseReason.TERM
     if verbs.has_transaction:
