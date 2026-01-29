@@ -90,12 +90,12 @@ POTENTIAL_INDICATORS = [
     r"could",
     r"would",
     r"will",
-    r"seek\s+to",
-    r"intend\s+to",
+    r"seeks?\s+to",
+    r"intends>\s+to",
     r"plan(?:s|ned)?\s+to",
-    r"if",
-    r"whether",
-    r"limited",  # limited use
+    # r"if",
+    # r"whether",
+    # r"limited",  # limited use
     # FIX: Negative lookahead allows "expect to continue" (Active) while flagging "expect to use" (Potential)
     r"expect(?:s|ed)?\s+to(?![- ]continue)",
 ] + POTENTIAL_SUFFIX_ADVERBS
