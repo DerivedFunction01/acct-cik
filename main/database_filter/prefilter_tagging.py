@@ -546,11 +546,11 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
         # Only check these if we didn't find a strong Evidence signal above.
         if not reason:
             if IS_REFERENCE_REGEX.search(masked) or MORE_INFO_REGEX.search(masked):
-                reason = NoiseReason.REF
+                reason = NoiseReason.REF    
             elif DEFINITION_INDICATORS.search(masked):
                 reason = NoiseReason.DEF
-            elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
-                reason = NoiseReason.CTX
+            # elif EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX.search(masked):
+            #     reason = NoiseReason.CTX
 
         # --- TIER 4: SOFT KILLS (The "Generic" Tags) ---
         if not reason:
