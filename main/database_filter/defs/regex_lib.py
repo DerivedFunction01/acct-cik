@@ -135,6 +135,4 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
     r"(?<!\b[Ee]tc\.)"  # etc.
     r"\s+(?=[A-Z_])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
-    r"|"
-    r"(?<=[a-z])(?=[A-Z])"  # camelCase boundaries (unchanged)
 )
