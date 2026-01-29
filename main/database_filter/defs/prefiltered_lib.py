@@ -1,5 +1,6 @@
 import re
 from typing import List, Optional, Set, Tuple
+from defs.derivatives_core import full_suffix_alternation
 from defs.cp_regex import COMMODITY_UNIT_PATTERN
 from defs.refer import EXB_TOKEN, EXHIBIT_FRAGMENT
 from defs.acct_std import STANDARD_ID_REGEX, STD_TOKEN
@@ -14,6 +15,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_comp
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
 from defs.derivative_lib import create_target
 from defs.ir_regex import CAP_FLOOR_REGEX, IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN, IR_TOK
+from main.database_filter.defs.verb_core import GAP_CHAIN
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
@@ -1126,7 +1128,7 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
 
     pnl_terms = [
         # 1. Explicit Gains/Losses (Anchored to avoid "Total Gains")
-        r"(?:realized|unrealized)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
+        r"(?:realized|unrealized|deferred)\s+(?:net\s+)?(?:gains?|loss(?:es)?)",
         # 2. "On" Construction (e.g., "Gain on derivatives")
         rf"(?:net\s+)?(?:gains?|loss(?:es)?)\s+{preps}",
         # 3. Fair Value CHANGES (Strictly Flow)
@@ -1159,27 +1161,22 @@ def pnl_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         rf"{change_verbs}(?:\W+\w+){{0,3}}\s+{pnl_targets}",
         
     ]
-    connectors = r"(?:the\s+|our\s+|a\s+|an\s+|these\s+|those\s+|any\s+|such\s+)?"
     # Extended prepositions for this specific context
     preps_extended = r"(?:of|on|from|related\s+to|associated\s+with|in)"
-    target = create_target()
-    ending = rf"{preps_extended}\s+{connectors}{target}"
+    target = rf"{GAP_CHAIN}{full_suffix_alternation}"
+    ending = rf"{preps_extended}\s+{target}"
 
     pnl_terms3 = [
-        # "Changes in (the) fair value of (the) [Swap]"
-        rf"{impact_nouns}\s+in\s+(?:{connectors})",
         # "Fair value changes of (the) [Swap]"
-        rf"fair\s+value\s+{impact_nouns}",
+        rf"fair[- ]value\s+{impact_nouns}",
         # "Gain/Loss on (the) [Swap]"
-        rf"(?:realized|unrealized\s+)?(?:net\s+)?(?:gains?|loss(?:es)?)",
+        rf"(?:(?:un)?realized\s+)?(?:net\s+)?(?:gains?|loss(?:es)?)",
         # "Impact of (the) [Swap]"
         rf"{impact_nouns}",
         # "Ineffectiveness of (the) [Swap]"
         rf"(?:hedge\s+)?ineffectiveness",
         # "Amortization of (the) [Swap]"
         rf"amortization",
-        # "Settlements on (the) [Swap]"
-        rf"(?:cash\s+)?settlements?",
     ]
 
     return (

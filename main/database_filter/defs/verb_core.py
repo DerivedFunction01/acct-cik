@@ -157,9 +157,9 @@ _DENIAL_MODIFIERS = [
     "credit",
     "market",
     "forward",
-    "future",
+    "futures?",
     "option",
-    "swap",
+    "swaps?",
     "purchase",
     "sale",
     "cash",
@@ -168,7 +168,7 @@ _DENIAL_MODIFIERS = [
     "material",
     "significant",
     "hedging",
-    "derivative",
+    "derivatives?",
     "financial",
     "trading",
     "proprietary",
@@ -192,7 +192,7 @@ _DENIAL_MODIFIERS = [
     "separate",
     "more",
     "the(?:se)?",
-    "a(?:n)?"
+    "a(?:n)?",
 ]
 
 # The "Glue": Small filler words that appear between modifiers
