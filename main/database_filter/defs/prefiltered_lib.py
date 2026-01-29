@@ -1382,7 +1382,7 @@ def convertible_ir(p):
 
 ACTIVE_STATE_DESCRIPTORS = [
     "outstanding",
-    "active",
+    "active(?:ly)?",
     "remaining",
     "open",
     "current(?:ly)?",
