@@ -270,7 +270,7 @@ class GlobalExclusionTracker:
                         for m in pat.finditer(text):
                             self.negated_instruments[cat][m.group(0).lower()].add(reason)
 
-    def is_excluded(self, category: str, text_match: str = "", match_type: str = "strict", evidence_tags: Optional[Set[str]] = None) -> Tuple[bool, bool]:
+    def is_excluded(self, category: str, text_match: str = "", match_type: str = "strict", evidence_tags: Optional[Set[str]] = None, ignore_reasons: Optional[Set[str]] = None) -> Tuple[bool, bool]:
         """Returns (is_excluded, is_blocked)."""
         reasons = set()
 
@@ -295,6 +295,10 @@ class GlobalExclusionTracker:
                 for neg_inst, neg_reasons in self.negated_instruments[category].items():
                     if "derivative" in neg_inst:
                         reasons.update(neg_reasons)
+
+        # Filter reasons
+        if ignore_reasons:
+            reasons = {r for r in reasons if r not in ignore_reasons}
 
         if not reasons:
             return False, False
@@ -635,12 +639,20 @@ value_tags = value_year | {
 }
 
 flow_tags = {
-    EvidenceReason.ACT_YEAR,
-    EvidenceReason.ACT_FV_YEAR,
-    EvidenceReason.ACT_NV_YEAR,
-    EvidenceReason.ACT_V_YEAR,
-    EvidenceReason.ACT_AMB_YEAR,
-    EvidenceReason.ACT_GEN,
+    EvidenceReason.ACT_YEAR.value,
+    EvidenceReason.ACT_FV_YEAR.value,
+    EvidenceReason.ACT_NV_YEAR.value,
+    EvidenceReason.ACT_V_YEAR.value,
+    EvidenceReason.ACT_AMB_YEAR.value,
+    EvidenceReason.ACT_GEN.value,
+}
+
+STRICT_FLOW_TAGS = {
+    EvidenceReason.ACT_YEAR.value,
+    EvidenceReason.ACT_FV_YEAR.value,
+    EvidenceReason.ACT_NV_YEAR.value,
+    EvidenceReason.ACT_V_YEAR.value,
+    EvidenceReason.ACT_AMB_YEAR.value,
 }
 maturity_tags = {
     EvidenceReason.MAT_FUT,
@@ -845,7 +857,7 @@ PRIORITY_ORDER = [
 CONJ = re.compile(r"\b(?:and|or)\b", re.IGNORECASE)
 FULL_CONJ = re.compile(r"[,;]|\b(?:and|or)\b", re.IGNORECASE)
 WHITESPACE = re.compile(r"\s+", re.IGNORECASE)
-def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None, evidence_tags: Optional[Set[str]] = None) -> Dict[str, int]:
+def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusion_tracker: Optional[GlobalExclusionTracker] = None, evidence_tags: Optional[Set[str]] = None, ignore_reasons: Optional[Set[str]] = None) -> Dict[str, int]:
     """
     Determines category using Weighted Scoring and Map Iteration.
 
@@ -872,7 +884,7 @@ def get_text_categories(text: str, is_nst_warr: bool, is_nst_conv: bool, exclusi
 
     def check_exclusion(cat, text_match, match_type):
         if exclusion_tracker:
-            return exclusion_tracker.is_excluded(cat, text_match, match_type, evidence_tags)
+            return exclusion_tracker.is_excluded(cat, text_match, match_type, evidence_tags, ignore_reasons)
         return False, False
 
     # ═══════════════════════════════════════════════════════════
@@ -1150,6 +1162,7 @@ def process_row(row: Tuple) -> Tuple:
     strict_categories = set()
     soft_counts = defaultdict(float)
     strict_counts = defaultdict(float)
+    activity_categories = set()
     valid_instruments = defaultdict(set)  # Track instrument keywords by category
     evidence_details: List[InstrumentDetail] = []  # Track detailed instrument evidence
     category_counters = defaultdict(lambda: defaultdict(int))
@@ -1293,6 +1306,36 @@ def process_row(row: Tuple) -> Tuple:
             accumulated_cats.update({c for c in soft_cats if c not in ("gen", "other")})
 
             # -------------------------------------------------------------
+            # Activity Tracking (Current Year Activity)
+            # -------------------------------------------------------------
+            is_term = sent_tag_reason == NoiseReason.TERM.value
+            has_flow = bool(set(evidence_tags_found).intersection(STRICT_FLOW_TAGS))
+
+            if is_term or has_flow:
+                # Ignore exclusions that would hide activity (Termination, Negation, etc.)
+                ignore_for_activity = {
+                    NoiseReason.TERM.value,
+                    NoiseReason.NEG.value,
+                    NoiseReason.POT.value,
+                    NoiseReason.ZERO.value,
+                    NoiseReason.NO_HEDGE.value
+                }
+                sent_scores_act = get_text_categories(
+                    clean_sent,
+                    is_nst_warr=effective_nst_warr,
+                    is_nst_conv=effective_nst_conv,
+                    exclusion_tracker=exclusion_tracker,
+                    evidence_tags=evidence_tags_set,
+                    ignore_reasons=ignore_for_activity
+                )
+                if sent_scores_act.get('gen', 0) == -1:
+                    if 'gen' in sent_scores_act: del sent_scores_act['gen']
+                
+                strict_cats_act = derive_strict_categories(sent_scores_act, clean_sent)
+                if strict_cats_act:
+                    activity_categories.update(strict_cats_act)
+
+            # -------------------------------------------------------------
             # A. Check Strict Matches (Gate 1 - Modified)
             # -------------------------------------------------------------
 
@@ -1397,6 +1440,10 @@ def process_row(row: Tuple) -> Tuple:
     )
 
     final_categories = strict_categories.union(valid_soft_cats)
+
+    # Add activity categories
+    for cat in activity_categories:
+        final_categories.add(f"{cat}_act")
 
     # Add valid instruments as category -> list mapping
     attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}

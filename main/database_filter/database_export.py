@@ -44,11 +44,10 @@ def process_batch(batch):
             continue
 
         doc_cat_set = set()
-        for combined_cat_str in categories_array:
-            individual_cats = combined_cat_str.lower().split("_")
-            for cat in individual_cats:
-                if cat and cat not in {"other", "unknown", "table"}:
-                    doc_cat_set.add(cat)
+        for cat_str in categories_array:
+            cat = cat_str.lower()
+            if cat and cat not in {"other", "unknown", "table"}:
+                doc_cat_set.add(cat)
 
         # Create binary flags
         results.append(
@@ -64,6 +63,15 @@ def process_batch(batch):
                 1 if "conv" in doc_cat_set else 0,
                 1 if "crypto" in doc_cat_set else 0,
                 1 if "gen" in doc_cat_set else 0,
+                1 if "ir_act" in doc_cat_set else 0,
+                1 if "fx_act" in doc_cat_set else 0,
+                1 if "cp_act" in doc_cat_set else 0,
+                1 if "eq_act" in doc_cat_set else 0,
+                1 if "cr_act" in doc_cat_set else 0,
+                1 if "warr_act" in doc_cat_set else 0,
+                1 if "conv_act" in doc_cat_set else 0,
+                1 if "crypto_act" in doc_cat_set else 0,
+                1 if "gen_act" in doc_cat_set else 0,
             )
         )
     return results
@@ -186,6 +194,15 @@ def export_users_production(db_path: str, csv_path: Optional[str] = None):
             "conv_user",
             "crypto_user",
             "gen_user",
+            "ir_act",
+            "fx_act",
+            "cp_act",
+            "eq_act",
+            "cr_act",
+            "warr_act",
+            "conv_act",
+            "crypto_act",
+            "gen_act",
         ]
         outfile.write(",".join(headers) + "\n")
 
