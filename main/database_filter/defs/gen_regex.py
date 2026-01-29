@@ -24,11 +24,15 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
     OTHER_INSTRUMENTS = build_alternation(
         [
             r"(?:derivative\s+financial|risk[- ]managment)\s+instruments?",
-            r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:for|in|at))",
         ]
     )
     EMBEDDED_INSTRUMENT = build_compound([BASE.EMBED, BASE.OTC], BASE.DERIVATIVE)
-    HEDGES = build_compound([r"fair[- ]value", r"cash[- ]flow", r"net[- ]investment"], BASE.HEDGE)
+    HEDGES = build_alternation([
+        build_compound(
+            [r"fair[- ]value", r"cash[- ]flow", r"net[- ]investment"], BASE.HEDGE
+        ),
+        r"(?<!to )hedges?\s+of\s+(?:the\s+)?net\s+investments?(?!\s+(?:for|in|at))"
+    ])
     # Base + Suffix combinations
     INSTRUMENT_COMPOUND = build_compound(
         Groups.CORE_UNAMBIGUOUS_BASES,
