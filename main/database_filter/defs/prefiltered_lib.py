@@ -808,11 +808,11 @@ FLUFF_EVIDENCE = {
 # TIER 3.5: WEAK EVIDENCE (Immaterial Prone)
 # For very short 1 evidence sentence paragraphs, Dies to Immaterial
 IMMATERIAL_KILLED_EVIDENCE = FLUFF_EVIDENCE | {
-    EvidenceReason.CONT_USE,
+    # EvidenceReason.CONT_USE,
     EvidenceReason.CONT_USE_AMB,
     EvidenceReason.BS_LOC,
     EvidenceReason.VAL_MODEL,
-    EvidenceReason.ACT_GEN,
+    # EvidenceReason.ACT_GEN,
 }
 
 # --- KILLER SETS ---
