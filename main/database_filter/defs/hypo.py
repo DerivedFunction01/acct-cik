@@ -63,7 +63,7 @@ HYPOTHETICAL_SINGLES = [
 HYP_STRICT_REGEX = build_regex(HYPOTHETICAL_STRICT)
 HYP_PHRASE_REGEX = build_regex(HYPOTHETICAL_PHRASES)
 HYP_SINGLE_REGEX = build_regex(HYPOTHETICAL_SINGLES)
-def is_hypothetical_noise(text: str, threshold: int = 5) -> bool:
+def is_hypothetical_noise(text: str, threshold: int = 8) -> bool:
     # 1. Weights
     W_STRICT = 10  # KILL SHOT: "Hypothetical derivatives" (Instant >= 8)
     W_PHRASE = 2  # "Sensitivity analysis", "Value at Risk"
