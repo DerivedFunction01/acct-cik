@@ -121,7 +121,6 @@ def build_immaterial_regexes() -> List[re.Pattern]:
         "minor",
         "trivial",
         "nominal",
-        "zero",
         "inconsequential",
         "de minimis",
     ]
