@@ -1448,6 +1448,21 @@ def process_row(row: Tuple) -> Tuple:
     # Add valid instruments as category -> list mapping
     attributes["instruments"] = {cat: sorted(list(keywords)) for cat, keywords in valid_instruments.items()}
 
+    # Deduplicate evidence_details
+    unique_evidence = []
+    seen_evidence = set()
+    for detail in evidence_details:
+        amounts_sig = tuple(
+            (a.type, a.amount, a.currency, a.year, a.is_zero, a.explicit_multiplier, a.is_explicit)
+            for a in detail.amounts
+        )
+        sig = (detail.category, detail.name, amounts_sig)
+        
+        if sig not in seen_evidence:
+            seen_evidence.add(sig)
+            unique_evidence.append(detail)
+    evidence_details = unique_evidence
+
     # Add detailed evidence with quantitative data
     # Group evidence_details by category for easier querying
     evidence_by_category = defaultdict(list)
