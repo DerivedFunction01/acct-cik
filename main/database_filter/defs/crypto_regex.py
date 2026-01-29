@@ -9,12 +9,13 @@ from defs.derivatives_core import (
     SUFFIX,
     Groups,
 )
-from defs.regex_lib import build_alternation, build_regex
+from defs.regex_lib import build_alternation, build_compound, build_regex
 from defs.shared_context import build_risk_managment_phrase
 from defs.verb_core import build_strict_do_not_mitigate_regex
 
+CRYPTO = r"crypto(?:currenc(?:y|ies))?"
 CRYPTO_CORE_TERMS = [
-    r"crypto(?:currenc(?:y|ies))?",
+    CRYPTO,
     r"digital\s+assets?",
     r"(?:virtual|digital|crypto)[- ]currenc(?:y|ies)",
     r"bitcoins?",
@@ -74,32 +75,25 @@ def build_crypto_context_terms() -> Tuple[List[str], List[str], List[str]]:
     # 1. Explicit Instruments (Strict)
     crypto_instruments = [
         r"bitcoin\s+futures?",
-        r"crypto\s+derivatives?",
+        rf"{CRYPTO}\s+derivatives?",
     ]
 
     # 2. Specific Terms
     crypto_specifics = [
         r"blockchain",
         r"distributed\s+ledger",
-        r"wallet",
+        r"crypto\s+wallets?",
         r"coinbase",
-        r"mining",
-        r"tokens?",
+        r"digital\s+tokens?",
         r"stablecoins?",
         r"DeFi",
         r"NFTs?",
         r"smart\s+contracts?",
-    ]
-
-    # 3. Broader terms (Soft)
-    crypto_broad = [
-        r"digital\s+wallets?",
-        r"custody",
-        r"staking",
+        build_compound(CRYPTO, [r"markets?", r"exchanges?", r"platforms?", r"rates?", r"fees?", r"mining"]),
     ]
 
     strict_terms = crypto_instruments + crypto_specifics
-    soft_terms = crypto_broad
+    soft_terms = strict_terms
 
     # 4. Risk Management Glue
     crypto_glue = CRYPTO_CORE_TERMS
