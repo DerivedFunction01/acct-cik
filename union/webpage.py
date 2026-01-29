@@ -184,12 +184,23 @@ def create_db():
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     try:
+        # Check if report_data has the accession column, if not, recreate it
+        try:
+            c.execute("SELECT accession FROM report_data LIMIT 1")
+        except sqlite3.OperationalError:
+            c.execute("DROP TABLE IF EXISTS report_data")
+
+        # Drop webpage_result to enforce new schema (accession based)
+        c.execute("DROP TABLE IF EXISTS webpage_result")
+
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS report_data (
                 cik INTEGER,
                 year INTEGER,
-                url TEXT
+                url TEXT,
+                accession TEXT,
+                original_url TEXT
             )
         """
         )
@@ -204,9 +215,9 @@ def create_db():
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS webpage_result (
-                url TEXT,
+                accession TEXT PRIMARY KEY,
                 item1 TEXT,
-                item1a TEXT,
+                item1a TEXT
             )
         """
         )
@@ -221,7 +232,7 @@ def create_db():
         """
         )
         c.execute("CREATE INDEX IF NOT EXISTS url_idx ON report_data (url)")
-        c.execute("CREATE INDEX IF NOT EXISTS url_idx ON webpage_result (url)")
+        c.execute("CREATE INDEX IF NOT EXISTS acc_idx ON webpage_result (accession)")
         c.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
         # WAL
         c.execute("PRAGMA journal_mode=WAL")
@@ -242,7 +253,15 @@ def save_batch_report_urls(df):
         except:
             pass
         try:
-            report = df[["cik", "year", "url"]]
+            report = df[["cik", "year", "url"]].copy()
+            report["original_url"] = report["url"]
+            
+            def get_acc(u):
+                info = extract_accession_info(u)
+                return info["accession"] if info else None
+                
+            report["accession"] = report["url"].apply(get_acc)
+            
             report.to_sql("report_data", conn, if_exists="append", index=False)
             return True
         except sqlite3.IntegrityError:
@@ -254,20 +273,51 @@ def save_batch_report_urls(df):
 
 
 def fetch_report_data(valid=True):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Check if DB is empty
     try:
-        return pd.read_csv(REPORT_CSV_PATH)
-    except:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        if valid:
-            c.execute("SELECT * FROM report_data WHERE NOT url =''")
-        else:
-            c.execute("SELECT * FROM report_data WHERE url =''")
-        columns = [col[0] for col in c.description]
-        rows = c.fetchall()
-        pre_data = pd.DataFrame(rows, columns=columns)
-        conn.close()
-        return pre_data
+        c.execute("SELECT count(*) FROM report_data")
+        count = c.fetchone()[0]
+    except sqlite3.OperationalError:
+        count = 0
+        
+    # If empty, try to load from CSV
+    if count == 0 and Path(REPORT_CSV_PATH).exists():
+        print(f"📥 Importing {REPORT_CSV_PATH} into database...")
+        try:
+            df = pd.read_csv(REPORT_CSV_PATH)
+            if {'cik', 'year', 'url'}.issubset(df.columns):
+                records = []
+                for _, row in df.iterrows():
+                    u = row['url']
+                    info = extract_accession_info(u)
+                    acc = info['accession'] if info else None
+                    records.append((row['cik'], row['year'], u, acc, u))
+                
+                c.executemany(
+                    "INSERT INTO report_data (cik, year, url, accession, original_url) VALUES (?, ?, ?, ?, ?)", 
+                    records
+                )
+                conn.commit()
+                print(f"✅ Imported {len(records)} rows.")
+        except Exception as e:
+            print(f"❌ Error importing CSV: {e}")
+            
+    query = "SELECT * FROM report_data"
+    if valid:
+        query += " WHERE url IS NOT NULL AND url != ''"
+    else:
+        query += " WHERE url IS NULL OR url = ''"
+        
+    try:
+        pre_data = pd.read_sql_query(query, conn)
+    except Exception:
+        pre_data = pd.DataFrame(columns=["cik", "year", "url", "accession", "original_url"])
+        
+    conn.close()
+    return pre_data
 
 
 def fetch_webpage_results():
@@ -281,21 +331,21 @@ def fetch_webpage_results():
     return pre_data
 
 
-def get_processed_urls() -> set:
+def get_processed_accessions() -> set:
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT url FROM webpage_result")
+    c.execute("SELECT accession FROM webpage_result")
     rows = c.fetchall()
     conn.close()
-    return set(rows)
+    return set(r[0] for r in rows)
 
 
 def save_process_result(df):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)",
-        (df.url, json.dumps(df.matches)),
+        "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)",
+        (df.accession, json.dumps(df.item1), json.dumps(df.item1a)),
     )
     conn.commit()
     conn.close()
@@ -308,9 +358,9 @@ def save_process_result_batch(batch_df):
     c = conn.cursor()
     # Use executemany logic via pandas to_sql or raw SQL
     try:
-        data = list(zip(batch_df.url, batch_df.matches.apply(json.dumps)))
+        data = list(zip(batch_df.accession, batch_df.item1.apply(json.dumps), batch_df.item1a.apply(json.dumps)))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
@@ -1159,14 +1209,14 @@ def should_retry_with_plaintext(
     return None
 
 
-def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
+def fetch_raw_content(url: str, accession: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
     """
     Fetches raw text content from a URL. This is purely I/O-bound.
     Properly distinguishes between different failure modes.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT 1 FROM webpage_result WHERE url = ?", (url,))
+    c.execute("SELECT 1 FROM webpage_result WHERE accession = ?", (accession,))
     exists = c.fetchone()
     conn.close()
     if exists:
@@ -1183,7 +1233,7 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
                 return retry_result
 
         # Successfully fetched (no retry needed)
-        return url, raw_text
+        return url, accession, raw_text
     elif raw_text is None and url:
         # fetch_url returned None - could be 429, timeout, or other error
         # The rate_limiter was already notified by fetch_url
@@ -1264,7 +1314,7 @@ def parse_content(data):
     if data is None:
         return None
 
-    url, raw_text = data
+    url, accession, raw_text = data
 
     try:
         # 1. Parse multi-document content
@@ -1311,6 +1361,7 @@ def parse_content(data):
         result_row = pd.Series(
             {
                 "url": url,
+                "accession": accession,
                 "item1": item1_matches,
                 "item1a": item1a_matches,
             }
@@ -1374,7 +1425,7 @@ def process_producer_consumer_adaptive():
     metrics_lock = manager.Lock()
 
     # 5. Populate Queue
-    processed_set = get_processed_urls()
+    processed_set = get_processed_accessions()
     total_files_in_manifest = len(existing_report_df)
     already_in_warehouse = len(processed_set)
 
@@ -1390,8 +1441,10 @@ def process_producer_consumer_adaptive():
     initial_count = 0
 
     for r in existing_report_df.itertuples(index=False):
-        if r.url and (r.url,) not in processed_set:
-            url_queue.put(r.url)
+        # Check if accession is in processed set
+        if r.url and r.accession and r.accession not in processed_set:
+            # Queue tuple: (url, accession)
+            url_queue.put((r.url, r.accession))
             initial_count += 1
 
     print(f"Queue populated with {initial_count} reports.")
@@ -1621,7 +1674,13 @@ def fetch_worker_adaptive(
     while not stop_event.is_set():
         try:
             # Get a URL with timeout to allow checking stop_event
-            url = url_queue.get(timeout=1)
+            item = url_queue.get(timeout=1)
+            if isinstance(item, tuple):
+                url, accession = item
+            else:
+                # Fallback if queue has old format (shouldn't happen with new logic)
+                url = item
+                accession = None
         except queue.Empty:
             continue
 
@@ -1636,29 +1695,30 @@ def fetch_worker_adaptive(
                 fetch_metrics["last_sample_time"] = time.time()
 
             # 3. Fetch
-            result = fetch_raw_content(url, rate_limiter)
+            result = fetch_raw_content(url, accession, rate_limiter)
 
             # 4. Put into Queue
             if result:
                 if result[0] == "RETRY":
                     # Re-queue the new .txt URL
                     if len(result) == 3:
-                        old_url_val = result[1]
+                        # result is ("RETRY", old_url, new_url)
+                        # We re-queue with the SAME accession
                         new_url_val = result[2]
-                        update_report_url(old_url_val, new_url_val)
-                        url_queue.put(new_url_val)
+                        url_queue.put((new_url_val, accession))
                     else:
-                        url_queue.put(result[1])
+                        # Fallback
+                        url_queue.put((result[1], accession))
                 if result[0] == "RATE_LIMITED":
                     # Explicit rate limit - signal the rate limiter
                     rate_limiter.signal_429()
                     # Put URL back for retry (sleep already increased)
-                    url_queue.put(url)
+                    url_queue.put((url, accession))
 
                 elif result[0] == "FAILED":
                     # Other failure (timeout, connection error) - retry but don't increase sleep
                     rate_limiter.signal_timeout()
-                    url_queue.put(url)
+                    url_queue.put((url, accession))
                     time.sleep(0.5)
 
                 else:
@@ -1668,7 +1728,7 @@ def fetch_worker_adaptive(
                         raw_queue.put(result, timeout=5)
                     except queue.Full:
                         # Queue is full - put URL back and try again later
-                        url_queue.put(url)
+                        url_queue.put((url, accession))
                         time.sleep(0.5)
 
         except Exception as e:
@@ -1685,9 +1745,9 @@ def save_batch(conn, buffer):
     try:
         df_batch = pd.DataFrame(buffer)
         c = conn.cursor()
-        data = list(zip(df_batch.url, df_batch.matches.apply(json.dumps)))
+        data = list(zip(df_batch.accession, df_batch.item1.apply(json.dumps), df_batch.item1a.apply(json.dumps)))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (url, matches) VALUES (?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
