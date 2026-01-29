@@ -83,6 +83,7 @@ ROUTINE_SUFFIX_ADVERBS = [
     r"normally",
     r"often",
     r"frequently",
+    r"limited"
 ]
 
 # Potential / Hypothetical Modals & Phrases
