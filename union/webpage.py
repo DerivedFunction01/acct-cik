@@ -1697,7 +1697,11 @@ def fetch_worker_adaptive(
             else:
                 # Fallback if queue has old format (shouldn't happen with new logic)
                 url = item
-                accession = None
+                data = extract_accession_info(url)
+                if not data:
+                    continue
+                accession = data["accession"]
+
         except queue.Empty:
             continue
 
