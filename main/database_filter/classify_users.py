@@ -1419,7 +1419,7 @@ def process_row(row: Tuple) -> Tuple:
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
     attributes["category_counters"] = {k: dict(v) for k, v in category_counters.items()}
 
-    if attributes["no_trading_statement"]:
+    if attributes["no_trading_statement"] and attributes["mentions_trading"]:
         del attributes["mentions_trading"]
     # --- Aggregate Counters ---
     grouped_counters = defaultdict(lambda: defaultdict(int))
