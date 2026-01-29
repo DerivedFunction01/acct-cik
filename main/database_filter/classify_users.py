@@ -653,7 +653,6 @@ TAG_MAP = {
     # --- NOISE (Identity Signals) ---
     NoiseReason.NO_TRADING.value: "no_trading_statement",
     NoiseReason.TRADING.value: "mentions_trading",
-    NoiseReason.DOC.value: "documents_hedge_accounting",
     NoiseReason.AOCI.value: "has_aoci_activity",
     NoiseReason.CREDIT.value: "manages_credit_risk",
     NoiseReason.TERM.value: "is_terminated",
@@ -1157,10 +1156,8 @@ def process_row(row: Tuple) -> Tuple:
     category_counters = defaultdict(lambda: defaultdict(int))
     attributes: Dict[str, Any] = {
         "no_trading_statement": False,
-        "documents_hedge_accounting": False,
         "has_aoci_activity": False,
         "manages_credit_risk": False,
-        "curr_termination": False,
     }
     
     tracker = GlobalInstrumentTracker()
