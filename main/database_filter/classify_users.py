@@ -652,7 +652,6 @@ maturity_tags = {
 TAG_MAP = {
     # --- NOISE (Identity Signals) ---
     NoiseReason.NO_TRADING.value: "no_trading_statement",
-    NoiseReason.TRADING.value: "mentions_trading",
     NoiseReason.AOCI.value: "has_aoci_activity",
     NoiseReason.CREDIT.value: "manages_credit_risk",
     NoiseReason.TERM.value: "is_terminated",
@@ -1419,8 +1418,6 @@ def process_row(row: Tuple) -> Tuple:
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
     attributes["category_counters"] = {k: dict(v) for k, v in category_counters.items()}
 
-    if attributes["no_trading_statement"] and attributes["mentions_trading"]:
-        del attributes["mentions_trading"]
     # --- Aggregate Counters ---
     grouped_counters = defaultdict(lambda: defaultdict(int))
 
