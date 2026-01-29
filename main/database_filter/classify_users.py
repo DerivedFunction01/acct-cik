@@ -1125,9 +1125,17 @@ EVIDENCE_GROUPS = {
         EvidenceReason.ACT_FV_YEAR.value,
         EvidenceReason.ACT_V_YEAR.value,
     },
+    "other": {
+        EvidenceReason.CONT_USE.value,
+        EvidenceReason.BS_LOC.value,
+        EvidenceReason.ACT_GEN.value,
+        
+    },
     "termination": {NoiseReason.TERM.value},
+    "immaterial": {NoiseReason.IMM.value},
     "potential": {NoiseReason.POT.value},
     "negation": {NoiseReason.NEG.value},
+    "zero": {NoiseReason.ZERO.value},
     "npns": {NoiseReason.NPNS.value},
 }
 def process_row(row: Tuple) -> Tuple:
