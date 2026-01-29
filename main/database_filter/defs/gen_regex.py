@@ -44,6 +44,23 @@ class GEN_DERIVATIVE_PATTERNS(Enum):
         [BASE.DERIVATIVE, BASE.SWAP], [SUFFIX.ASSET, SUFFIX.LIABILITY]
     )
 
+def generic_derivative_regex() -> re.Pattern:
+    phrases = [
+        GEN_DERIVATIVE_PATTERNS.HEDGING_INSTRUMENT_ALONE,
+        build_compound(
+            BASE.DERIVATIVE,
+            [
+                SUFFIX.CONTRACT,
+                SUFFIX.INSTRUMENT,
+                SUFFIX.AGREEMENT,
+                SUFFIX.ARRANGEMENT,
+            ],
+        ),
+        GEN_DERIVATIVE_PATTERNS.OTHER_INSTRUMENTS,
+    ]
+    return build_regex(phrases)
+
+GENERIC_REGEX = generic_derivative_regex()
 
 # =============================================================================
 # TABLE SPECIFIC REGEX

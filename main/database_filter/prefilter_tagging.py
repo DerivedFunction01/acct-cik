@@ -46,7 +46,7 @@ from defs.contract import is_contractual_noise
 from defs.hypo import is_hypothetical_noise
 from defs.regul import is_regulatory_noise
 from defs.derivative_lib import SOFT_CATEGORY_REGEX, SOFT_REGEX
-from defs.gen_regex import GEN_REGEX, RISK_MANAGEMENT_REGEX
+from defs.gen_regex import GEN_REGEX, GENERIC_REGEX, RISK_MANAGEMENT_REGEX
 from defs.refer import DEFINITION_INDICATORS, MORE_INFO_REGEX, IS_REFERENCE_REGEX
 from defs.ir_regex import IR_DO_NOT_MITIGATE_REGEX
 from defs.cp_regex import EXCLUDE_NON_DERIVATIVE_COMMERCIAL_REGEX, CP_DO_NOT_MITIGATE_REGEX, NPNS_REGEX
@@ -433,6 +433,9 @@ def is_gen_hedge_doc(text: str) -> bool:
     if HEDGE_DOC_REGEX.search(text):
         return True
     if BS_LOC_REGEX.search(text):
+        return True
+    # if it only mentions derivative, hedging instrument, etc return true
+    if GENERIC_REGEX.search(text):
         return True
     return False
 VALUE_REGEX = build_regex(["notional", r"(?:fair|carrying|market)\s+value"])
