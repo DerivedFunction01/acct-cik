@@ -191,6 +191,8 @@ _DENIAL_MODIFIERS = [
     "outstanding",
     "separate",
     "more",
+    "the(?:se)?",
+    "a(?:n)?"
 ]
 
 # The "Glue": Small filler words that appear between modifiers
