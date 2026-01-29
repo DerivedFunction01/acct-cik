@@ -13,9 +13,8 @@ from defs.shared_context import (
 )
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_compound, build_regex, add_restrictions
 from defs.gen_regex import GEN_HEDGES, NOTIONAL_REGEX
-from defs.derivative_lib import create_target
 from defs.ir_regex import CAP_FLOOR_REGEX, IR_SOFT_REGEX, DEBT_FT_REGEX, DEBT_EXP_REGEX, DEBT_TOKEN, IR_TOK
-from main.database_filter.defs.verb_core import GAP_CHAIN
+from defs.verb_core import GAP_CHAIN
 
 YEAR_REGEX = re.compile(r"\b(19[8-9]\d|20\d{2})\b")
 
