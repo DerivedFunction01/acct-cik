@@ -784,12 +784,40 @@ def filter_for_item1(content: str) -> Tuple[str, str]:
     1. CAPTURE: ITEM 1 AND ITEM 1A
     2. RETURNS: 1st element: ITEM 1, 2nd element: ITEM 1A
     """
+    matches = []
+    for m in ITEM_1_START_PATTERN.finditer(content):
+        matches.append((m.start(), '1'))
+    for m in ITEM_1A_START_PATTERN.finditer(content):
+        matches.append((m.start(), '1A'))
+    for m in ITEM_1B_START_PATTERN.finditer(content):
+        matches.append((m.start(), '1B'))
+    for m in ITEM_2_START_PATTERN.finditer(content):
+        matches.append((m.start(), '2'))
+    
+    if not matches:
+        return "", ""
 
+    matches.sort(key=lambda x: x[0])
+    
     item1 = ""
     item1a = ""
-
-    return item1, item1a 
-
+    
+    # Greedy extraction: Find the longest block for Item 1 and Item 1A
+    for i, (start, label) in enumerate(matches):
+        end = len(content)
+        if i + 1 < len(matches):
+            end = matches[i+1][0]
+            
+        text_block = content[start:end]
+        
+        if label == '1':
+            if len(text_block) > len(item1):
+                item1 = text_block
+        elif label == '1A':
+            if len(text_block) > len(item1a):
+                item1a = text_block
+                
+    return item1, item1a
 
 # =============================================================================
 # PARALLEL PROCESSING FUNCTIONS (OPTIMIZED FOR PARALLEL CORES)
@@ -1007,58 +1035,109 @@ def adjust_rate_in_background(
             last_sleep = current_sleep
 
 
-# def should_retry_with_plaintext(
-#     url: str, raw_text: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None
-# ) -> Optional[tuple]:
-#     """
-#     Checks if a pre-2011 filing should be retried with plain text URL.
-#     Returns:
-#       - ("RETRY", new_txt_url) if retry needed
-#       - None if no retry needed
-#       - (url, new_content) if retry succeeded
-#     """
-#     try:
-#         # Check if URL looks like an EDGAR filing
-#         if "Archives/edgar/data" not in url:
-#             return None
-
-#         parts = url.split("/")
-#         accession = None
-#         cik_part = None
-
-#         # Find the part that looks like an accession (18 digits)
-#         for i, part in enumerate(parts):
-#             if len(part) == 18 and part.isdigit():
-#                 accession = part
-#                 if i > 0:
-#                     cik_part = parts[i - 1]
-#                 break
-
-#         if not accession or not cik_part:
-#             return None
-
-#         # Extract year from accession (digits 10-12)
-#         year_str = accession[10:12]
-#         year = int(year_str)
-#         is_pre_2011 = (0 <= year <= 10) or (90 <= year <= 99)
-
-#         if not is_pre_2011:
-#             return None
-
-#         # Construct plain text URL filename to check against current URL
-#         accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
-#         txt_filename = f"{accession_dashed}.txt"
-
-#         # Prevent infinite loop: if we are already at the target .txt file, stop.
-#         if url.endswith(txt_filename):
-#             return None
+def update_report_url(old_url: str, new_url: str):
+    """Updates the URL in report_data table to maintain consistency."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE report_data SET url = ? WHERE url = ?", (new_url, old_url))
+        if c.rowcount > 0:
+             debug_print(f"  📝 Updated report_data: {old_url} -> {new_url}")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error updating report_data: {e}")
 
 
-#                        # return "RETRY", txt_url
-#     except Exception as e:
-#         print(f"Error in retry logic for {url}: {e}")
+def is_url_from_accession(url: str) -> bool:
+    """
+    Checks if a URL is a raw text submission file derived from an accession number.
+    """
+    if not url.endswith(".txt"):
+        return False
+    if "Archives/edgar/data" not in url:
+        return False
+        
+    parts = url.split("/")
+    if len(parts) < 2:
+        return False
+        
+    filename = parts[-1]
+    accession_folder = parts[-2]
+    
+    if not (len(accession_folder) == 18 and accession_folder.isdigit()):
+        return False
+        
+    expected_filename = f"{accession_folder[:10]}-{accession_folder[10:12]}-{accession_folder[12:]}.txt"
+    return filename == expected_filename
 
-#     return None
+
+def should_retry_with_plaintext(
+    url: str, raw_text: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None
+) -> Optional[tuple]:
+    """
+    Checks if a pre-2011 filing should be retried with plain text URL.
+    Returns:
+      - ("RETRY", new_txt_url) if retry needed
+      - None if no retry needed
+    """
+    try:
+        # Check if URL looks like an EDGAR filing
+        if "Archives/edgar/data" not in url:
+            return None
+
+        parts = url.split("/")
+        accession = None
+        cik_part = None
+
+        # Find the part that looks like an accession (18 digits)
+        for i, part in enumerate(parts):
+            if len(part) == 18 and part.isdigit():
+                accession = part
+                if i > 0:
+                    cik_part = parts[i - 1]
+                break
+
+        if not accession or not cik_part:
+            return None
+
+        # Extract year from accession (digits 10-12)
+        year_str = accession[10:12]
+        year = int(year_str)
+        is_pre_2011 = (0 <= year <= 10) or (90 <= year <= 99)
+
+        if not is_pre_2011:
+            return None
+
+        # Construct plain text URL filename to check against current URL
+        accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
+        txt_filename = f"{accession_dashed}.txt"
+
+        # Prevent infinite loop: if we are already at the target .txt file, stop.
+        if url.endswith(txt_filename):
+            return None
+
+        # Parse content to check Item 1/1A length
+        docs = parse_multi_document_content(raw_text)
+        has_valid_content = False
+        
+        for doc in docs:
+            i1, i1a = filter_for_item1(doc)
+            # Retry if either is too short (Item 1 < 1000 or Item 1A < 50)
+            if len(i1) > 1000 and len(i1a) > 50:
+                has_valid_content = True
+                break
+        
+        if not has_valid_content:
+            txt_url = f"https://www.sec.gov/Archives/edgar/data/{cik_part}/{accession}/{txt_filename}"
+            if txt_url != url:
+                debug_print(f"  🔄 Retry with plain text for {url}")
+                return "RETRY", url, txt_url
+
+    except Exception as e:
+        print(f"Error in retry logic for {url}: {e}")
+
+    return None
 
 
 def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None):
@@ -1077,12 +1156,12 @@ def fetch_raw_content(url: str, rate_limiter: Optional[ThreadSafeRateLimiter] = 
     raw_text = fetch_url(url, rate_limiter=rate_limiter)
 
     if raw_text:
-        # # Try retry logic for short pre-2011 reports
-        # retry_result = should_retry_with_plaintext(url, raw_text, rate_limiter)
-        # if retry_result:
-        #     if retry_result[0] == "RETRY":
-        #         # Return signal to re-queue the new .txt URL
-        #         return "RETRY", retry_result[1]
+        # Try retry logic for short pre-2011 reports
+        retry_result = should_retry_with_plaintext(url, raw_text, rate_limiter)
+        if retry_result:
+            if retry_result[0] == "RETRY":
+                # Return signal to re-queue the new .txt URL
+                return retry_result
 
         # Successfully fetched (no retry needed)
         return url, raw_text
@@ -1194,14 +1273,14 @@ def parse_content(data):
                     debug_print(
                         f"  Document {doc_idx + 1}: Found item 1"
                     )
-                    item1_matches.extend(item1)
+                    item1_matches.append(item1)
                 else:
                     debug_print(f"  Document {doc_idx + 1}: No matches found")
                 if item1a:
                     debug_print(
                         f"  Document {doc_idx + 1}: Found item 1a"
                     )
-                    item1a_matches.extend(item1a)
+                    item1a_matches.append(item1a)
                 else:
                     debug_print(f"  Document {doc_idx + 1}: No matches found")
 
@@ -1544,7 +1623,13 @@ def fetch_worker_adaptive(
             if result:
                 if result[0] == "RETRY":
                     # Re-queue the new .txt URL
-                    url_queue.put(result[1])
+                    if len(result) == 3:
+                        old_url_val = result[1]
+                        new_url_val = result[2]
+                        update_report_url(old_url_val, new_url_val)
+                        url_queue.put(new_url_val)
+                    else:
+                        url_queue.put(result[1])
                 if result[0] == "RATE_LIMITED":
                     # Explicit rate limit - signal the rate limiter
                     rate_limiter.signal_429()
