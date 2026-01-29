@@ -828,12 +828,12 @@ TIME_KILLERS = FLOW_KILLERS | {
     NoiseReason.NEG,  # "Did not enter"
     NoiseReason.ZERO,  # "Zero value"
     NoiseReason.AOCI,  # "Recorded in AOCI"
-    NoiseReason.POT,  # "We periodically use..."
 }
 
 # Expanded Killers for TIER 3 (Weak)
 # Includes everything above + Policy/Definitions
 POLICY_KILLERS = TIME_KILLERS | {
+    NoiseReason.POT,  # "We periodically use..."
     NoiseReason.DOC,  # "Hedge documentation is..."
     NoiseReason.DEF,  # "Swap shall mean..."
     NoiseReason.ACCT_STD,  # "FASB ASU..."
