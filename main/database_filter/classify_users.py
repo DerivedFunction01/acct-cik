@@ -1136,6 +1136,7 @@ EVIDENCE_GROUPS = {
     "potential": {NoiseReason.POT.value},
     "negation": {NoiseReason.NEG.value},
     "zero": {NoiseReason.ZERO.value},
+    "no_hedge": {NoiseReason.NO_HEDGE.value},
     "npns": {NoiseReason.NPNS.value},
 }
 def process_row(row: Tuple) -> Tuple:

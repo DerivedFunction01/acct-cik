@@ -540,8 +540,8 @@ def tag_paragraph(text: str, reporting_year: int, is_nst_warr: bool = False, is_
                 reason = get_intent_noise_reason(masked)
 
             # 3. Loose Termination (Unanchored) - Low Confidence
-            if not reason:
-                reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
+            # if not reason:
+            #     reason = get_loose_termination_reason(masked, reporting_year=reporting_year)
 
             if not reason and is_gen_hedge_doc(masked):
                 reason = NoiseReason.DOC
