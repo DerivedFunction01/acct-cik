@@ -1159,7 +1159,7 @@ def process_row(row: Tuple) -> Tuple:
         "has_aoci_activity": False,
         "manages_credit_risk": False,
     }
-    
+
     tracker = GlobalInstrumentTracker()
     is_nst_warr = True
     is_nst_conv = True
@@ -1172,7 +1172,7 @@ def process_row(row: Tuple) -> Tuple:
             attributes["metadata"] = metadata
         except (json.JSONDecodeError, KeyError):
             pass
-    
+
     # --- PRE-PASS: Build Exclusion Tracker ---
     exclusion_tracker = GlobalExclusionTracker()
     for p in paragraphs:
@@ -1230,7 +1230,7 @@ def process_row(row: Tuple) -> Tuple:
             evidence_tags_found = EVIDENCE_TAG_PARSER.findall(sent_content)
             for etag in evidence_tags_found:
                 attributes = mine_attributes(etag, attributes)
-            
+
             # Extract Metadata Tags (Debug info)
             meta_tags_found = METADATA_TAG_PARSER.findall(sent_content)
             if meta_tags_found:
@@ -1248,7 +1248,7 @@ def process_row(row: Tuple) -> Tuple:
             sent_content_no_meta = METADATA_TAG_PARSER.sub(" ", sent_content_no_evidence)
             clean_sent = _cleaner.clean(sent_content_no_meta, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv)
             clean_sent = _cleaner.clean_gen_hedges(clean_sent)
-            
+
             evidence_tags_set = {tag for tag in evidence_tags_found}
             sent_scores = get_text_categories(clean_sent, is_nst_warr=effective_nst_warr, is_nst_conv=effective_nst_conv, exclusion_tracker=exclusion_tracker, evidence_tags=evidence_tags_set)
 
@@ -1279,7 +1279,7 @@ def process_row(row: Tuple) -> Tuple:
             # Count tags for any category identified in this sentence (Strict or Soft)
             cats_to_count = strict_cats if strict_cats else soft_cats
             tags_for_sentence = []
-            
+
             if is_para_deadweight and para_tag_reason:
                 tags_for_sentence.append(para_tag_reason)
             if sent_tag_reason:
@@ -1419,6 +1419,8 @@ def process_row(row: Tuple) -> Tuple:
     attributes["debug"] = {"soft_counts": soft_counts, "strict_counts": strict_counts}
     attributes["category_counters"] = {k: dict(v) for k, v in category_counters.items()}
 
+    if attributes["no_trading_statement"]:
+        del attributes["mentions_trading"]
     # --- Aggregate Counters ---
     grouped_counters = defaultdict(lambda: defaultdict(int))
 
@@ -1428,7 +1430,7 @@ def process_row(row: Tuple) -> Tuple:
                 if tag in tags:
                     grouped_counters[cat][group_name] += count
                     break
-    
+
     attributes["grouped_category_counters"] = {k: dict(v) for k, v in grouped_counters.items()}
 
     return (url, json.dumps(sorted(list(final_categories))), json.dumps(attributes), cik, year)
