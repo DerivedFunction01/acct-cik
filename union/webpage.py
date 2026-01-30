@@ -205,9 +205,6 @@ def create_db():
         except sqlite3.OperationalError:
             c.execute("DROP TABLE IF EXISTS report_data")
 
-        # Drop webpage_result to enforce new schema (accession based)
-        c.execute("DROP TABLE IF EXISTS webpage_result")
-
         c.execute(
             """
             CREATE TABLE IF NOT EXISTS report_data (
