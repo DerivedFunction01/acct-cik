@@ -1764,7 +1764,7 @@ def url_queue_filler_worker(
                     url_queue.put(unprocessed_urls_list[i])
                 
                 batch_added = batch_end - index
-                print(f"✅ Queue refilled: +{batch_added} URLs "
+                debug_print(f"✅ Queue refilled: +{batch_added} URLs "
                       f"({batch_end}/{len(unprocessed_urls_list)} queued)")
                 
                 index = batch_end
@@ -1772,7 +1772,7 @@ def url_queue_filler_worker(
             
             # Done?
             if index >= len(unprocessed_urls_list):
-                print("✅ All URLs queued. Queue filler stopping.")
+                debug_print("✅ All URLs queued. Queue filler stopping.")
                 break
         
         time.sleep(1)
