@@ -59,6 +59,20 @@ def get_known_terms():
         "board", "directors", "committee", "securities", "exchange", "commission", "sec",
         "act", "code", "law", "regulations", "gaap", "fasb", "irs",
         "item", "part", "form", "table", "note", "data",
+        # Common Business & Financial Acronyms
+        "ceo", "cfo", "coo", "cto", "cio", "vp", "evp", "svp",
+        "ebitda", "ebit", "ipo", "m&a", "r&d", "sg&a", "md&a",
+        "fy", "yoy", "ytd", "cagr", "roi", "roe", "roa",
+        "usd", "eur", "gbp", "jpy", "cad", "aud", "chf", "cny",
+        "nyse", "nasdaq", "amex", "lse", "hkg", "tyo",
+        "kpi", "erp", "crm", "saas", "paas", "iaas",
+        "it", "hr", "pr", "ir",
+        "covid", "sars",
+        "uk", "eu", "un", "nato", "wto", "who", "imf", "wb",
+        "nafta", "usmca", "asean", "mercosur",
+        "gdpr", "ccpa", "hipaa", "sox", "dodd-frank",
+        "esg", "dei", "csr", "fas", "asc", "asu", "iso", "osha", "epa", "fda", "fcc", "ftc", "doj",
+        "pension", "benefit", "defined", "contribution", "plan", "plans", "401k",
     ])
     
     return known
@@ -162,10 +176,20 @@ def analyze_entities():
             count += 1
             if count >= 50: break
             
-    print("\n--- Top Unknown Single-Word Entities (Check for Countries) ---")
+    print("\n--- Top Unknown Acronyms (Potential Unions) ---")
     count = 0
-    for word, freq in single_word_counter.most_common(200):
-        if word.lower() not in known_terms and len(word) > 2:
+    for word, freq in single_word_counter.most_common(500):
+        # Filter for Acronyms: All Uppercase, Length >= 3
+        if word.isupper() and len(word) >= 3 and word.lower() not in known_terms:
+            print(f"{freq:5d} : {word}")
+            count += 1
+            if count >= 50: break
+
+    print("\n--- Top Unknown Capitalized Words (Potential Countries/Regions) ---")
+    count = 0
+    for word, freq in single_word_counter.most_common(500):
+        # Filter for Title Case (not all upper), Length > 2
+        if not word.isupper() and word[0].isupper() and len(word) > 2 and word.lower() not in known_terms:
             print(f"{freq:5d} : {word}")
             count += 1
             if count >= 50: break
