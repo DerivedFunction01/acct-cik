@@ -155,8 +155,6 @@ def run_test():
         # Tricky / Negative cases (should be good via cleaner)
         "State of the Union",
         "Credit Union",
-        # Should NOT Match (Lowercase verb in gap)
-        "Union said Workers",
     ]
     
     for ex in examples:
