@@ -1752,43 +1752,43 @@ def url_queue_filler_worker(
     """
     BACKGROUND THREAD: Periodically refills url_queue with new URLs.
     
-    Fills queue in batches every `fill_interval_seconds` seconds.
-    Stops when all URLs have been added.
-    
-    Args:
-        url_queue: Manager.Queue() to refill
-        unprocessed_urls_list: List of (url, accession) tuples
-        queue_filler_stop_event: threading.Event() to signal stop
-        batch_size: How many URLs per batch (default 10)
-        fill_interval_seconds: Seconds between refills (default 10)
+    Maintains the queue size up to `batch_size`.
+    Checks every `fill_interval_seconds`.
     """
     index = 0
-    last_fill_time = time.time()
     
     while not queue_filler_stop_event.is_set():
-        now = time.time()
-        
-        # Time to refill?
-        if now - last_fill_time >= fill_interval_seconds:
-            batch_end = min(index + batch_size, len(unprocessed_urls_list))
+        try:
+            # Check current queue size
+            try:
+                q_size = url_queue.qsize()
+            except Exception:
+                q_size = 0
             
-            if index < batch_end:
-                for i in range(index, batch_end):
-                    url_queue.put(unprocessed_urls_list[i])
+            # Calculate how many to add to reach batch_size (target capacity)
+            if q_size < batch_size:
+                needed = batch_size - q_size
                 
-                batch_added = batch_end - index
-                debug_print(f"✅ Queue refilled: +{batch_added} URLs "
-                      f"({batch_end}/{len(unprocessed_urls_list)} queued)")
+                # Determine range to add
+                batch_end = min(index + needed, len(unprocessed_urls_list))
                 
-                index = batch_end
-                last_fill_time = now
+                if index < batch_end:
+                    for i in range(index, batch_end):
+                        url_queue.put(unprocessed_urls_list[i])
+                    
+                    index = batch_end
+                
+                # Done?
+                if index >= len(unprocessed_urls_list):
+                    debug_print("✅ All items queued. Queue filler stopping.")
+                    break
+                    
+        except Exception as e:
+            print(f"Queue filler error: {e}")
             
-            # Done?
-            if index >= len(unprocessed_urls_list):
-                debug_print("✅ All URLs queued. Queue filler stopping.")
-                break
-        
-        time.sleep(1)
+        # Wait for interval or stop event
+        if queue_filler_stop_event.wait(fill_interval_seconds):
+            break
 
 # =============================================================================
 # INITIALIZATION
