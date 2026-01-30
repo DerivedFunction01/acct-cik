@@ -16,8 +16,8 @@ from defs.regex_lib import to_build_alternation
 # =============================================================================
 DB_PATH = "classified_data.db"
 OUTPUT_DIR = "analysis_output/plots"
-TOP_K_PLOT = 20
-TOP_K_PRINT = 10
+TOP_K_PLOT = 30
+TOP_K_PRINT = 15
 
 BASE_PATTERN_STR = to_build_alternation(ALL_BASE_TYPES)
 VALID_BASE_REGEX = re.compile(rf"\b(?:{BASE_PATTERN_STR})$", re.IGNORECASE)
