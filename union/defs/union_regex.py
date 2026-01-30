@@ -13,8 +13,7 @@ Use enums to build core terms, then use another enum or function to build out th
 """
 
 from enum import Enum
-
-from union.defs.regex_lib import build_compound
+from union.defs.regex_lib import build_compound, build_regex
 
 
 class CORE(Enum):
@@ -22,37 +21,52 @@ class CORE(Enum):
     COLLECTIVE = r"collectives?"
     BARGAIN = r"bargain(?:ing|s)?"
     LABOR = r"labo(?:u)?rs?"
-    ORGANIZED = r"organized"
+    ORGANIZED = r"organized?"
 
-class WORKER(Enum):
-    terms = [
-        r"workers?",
-        r"employees?",
-        r"laborers?",
-        r"staff",
-        r"personnel",
-        r"workforce",
-        r"associates",
-    ]
+WORKER_TERMS = [
+    r"workers?",
+    r"employees?",
+    r"laborers?",
+    r"staff",
+    r"personnel",
+    r"workforce",
+    r"associates",
+]
 
-class SUFFIX(Enum):
-    AGREEMENT = r"agreements?"
-    CONTRACT = r"contracts?"
-    ORGANIZATION = r"organizations?"
-    EFFORT = r"efforts?"
-    
+SUFFIX_AGREEMENTS = [
+    r"agreements?",
+    r"contracts?",
+]
 
+SUFFIX_ORGS = [
+    r"organizations?",
+]
 
-class REPRESENTATION(Enum):
-    # [workers] + [gap] + [representation]
-    terms = [
-        r"represented\s+by",
-        r"affliat(?:ed|ion)\s+with",
-    ]
-GAP = r"(?:\W+(?:\w+\W+){0,2}?)"
+REPRESENTATION_TERMS = [
+    r"represented\s+by",
+    r"affliat(?:ed|ion)\s+with",
+]
+
+GAP = r"(?:\W+(?:\w+\W+){0,3}?)"
+
 class LABOR_TERMS:
     SPECIFIC_PHRASES = [
-        # collective bargaining
+        # collective + bargain
         build_compound([CORE.COLLECTIVE], [CORE.BARGAIN]),
-        
+        # bargaining + (agreement, contracts)
+        build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS),
+        # union / unionized / unionization
+        CORE.UNION.value,
+        # non-union(ized)
+        r"non[- ]union(?:ized)?",
+        # employees/workers + represented by
+        build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
+        # labor + (agreements, contracts, organizations)
+        build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS),
+        # organized labor
+        build_compound([CORE.ORGANIZED], [CORE.LABOR]),
+        # Efforts to organize
+        r"efforts?\s+to\s+organize",
     ]
+
+UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
