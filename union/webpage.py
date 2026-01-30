@@ -1247,18 +1247,70 @@ def extract_accession_info(url: str) -> Optional[dict]:
     }
 
 
-def update_report_url(old_url: str, new_url: str):
-    """Updates the URL in report_data table to maintain consistency."""
+# def update_report_url(old_url: str, new_url: str):
+#     """Updates the URL in report_data table to maintain consistency."""
+#     try:
+#         conn = sqlite3.connect(DB_PATH)
+#         c = conn.cursor()
+#         c.execute("UPDATE report_data SET url = ? WHERE url = ?", (new_url, old_url))
+#         if c.rowcount > 0:
+#              debug_print(f"  📝 Updated report_data: {old_url} -> {new_url}")
+#         conn.commit()
+#         conn.close()
+#     except Exception as e:
+#         print(f"Error updating report_data: {e}")
+
+
+def sync_fiscal_years():
+    """
+    Updates report_data.year using the verified period_of_report extracted from filings.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
     try:
-        conn = sqlite3.connect(DB_PATH)
-        c = conn.cursor()
-        c.execute("UPDATE report_data SET url = ? WHERE url = ?", (new_url, old_url))
-        if c.rowcount > 0:
-             debug_print(f"  📝 Updated report_data: {old_url} -> {new_url}")
+        print("🔄 Syncing fiscal years from extracted content...")
+        
+        # SQLite 3.33+ supports UPDATE FROM
+        try:
+            c.execute("""
+                UPDATE report_data
+                SET year = CAST(webpage_result.period_of_report AS INTEGER)
+                FROM webpage_result
+                WHERE report_data.accession = webpage_result.accession
+                AND webpage_result.period_of_report IS NOT NULL
+                AND webpage_result.period_of_report != ''
+                AND report_data.year != CAST(webpage_result.period_of_report AS INTEGER)
+            """)
+            count = c.rowcount
+        except sqlite3.OperationalError:
+            # Fallback for older SQLite versions
+            c.execute("""
+                SELECT accession, period_of_report 
+                FROM webpage_result 
+                WHERE period_of_report IS NOT NULL AND period_of_report != ''
+            """)
+            updates = []
+            for acc, year_str in c.fetchall():
+                if year_str and year_str.isdigit():
+                    updates.append((int(year_str), acc))
+            
+            if updates:
+                c.executemany("UPDATE report_data SET year = ? WHERE accession = ?", updates)
+                count = len(updates)
+            else:
+                count = 0
+
+        if count > 0:
+            print(f"✅ Updated {count} rows in report_data with verified fiscal years.")
+        else:
+            print("✓ Fiscal years are already in sync.")
+            
         conn.commit()
-        conn.close()
     except Exception as e:
-        print(f"Error updating report_data: {e}")
+        print(f"⚠️ Error syncing fiscal years: {e}")
+    finally:
+        conn.close()
 
 
 def is_url_from_accession(url: str) -> bool:
@@ -2059,6 +2111,10 @@ if __name__ == "__main__":
     # Uncomment to run:
     # process_all_reports_fully()
     process_producer_consumer_adaptive()
+    
+    # Sync extracted years back to report_data
+    sync_fiscal_years()
+    
     print("\n" + "=" * 70)
     print("All done!")
     print("=" * 70)
