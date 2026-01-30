@@ -429,9 +429,8 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "the Company", None),
                 (TestType.COUNT, r"the Company", 2),
                 (TestType.NOT_CONTAINS, "Johnson & Johnson Corporation", None),
-            ]
+            ],
         ),
-        
         # Test 2: Date Removal (Month Day format)
         TestCase(
             name="Date Removal - Month Day Format",
@@ -439,9 +438,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.NOT_CONTAINS, "December 31", None),
                 (TestType.CONTAINS, "we had significant growth", None),
-            ]
+            ],
         ),
-        
         # Test 3: Date Removal (Day Month format)
         TestCase(
             name="Date Removal - Day Month Format",
@@ -449,9 +447,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.NOT_CONTAINS, "15th of July", None),
                 (TestType.CONTAINS, "we announced new products", None),
-            ]
+            ],
         ),
-        
         # Test 4: Year Wrapping
         TestCase(
             name="Year Wrapping",
@@ -459,9 +456,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "<2023>", None),
                 (TestType.CONTAINS, "<1999>", None),
-            ]
+            ],
         ),
-        
         # Test 5: Word Numbers to Digits
         TestCase(
             name="Word Numbers to Digits",
@@ -471,9 +467,8 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "2000", None),
                 (TestType.NOT_CONTAINS, "five million", None),
                 (TestType.NOT_CONTAINS, "two thousand", None),
-            ]
+            ],
         ),
-        
         # Test 6: Fraction to Percentage
         TestCase(
             name="Fraction to Percentage",
@@ -481,9 +476,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "75%", None),
                 (TestType.NOT_CONTAINS, "three-fourths", None),
-            ]
+            ],
         ),
-        
         # Test 7: Scale Numbers (numbers with scale words)
         TestCase(
             name="Scale Numbers",
@@ -491,9 +485,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "2000000", None),
                 (TestType.CONTAINS, "500000", None),
-            ]
+            ],
         ),
-        
         # Test 8: Comma Removal in Numbers
         TestCase(
             name="Comma Removal",
@@ -501,9 +494,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "138100", None),
                 (TestType.NOT_CONTAINS, "138,100", None),
-            ]
+            ],
         ),
-        
         # Test 9: Suffix Removal
         TestCase(
             name="Suffix Removal",
@@ -512,9 +504,8 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "Inc.", None),
                 (TestType.NOT_CONTAINS, "Corp.", None),
                 (TestType.NOT_CONTAINS, "Ltd.", None),
-            ]
+            ],
         ),
-        
         # Test 10: False Positive Prevention (Credit Union)
         TestCase(
             name="False Positive - Credit Union",
@@ -522,9 +513,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "bank", None),
                 (TestType.NOT_CONTAINS, "union", None),
-            ]
+            ],
         ),
-        
         # Test 11: False Positive Prevention (European Union)
         TestCase(
             name="False Positive - European Union",
@@ -532,9 +522,8 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "Europe", None),
                 (TestType.NOT_CONTAINS, "European Union", None),
-            ]
+            ],
         ),
-        
         # Test 12: Percent Normalization
         TestCase(
             name="Percent Normalization",
@@ -544,19 +533,21 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "25%", None),
                 (TestType.NOT_CONTAINS, "per cent", None),
                 (TestType.CONTAINS, "10%", None),
-            ]
+            ],
         ),
-        
         # Test 13: Whitespace Normalization
         TestCase(
             name="Whitespace Normalization",
             input_text="The   company   has   multiple    spaces   between    words.",
             validations=[
                 (TestType.NOT_CONTAINS, "   ", None),
-                (TestType.CONTAINS, "The company has multiple spaces between words", None),
-            ]
+                (
+                    TestType.CONTAINS,
+                    "The company has multiple spaces between words",
+                    None,
+                ),
+            ],
         ),
-        
         # Test 14: Month-only Removal
         TestCase(
             name="Month Only Removal",
@@ -565,9 +556,8 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "January", None),
                 (TestType.NOT_CONTAINS, "February", None),
                 (TestType.CONTAINS, "we launched products", None),
-            ]
+            ],
         ),
-        
         # Test 15: Complex Text (Integration)
         TestCase(
             name="Complex Integration Test",
@@ -582,25 +572,89 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "Europe", None),
                 (TestType.CONTAINS, "5000000", None),
                 (TestType.CONTAINS, "25%", None),
-            ]
+            ],
         ),
-        
+        TestCase(
+            name="First Quarter (Business Period)",
+            input_text="In the first quarter of 2023, we grew rapidly.",
+            validations=[
+                (TestType.CONTAINS, "first quarter", None),  # Should NOT be converted
+                (TestType.NOT_CONTAINS, "25%", None),  # Should not convert to percent
+            ],
+        ),
+        TestCase(
+            name="Fourth Quarter (Business Period)",
+            input_text="Fourth quarter earnings were strong.",
+            validations=[
+                (TestType.CONTAINS, "fourth quarter", None),  # Should NOT be converted
+                (TestType.NOT_CONTAINS, "25%", None),
+            ],
+        ),
+        TestCase(
+            name="Q2/Q3 Format",
+            input_text="We saw growth in the second quarter and third quarter.",
+            validations=[
+                (TestType.CONTAINS, "second quarter", None),  # Should NOT be converted
+                (TestType.CONTAINS, "third quarter", None),  # Should NOT be converted
+                (TestType.NOT_CONTAINS, "50%", None),
+                (TestType.NOT_CONTAINS, "75%", None),
+            ],
+        ),
         # Test 16: Edge case - Empty string
         TestCase(
             name="Edge Case - Empty String",
             input_text="",
             validations=[
                 (TestType.EXACT, "", None),
-            ]
+            ],
         ),
-        
+        # Ordinal numbers (should NOT convert)
+        TestCase(
+            name="Ordinals - First, Second, Third",
+            input_text="First, second, and third place finishers.",
+            validations=[
+                (TestType.CONTAINS, "first", None),
+                (TestType.CONTAINS, "second", None),
+                (TestType.CONTAINS, "third", None),
+            ],
+        ),
+        # Business quarters (should NOT convert)
+        TestCase(
+            name="Business Quarters Q1-Q4",
+            input_text="Q1 results, Q2 earnings, third quarter report, fourth quarter.",
+            validations=[
+                (TestType.CONTAINS, "quarter", None),
+                (TestType.NOT_CONTAINS, "25%", None),
+                (TestType.NOT_CONTAINS, "75%", None),
+            ],
+        ),
+        # Time periods (should NOT convert)
+        TestCase(
+            name="Time Periods - Half Year",
+            input_text="First half and second half of year.",
+            validations=[
+                (TestType.CONTAINS, "first half", None),
+                (TestType.CONTAINS, "second half", None),
+            ],
+        ),
+        # Clear fractions (SHOULD convert)
+        TestCase(
+            name="Clear Fractions",
+            input_text="One half, one third, one fourth, three-fourths.",
+            validations=[
+                (TestType.NOT_CONTAINS, "one half", None),  # Converted
+                (TestType.NOT_CONTAINS, "one third", None),  # Converted
+                (TestType.NOT_CONTAINS, "one fourth", None),  # Converted
+                (TestType.NOT_CONTAINS, "three-fourths", None),  # Converted
+            ],
+        ),
         # Test 17: Edge case - No changes needed
         TestCase(
             name="Edge Case - No Changes",
             input_text="The business operates in multiple countries.",
             validations=[
                 (TestType.CONTAINS, "The business operates", None),
-            ]
+            ],
         ),
     ]
 
