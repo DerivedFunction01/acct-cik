@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+from union.defs.regex_lib import build_alternation
 
 COMPANY_TOKEN = "the Company"
 
@@ -20,13 +21,13 @@ class MinimalTextCleaner:
 
         # Regex to strip suffixes from the end of the company name
         self.name_suffix_pattern = re.compile(
-            r"\s+(?:" + "|".join(self.name_suffixes) + r")\.?$", 
+            r"\s+" + build_alternation(self.name_suffixes) + r"\.?$", 
             re.IGNORECASE
         )
         
         # Regex to remove safe suffixes from text
         self.text_suffix_pattern = re.compile(
-            r"\b(?:" + "|".join(self.text_suffixes) + r")\b\.?", 
+            r"\b" + build_alternation(self.text_suffixes) + r"\b\.?", 
             re.IGNORECASE
         )
 
@@ -39,7 +40,11 @@ class MinimalTextCleaner:
         ]
 
         # Date and Year Patterns
-        self.months_pattern_str = r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
+        months = [
+            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+            "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec"
+        ]
+        self.months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
         
         self.date_md_pattern = re.compile(
             rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", 
@@ -90,10 +95,9 @@ class MinimalTextCleaner:
         
         # Build regex for number phrases
         all_words = list(self.num_words.keys()) + list(self.multipliers.keys()) + list(self.fractions.keys())
-        all_words.sort(key=len, reverse=True)
-        word_pattern = "|".join(re.escape(w) for w in all_words)
+        word_pattern = build_alternation([re.escape(w) for w in all_words])
         self.number_phrase_pattern = re.compile(
-            rf"\b(?:{word_pattern})(?:[\s-]+(?:{word_pattern}))*\b",
+            rf"\b{word_pattern}(?:[\s-]+{word_pattern})*\b",
             re.IGNORECASE
         )
 
@@ -226,7 +230,7 @@ if __name__ == "__main__":
     The Company’s primary focus is products related to human health and well-being. 
     Johnson & Johnson was incorporated in the State of New Jersey in 1887.
     We have 5 million dollars in assets and 2 thousand employees in the European Union.
-    Approximately three fourths of our staff are unionized, and fifty five percent are full time.
+    Approximately three-fourths of our staff are unionized, and fifty five percent are full time.
     As of December 31, 2023, we had 2000 employees.
     """
     
