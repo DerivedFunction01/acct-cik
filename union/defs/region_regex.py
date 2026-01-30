@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 class Region(Enum):
@@ -11,10 +11,17 @@ class Region(Enum):
 
 
 @dataclass
+class Location:
+    name: str
+    phrases: list[str]
+    cities: list["Location"] = field(default_factory=list)
+
+@dataclass
 class Nation:
     name: str
     phrases: list[str]
     region: Region
+    locations: list[Location] = field(default_factory=list)
     
     def __hash__(self):
         return hash(self.name)
@@ -23,34 +30,99 @@ class Nation:
         return self.name == other.name
 
 NORTH_AMERICA = {
-    Nation("United States", ["us", "u.s.", "usa", "united states", "american", "anerica"], Region.NORTH_AMERICA),
-    Nation("Canada", ["canada", "canadian"], Region.NORTH_AMERICA),
+    Nation("United States", ["us", "u.s.", "usa", "united states", "american", "america"], Region.NORTH_AMERICA, [
+        Location("New York", ["new york", "ny"], [
+            Location("New York City", ["nyc", "new york city", "manhattan"]),
+        ]),
+        Location("California", ["california", "ca", "cal"], [
+            Location("San Francisco", ["san francisco", "sf", "bay area"]),
+            Location("Los Angeles", ["los angeles", "la"]),
+        ]),
+        Location("Texas", ["texas", "tx"], [
+            Location("Houston", ["houston"]),
+            Location("Dallas", ["dallas"]),
+        ]),
+        Location("Illinois", ["illinois", "il"], [
+            Location("Chicago", ["chicago"]),
+        ]),
+        Location("Massachusetts", ["massachusetts", "ma"], [
+            Location("Boston", ["boston"]),
+        ]),
+        Location("Washington", ["washington", "wa"], [
+            Location("Seattle", ["seattle"]),
+        ]),
+        Location("Florida", ["florida", "fl"], [
+            Location("Miami", ["miami"]),
+        ]),
+    ]),
+    Nation("Canada", ["canada", "canadian"], Region.NORTH_AMERICA, [
+        Location("Toronto", ["toronto"]),
+        Location("Vancouver", ["vancouver"]),
+        Location("Montreal", ["montreal"]),
+        Location("Ontario", ["ontario"]),
+        Location("Quebec", ["quebec"]),
+        Location("Alberta", ["alberta", "calgary"]),
+        Location("British Columbia", ["british columbia", "bc"]),
+    ]),
     Nation("North America", ["north america", "north american"], Region.NORTH_AMERICA),
     Nation("domestic", ["domestic"], Region.NORTH_AMERICA), # Dummy
 }
 
 EUROPE = {
     Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE),
-    Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE),
+    Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE, [
+        Location("London", ["london"]),
+    ]),
     Nation("Norway", ["norway", "norwegian"], Region.EUROPE),
-    Nation("Sweden", ["sweden", "swedish"], Region.EUROPE),
+    Nation("Sweden", ["sweden", "swedish"], Region.EUROPE, [
+        Location("Stockholm", ["stockholm"]),
+    ]),
     Nation("Denmark", ["denmark", "danish"], Region.EUROPE),
-    Nation("Poland", ["poland", "polish"], Region.EUROPE),
+    Nation("Poland", ["poland", "polish"], Region.EUROPE, [
+        Location("Warsaw", ["warsaw"]),
+    ]),
     Nation("Hungary", ["hungary", "hungarian"], Region.EUROPE),
     Nation("Czech Republic", ["czech republic", "czechia", "czech"], Region.EUROPE),
-    Nation("Turkey", ["turkey", "turkish"], Region.EUROPE),
-    Nation("Russia", ["russia", "russian"], Region.EUROPE),
+    Nation("Turkey", ["turkey", "turkish"], Region.EUROPE, [
+        Location("Istanbul", ["istanbul"]),
+    ]),
+    Nation("Russia", ["russia", "russian"], Region.EUROPE, [
+        Location("Moscow", ["moscow"]),
+    ]),
     Nation("Bulgaria", ["bulgaria", "bulgarian"], Region.EUROPE),
     Nation("Romania", ["romania", "romanian"], Region.EUROPE),
-    Nation("Germany", ["germany", "german", "deutschland"], Region.EUROPE),
-    Nation("France", ["france", "french"], Region.EUROPE),
-    Nation("Italy", ["italy", "italian"], Region.EUROPE),
-    Nation("Spain", ["spain", "spanish"], Region.EUROPE),
-    Nation("Netherlands", ["netherlands", "dutch", "holland"], Region.EUROPE),
-    Nation("Switzerland", ["switzerland", "swiss"], Region.EUROPE),
-    Nation("Belgium", ["belgium", "belgian"], Region.EUROPE),
-    Nation("Austria", ["austria", "austrian"], Region.EUROPE),
-    Nation("Ireland", ["ireland", "irish"], Region.EUROPE),
+    Nation("Germany", ["germany", "german", "deutschland"], Region.EUROPE, [
+        Location("Frankfurt", ["frankfurt"]),
+        Location("Berlin", ["berlin"]),
+        Location("Munich", ["munich"]),
+    ]),
+    Nation("France", ["france", "french"], Region.EUROPE, [
+        Location("Paris", ["paris"]),
+    ]),
+    Nation("Italy", ["italy", "italian"], Region.EUROPE, [
+        Location("Milan", ["milan"]),
+        Location("Rome", ["rome"]),
+    ]),
+    Nation("Spain", ["spain", "spanish"], Region.EUROPE, [
+        Location("Madrid", ["madrid"]),
+        Location("Barcelona", ["barcelona"]),
+    ]),
+    Nation("Netherlands", ["netherlands", "dutch", "holland"], Region.EUROPE, [
+        Location("Amsterdam", ["amsterdam"]),
+    ]),
+    Nation("Switzerland", ["switzerland", "swiss"], Region.EUROPE, [
+        Location("Zurich", ["zurich"]),
+        Location("Geneva", ["geneva"]),
+    ]),
+    Nation("Belgium", ["belgium", "belgian"], Region.EUROPE, [
+        Location("Brussels", ["brussels"]),
+    ]),
+    Nation("Austria", ["austria", "austrian"], Region.EUROPE, [
+        Location("Vienna", ["vienna"]),
+    ]),
+    Nation("Ireland", ["ireland", "irish"], Region.EUROPE, [
+        Location("Dublin", ["dublin"]),
+    ]),
     Nation("Portugal", ["portugal", "portuguese"], Region.EUROPE),
     Nation("Greece", ["greece", "greek"], Region.EUROPE),
     Nation("Finland", ["finland", "finnish"], Region.EUROPE),
@@ -60,32 +132,75 @@ EUROPE = {
 ASIA_PACIFIC = {
     Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC),
     Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC),
-    Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC),
-    Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC),
+    Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC, [
+        Location("Tokyo", ["tokyo"]),
+        Location("Osaka", ["osaka"]),
+    ]),
+    Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC, [
+        Location("Seoul", ["seoul"]),
+    ]),
     Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC),
     Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC),
-    Nation("Taiwan", ["taiwan", "taiwanese"], Region.ASIA_PACIFIC),
-    Nation("China", ["china", "chinese", "prc", "p.r.c."], Region.ASIA_PACIFIC),
-    Nation("Thailand", ["thailand", "thai"], Region.ASIA_PACIFIC),
-    Nation("Malaysia", ["malaysia", "malaysian"], Region.ASIA_PACIFIC),
-    Nation("Philippines", ["philippines", "philippine", "filipino"], Region.ASIA_PACIFIC),
-    Nation("Vietnam", ["vietnam", "vietnamese"], Region.ASIA_PACIFIC),
-    Nation("Indonesia", ["indonesia", "indonesian"], Region.ASIA_PACIFIC),
-    Nation("India", ["india", "indian"], Region.ASIA_PACIFIC),
+    Nation("Taiwan", ["taiwan", "taiwanese"], Region.ASIA_PACIFIC, [
+        Location("Taipei", ["taipei"]),
+    ]),
+    Nation("China", ["china", "chinese", "prc", "p.r.c."], Region.ASIA_PACIFIC, [
+        Location("Shanghai", ["shanghai"]),
+        Location("Beijing", ["beijing"]),
+        Location("Shenzhen", ["shenzhen"]),
+        Location("Guangzhou", ["guangzhou"]),
+    ]),
+    Nation("Thailand", ["thailand", "thai"], Region.ASIA_PACIFIC, [
+        Location("Bangkok", ["bangkok"]),
+    ]),
+    Nation("Malaysia", ["malaysia", "malaysian"], Region.ASIA_PACIFIC, [
+        Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
+    ]),
+    Nation("Philippines", ["philippines", "philippine", "filipino"], Region.ASIA_PACIFIC, [
+        Location("Manila", ["manila"]),
+    ]),
+    Nation("Vietnam", ["vietnam", "vietnamese"], Region.ASIA_PACIFIC, [
+        Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
+        Location("Hanoi", ["hanoi"]),
+    ]),
+    Nation("Indonesia", ["indonesia", "indonesian"], Region.ASIA_PACIFIC, [
+        Location("Jakarta", ["jakarta"]),
+    ]),
+    Nation("India", ["india", "indian"], Region.ASIA_PACIFIC, [
+        Location("Mumbai", ["mumbai", "bombay"]),
+        Location("Bangalore", ["bangalore", "bengaluru"]),
+        Location("New Delhi", ["new delhi", "delhi"]),
+    ]),
     Nation("Pakistan", ["pakistan", "pakistani"], Region.ASIA_PACIFIC),
-    Nation("Australia", ["australia", "australian"], Region.ASIA_PACIFIC),
-    Nation("New Zealand", ["new zealand", "nz"], Region.ASIA_PACIFIC),
+    Nation("Australia", ["australia", "australian"], Region.ASIA_PACIFIC, [
+        Location("Sydney", ["sydney"]),
+        Location("Melbourne", ["melbourne"]),
+    ]),
+    Nation("New Zealand", ["new zealand", "nz"], Region.ASIA_PACIFIC, [
+        Location("Auckland", ["auckland"]),
+    ]),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC),
     Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC),
 }
 
 LATIN_AMERICA = {
     Nation("Latin America", ["latin america", "latam", "south america", "south american"], Region.LATIN_AMERICA),
-    Nation("Mexico", ["mexico", "mexican"], Region.LATIN_AMERICA),
-    Nation("Brazil", ["brazil", "brazilian"], Region.LATIN_AMERICA),
-    Nation("Argentina", ["argentina", "argentine"], Region.LATIN_AMERICA),
-    Nation("Chile", ["chile", "chilean"], Region.LATIN_AMERICA),
-    Nation("Colombia", ["colombia", "colombian"], Region.LATIN_AMERICA),
+    Nation("Mexico", ["mexico", "mexican"], Region.LATIN_AMERICA, [
+        Location("Mexico City", ["mexico city", "cdmx"]),
+    ]),
+    Nation("Brazil", ["brazil", "brazilian"], Region.LATIN_AMERICA, [
+        Location("Sao Paulo", ["sao paulo"]),
+        Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
+    ]),
+    Nation("Argentina", ["argentina", "argentine"], Region.LATIN_AMERICA, [
+        Location("Buenos Aires", ["buenos aires"]),
+    ]),
+    Nation("Chile", ["chile", "chilean"], Region.LATIN_AMERICA, [
+        Location("Santiago", ["santiago"]),
+    ]),
+    Nation("Colombia", ["colombia", "colombian"], Region.LATIN_AMERICA, [
+        Location("Bogota", ["bogota"]),
+    ]),
     Nation("Peru", ["peru", "peruvian"], Region.LATIN_AMERICA),
     Nation("Venezuela", ["venezuela", "venezuelan"], Region.LATIN_AMERICA),
     Nation("Ecuador", ["ecuador", "ecuadorian"], Region.LATIN_AMERICA),
@@ -101,15 +216,32 @@ LATIN_AMERICA = {
 MIDDLE_EAST_AFRICA = {
     Nation("Middle East", ["middle east", "middle eastern", "mena"], Region.MIDDLE_EAST_AFRICA),
     Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA),
-    Nation("United Arab Emirates", ["uae", "u.a.e.", "emirates"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Saudi Arabia", ["saudi arabia", "saudi"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Israel", ["israel", "israeli"], Region.MIDDLE_EAST_AFRICA),
+    Nation("United Arab Emirates", ["uae", "u.a.e.", "emirates"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Dubai", ["dubai"]),
+        Location("Abu Dhabi", ["abu dhabi"]),
+    ]),
+    Nation("Saudi Arabia", ["saudi arabia", "saudi"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Riyadh", ["riyadh"]),
+    ]),
+    Nation("Israel", ["israel", "israeli"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Tel Aviv", ["tel aviv"]),
+        Location("Jerusalem", ["jerusalem"]),
+    ]),
     Nation("Kuwait", ["kuwait", "kuwaiti"], Region.MIDDLE_EAST_AFRICA),
-    Nation("South Africa", ["south africa", "south african"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Kenya", ["kenya", "kenyan"], Region.MIDDLE_EAST_AFRICA),
+    Nation("South Africa", ["south africa", "south african"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Johannesburg", ["johannesburg", "joburg"]),
+        Location("Cape Town", ["cape town"]),
+    ]),
+    Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Lagos", ["lagos"]),
+    ]),
+    Nation("Kenya", ["kenya", "kenyan"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Nairobi", ["nairobi"]),
+    ]),
     Nation("Tanzania", ["tanzania", "tanzanian"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Egypt", ["egypt", "egyptian"], Region.MIDDLE_EAST_AFRICA),
+    Nation("Egypt", ["egypt", "egyptian"], Region.MIDDLE_EAST_AFRICA, [
+        Location("Cairo", ["cairo"]),
+    ]),
     Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Morocco", ["morocco", "moroccan"], Region.MIDDLE_EAST_AFRICA),
