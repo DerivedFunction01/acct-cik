@@ -13,7 +13,7 @@ Use enums to build core terms, then use another enum or function to build out th
 """
 
 from enum import Enum
-from union.defs.regex_lib import build_compound, build_regex
+from defs.regex_lib import build_compound, build_regex
 
 
 class CORE(Enum):

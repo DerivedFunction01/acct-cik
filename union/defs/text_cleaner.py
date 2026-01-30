@@ -1,6 +1,6 @@
 import re
 from typing import Optional
-from union.defs.regex_lib import build_alternation, YEAR_REGEX
+from defs.regex_lib import build_alternation, YEAR_REGEX
 
 COMPANY_TOKEN = "the Company"
 
