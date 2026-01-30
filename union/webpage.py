@@ -146,7 +146,6 @@ HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
 XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
-
 ITEM_1_START_PATTERN = re.compile(
     r"^\s*(?:ITEM\s+)?1[.\s]+(?:BUSINESS|DESCRIPTION OF BUSINESS|OPERATIONS)",
     re.MULTILINE | re.IGNORECASE,
@@ -1051,9 +1050,9 @@ def cik_fetch_worker(
             task = cik_queue.get(timeout=1)
         except queue.Empty:
             continue
-            
+
         cik, years = task
-        
+
         try:
             years_to_fetch = [y for y in years if (cik, y) not in already_done_set]
             if not years_to_fetch:
@@ -1061,22 +1060,29 @@ def cik_fetch_worker(
 
             # get_cik_filings handles rate limiting via fetch_json
             filings = get_cik_filings(cik, rate_limiter, fetch_metrics, metrics_lock)
-            
+
             cik_records = []
+            found_years = set()
             if filings is not None:
-                for fyear in years_to_fetch:
-                    year_filings = filter_by_fyear(filings, fyear)
-                    for filing in year_filings:
-                        cik_records.append({"cik": cik, "year": fyear, **filing})
-            
-            # Add placeholder for checked years
+                for filing in filings:
+                    rdate = filing.get("report_date", "")
+                    if rdate:
+                        try:
+                            fyear = int(rdate.split("-")[0])
+                            found_years.add(fyear)
+                            if (cik, fyear) not in already_done_set:
+                                cik_records.append({"cik": cik, "year": fyear, **filing})
+                        except (ValueError, IndexError):
+                            pass
+
+            # Add placeholder for checked years that were NOT found
             for year in years:
-                if (cik, year) not in already_done_set:
+                if year not in found_years and (cik, year) not in already_done_set:
                     cik_records.append({"cik": cik, "year": year, "url": ""})
 
             if cik_records:
                 result_queue.put(cik_records)
-                
+
         except Exception as e:
             print(f"Error processing CIK {cik}: {e}")
         finally:
