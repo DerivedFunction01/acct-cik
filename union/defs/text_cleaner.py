@@ -219,7 +219,7 @@ class MinimalTextCleaner:
 
         return text
 
-if __name__ == "__main__":
+def run_test():
     cleaner = MinimalTextCleaner()
     
     # Sample Item 1 text (inspired by JNJ)
