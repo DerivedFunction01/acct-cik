@@ -24,6 +24,9 @@ class CORE(Enum):
     ORGANIZED = r"organized?"
     FEDERATION = r"(?:con)?federations?"
     GUILD = r"guilds?"
+    STRIKE = r"strikes?"
+    DISPUTE = r"disputes?"
+    STOPPAGE = r"stoppages?"
 
 WORKER_TERMS = [
     r"workers?",
@@ -85,8 +88,6 @@ class LABOR_TERMS:
         build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS),
         # organized labor
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
-        # Efforts to organize
-        r"efforts?\s+to\s+organize",
         # Federation + worker terms (e.g. Federation of Workers)
         build_compound([CORE.FEDERATION], WORKER_TERMS, sep_prefix=GAP),
         # Worker terms + Federation (e.g. Workers Federation)
@@ -97,4 +98,16 @@ class LABOR_TERMS:
         build_compound(WORKER_TERMS, [CORE.GUILD], sep_prefix=GAP),
     ]
 
+class RISK_TERMS:
+    PHRASES = [
+        r"labor\s+risks?",
+        build_compound([CORE.LABOR, CORE.UNION], [CORE.DISPUTE, r"campaigns?"]),
+        build_compound([r"work", CORE.LABOR], [CORE.STOPPAGE, CORE.STRIKE, r"unrest"]),
+        r"slowdowns?",
+        r"walkouts?",
+        r"union\s+organizing",
+        r"efforts?\s+to\s+organize",
+    ]
+
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
+RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
