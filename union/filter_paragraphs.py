@@ -17,6 +17,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
+from defs.text_cleaner import MinimalTextCleaner
 
 # =============================================================================
 # CONFIGURATION
@@ -90,41 +91,62 @@ def compile_filtering_regex():
 
 # Global regex for workers
 FILTER_REGEX = None
+CLEANER = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX
+    global FILTER_REGEX, CLEANER
     FILTER_REGEX = compile_filtering_regex()
+    CLEANER = MinimalTextCleaner()
 
-def filter_content(content_list):
+def filter_content(content_list, company_name=None, year=None):
     """
     Filters a list of text blocks (paragraphs/tables).
-    Returns a list of blocks that match the regex.
+    Cleans the text first, then checks for matches.
+    Returns a list of CLEANED blocks that match the regex.
     """
     if not content_list:
         return []
         
     assert FILTER_REGEX is not None
+    assert CLEANER is not None
+
     filtered = []
     for block in content_list:
         if not block:
             continue
-        # Check for match
-        # Note: Tables are passed as string blocks (converted in webpage.py).
-        # If the regex matches anywhere in the table text, we keep the whole table.
-        if FILTER_REGEX.search(block):
-            filtered.append(block)
+            
+        # Clean the text to remove false positives (e.g. "Credit Union")
+        # and normalize company names
+        cleaned_block = CLEANER.clean(
+            block, 
+            company_name=company_name, 
+            reporting_year=year
+        )
+        
+        if FILTER_REGEX.search(cleaned_block):
+            filtered.append(cleaned_block)
             
     return filtered
 
 def process_batch(rows):
     """
     Process a batch of rows.
-    Row format: (accession, item1_json, item1a_json, period_of_report)
+    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year)
     """
     results = []
     for row in rows:
-        accession, item1_json, item1a_json, period = row
+        accession, item1_json, item1a_json, period, company_name, report_year = row
+        
+        # Determine year for cleaner
+        year = None
+        if report_year:
+            year = int(report_year)
+        elif period:
+             # Try to extract year from period string
+            m = re.search(r'\d{4}', str(period))
+            if m:
+                year = int(m.group(0))
         
         try:
             item1_list = json.loads(item1_json) if item1_json else []
@@ -132,8 +154,8 @@ def process_batch(rows):
         except json.JSONDecodeError:
             continue
             
-        filtered_item1 = filter_content(item1_list)
-        filtered_item1a = filter_content(item1a_list)
+        filtered_item1 = filter_content(item1_list, company_name, year)
+        filtered_item1a = filter_content(item1a_list, company_name, year)
         
         # Only keep row if we have relevant content in either section
         if filtered_item1 or filtered_item1a:
@@ -227,7 +249,16 @@ def main():
 
     logging.info(f"Total rows to process: {total_rows}")
     
-    src_cursor.execute("SELECT accession, item1, item1a, period_of_report FROM webpage_result")
+    # Update query to join with report_data and names
+    # We use GROUP BY accession to handle potential duplicates in metadata tables
+    query = """
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year
+        FROM webpage_result w
+        LEFT JOIN report_data r ON w.accession = r.accession
+        LEFT JOIN names n ON r.cik = n.cik
+        GROUP BY w.accession
+    """
+    src_cursor.execute(query)
     
     with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
         batch_futures = {} # {future: batch_size}
