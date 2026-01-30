@@ -1,5 +1,7 @@
 import re
-from typing import Optional
+from typing import Optional, List, Tuple, Dict
+from dataclasses import dataclass
+from enum import Enum
 from defs.regex_lib import build_alternation, YEAR_REGEX
 
 COMPANY_TOKEN = "the Company"
@@ -232,32 +234,381 @@ class MinimalTextCleaner:
         
         return text
 
-def run_test():
-    cleaner = MinimalTextCleaner()
+
+# ============================================================================
+# AUTOMATED TEST FRAMEWORK
+# ============================================================================
+
+class TestType(Enum):
+    """Types of validation tests."""
+    CONTAINS = "contains"              # Result must contain string
+    NOT_CONTAINS = "not_contains"      # Result must not contain string
+    EXACT = "exact"                    # Result must be exact match
+    REGEX = "regex"                    # Result must match regex
+    LENGTH_LESS = "length_less"        # Result length < expected
+    LENGTH_GREATER = "length_greater"  # Result length > expected
+    COUNT = "count"                    # Count of pattern occurrences
+    PROPERTY = "property"              # Custom property validation
+
+
+@dataclass
+class TestCase:
+    """Represents a single test case."""
+    name: str
+    input_text: str
+    company_name: Optional[str] = None
+    reporting_year: Optional[int] = None
+    validations: Optional[List[Tuple[TestType, str, any]]] = None # type: ignore
     
-    # Sample Item 1 text (inspired by JNJ)
-    sample_text = """
-    Johnson & Johnson and its subsidiaries (the Company) have approximately 138,100 employees worldwide engaged 
-    in the research and development, manufacture and sale of a broad range of products in the healthcare field. 
-    Johnson & Johnson is a holding company, with operating companies conducting business in virtually all countries of the world.
-    The Company’s primary focus is products related to human health and well-being. 
-    Johnson & Johnson was incorporated in the State of New Jersey in 1887.
-    We have 5 million dollars in assets and 2 thousand employees in the European Union.
-    Approximately three-fourths of our staff are unionized, and fifty five percent are full time.
-    As of December 31, 2023, we had 2000 employees.
-    We invested a million dollars in 1996.
-    """
+    def __post_init__(self):
+        if self.validations is None:
+            self.validations = []
+
+
+class TestValidator:
+    """Validates cleaned text against expected transformations."""
     
-    company_name = "Johnson & Johnson Corporation"
-    reporting_year = 2023
+    def __init__(self):
+        self.cleaner = MinimalTextCleaner()
+        self.results = []
+        self.passed = 0
+        self.failed = 0
     
-    print("-" * 50)
-    print(f"Original Text:\n{sample_text.strip()}")
-    print("-" * 50)
-    print(f"Company Name: {company_name}")
-    print("-" * 50)
+    def add_validation(self, test_case: TestCase, test_type: TestType, 
+                      pattern: str, expected_value: Optional[any] = None) -> TestCase: # type: ignore
+        """Fluent API to add validation to a test case."""
+        if test_case.validations is None:
+            test_case.validations = []
+        test_case.validations.append((test_type, pattern, expected_value))
+        return test_case
     
-    cleaned_text = cleaner.clean(sample_text, company_name, reporting_year)
+    def run_test(self, test_case: TestCase) -> Dict:
+        """Run a single test case and return results."""
+        result = {
+            "name": test_case.name,
+            "input": test_case.input_text,
+            "company_name": test_case.company_name,
+            "output": None,
+            "passed": True,
+            "validations": []
+        }
+        
+        # Clean the text
+        output = self.cleaner.clean(
+            test_case.input_text,
+            test_case.company_name,
+            test_case.reporting_year
+        )
+        result["output"] = output
+        
+        assert test_case.validations is not None
+        # Run all validations
+        for test_type, pattern, expected_value in test_case.validations:
+            validation_result = self._validate(output, test_type, pattern, expected_value)
+            result["validations"].append(validation_result)
+            
+            if not validation_result["passed"]:
+                result["passed"] = False
+        
+        return result
     
-    print(f"Cleaned Text:\n{cleaned_text}")
-    print("-" * 50)
+    def _validate(self, text: str, test_type: TestType, pattern: str, 
+                  expected_value: any) -> Dict: # type: ignore
+        """Execute a single validation."""
+        validation = {
+            "type": test_type.value,
+            "pattern": pattern,
+            "passed": False,
+            "message": ""
+        }
+        
+        try:
+            if test_type == TestType.CONTAINS:
+                passed = pattern in text
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Contains '{pattern}'"
+            
+            elif test_type == TestType.NOT_CONTAINS:
+                passed = pattern not in text
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Does not contain '{pattern}'"
+            
+            elif test_type == TestType.EXACT:
+                passed = text == pattern
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Exact match"
+                if not passed:
+                    validation["message"] += f"\nExpected: {pattern}\nGot: {text}"
+            
+            elif test_type == TestType.REGEX:
+                passed = bool(re.search(pattern, text))
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Matches regex '{pattern}'"
+            
+            elif test_type == TestType.LENGTH_LESS:
+                passed = len(text) < expected_value
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Length {len(text)} < {expected_value}"
+            
+            elif test_type == TestType.LENGTH_GREATER:
+                passed = len(text) > expected_value
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Length {len(text)} > {expected_value}"
+            
+            elif test_type == TestType.COUNT:
+                count = len(re.findall(pattern, text, re.IGNORECASE))
+                passed = count == expected_value
+                validation["passed"] = passed
+                validation["message"] = f"{'✓' if passed else '✗'} Pattern count: {count} (expected {expected_value})"
+            
+        except Exception as e:
+            validation["passed"] = False
+            validation["message"] = f"✗ Error: {str(e)}"
+        
+        return validation
+    
+    def run_all_tests(self, test_cases: List[TestCase]) -> bool:
+        """Run all test cases and print results."""
+        self.results = []
+        self.passed = 0
+        self.failed = 0
+        
+        print("\n" + "="*80)
+        print("AUTOMATED TEXT CLEANER TEST SUITE")
+        print("="*80 + "\n")
+        
+        for test_case in test_cases:
+            result = self.run_test(test_case)
+            self.results.append(result)
+            
+            # Count pass/fail
+            if result["passed"]:
+                self.passed += 1
+                status = "✓ PASSED"
+            else:
+                self.failed += 1
+                status = "✗ FAILED"
+            
+            # Print test header
+            print(f"{status} | {result['name']}")
+            print("-" * 80)
+            
+            # Print input/output
+            print(f"Input: {result['input'][:100]}..." if len(result['input']) > 100 else f"Input: {result['input']}")
+            print(f"Output: {result['output'][:100]}..." if len(result['output']) > 100 else f"Output: {result['output']}")
+            
+            # Print validation details
+            if result['validations']:
+                print("\nValidations:")
+                for v in result['validations']:
+                    print(f"  {v['message']}")
+            
+            print()
+        
+        # Summary
+        print("="*80)
+        print(f"SUMMARY: {self.passed} passed, {self.failed} failed out of {len(test_cases)} tests")
+        print("="*80 + "\n")
+        
+        return self.failed == 0
+
+
+# ============================================================================
+# TEST CASES
+# ============================================================================
+
+def create_test_cases() -> List[TestCase]:
+    """Create comprehensive test cases."""
+    return [
+        # Test 1: Company Name Replacement
+        TestCase(
+            name="Company Name Replacement",
+            input_text="Johnson & Johnson Corporation is a leading company. Johnson & Johnson was founded long ago.",
+            company_name="Johnson & Johnson Corporation",
+            validations=[
+                (TestType.CONTAINS, "the Company", None),
+                (TestType.COUNT, r"the Company", 2),
+                (TestType.NOT_CONTAINS, "Johnson & Johnson Corporation", None),
+            ]
+        ),
+        
+        # Test 2: Date Removal (Month Day format)
+        TestCase(
+            name="Date Removal - Month Day Format",
+            input_text="As of December 31, 2023, we had significant growth.",
+            validations=[
+                (TestType.NOT_CONTAINS, "December 31", None),
+                (TestType.CONTAINS, "we had significant growth", None),
+            ]
+        ),
+        
+        # Test 3: Date Removal (Day Month format)
+        TestCase(
+            name="Date Removal - Day Month Format",
+            input_text="On the 15th of July, we announced new products.",
+            validations=[
+                (TestType.NOT_CONTAINS, "15th of July", None),
+                (TestType.CONTAINS, "we announced new products", None),
+            ]
+        ),
+        
+        # Test 4: Year Wrapping
+        TestCase(
+            name="Year Wrapping",
+            input_text="In 2023 and 1999, we made significant investments.",
+            validations=[
+                (TestType.CONTAINS, "<2023>", None),
+                (TestType.CONTAINS, "<1999>", None),
+            ]
+        ),
+        
+        # Test 5: Word Numbers to Digits
+        TestCase(
+            name="Word Numbers to Digits",
+            input_text="We have five million dollars and two thousand employees.",
+            validations=[
+                (TestType.CONTAINS, "5000000", None),
+                (TestType.CONTAINS, "2000", None),
+                (TestType.NOT_CONTAINS, "five million", None),
+                (TestType.NOT_CONTAINS, "two thousand", None),
+            ]
+        ),
+        
+        # Test 6: Fraction to Percentage
+        TestCase(
+            name="Fraction to Percentage",
+            input_text="Approximately three-fourths of our staff are satisfied.",
+            validations=[
+                (TestType.CONTAINS, "75%", None),
+                (TestType.NOT_CONTAINS, "three-fourths", None),
+            ]
+        ),
+        
+        # Test 7: Scale Numbers (numbers with scale words)
+        TestCase(
+            name="Scale Numbers",
+            input_text="We invested 2 million dollars and earned 500 thousand dollars.",
+            validations=[
+                (TestType.CONTAINS, "2000000", None),
+                (TestType.CONTAINS, "500000", None),
+            ]
+        ),
+        
+        # Test 8: Comma Removal in Numbers
+        TestCase(
+            name="Comma Removal",
+            input_text="The company has 138,100 employees worldwide.",
+            validations=[
+                (TestType.CONTAINS, "138100", None),
+                (TestType.NOT_CONTAINS, "138,100", None),
+            ]
+        ),
+        
+        # Test 9: Suffix Removal
+        TestCase(
+            name="Suffix Removal",
+            input_text="Our subsidiaries include ABC Inc., XYZ Corp., and 123 Ltd.",
+            validations=[
+                (TestType.NOT_CONTAINS, "Inc.", None),
+                (TestType.NOT_CONTAINS, "Corp.", None),
+                (TestType.NOT_CONTAINS, "Ltd.", None),
+            ]
+        ),
+        
+        # Test 10: False Positive Prevention (Credit Union)
+        TestCase(
+            name="False Positive - Credit Union",
+            input_text="We have partnerships with credit unions and banks.",
+            validations=[
+                (TestType.CONTAINS, "bank", None),
+                (TestType.NOT_CONTAINS, "union", None),
+            ]
+        ),
+        
+        # Test 11: False Positive Prevention (European Union)
+        TestCase(
+            name="False Positive - European Union",
+            input_text="The European Union has strict regulations.",
+            validations=[
+                (TestType.CONTAINS, "Europe", None),
+                (TestType.NOT_CONTAINS, "European Union", None),
+            ]
+        ),
+        
+        # Test 12: Percent Normalization
+        TestCase(
+            name="Percent Normalization",
+            input_text="Sales increased by 25 % and costs rose 10 per cent.",
+            validations=[
+                (TestType.NOT_CONTAINS, "25 %", None),
+                (TestType.CONTAINS, "25%", None),
+                (TestType.NOT_CONTAINS, "per cent", None),
+                (TestType.CONTAINS, "10%", None),
+            ]
+        ),
+        
+        # Test 13: Whitespace Normalization
+        TestCase(
+            name="Whitespace Normalization",
+            input_text="The   company   has   multiple    spaces   between    words.",
+            validations=[
+                (TestType.NOT_CONTAINS, "   ", None),
+                (TestType.CONTAINS, "The company has multiple spaces between words", None),
+            ]
+        ),
+        
+        # Test 14: Month-only Removal
+        TestCase(
+            name="Month Only Removal",
+            input_text="In January we launched products, and in February we expanded.",
+            validations=[
+                (TestType.NOT_CONTAINS, "January", None),
+                (TestType.NOT_CONTAINS, "February", None),
+                (TestType.CONTAINS, "we launched products", None),
+            ]
+        ),
+        
+        # Test 15: Complex Text (Integration)
+        TestCase(
+            name="Complex Integration Test",
+            input_text="Apple Inc. reported 138,100 employees on December 31, 2023. Approximately one half of staff work in the European Union earning five million dollars per year at 25 percent bonus.",
+            company_name="Apple Inc.",
+            validations=[
+                (TestType.CONTAINS, "the Company", None),
+                (TestType.CONTAINS, "138100", None),
+                (TestType.CONTAINS, "<2023>", None),
+                (TestType.NOT_CONTAINS, "December 31", None),
+                (TestType.CONTAINS, "50%", None),
+                (TestType.CONTAINS, "Europe", None),
+                (TestType.CONTAINS, "5000000", None),
+                (TestType.CONTAINS, "25%", None),
+            ]
+        ),
+        
+        # Test 16: Edge case - Empty string
+        TestCase(
+            name="Edge Case - Empty String",
+            input_text="",
+            validations=[
+                (TestType.EXACT, "", None),
+            ]
+        ),
+        
+        # Test 17: Edge case - No changes needed
+        TestCase(
+            name="Edge Case - No Changes",
+            input_text="The business operates in multiple countries.",
+            validations=[
+                (TestType.CONTAINS, "The business operates", None),
+            ]
+        ),
+    ]
+
+
+def run_tests():
+    """Run the test suite."""
+    test_cases = create_test_cases()
+    validator = TestValidator()
+    all_passed = validator.run_all_tests(test_cases)
+    
+    return 0 if all_passed else 1
