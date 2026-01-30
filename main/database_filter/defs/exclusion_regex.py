@@ -5,7 +5,7 @@ import re
 from typing import List, Tuple
 
 from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, to_build_alternation
-from defs.derivatives_core import ALL_SUFFIXES, VERB_LOOKBEHIND
+from defs.derivatives_core import ALL_SUFFIXES, BASE, VERB_LOOKBEHIND
 from defs.shared_context import TRADING_ENTITIES
 
 def build_entity_exclusion_regex() -> Tuple[re.Pattern, str]:
@@ -180,6 +180,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "stock purchase",  #
         "equity method",  # Matches "Equity method contract"
         "stock",
+        "dividend",
         # --- Common Non-Derivative Contracts ---
         "loan",
         "mortgage",
@@ -218,7 +219,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "software",
         "hardware",
         "equipment",
-        "real estate",
+        "real-estate",
         "land",
         "building",
         "property",
@@ -246,7 +247,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         "confidentiality",
         "sales?",
     ]
-    suffixes = ALL_SUFFIXES.copy()
+    suffixes = ALL_SUFFIXES.copy() + [BASE.OPTION]
     
     other_terms = [
         r"hedge\s+(?:funds?|banks?|providers?)",
@@ -256,6 +257,7 @@ def build_non_derivative_instrument_regex() -> re.Pattern:
         r"(?:look(?:ing|ed)?|br(?:ought|ing)|straight|fast|go(?:ing)?|step(?:ping|ped)?|carr(?:ing|y|ied)|puts?)\s+forward",
         r"(?:debt|equity)[- ](?:to|for)[- ](?:equity|debt)",
         r"(?:stock|share|debt|loan|bond|note)s?\s+swaps?",
+        r"economic\s+hedges?",
     ]
 
     suffix_alternation = to_build_alternation(suffixes)
