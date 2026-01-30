@@ -17,48 +17,46 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 
 
 class CORE(Enum):
-    UNION = r"union(?:ized|i(?:z|s)ation|s)?"
-    COLLECTIVE = r"collectives?"
-    BARGAIN = r"bargain(?:ing|s)?"
-    LABOR = r"labo(?:u)?rs?"
-    ORGANIZED = r"organized?"
-    FEDERATION = r"(?:con)?federations?"
-    GUILD = r"guilds?"
-    AMALGAMATED = r"amalgamated"
-    BROTHERHOOD = r"brotherhoods?"
-    STRIKE = r"strikes?"
-    DISPUTE = r"disputes?"
-    STOPPAGE = r"stoppages?"
-    DISAGREEMENT = r"disagreements?"
-    ASSOCIATION = r"associations?"
-    ALLIANCE = r"alliances?"
-    SOCIETY = r"societ(?:y|ies)"
+    UNION = r"Union(?:ized|i(?:z|s)ation|s)?"
+    COLLECTIVE = r"Collectives?"
+    BARGAIN = r"Bargain(?:ing|s)?"
+    LABOR = r"Labo(?:u)?rs?"
+    ORGANIZED = r"Organized?"
+    FEDERATION = r"(?:Con)?[Ff]ederations?"
+    GUILD = r"Guilds?"
+    AMALGAMATED = r"Amalgamated"
+    BROTHERHOOD = r"Brotherhoods?"
+    STRIKE = r"Strikes?"
+    DISPUTE = r"Disputes?"
+    STOPPAGE = r"Stoppages?"
+    DISAGREEMENT = r"Disagreements?"
+    ASSOCIATION = r"Associations?"
+    ALLIANCE = r"Alliances?"
+    SOCIETY = r"Societ(?:y|ies)"
 
 WORKER_TERMS = [
-    r"workers?",
-    r"employees?",
-    r"laborers?",
-    r"staff",
-    r"personnel",
-    r"workforce",
-    r"associates",
-    r"miners?",
-    r"auto\s*workers?",
-    r"steel\s*workers?",
-    r"teachers?",
-    r"nurses?",
-    r"pilots?",
-    r"flight\s+attendants?",
-    r"drivers?",
-    r"machinists?",
-    r"electricians?",
-    r"carpenters?",
-    r"plumbers?",
-    r"dock\s*workers?",
-    r"longshore(?:m[ae]n)",
-    r"teamsters?",
-    r"actors?",
-    r"writers?",
+    r"Workers?",
+    r"Employees?",
+    r"Laborers?",
+    r"Staff",
+    r"Personnel",
+    r"Workforce",
+    r"Associates",
+    r"Miners?",
+    r"(?:Dock|Steel|Auto|Metal)\s*[Ww]orkers?",
+    r"Teachers?",
+    r"Nurses?",
+    r"Pilots?",
+    r"Flight\s+Attendants?",
+    r"Drivers?",
+    r"Machinists?",
+    r"Electricians?",
+    r"Carpenters?",
+    r"Plumbers?",
+    r"Longshore(?:m[ae]n)",
+    r"Teamsters?",
+    r"Actors?",
+    r"Writers?",
 ]
 
 SUFFIX_AGREEMENTS = [
@@ -100,7 +98,7 @@ _CORE_DYNAMIC_PATTERN = build_alternation([
 ])
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
-DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN])
+DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
 class LABOR_TERMS:
     SPECIFIC_PHRASES = [
