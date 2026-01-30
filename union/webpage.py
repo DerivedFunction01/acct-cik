@@ -52,7 +52,6 @@ SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
 NUM_PARSERS = 1
-NUM_THREADS = 5
 
 DRIVE_SAVE_INTERVAL_SECONDS = 30 * 60  # 30 minutes
 DRIVE_SAVE_INTERVAL_RESULTS = 4000
@@ -1174,7 +1173,7 @@ def fetch_all_grouped(saveIteration: int = 100):
     # 3. Start Fetch Workers
     progress_counter = {"val": 0, "lock": threading.Lock()}
     workers = []
-    for _ in range(NUM_THREADS):
+    for _ in range(NUM_FETCHERS):
         t = threading.Thread(
             target=cik_fetch_worker,
             args=(cik_queue, result_queue, rate_limiter, stop_event, fetch_metrics, metrics_lock, already_done, progress_counter),
