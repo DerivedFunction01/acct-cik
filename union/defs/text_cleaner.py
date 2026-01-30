@@ -175,8 +175,9 @@ class MinimalTextCleaner:
         )
 
         # Handle "a hundred", "a thousand" etc.
+        # Also handle "a quarter of", "a third of", "a fifth of"
         self.a_multiplier_pattern = re.compile(
-            r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion))", re.IGNORECASE
+            r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
         )
         self.percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
         self.percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
@@ -990,6 +991,17 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "year-to-date", None),
                 (TestType.CONTAINS, "quarter-over-quarter", None),
                 (TestType.CONTAINS, "quarter-end", None),
+            ],
+        ),
+        # Test 22: "A" Fraction with "of"
+        TestCase(
+            name="'A' Fraction with 'of'",
+            input_text="We have a quarter of the market, a third of the votes, and a fifth of the revenue. I found a quarter on the ground.",
+            validations=[
+                (TestType.CONTAINS, "25%", None),
+                (TestType.CONTAINS, "33.33", None),
+                (TestType.CONTAINS, "20%", None),
+                (TestType.CONTAINS, "a quarter on the ground", None),
             ],
         ),
     ]
