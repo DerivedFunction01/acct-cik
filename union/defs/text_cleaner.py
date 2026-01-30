@@ -681,7 +681,7 @@ class TestValidator:
            
             
             # Print input/output
-            if self.failed:
+            if not result["passed"]:
                 # Print test header
                 print(f"{status} | {result['name']}")
                 print("-" * 80)
