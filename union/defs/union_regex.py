@@ -76,7 +76,8 @@ REPRESENTATION_TERMS = [
     r"covered\s+by",
 ]
 
-GAP = r"(?:\W+(?:\w+\W+){0,3}?)"
+GAP = r"(?:[\s']+(?:(?:of|the|for|and|&|in|[A-Z][\w-]*)+[\s']+){0,3}?)"
+
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
 TITLE_PREFIX = r"(?:[A-Z][\w-]*\s+)*"
@@ -134,3 +135,32 @@ class RISK_TERMS:
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
+
+def run_test():
+    print(f"Testing DYNAMIC_UNION_REGEX pattern...")
+    
+    examples = [
+        # Should Match
+        "International Brotherhood of Teamsters",
+        "Screen Actors Guild",
+        "American Federation of Teachers",
+        "United Steelworkers Union",
+        "Air Line Pilots Association",
+        
+        # Boundary / Punctuation Checks
+        "The workers. Union officials said no.",  # Sentence boundary
+        "The workers, Union officials said no.",  # Comma boundary
+        "The workers and Union officials.",       # 'and' boundary
+        
+        # Tricky / Negative cases (should be good via cleaner)
+        "State of the Union",
+        "Credit Union",
+        # Should NOT Match (Lowercase verb in gap)
+        "Union said Workers",
+    ]
+    
+    for ex in examples:
+        matches = DYNAMIC_UNION_REGEX.findall(ex)
+        print(f"Input:  {ex}")
+        print(f"Match:  {matches}")
+        print("-" * 20)
