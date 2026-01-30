@@ -379,12 +379,12 @@ class MinimalTextCleaner:
         has_fraction = any(w in self.fractions for w in words)
 
         # If it's ONLY a fraction word (standalone), preserve it
-        # Examples: "half", "quarter", "third" (when standing alone)
+        # Examples: "half", "third" (when standing alone)
         if has_fraction and not has_number and not has_qualifier:
-            # Allow "half" and "quarter" to convert, but keep others (ordinals)
+            # Allow some to convert, but keep others (ordinals)
             is_safe = True
             for w in words:
-                if w not in ["half", "halves"]:
+                if w not in ["half"]:
                     is_safe = False
                     break
             if not is_safe:
@@ -439,7 +439,7 @@ class MinimalTextCleaner:
                     fraction_value += current_chunk * self.fractions[word]
                     current_chunk = 0
                     is_fraction = True
-                elif has_qualifier and word in ["half"]:
+                elif  word in ["half"]: # has_qualifier
                     # Allow qualifiers like "approx half", "roughly third"
                     fraction_value += self.fractions[word]
                     is_fraction = True
