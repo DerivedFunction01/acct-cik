@@ -35,6 +35,13 @@ def process_batch(batch):
     results = []
 
     for url, cik, year, categories_json in batch:
+        try:
+            if cik is not None:
+                cik = int(float(cik))
+            if year is not None:
+                year = int(float(year))
+        except (ValueError, TypeError):
+            pass
         if not categories_json:
             continue
 
