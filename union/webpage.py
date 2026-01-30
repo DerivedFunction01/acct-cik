@@ -316,7 +316,7 @@ def save_batch_report_urls(df):
             return False
 
 
-def fetch_report_data(valid=True):
+def fetch_report_data(valid: Optional[bool] = True):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
@@ -339,9 +339,15 @@ def fetch_report_data(valid=True):
                     u = row['url']
                     info = extract_accession_info(u)
                     acc = info['accession'] if info else None
-                    # Only add if we have an accession and haven't seen it yet
+                    
+                    # Case 1: Valid URL with Accession
                     if acc and acc not in unique_records:
                         unique_records[acc] = (row['cik'], row['year'], u, acc, u)
+                    # Case 2: Placeholder (Empty URL) - Key by "placeholder_CIK_YEAR"
+                    elif pd.isna(u) or u == "":
+                        key = f"placeholder_{row['cik']}_{row['year']}"
+                        if key not in unique_records:
+                            unique_records[key] = (row['cik'], row['year'], "", None, "")
                 
                 c.executemany(
                     "INSERT INTO report_data (cik, year, url, accession, original_url) VALUES (?, ?, ?, ?, ?)", 
@@ -353,10 +359,11 @@ def fetch_report_data(valid=True):
             print(f"❌ Error importing CSV: {e}")
             
     query = "SELECT * FROM report_data"
-    if valid:
+    if valid is True:
         query += " WHERE url IS NOT NULL AND url != ''"
-    else:
+    elif valid is False:
         query += " WHERE url IS NULL OR url = ''"
+    # If valid is None, fetch ALL rows (both valid and placeholders)
         
     try:
         pre_data = pd.read_sql_query(query, conn)
@@ -1111,7 +1118,8 @@ def fetch_all_grouped(saveIteration: int = 100):
     global existing_report_df, all_derivatives_df, SEC_RATE_LIMIT, SEC_RATE
 
     if existing_report_df is None or existing_report_df.empty:
-        existing_report_df = pd.DataFrame(columns=["cik", "year"])
+        # Load ALL data (valid=None) to ensure we don't retry failed/empty years
+        existing_report_df = fetch_report_data(valid=None)
 
     already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
     cik_groups = all_derivatives_df.groupby("cik")["year"].apply(list).reset_index()
@@ -1131,7 +1139,7 @@ def fetch_all_grouped(saveIteration: int = 100):
     print(f"Found {total_tasks} CIKs to process.")
     
     if total_tasks == 0:
-        return fetch_report_data()
+        return fetch_report_data(valid=None)
 
     # Setup Queues
     cik_queue = queue.Queue() # Thread-safe queue
@@ -1217,7 +1225,7 @@ def fetch_all_grouped(saveIteration: int = 100):
         saver.join(timeout=5)
         rate_adjuster.join()
 
-    return fetch_report_data()
+    return fetch_report_data(valid=None)
 
 
 class ThreadSafeRateLimiter:
