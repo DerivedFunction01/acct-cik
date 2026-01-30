@@ -38,6 +38,26 @@ class MinimalTextCleaner:
             (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         ]
 
+        # Date and Year Patterns
+        self.months_pattern_str = r"(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?"
+        
+        self.date_md_pattern = re.compile(
+            rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", 
+            re.IGNORECASE
+        )
+        
+        self.date_dm_pattern = re.compile(
+            rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{self.months_pattern_str})\b", 
+            re.IGNORECASE
+        )
+        
+        self.month_only_pattern = re.compile(
+            rf"\b(?:{self.months_pattern_str})\b", 
+            re.IGNORECASE
+        )
+
+        self.year_pattern = re.compile(r"\b(19\d{2}|20\d{2})\b")
+
         # Word to number mappings
         self.num_words = {
             'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
@@ -156,7 +176,7 @@ class MinimalTextCleaner:
             return text
         return str(total_value)
 
-    def clean(self, text: str, company_name: Optional[str] = None) -> str:
+    def clean(self, text: str, company_name: Optional[str] = None, reporting_year: Optional[int] = None) -> str:
         if not text:
             return ""
         
@@ -178,6 +198,12 @@ class MinimalTextCleaner:
 
         # 4. General Suffix Removal
         text = self.text_suffix_pattern.sub("", text)
+
+        # 4b. Date and Year Removal
+        text = self.date_md_pattern.sub(" ", text)
+        text = self.date_dm_pattern.sub(" ", text)
+        text = self.month_only_pattern.sub(" ", text)
+        text = self.year_pattern.sub(" <YEAR> ", text)
 
         # 5. Numbers
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
@@ -201,9 +227,11 @@ if __name__ == "__main__":
     Johnson & Johnson was incorporated in the State of New Jersey in 1887.
     We have 5 million dollars in assets and 2 thousand employees in the European Union.
     Approximately three fourths of our staff are unionized, and fifty five percent are full time.
+    As of December 31, 2023, we had 2000 employees.
     """
     
     company_name = "Johnson & Johnson Corporation"
+    reporting_year = 2023
     
     print("-" * 50)
     print(f"Original Text:\n{sample_text.strip()}")
@@ -211,7 +239,7 @@ if __name__ == "__main__":
     print(f"Company Name: {company_name}")
     print("-" * 50)
     
-    cleaned_text = cleaner.clean(sample_text, company_name)
+    cleaned_text = cleaner.clean(sample_text, company_name, reporting_year)
     
     print(f"Cleaned Text:\n{cleaned_text}")
     print("-" * 50)
