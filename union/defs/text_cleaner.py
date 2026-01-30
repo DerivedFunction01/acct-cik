@@ -2,7 +2,7 @@ import re
 from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
-from defs.regex_lib import build_alternation, YEAR_REGEX
+from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
 
 COMPANY_TOKEN = "the Company"
 
@@ -223,8 +223,8 @@ class MinimalTextCleaner:
         # We want to protect them when they are used as time periods or ordinals.
         ordinals_and_time = [
             "fiscal", "first", "second", "third", "fourth", "fifth", "sixth",
-            "next", "last", "previous", "current", "past", "this", "following",
-            "reporting", "subsequent",
+            "next", "last", "previous", "current", "past", r"th(?:is|ese)", "following",
+            r"report(?:ing|ed)?", "subsequent", "the",
             r"\d+(?:st|nd|rd|th)"
         ]
         ordinals_pattern = build_alternation(ordinals_and_time)
@@ -236,12 +236,24 @@ class MinimalTextCleaner:
         ]
         fraction_terms_pattern = build_alternation(fraction_terms)
         
-        self.false_fraction_pattern = re.compile(
-            rf"\b(?:{ordinals_pattern})\s+(?:of\s+(?:the\s+)?)?{fraction_terms_pattern}\b|"
-            rf"\b{fraction_terms_pattern}\s+(?:ended|ending)\b|"
-            rf"\bin\s+(?:the\s+)?(?:first|second|1st|2nd)\s+half\b|"
-            rf"\b{fraction_terms_pattern}\s+(?:full\s+)?years?\b",
-            re.IGNORECASE
+        # Terms that indicate a time period following a fraction
+        period_terms = [
+            r"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?(?:years?|periods?|report?)",
+            r"centur(?:y|ies)"
+        ]
+        period_pattern = build_alternation(period_terms)
+        
+        # Flexible gap (e.g. "quarter of the fiscal year")
+        # Allow up to 3 words between fraction and period
+        gap_pattern = r"(?:\s+\w+){0,3}"
+
+        self.false_fraction_pattern = build_regex(
+            [
+                rf"(?:{ordinals_pattern})\s+(?:of\s+(?:the\s+)?)?{fraction_terms_pattern}",
+                rf"{fraction_terms_pattern}\s+(?:ended|ending)",
+                r"in\s+(?:the\s+)?(?:first|second|1st|2nd)\s+hal(?:f|ves)",
+                rf"{fraction_terms_pattern}{gap_pattern}\s+{period_pattern}",
+            ]
         )
 
     def normalize_company_name(self, name: str) -> str:
@@ -906,6 +918,17 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "25%", None),
                 (TestType.CONTAINS, "Third year", None),
                 (TestType.NOT_CONTAINS, "33.33%", None),
+            ],
+        ),
+        # Test 20: Extended False Fractions
+        TestCase(
+            name="Extended False Fractions",
+            input_text="Results for the quarter of the reporting period were solid. Also for the half of the fiscal year.",
+            validations=[
+                (TestType.CONTAINS, "quarter of the reporting period", None),
+                (TestType.NOT_CONTAINS, "25%", None),
+                (TestType.CONTAINS, "half of the fiscal year", None),
+                (TestType.NOT_CONTAINS, "50%", None),
             ],
         ),
     ]
