@@ -924,11 +924,6 @@ def fetch_url(
         return None
 
 
-# =============================================================================
-# KEYWORD FILTERING (OPTIMIZED VERSION)
-# =============================================================================
-
-
 def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[str]:
     """
     Extracts the fiscal year end date from the document header.
@@ -1015,10 +1010,6 @@ def filter_for_item1(content: str) -> Tuple[str, str]:
                 item1a = text_block
                 
     return item1, item1a
-
-# =============================================================================
-# PARALLEL PROCESSING FUNCTIONS (OPTIMIZED FOR PARALLEL CORES)
-# =============================================================================
 
 
 def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
