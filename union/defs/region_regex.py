@@ -22,7 +22,7 @@ class Nation:
         return self.name == other.name
 
 NORTH_AMERICA = {
-    Nation("United States", ["us", "u.s.", "usa", "united states", "america"], Region.NORTH_AMERICA),
+    Nation("United States", ["us", "u.s.", "usa", "united states", "american"], Region.NORTH_AMERICA),
     Nation("Canada", ["canada", "canadian"], Region.NORTH_AMERICA),
 }
 
