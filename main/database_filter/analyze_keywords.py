@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 from collections import Counter, defaultdict
 from pathlib import Path
 import os
+import re
+from defs.derivatives_core import ALL_BASE_TYPES, ALL_SUFFIXES
+from defs.regex_lib import to_build_alternation
 
 # =============================================================================
 # CONFIGURATION
@@ -15,6 +18,31 @@ DB_PATH = "classified_data.db"
 OUTPUT_DIR = "analysis_output/plots"
 TOP_K_PLOT = 20
 TOP_K_PRINT = 10
+
+BASE_PATTERN_STR = to_build_alternation(ALL_BASE_TYPES)
+VALID_BASE_REGEX = re.compile(rf"\b(?:{BASE_PATTERN_STR})$", re.IGNORECASE)
+
+# Suffixes to strip from instrument names for aggregation.
+SUFFIX_PATTERN_STR = to_build_alternation(ALL_SUFFIXES)
+SUFFIX_REGEX = re.compile(rf"\s+(?:{SUFFIX_PATTERN_STR})$", re.IGNORECASE)
+
+def normalize_instrument_name(name: str) -> str:
+    """Normalizes an instrument name for aggregation."""
+    norm = name.lower().strip()
+
+    # 1. Strip common derivative suffixes
+    stripped = SUFFIX_REGEX.sub("", norm)
+
+    if stripped != norm:
+        # Make sure that there is still at least two words afterwards, and there is still a valid base
+        if len(stripped.split()) >= 2 and VALID_BASE_REGEX.search(stripped):
+            norm = stripped
+
+    # 2. Handle basic pluralization (e.g., swaps -> swap)
+    if norm.endswith('s') and not norm.endswith('ss'):
+        norm = norm[:-1]
+
+    return norm
 
 def load_attributes(db_path):
     """Load the attributes JSON strings from the database."""
@@ -61,8 +89,8 @@ def aggregate_counts(attributes_list):
         # These are unique keywords found per document.
         if 'instruments' in attr:
             for cat, keywords in attr['instruments'].items():
-                # keywords is a list of strings found in this document
-                instrument_counts[cat].update(keywords)
+                normalized_keywords = [normalize_instrument_name(kw) for kw in keywords]
+                instrument_counts[cat].update(normalized_keywords)
                 
         # 2. Aggregate Metadata (from prefilter_database.py logic)
         # Structure: attr['metadata'] = {'currencies': {'USD': 5}, ...}
