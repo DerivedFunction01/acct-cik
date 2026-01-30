@@ -164,6 +164,15 @@ ITEM_2_START_PATTERN = re.compile(
     r"^\s*(?:ITEM\s+)?2[.\s]", re.MULTILINE | re.IGNORECASE
 )
 
+ANNUAL_REPORT_PATTERN = re.compile(
+    r"ANNUAL\s+REPORT\s+PURSUANT\s+TO\s+SECTION\s+13\s+OR\s+15\s*\(d\)", 
+    re.IGNORECASE | re.MULTILINE
+)
+FISCAL_YEAR_PATTERN = re.compile(
+    r"For\s+the\s+fiscal\s+year\s+ended\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})", 
+    re.IGNORECASE | re.MULTILINE
+)
+
 # %%
 # =============================================================================
 # LOAD DATA
@@ -223,7 +232,8 @@ def create_db():
             CREATE TABLE IF NOT EXISTS webpage_result (
                 accession TEXT PRIMARY KEY,
                 item1 TEXT,
-                item1a TEXT
+                item1a TEXT,
+                period_of_report TEXT
             )
         """
         )
@@ -252,6 +262,11 @@ def create_db():
             )
         """)
         # WAL
+        try:
+            c.execute("ALTER TABLE webpage_result ADD COLUMN period_of_report TEXT")
+        except sqlite3.OperationalError:
+            pass
+            
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError:
         print("Something went wrong creating the database")
@@ -367,8 +382,8 @@ def save_process_result(df):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)",
-        (df.accession, json.dumps(df.item1), json.dumps(df.item1a)),
+        "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)",
+        (df.accession, json.dumps(df.item1), json.dumps(df.item1a), df.get("period_of_report")),
     )
     conn.commit()
     conn.close()
@@ -381,9 +396,9 @@ def save_process_result_batch(batch_df):
     c = conn.cursor()
     # Use executemany logic via pandas to_sql or raw SQL
     try:
-        data = list(zip(batch_df.accession, batch_df.item1.apply(json.dumps), batch_df.item1a.apply(json.dumps)))
+        data = list(zip(batch_df.accession, batch_df.item1.apply(json.dumps), batch_df.item1a.apply(json.dumps), batch_df.period_of_report))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
@@ -883,6 +898,51 @@ def fetch_url(
 # =============================================================================
 # KEYWORD FILTERING (OPTIMIZED VERSION)
 # =============================================================================
+
+
+def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[str]:
+    """
+    Extracts the fiscal year end date from the document header.
+    Validates that the document is an Annual Report (10-K).
+    Checks that the year is within reasonable range of filing year (from accession).
+    """
+    # Limit search to first N chars to avoid false positives later in text
+    CHAR_LIMIT = 7500
+    header_text = text[:CHAR_LIMIT] 
+    
+    # Check for 10-K header first
+    ar_match = ANNUAL_REPORT_PATTERN.search(header_text)
+    if not ar_match:
+        return None
+        
+    fy_match = FISCAL_YEAR_PATTERN.search(header_text)
+    if fy_match:
+        # Safety Check 1: Distance
+        # Ensure the fiscal year date is not too far from the "Annual Report" header
+        if abs(fy_match.start() - ar_match.end()) > 5000:
+            return None
+
+        date_str = fy_match.group(1)
+        # Try to extract just the year (last 4 digits)
+        year_match = re.search(r"\d{4}", date_str)
+        if year_match:
+            extracted_year = int(year_match.group(0))
+            
+            # Safety Check 2: Year vs Accession
+            if accession and len(accession) == 18 and accession.isdigit():
+                try:
+                    filing_yy = int(accession[10:12])
+                    # Estimate filing year (EDGAR started ~1993)
+                    filing_year = (1900 + filing_yy) if filing_yy >= 90 else (2000 + filing_yy)
+                    
+                    # Allow extracted year to be within [filing_year - 2, filing_year + 1]
+                    if not (filing_year - 2 <= extracted_year <= filing_year + 1):
+                        return None
+                except ValueError:
+                    pass
+            return str(extracted_year)
+        
+    return None
 
 
 def filter_for_item1(content: str) -> Tuple[str, str]:
@@ -1386,11 +1446,16 @@ def parse_content(data):
         # 2. Filter each document for keywords and aggregate results
         item1_matches = []
         item1a_matches = []
+        detected_year = None
 
         for doc_idx, content in enumerate(parsed_documents):
             if not content or len(content.strip()) < 200:
                 debug_print(f"  Skipping document {doc_idx + 1}: too short")
                 continue
+
+            # Try to detect year if not already found
+            if not detected_year:
+                detected_year = extract_fiscal_year(content, accession)
 
             try:
                 # Filter this document for keywords (CPU-intensive)
@@ -1422,6 +1487,7 @@ def parse_content(data):
                 "accession": accession,
                 "item1": item1_matches,
                 "item1a": item1a_matches,
+                "period_of_report": detected_year,
             }
         )
         if item1_matches and item1a_matches:
@@ -1891,9 +1957,9 @@ def save_batch(conn, buffer):
     try:
         df_batch = pd.DataFrame(buffer)
         c = conn.cursor()
-        data = list(zip(df_batch.accession, df_batch.item1.apply(json.dumps), df_batch.item1a.apply(json.dumps)))
+        data = list(zip(df_batch.accession, df_batch.item1.apply(json.dumps), df_batch.item1a.apply(json.dumps), df_batch.period_of_report))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a) VALUES (?, ?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
