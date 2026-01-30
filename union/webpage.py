@@ -532,13 +532,20 @@ def _is_bold_style(tag) -> bool:
     )
 
 
+def _is_underline_style(tag) -> bool:
+    """Check if cell has underline style."""
+    style = tag.get("style", "").lower().replace(" ", "")
+    return "text-decoration:underline" in style
+
+
 def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
     """
     Detect number of header rows using hierarchical detection logic:
     1. Explicit <th> tags
     2. Border-based detection (top or bottom)
     3. Bold style detection
-    4. Fallback: treat first row as header
+    4. Underline detection (<u> tags or style)
+    5. Fallback: treat first row as header
 
     Also validates that the first data row has content in the first column.
     """
@@ -603,7 +610,26 @@ def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
             if first_cell and first_cell.get_text(strip=True):
                 return header_count
 
-    # Rule 4: Fallback - treat first row as header if we have data rows
+    # Rule 4: Underline detection
+    header_count = 0
+    # Scan first 5 rows to find the last row with underlines (handles multi-row headers)
+    for i in range(min(len(filtered_trs), 5)):
+        tr = filtered_trs[i]
+        has_underline = tr.find("u") or any(
+            _is_underline_style(cell) for cell in tr.find_all(["td", "th"])
+        )
+        if has_underline:
+            header_count = i + 1
+
+    if header_count > 0:
+        # Verify first data row has content in first column
+        if header_count < len(filtered_trs):
+            first_data_tr = filtered_trs[header_count]
+            first_cell = first_data_tr.find(["td", "th"])
+            if first_cell and first_cell.get_text(strip=True):
+                return header_count
+
+    # Rule 5: Fallback - treat first row as header if we have data rows
     if rows and filtered_trs:
         first_cell = filtered_trs[0].find(["td", "th"])
         if first_cell and first_cell.get_text(strip=True):
