@@ -222,30 +222,75 @@ class MinimalTextCleaner:
         # Terms that are fractions but often used in dates/periods: quarter, half, third, fourth...
         # We want to protect them when they are used as time periods or ordinals.
         ordinals_and_time = [
-            "fiscal", "first", "second", "third", "fourth", "fifth", "sixth",
-            "next", "last", "previous", "current", "past", r"th(?:is|ese)", "following",
-            r"report(?:ing|ed)?", "subsequent", "the",
-            r"\d+(?:st|nd|rd|th)"
+            "fiscal",
+            "first",
+            "second",
+            "third",
+            "fourth",
+            "fifth",
+            "sixth",
+            "next",
+            "last",
+            "previous",
+            "current",
+            "past",
+            r"th(?:is|ese)",
+            "following",
+            r"report(?:ing|ed)?",
+            "subsequent",
+            "the",
+            "remaining",
+            r"\d+(?:st|nd|rd|th)",
+            "interim",
+            "annual",
+            "daily",
+            "monthly",
+            "weekly",
+            "prior",
+            "ealier",
+            "upcoming",
+            "ensuing",
+            "preceding",
+            "ending",
+            "ended",
+            "comparative",
+            "consecutive",
+            "cumulative",
+            "rolling",
+            "trailing",
         ]
         ordinals_pattern = build_alternation(ordinals_and_time)
-        
-        fraction_terms = [
-            "half", "halves", "quarter", "quarters", 
-            "third", "thirds", "fourth", "fourths",
-            "fifth", "fifths", "sixth", "sixths"
-        ]
+
+        fraction_terms = list(self.num_words.keys() | self.fractions.keys())
         fraction_terms_pattern = build_alternation(fraction_terms)
-        
+
         # Terms that indicate a time period following a fraction
+        time = build_alternation([
+            r"years?",
+            r"quarters?",
+            r"months?",
+            r"weeks?",
+            r"days?",
+            r"hours?",
+            r"minutes?",
+            r"seconds?",
+            r"periods?",
+            r"half",
+        ])
         period_terms = [
-            r"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?(?:years?|periods?|report?)",
+            rf"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?{time}",
             r"centur(?:y|ies)"
         ]
         period_pattern = build_alternation(period_terms)
-        
+
         # Flexible gap (e.g. "quarter of the fiscal year")
         # Allow up to 3 words between fraction and period
         gap_pattern = r"(?:\s+\w+){0,3}"
+
+        # Financial period patterns (YTD, YoY, etc.)
+        x_to_date = rf"{time}(?:\s*[-–]\s*|\s+to\s+)date"
+        x_end = rf"{time}(?:\s*[-–]\s*|\s+)end"
+        x_over_x = rf"{time}(?:\s*[-–]\s*|\s+over\s+){time}"
 
         self.false_fraction_pattern = build_regex(
             [
@@ -253,6 +298,9 @@ class MinimalTextCleaner:
                 rf"{fraction_terms_pattern}\s+(?:ended|ending)",
                 r"in\s+(?:the\s+)?(?:first|second|1st|2nd)\s+hal(?:f|ves)",
                 rf"{fraction_terms_pattern}{gap_pattern}\s+{period_pattern}",
+                x_to_date,
+                x_end,
+                x_over_x,
             ]
         )
 
@@ -929,6 +977,18 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "25%", None),
                 (TestType.CONTAINS, "half of the fiscal year", None),
                 (TestType.NOT_CONTAINS, "50%", None),
+            ],
+        ),
+        # Test 21: Financial Periods (YTD, YoY)
+        TestCase(
+            name="Financial Periods",
+            input_text="quarter-to-date, year-to-date, quarter-over-quarter, quarter-end.",
+            validations=[
+                (TestType.CONTAINS, "quarter-to-date", None),
+                (TestType.NOT_CONTAINS, "25%", None),
+                (TestType.CONTAINS, "year-to-date", None),
+                (TestType.CONTAINS, "quarter-over-quarter", None),
+                (TestType.CONTAINS, "quarter-end", None),
             ],
         ),
     ]
