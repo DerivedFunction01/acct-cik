@@ -267,6 +267,7 @@ def create_db():
         except sqlite3.OperationalError:
             pass
             
+        conn.commit()
         c.execute("PRAGMA journal_mode=WAL")
     except sqlite3.IntegrityError:
         print("Something went wrong creating the database")
