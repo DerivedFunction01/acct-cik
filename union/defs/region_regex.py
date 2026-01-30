@@ -135,6 +135,11 @@ NORTH_AMERICA = {
             "BCTGM", "Bakery, Confectionery, Tobacco Workers and Grain Millers",
             "AFSCME", "American Federation of State, County and Municipal Employees",
             "LIUNA", "Laborers' International Union of North America",
+            "BLET", "Brotherhood of Locomotive Engineers and Trainmen",
+            "SMART-TD", "Sheet Metal, Air, Rail and Transportation Workers",
+            "BMWED", "Brotherhood of Maintenance of Way Employes",
+            "TWU", "Transport Workers Union",
+            "ATU", "Amalgamated Transit Union",
         ],
     ),
     Nation(
@@ -179,6 +184,8 @@ EUROPE = {
         "UNISON",
         "GMB",
         "RMT", "National Union of Rail, Maritime and Transport Workers",
+        "ASLEF", "Associated Society of Locomotive Engineers and Firemen",
+        "TSSA", "Transport Salaried Staffs' Association",
     ]),
     Nation("Norway", ["norway", "norwegian"], Region.EUROPE),
     Nation("Sweden", ["sweden", "swedish"], Region.EUROPE, [
@@ -233,7 +240,7 @@ EUROPE = {
         "CISL",
         "UIL",
     ], [
-        "Sindacato", "Lavoro", "Sciopero", "Automobilistico", "Contratto Collettivo", "Contrattazione", "Trasporti", "Metalmeccanici", "Chimico", "Edile",
+        "Sindacato", "Lavoro", "Sciopero", "Automobilistico", "Contratto Collettivo", "Contrattazione", "Trasporti", "Metalmeccanici", "Chimico", "Edile", "Ferrovie",
     ]),
     Nation("Spain", ["spain", "spanish"], Region.EUROPE, [
         Location("Madrid", ["madrid"]),
@@ -247,7 +254,7 @@ EUROPE = {
         Location("Amsterdam", ["amsterdam"]),
         Location("Rotterdam", ["rotterdam"]),
     ], [], [
-        "Vakbond", "Ondernemingsraad", "CAO", "Metaal", "Bouw", "Vervoer",
+        "Vakbond", "Ondernemingsraad", "CAO", "Metaal", "Bouw", "Vervoer", "Spoorwegen",
     ]),
     Nation("Switzerland", ["switzerland", "swiss"], Region.EUROPE, [
         Location("Zurich", ["zurich"]),
@@ -440,18 +447,18 @@ INTERNATIONAL = {
         "Sindicato", "Trabajo", "Huelga", "Gremios",
         "Minería", "Automóvil", "Automotriz",
         "Contrato Colectivo", "Convenio Colectivo", "Negociación colectiva",
-        "Aéreo", "Metalúrgica", "Química", "Construcción", "Transporte",
+        "Aéreo", "Metalúrgica", "Química", "Construcción", "Transporte", "Ferrocarril", "Ferroviarios",
     ]),
     Nation("International Portuguese", [], Region.INTERNATIONAL, [], [], [
         "Sindicato", "Trabalho", "Greve",
         "Mineração", "Automotivo",
         "Convenção Coletiva", "Negociação coletiva",
         "Aéreo", "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Transporte",
-        "Bancários", "Petroleiros",
+        "Bancários", "Petroleiros", "Ferroviários",
     ]),
     Nation("International French", [], Region.INTERNATIONAL, [], [], [
         "Syndicat", "Travail", "Salariés", "Grève",
         "Négociation collective", "Convention collective",
-        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Minier",
+        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Minier", "Ferroviaire",
     ]),
 }
