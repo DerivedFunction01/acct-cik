@@ -200,6 +200,9 @@ class MinimalTextCleaner:
         self.a_multiplier_pattern = re.compile(
             r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
         )
+        # Handle "none of" -> "0% of"
+        self.none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
+
         self.percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
         self.percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
 
@@ -534,6 +537,7 @@ class MinimalTextCleaner:
         )
 
         text = self.a_multiplier_pattern.sub("one ", text)
+        text = self.none_of_pattern.sub("0% of", text)
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
@@ -1056,6 +1060,15 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "<2024>", None),
                 (TestType.CONTAINS, "U.S.", None),
                 (TestType.CONTAINS, "i.e.", None),
+            ],
+        ),
+        # Test 25: None of -> 0% of
+        TestCase(
+            name="None of -> 0% of",
+            input_text="None of our employees are unionized. Second to none.",
+            validations=[
+                (TestType.CONTAINS, "0% of our employees", None),
+                (TestType.CONTAINS, "Second to none", None),
             ],
         ),
     ]
