@@ -563,6 +563,22 @@ def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
     if not filtered_trs:
         return 0
 
+    def validate_header_count(count: int, allow_all_headers: bool = False) -> Optional[int]:
+        """Validates that the detected header count leaves a valid data row."""
+        if count <= 0:
+            return None
+        
+        # If header covers all rows
+        if count >= len(filtered_trs):
+            return count if allow_all_headers else None
+
+        # Verify first data row has content in first column
+        first_data_tr = filtered_trs[count]
+        first_cell = first_data_tr.find(["td", "th"])
+        if first_cell and first_cell.get_text(strip=True):
+            return count
+        return None
+
     # Rule 1: Check for explicit <th> tags in the opening rows
     header_count = 0
     for tr in filtered_trs:
@@ -571,44 +587,41 @@ def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
         else:
             break
 
-    if header_count > 0:
-        # Verify first data row has content in first column
-        if header_count < len(filtered_trs):
-            first_data_tr = filtered_trs[header_count]
-            first_cell = first_data_tr.find(["td", "th"])
-            if first_cell and first_cell.get_text(strip=True):
-                return header_count
-        else:
-            return header_count
+    # Rule 1 allows all rows to be headers
+    result = validate_header_count(header_count, allow_all_headers=True)
+    if result is not None:
+        return result
 
     # Rule 2: Border-based detection (border-top or border-bottom)
     border_header_count = _detect_by_border(filtered_trs, rows)
-    if border_header_count > 0:
-        # Verify first data row has content in first column
-        if border_header_count < len(filtered_trs):
-            first_data_tr = filtered_trs[border_header_count]
-            first_cell = first_data_tr.find(["td", "th"])
-            if first_cell and first_cell.get_text(strip=True):
-                return border_header_count
+    result = validate_header_count(border_header_count)
+    if result is not None:
+        return result
 
     # Rule 3: Bold style detection
     header_count = 0
     for tr in filtered_trs:
-        has_bold = tr.find(["b", "strong"]) or any(
-            _is_bold_style(cell) for cell in tr.find_all(["td", "th"])
-        )
-        if has_bold:
+        # Check bold density to avoid false positives from bold columns in data
+        cells = tr.find_all(["td", "th"])
+        non_empty_cells = 0
+        bold_cells = 0
+        
+        for cell in cells:
+            if cell.get_text(strip=True):
+                non_empty_cells += 1
+                if cell.find(["b", "strong"]) or _is_bold_style(cell):
+                    bold_cells += 1
+        
+        # Require > 50% of content cells to be bold (e.g., 2/3 cells)
+        # This filters out data rows where only one column (current year) is bold
+        if non_empty_cells > 0 and (bold_cells / non_empty_cells) > 0.5:
             header_count += 1
         else:
             break
 
-    if header_count > 0:
-        # Verify first data row has content in first column
-        if header_count < len(filtered_trs):
-            first_data_tr = filtered_trs[header_count]
-            first_cell = first_data_tr.find(["td", "th"])
-            if first_cell and first_cell.get_text(strip=True):
-                return header_count
+    result = validate_header_count(header_count)
+    if result is not None:
+        return result
 
     # Rule 4: Underline detection
     header_count = 0
@@ -621,13 +634,9 @@ def _detect_header_rows(rows: List[List[str]], table_soup) -> int:
         if has_underline:
             header_count = i + 1
 
-    if header_count > 0:
-        # Verify first data row has content in first column
-        if header_count < len(filtered_trs):
-            first_data_tr = filtered_trs[header_count]
-            first_cell = first_data_tr.find(["td", "th"])
-            if first_cell and first_cell.get_text(strip=True):
-                return header_count
+    result = validate_header_count(header_count)
+    if result is not None:
+        return result
 
     # Rule 5: Fallback - treat first row as header if we have data rows
     if rows and filtered_trs:
