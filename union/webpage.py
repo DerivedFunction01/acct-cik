@@ -2265,8 +2265,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     print(f"STEP 2: Perform keyword extraction in parallel")
     print("=" * 70)
-    # Uncomment to run:
-    # process_all_reports_fully()
     process_producer_consumer_adaptive()
     
     # Sync extracted years back to report_data
