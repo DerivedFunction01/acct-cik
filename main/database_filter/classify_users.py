@@ -1329,6 +1329,25 @@ def process_row(row: Tuple) -> Tuple:
                     if 'gen' in sent_scores_act: del sent_scores_act['gen']
                 
                 strict_cats_act = derive_strict_categories(sent_scores_act, clean_sent)
+                
+                if not strict_cats_act:
+                    # 1. Try resolving via trackers
+                    resolved_act = local_tracker.resolve_instrument(clean_sent, sent_scores_act)
+                    if not resolved_act:
+                        resolved_act = tracker.resolve_instrument(clean_sent, sent_scores_act)
+                    
+                    if resolved_act:
+                        strict_cats_act.add(resolved_act)
+                    else:
+                        # 2. Inheritance Logic: If only one category exists globally or locally, assume it
+                        specific_strict = {c for c in strict_categories if c not in ("gen", "other")}
+                        if len(specific_strict) == 1:
+                            strict_cats_act.add(list(specific_strict)[0])
+                        elif len(specific_strict) == 0:
+                            specific_accum = {c for c in accumulated_cats if c not in ("gen", "other")}
+                            if len(specific_accum) == 1:
+                                strict_cats_act.add(list(specific_accum)[0])
+
                 if strict_cats_act:
                     activity_categories.update(strict_cats_act)
 
