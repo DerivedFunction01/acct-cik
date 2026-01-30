@@ -210,13 +210,12 @@ class MinimalTextCleaner:
         )
         self.fraction_qualifiers = {
             "approx",
+            "approx.",
             "approximately",
             "roughly",
             "nearly",
             "about",
             "around",
-            "some",
-            "upwards",
         }
 
         # False Fraction Protection
