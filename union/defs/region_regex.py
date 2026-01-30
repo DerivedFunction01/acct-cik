@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-
+from defs.regex_lib import add_restrictions
 class Region(Enum):
     NORTH_AMERICA = "North America"
     LATIN_AMERICA = "Latin America"
@@ -34,7 +34,7 @@ class Nation:
 NORTH_AMERICA = {
     Nation(
         "United States",
-        ["us", "u.s.", "usa", "united states", "american", "america"],
+        ["us", "u.s.", "usa", "united states", add_restrictions(r"american?", lookbehinds=[r"central", r"latin", r"south"])],
         Region.NORTH_AMERICA,
         [
             Location(
