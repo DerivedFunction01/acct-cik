@@ -58,6 +58,12 @@ DRIVE_SAVE_INTERVAL_SECONDS = 30 * 60  # 30 minutes
 DRIVE_SAVE_INTERVAL_RESULTS = 4000
 
 # =============================================================================
+# QUEUE FILLING CONFIGURATION
+# =============================================================================
+QUEUE_BATCH_SIZE = 10  # URLs to add per fill
+QUEUE_FILL_INTERVAL_SECONDS = 11  # Seconds between fills
+
+# =============================================================================
 # COLAB CONFIGURATION
 # =============================================================================
 DRIVE_PATH = "./drive/MyDrive/db"
@@ -1409,6 +1415,58 @@ def format_time(seconds):
 
 
 # =============================================================================
+# QUEUE FILLER WORKER
+# =============================================================================
+
+def url_queue_filler_worker(
+    url_queue,
+    unprocessed_urls_list,
+    queue_filler_stop_event,
+    batch_size: int,
+    fill_interval_seconds: int,
+):
+    """
+    BACKGROUND THREAD: Periodically refills url_queue with new URLs.
+    
+    Fills queue in batches every `fill_interval_seconds` seconds.
+    Stops when all URLs have been added.
+    
+    Args:
+        url_queue: Manager.Queue() to refill
+        unprocessed_urls_list: List of (url, accession) tuples
+        queue_filler_stop_event: threading.Event() to signal stop
+        batch_size: How many URLs per batch (default 10)
+        fill_interval_seconds: Seconds between refills (default 10)
+    """
+    index = 0
+    last_fill_time = time.time()
+    
+    while not queue_filler_stop_event.is_set():
+        now = time.time()
+        
+        # Time to refill?
+        if now - last_fill_time >= fill_interval_seconds:
+            batch_end = min(index + batch_size, len(unprocessed_urls_list))
+            
+            if index < batch_end:
+                for i in range(index, batch_end):
+                    url_queue.put(unprocessed_urls_list[i])
+                
+                batch_added = batch_end - index
+                print(f"✅ Queue refilled: +{batch_added} URLs "
+                      f"({batch_end}/{len(unprocessed_urls_list)} queued)")
+                
+                index = batch_end
+                last_fill_time = now
+            
+            # Done?
+            if index >= len(unprocessed_urls_list):
+                print("✅ All URLs queued. Queue filler stopping.")
+                break
+        
+        time.sleep(1)
+
+# =============================================================================
 # INITIALIZATION
 # =============================================================================
 # %%
@@ -1454,21 +1512,28 @@ def process_producer_consumer_adaptive():
     )
     print("=" * 60)
 
-    print("Populating Queue with Net Requirements...")
-    initial_count = 0
-
+    # Build list (not queue) of unprocessed URLs
+    unprocessed_urls = []
     for r in existing_report_df.itertuples(index=False):
-        # Check if accession is in processed set
         if r.url and r.accession and r.accession not in processed_set:
-            # Queue tuple: (url, accession)
-            url_queue.put((r.url, r.accession))
-            initial_count += 1
+            unprocessed_urls.append((r.url, r.accession))
 
-    print(f"Queue populated with {initial_count} reports.")
-
-    if initial_count == 0:
+    total_to_process = len(unprocessed_urls)
+    initial_count = total_to_process
+    
+    if total_to_process == 0:
         print("Nothing to process.")
         return
+
+    print(f"Total unprocessed URLs: {total_to_process}")
+    print(f"Initializing time-based queue refilling (batch_size={QUEUE_BATCH_SIZE}, interval={QUEUE_FILL_INTERVAL_SECONDS}s)...")
+    
+    # Pre-populate initial batch (10 URLs)
+    for i in range(min(QUEUE_BATCH_SIZE, len(unprocessed_urls))):
+        url_queue.put(unprocessed_urls[i])
+    
+    initial_batch_count = min(QUEUE_BATCH_SIZE, len(unprocessed_urls))
+    print(f"Initial batch queued: {initial_batch_count} URLs")
 
     # 6. Start Workers
     db_thread = threading.Thread(
@@ -1519,6 +1584,21 @@ def process_producer_consumer_adaptive():
     )
     rate_adjuster.start()
 
+    # 8b. Start QUEUE FILLER thread (periodically refills url_queue)
+    queue_filler_stop_event = threading.Event()
+    queue_filler = threading.Thread(
+        target=url_queue_filler_worker,
+        args=(
+            url_queue,
+            unprocessed_urls,  # List from step 5
+            queue_filler_stop_event,
+            QUEUE_BATCH_SIZE,
+            QUEUE_FILL_INTERVAL_SECONDS
+        ),
+        daemon=False,
+    )
+    queue_filler.start()
+
     # 9. Monitoring Loop
     last_save_time = time.time()
 
@@ -1540,8 +1620,8 @@ def process_producer_consumer_adaptive():
                 inv_size = raw_queue.qsize() if hasattr(raw_queue, "qsize") else "N/A"
 
                 pbar.set_postfix(
-                    remaining=q_rem,
-                    inventory=f"{inv_size}/{CHUNK_SIZE}",
+                    queue=q_rem,  # URL queue (should stay ~10)
+                    inventory=f"{inv_size}/{CHUNK_SIZE}",  # Raw buffer
                     sleep=f"{rate_limiter.value*1000:.1f}ms",
                 )
 
@@ -1589,6 +1669,12 @@ def process_producer_consumer_adaptive():
             # SHUTDOWN SEQUENCE
             pbar.write("Initiating shutdown...")
             stop_event.set()
+            queue_filler_stop_event.set()  # Stop queue refiller
+            
+            # Wait for queue filler first
+            queue_filler.join(timeout=5)
+            if queue_filler.is_alive():
+                pbar.write("⚠️  Queue filler thread did not terminate gracefully")
 
             # Wait for rate adjuster
             rate_adjuster.join(timeout=5)
