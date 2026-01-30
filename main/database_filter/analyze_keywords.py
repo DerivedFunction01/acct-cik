@@ -39,7 +39,7 @@ def normalize_instrument_name(name: str) -> str:
             norm = stripped
 
     # 2. Handle basic pluralization (e.g., swaps -> swap)
-    if norm.endswith('s') and not norm.endswith('ss'):
+    if norm.endswith('s') and not norm.endswith('ss') and not norm.endswith("futures"):
         norm = norm[:-1]
 
     return norm
@@ -68,13 +68,39 @@ def aggregate_counts(attributes_list):
     instrument_counts = defaultdict(Counter)
     # Counters for metadata (e.g., currencies, commodities)
     meta_counts = defaultdict(Counter)
-    
+
     # Keys expected in the 'metadata' dictionary from prefilter_database.py
     meta_keys = [
-        "currencies", "commodities", "venues", "clearing", 
-        "valuation_models", "der_std_hits"
+        "currencies",
+        "commodities",
+        "venues",
+        "clearing",
+        "valuation_models",
+        "der_std_hits",
+        "gen_hits",
+        "ir_hits",
+        "fx_hits",
+        "cp_hits",
+        "cr_hits",
+        "eq_hits",
+        "crypto_hits",
+        "trading_hits",
+        "misc_hits",
     ]
-    
+
+    # Map hit count keys to their target instrument category
+    hit_keys_to_merge = {
+        "gen_hits": "gen",
+        "ir_hits": "ir",
+        "fx_hits": "fx",
+        "cp_hits": "cp",
+        "cr_hits": "cr",
+        "eq_hits": "eq",
+        "crypto_hits": "crypto",
+        "trading_hits": "trading",
+        "misc_hits": "misc",
+    }
+
     print("🔄 Aggregating data...")
     for attr_json in attributes_list:
         try:
@@ -83,7 +109,7 @@ def aggregate_counts(attributes_list):
             attr = json.loads(attr_json)
         except json.JSONDecodeError:
             continue
-            
+
         # 1. Aggregate Instruments (from classify_users.py logic)
         # Structure: attr['instruments'] = {'ir': ['swap', ...], ...}
         # These are unique keywords found per document.
@@ -91,7 +117,7 @@ def aggregate_counts(attributes_list):
             for cat, keywords in attr['instruments'].items():
                 normalized_keywords = [normalize_instrument_name(kw) for kw in keywords]
                 instrument_counts[cat].update(normalized_keywords)
-                
+
         # 2. Aggregate Metadata (from prefilter_database.py logic)
         # Structure: attr['metadata'] = {'currencies': {'USD': 5}, ...}
         # These are counts of occurrences within the document.
@@ -102,7 +128,17 @@ def aggregate_counts(attributes_list):
                     # meta[key] is {term: count}
                     for term, count in meta[key].items():
                         meta_counts[key][term] += count
-                        
+
+    # 3. Merge the hit counts into the main instrument counts
+    print("📊 Merging instrument hit counts...")
+    for hit_key, target_cat in hit_keys_to_merge.items():
+        if hit_key in meta_counts:
+            # Normalize keys from the hits counter before merging
+            normalized_hit_counts = Counter({normalize_instrument_name(term): count for term, count in meta_counts[hit_key].items()})
+            instrument_counts[target_cat].update(normalized_hit_counts)
+            # Remove the hits from meta_counts to avoid double plotting
+            del meta_counts[hit_key]
+
     return instrument_counts, meta_counts
 
 def plot_and_print_top_k(counter, title, filename_suffix):
