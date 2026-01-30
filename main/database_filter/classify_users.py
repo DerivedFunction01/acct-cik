@@ -436,7 +436,7 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
     for cat in cats_to_scan:
         if cat not in CATEGORY_MAP:
             continue
-        strict_inst, soft_inst, _, _, weak_inst, _ = CATEGORY_MAP[cat]
+        strict_inst, soft_inst, _, _, _, _ = CATEGORY_MAP[cat]
         # Try strict instrument first (higher confidence)
         if strict_inst:
             for match in strict_inst.finditer(sentence):
@@ -447,10 +447,11 @@ def extract_instrument_keywords(sentence: str, target_categories: Optional[Set[s
             for match in soft_inst.finditer(sentence):
                 instruments[cat].add(match.group(0).strip())
 
-        # Then weak instrument (if no strict/soft found)
-        if weak_inst and cat not in instruments:
-            for match in weak_inst.finditer(sentence):
+        # Then gen instrument (if no strict/soft found)
+        if cat not in instruments:
+            for match in GEN_REGEX.finditer(sentence):
                 instruments[cat].add(match.group(0).strip())
+        
 
     # Clean up empty categories
     return {cat: kw for cat, kw in instruments.items() if kw}
