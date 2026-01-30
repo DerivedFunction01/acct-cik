@@ -24,10 +24,15 @@ class CORE(Enum):
     ORGANIZED = r"organized?"
     FEDERATION = r"(?:con)?federations?"
     GUILD = r"guilds?"
+    AMALGAMATED = r"amalgamated"
+    BROTHERHOOD = r"brotherhoods?"
     STRIKE = r"strikes?"
     DISPUTE = r"disputes?"
     STOPPAGE = r"stoppages?"
     DISAGREEMENT = r"disagreements?"
+    ASSOCIATION = r"associations?"
+    ALLIANCE = r"alliances?"
+    SOCIETY = r"societ(?:y|ies)"
 
 WORKER_TERMS = [
     r"workers?",
@@ -73,6 +78,17 @@ REPRESENTATION_TERMS = [
 
 GAP = r"(?:\W+(?:\w+\W+){0,3}?)"
 
+UNION_TERMS = [
+    CORE.UNION,
+    CORE.FEDERATION,
+    CORE.GUILD,
+    CORE.AMALGAMATED,
+    CORE.BROTHERHOOD,
+    CORE.ASSOCIATION,
+    CORE.ALLIANCE,
+    CORE.SOCIETY,
+]
+
 class LABOR_TERMS:
     SPECIFIC_PHRASES = [
         # collective + bargain
@@ -89,14 +105,9 @@ class LABOR_TERMS:
         build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS),
         # organized labor
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
-        # Federation + worker terms (e.g. Federation of Workers)
-        build_compound([CORE.FEDERATION], WORKER_TERMS, sep_prefix=GAP),
-        # Worker terms + Federation (e.g. Workers Federation)
-        build_compound(WORKER_TERMS, [CORE.FEDERATION], sep_prefix=GAP),
-        # Guild + worker terms (e.g. Guild of Actors)
-        build_compound([CORE.GUILD], WORKER_TERMS, sep_prefix=GAP),
-        # Worker terms + Guild (e.g. Actors Guild)
-        build_compound(WORKER_TERMS, [CORE.GUILD], sep_prefix=GAP),
+        # Dynamic Union + Worker terms (e.g. Federation of Workers, Workers Union)
+        build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
+        build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
     ]
 
 class RISK_TERMS:
