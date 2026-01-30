@@ -254,13 +254,16 @@ def create_db():
         
         # Cleanup: Remove duplicates from report_data based on accession
         # Keeps the row with the minimum rowid (oldest)
-        c.execute("""
-            DELETE FROM report_data 
-            WHERE accession IS NOT NULL 
-            AND rowid NOT IN (
-                SELECT MIN(rowid) FROM report_data WHERE accession IS NOT NULL GROUP BY accession
-            )
-        """)
+        try: 
+            c.execute("""
+                DELETE FROM report_data 
+                WHERE accession IS NOT NULL 
+                AND rowid NOT IN (
+                    SELECT MIN(rowid) FROM report_data WHERE accession IS NOT NULL GROUP BY accession
+                )
+            """)
+        except sqlite3.OperationalError:
+            pass
         # WAL
         try:
             c.execute("ALTER TABLE webpage_result ADD COLUMN period_of_report TEXT")
