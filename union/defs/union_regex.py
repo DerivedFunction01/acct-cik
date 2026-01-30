@@ -22,6 +22,8 @@ class CORE(Enum):
     BARGAIN = r"bargain(?:ing|s)?"
     LABOR = r"labo(?:u)?rs?"
     ORGANIZED = r"organized?"
+    FEDERATION = r"(?:con)?federations?"
+    GUILD = r"guilds?"
 
 WORKER_TERMS = [
     r"workers?",
@@ -31,6 +33,23 @@ WORKER_TERMS = [
     r"personnel",
     r"workforce",
     r"associates",
+    r"miners?",
+    r"auto\s*workers?",
+    r"steel\s*workers?",
+    r"teachers?",
+    r"nurses?",
+    r"pilots?",
+    r"flight\s+attendants?",
+    r"drivers?",
+    r"machinists?",
+    r"electricians?",
+    r"carpenters?",
+    r"plumbers?",
+    r"dock\s*workers?",
+    r"longshore(?:m[ae]n)",
+    r"teamsters?",
+    r"actors?",
+    r"writers?",
 ]
 
 SUFFIX_AGREEMENTS = [
@@ -68,6 +87,14 @@ class LABOR_TERMS:
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
         # Efforts to organize
         r"efforts?\s+to\s+organize",
+        # Federation + worker terms (e.g. Federation of Workers)
+        build_compound([CORE.FEDERATION], WORKER_TERMS, sep_prefix=GAP),
+        # Worker terms + Federation (e.g. Workers Federation)
+        build_compound(WORKER_TERMS, [CORE.FEDERATION], sep_prefix=GAP),
+        # Guild + worker terms (e.g. Guild of Actors)
+        build_compound([CORE.GUILD], WORKER_TERMS, sep_prefix=GAP),
+        # Worker terms + Guild (e.g. Actors Guild)
+        build_compound(WORKER_TERMS, [CORE.GUILD], sep_prefix=GAP),
     ]
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
