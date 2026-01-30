@@ -38,6 +38,45 @@ class MinimalTextCleaner:
             (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         ]
 
+        # Word to number mappings
+        self.num_words = {
+            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+            'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+            'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
+            'nineteen': 19, 'twenty': 20, 'thirty': 30, 'forty': 40,
+            'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80,
+            'ninety': 90
+        }
+        self.multipliers = {
+            'hundred': 100,
+            'thousand': 1_000,
+            'million': 1_000_000,
+            'billion': 1_000_000_000,
+            'trillion': 1_000_000_000_000
+        }
+        self.fractions = {
+            'half': 0.5, 'halves': 0.5,
+            'quarter': 0.25, 'quarters': 0.25,
+            'third': 1/3, 'thirds': 1/3,
+            'fourth': 0.25, 'fourths': 0.25,
+            'fifth': 0.2, 'fifths': 0.2,
+            'sixth': 1/6, 'sixths': 1/6,
+            'seventh': 1/7, 'sevenths': 1/7,
+            'eighth': 1/8, 'eighths': 1/8,
+            'ninth': 1/9, 'ninths': 1/9,
+            'tenth': 0.1, 'tenths': 0.1
+        }
+        
+        # Build regex for number phrases
+        all_words = list(self.num_words.keys()) + list(self.multipliers.keys()) + list(self.fractions.keys())
+        all_words.sort(key=len, reverse=True)
+        word_pattern = "|".join(re.escape(w) for w in all_words)
+        self.number_phrase_pattern = re.compile(
+            rf"\b(?:{word_pattern})(?:[\s-]+(?:{word_pattern}))*\b",
+            re.IGNORECASE
+        )
+
         # Numbers
         self.comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
         self.scale_map = {
@@ -74,6 +113,49 @@ class MinimalTextCleaner:
         except ValueError:
             return match.group(0)
 
+    def _parse_number_phrase(self, match):
+        text = match.group(0)
+        clean_text = text.lower().replace('-', ' ')
+        words = clean_text.split()
+        
+        # If phrase is only multipliers (e.g. "million"), leave it for scale_pattern
+        if all(w in self.multipliers for w in words):
+            return text
+            
+        total_value = 0
+        current_chunk = 0
+        is_fraction = False
+        fraction_value = 0.0
+        
+        for word in words:
+            if word in self.num_words:
+                current_chunk += self.num_words[word]
+            elif word in self.multipliers:
+                mult = self.multipliers[word]
+                if mult == 100:
+                    current_chunk = (current_chunk if current_chunk else 1) * mult
+                else:
+                    total_value += (current_chunk if current_chunk else 1) * mult
+                    current_chunk = 0
+            elif word in self.fractions:
+                if current_chunk > 0:
+                    fraction_value += current_chunk * self.fractions[word]
+                    current_chunk = 0
+                    is_fraction = True
+                elif word in ['half', 'halves']:
+                    fraction_value += 0.5
+                    is_fraction = True
+        
+        if is_fraction:
+            final_val = total_value + fraction_value
+            if final_val == 0: return text
+            return f"{final_val * 100:g}%"
+            
+        total_value += current_chunk
+        if total_value == 0 and "zero" not in clean_text:
+            return text
+        return str(total_value)
+
     def clean(self, text: str, company_name: Optional[str] = None) -> str:
         if not text:
             return ""
@@ -98,6 +180,7 @@ class MinimalTextCleaner:
         text = self.text_suffix_pattern.sub("", text)
 
         # 5. Numbers
+        text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
         
@@ -117,6 +200,7 @@ if __name__ == "__main__":
     The Company’s primary focus is products related to human health and well-being. 
     Johnson & Johnson was incorporated in the State of New Jersey in 1887.
     We have 5 million dollars in assets and 2 thousand employees in the European Union.
+    Approximately three fourths of our staff are unionized, and fifty five percent are full time.
     """
     
     company_name = "Johnson & Johnson Corporation"
