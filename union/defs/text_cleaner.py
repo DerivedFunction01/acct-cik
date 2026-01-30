@@ -578,16 +578,17 @@ class TestValidator:
             print("-" * 80)
             
             # Print input/output
-            print(f"Input: {result['input'][:100]}..." if len(result['input']) > 100 else f"Input: {result['input']}")
-            print(f"Output: {result['output'][:100]}..." if len(result['output']) > 100 else f"Output: {result['output']}")
+            if self.failed:
+                print(f"Input: {result['input'][:100]}..." if len(result['input']) > 100 else f"Input: {result['input']}")
+                print(f"Output: {result['output'][:100]}..." if len(result['output']) > 100 else f"Output: {result['output']}")
             
-            # Print validation details
-            if result['validations']:
-                print("\nValidations:")
-                for v in result['validations']:
-                    print(f"  {v['message']}")
+                # Print validation details
+                if result['validations']:
+                    print("\nValidations:")
+                    for v in result['validations']:
+                        print(f"  {v['message']}")
             
-            print()
+                print()
         
         # Summary
         print("="*80)
