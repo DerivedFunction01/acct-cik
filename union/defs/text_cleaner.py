@@ -203,6 +203,10 @@ class MinimalTextCleaner:
         # Handle "none of" -> "0% of"
         self.none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
 
+        # Pronouns to Company Token
+        # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
+        self.pronoun_pattern = re.compile(r"\b(?:[Ww]e|[Oo]ur|us)\b")
+
         self.percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
         self.percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
 
@@ -506,6 +510,9 @@ class MinimalTextCleaner:
                     rf"\b{escaped_name}{suffix_regex}\b", re.IGNORECASE
                 )
                 text = company_regex.sub(COMPANY_TOKEN, text)
+
+        # 3b. Pronoun Replacement
+        text = self.pronoun_pattern.sub(COMPANY_TOKEN, text)
 
         # 4. General Suffix Removal
         text = self.text_suffix_pattern.sub("", text)
@@ -1069,6 +1076,17 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "0% of our employees", None),
                 (TestType.CONTAINS, "Second to none", None),
+            ],
+        ),
+        # Test 26: Pronoun Replacement
+        TestCase(
+            name="Pronoun Replacement",
+            input_text="We believe our employees are vital. Contact us. US GAAP is used.",
+            validations=[
+                (TestType.CONTAINS, "the Company believe", None),
+                (TestType.CONTAINS, "the Company employees", None),
+                (TestType.CONTAINS, "Contact the Company", None),
+                (TestType.CONTAINS, "US GAAP", None),
             ],
         ),
     ]
