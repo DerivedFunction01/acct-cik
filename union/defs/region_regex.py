@@ -7,6 +7,7 @@ class Region(Enum):
     EUROPE = "Europe"
     MIDDLE_EAST_AFRICA = "Middle East & Africa"
     ASIA_PACIFIC = "Asia Pacific"
+    INTERNATIONAL = "International"
 
 
 @dataclass
@@ -22,8 +23,10 @@ class Nation:
         return self.name == other.name
 
 NORTH_AMERICA = {
-    Nation("United States", ["us", "u.s.", "usa", "united states", "american"], Region.NORTH_AMERICA),
+    Nation("United States", ["us", "u.s.", "usa", "united states", "american", "anerica"], Region.NORTH_AMERICA),
     Nation("Canada", ["canada", "canadian"], Region.NORTH_AMERICA),
+    Nation("North America", ["north america", "north american"], Region.NORTH_AMERICA),
+    Nation("domestic", ["domestic"], Region.NORTH_AMERICA), # Dummy
 }
 
 EUROPE = {
@@ -55,6 +58,8 @@ EUROPE = {
 }
 
 ASIA_PACIFIC = {
+    Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC),
+    Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC),
     Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC),
     Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC),
     Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC),
@@ -75,6 +80,7 @@ ASIA_PACIFIC = {
 }
 
 LATIN_AMERICA = {
+    Nation("Latin America", ["latin america", "latam", "south america", "south american"], Region.LATIN_AMERICA),
     Nation("Mexico", ["mexico", "mexican"], Region.LATIN_AMERICA),
     Nation("Brazil", ["brazil", "brazilian"], Region.LATIN_AMERICA),
     Nation("Argentina", ["argentina", "argentine"], Region.LATIN_AMERICA),
@@ -93,6 +99,8 @@ LATIN_AMERICA = {
 }
 
 MIDDLE_EAST_AFRICA = {
+    Nation("Middle East", ["middle east", "middle eastern", "mena"], Region.MIDDLE_EAST_AFRICA),
+    Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA),
     Nation("United Arab Emirates", ["uae", "u.a.e.", "emirates"], Region.MIDDLE_EAST_AFRICA),
     Nation("Saudi Arabia", ["saudi arabia", "saudi"], Region.MIDDLE_EAST_AFRICA),
     Nation("Israel", ["israel", "israeli"], Region.MIDDLE_EAST_AFRICA),
@@ -108,4 +116,9 @@ MIDDLE_EAST_AFRICA = {
     Nation("Tunisia", ["tunisia", "tunisian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA),
+}
+
+INTERNATIONAL = {
+    Nation("International", ["international", "foreign", "overseas"], Region.INTERNATIONAL),
+    Nation("Global", ["global", "worldwide"], Region.INTERNATIONAL),
 }
