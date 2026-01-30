@@ -10,27 +10,43 @@ class MinimalTextCleaner:
     def __init__(self):
         # Suffixes to strip from the passed company name
         self.name_suffixes = [
-            r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?", 
-            r"co\.?", r"company", r"ltd\.?", r"limited", r"p\.?l\.?c\.?", 
-            r"s\.?a\.?", r"group", r"holdings?", r"trust", r"assoc\.?", r"association"
+            r"inc\.?",
+            r"corp\.?",
+            r"corporation",
+            r"l\.?l\.?c\.?",
+            r"co\.?",
+            r"company",
+            r"ltd\.?",
+            r"limited",
+            r"p\.?l\.?c\.?",
+            r"s\.?a\.?",
+            r"group",
+            r"holdings?",
+            r"trust",
+            r"assoc\.?",
+            r"association",
         ]
-        
+
         # Suffixes to remove from the text generally (safer subset)
         self.text_suffixes = [
-            r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?", 
-            r"ltd\.?", r"limited", r"p\.?l\.?c\.?", r"s\.?a\.?"
+            r"inc\.?",
+            r"corp\.?",
+            r"corporation",
+            r"l\.?l\.?c\.?",
+            r"ltd\.?",
+            r"limited",
+            r"p\.?l\.?c\.?",
+            r"s\.?a\.?",
         ]
 
         # Regex to strip suffixes from the end of the company name
         self.name_suffix_pattern = re.compile(
-            r"\s+" + build_alternation(self.name_suffixes) + r"\.?$", 
-            re.IGNORECASE
+            r"\s+" + build_alternation(self.name_suffixes) + r"\.?$", re.IGNORECASE
         )
-        
+
         # Regex to remove safe suffixes from text
         self.text_suffix_pattern = re.compile(
-            r"\b" + build_alternation(self.text_suffixes) + r"\b\.?", 
-            re.IGNORECASE
+            r"\b" + build_alternation(self.text_suffixes) + r"\b\.?", re.IGNORECASE
         )
 
         # False Positives for Union/Labor context
@@ -43,70 +59,124 @@ class MinimalTextCleaner:
 
         # Date and Year Patterns
         months = [
-            "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
-            "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec"
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December",
+            "Jan",
+            "Feb",
+            "Mar",
+            "Apr",
+            "Jun",
+            "Jul",
+            "Aug",
+            "Sep",
+            "Sept",
+            "Oct",
+            "Nov",
+            "Dec",
         ]
         self.months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
-        
+
         self.date_md_pattern = re.compile(
-            rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", 
-            re.IGNORECASE
+            rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)",
+            re.IGNORECASE,
         )
-        
+
         self.date_dm_pattern = re.compile(
-            rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{self.months_pattern_str})\b", 
-            re.IGNORECASE
+            rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{self.months_pattern_str})\b",
+            re.IGNORECASE,
         )
-        
+
         self.month_only_pattern = re.compile(
-            rf"\b(?:{self.months_pattern_str})\b", 
-            re.IGNORECASE
+            rf"\b(?:{self.months_pattern_str})\b", re.IGNORECASE
         )
 
         self.year_pattern = YEAR_REGEX
 
         # Word to number mappings
         self.num_words = {
-            'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-            'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
-            'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
-            'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18,
-            'nineteen': 19, 'twenty': 20, 'thirty': 30, 'forty': 40,
-            'fifty': 50, 'sixty': 60, 'seventy': 70, 'eighty': 80,
-            'ninety': 90
+            "zero": 0,
+            "one": 1,
+            "two": 2,
+            "three": 3,
+            "four": 4,
+            "five": 5,
+            "six": 6,
+            "seven": 7,
+            "eight": 8,
+            "nine": 9,
+            "ten": 10,
+            "eleven": 11,
+            "twelve": 12,
+            "thirteen": 13,
+            "fourteen": 14,
+            "fifteen": 15,
+            "sixteen": 16,
+            "seventeen": 17,
+            "eighteen": 18,
+            "nineteen": 19,
+            "twenty": 20,
+            "thirty": 30,
+            "forty": 40,
+            "fifty": 50,
+            "sixty": 60,
+            "seventy": 70,
+            "eighty": 80,
+            "ninety": 90,
         }
         self.multipliers = {
-            'hundred': 100,
-            'thousand': 1_000,
-            'million': 1_000_000,
-            'billion': 1_000_000_000,
-            'trillion': 1_000_000_000_000
+            "hundred": 100,
+            "thousand": 1_000,
+            "million": 1_000_000,
+            "billion": 1_000_000_000,
+            "trillion": 1_000_000_000_000,
         }
         self.fractions = {
-            'half': 0.5, 'halves': 0.5,
-            'quarter': 0.25, 'quarters': 0.25,
-            'third': 1/3, 'thirds': 1/3,
-            'fourth': 0.25, 'fourths': 0.25,
-            'fifth': 0.2, 'fifths': 0.2,
-            'sixth': 1/6, 'sixths': 1/6,
-            'seventh': 1/7, 'sevenths': 1/7,
-            'eighth': 1/8, 'eighths': 1/8,
-            'ninth': 1/9, 'ninths': 1/9,
-            'tenth': 0.1, 'tenths': 0.1
+            "half": 0.5,
+            "halves": 0.5,
+            "quarter": 0.25,
+            "quarters": 0.25,
+            "third": 1 / 3,
+            "thirds": 1 / 3,
+            "fourth": 0.25,
+            "fourths": 0.25,
+            "fifth": 0.2,
+            "fifths": 0.2,
+            "sixth": 1 / 6,
+            "sixths": 1 / 6,
+            "seventh": 1 / 7,
+            "sevenths": 1 / 7,
+            "eighth": 1 / 8,
+            "eighths": 1 / 8,
+            "ninth": 1 / 9,
+            "ninths": 1 / 9,
+            "tenth": 0.1,
+            "tenths": 0.1,
         }
-        
+
         # Build regex for number phrases
-        all_words = list(self.num_words.keys()) + list(self.multipliers.keys()) + list(self.fractions.keys())
+        all_words = (
+            list(self.num_words.keys())
+            + list(self.multipliers.keys())
+            + list(self.fractions.keys())
+        )
         word_pattern = build_alternation([re.escape(w) for w in all_words])
         self.number_phrase_pattern = re.compile(
-            rf"\b{word_pattern}(?:[\s-]+{word_pattern})*\b",
-            re.IGNORECASE
+            rf"\b{word_pattern}(?:[\s-]+{word_pattern})*\b", re.IGNORECASE
         )
 
         # Handle "a hundred", "a thousand" etc.
         self.a_multiplier_pattern = re.compile(
-            r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion))",
-            re.IGNORECASE
+            r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion))", re.IGNORECASE
         )
         self.percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
         self.percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
@@ -117,14 +187,26 @@ class MinimalTextCleaner:
             "thousand": 1_000,
             "million": 1_000_000,
             "billion": 1_000_000_000,
-            "trillion": 1_000_000_000_000
+            "trillion": 1_000_000_000_000,
         }
         self.scale_pattern = re.compile(
-            r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", 
-            re.IGNORECASE
+            r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", re.IGNORECASE
         )
 
         self.space_pattern = re.compile(r"\s+")
+
+        # Pattern to handle hyphenated fractions like "three-fourths", "one-half"
+        # This must be processed BEFORE number_phrase_pattern
+        fraction_words = "|".join(
+            list(self.fractions.keys())
+            + [
+                w[:-3] for w in self.fractions.keys() if w.endswith("ths")
+            ]  # base forms like "fourth" from "fourths"
+        )
+        num_words_str = "|".join(self.num_words.keys())
+        self.hyphenated_fraction_pattern = re.compile(
+            rf"\b({num_words_str})-({fraction_words}s?)\b", re.IGNORECASE
+        )
 
     def normalize_company_name(self, name: str) -> str:
         if not name:
@@ -135,6 +217,36 @@ class MinimalTextCleaner:
             prev_name = name
             name = self.name_suffix_pattern.sub("", name)
         return name
+
+    def _convert_hyphenated_fraction(self, match):
+        """
+        Convert hyphenated fractions like "three-fourths" to "75%"
+        Examples:
+          "one-half" → "50%"
+          "three-fourths" → "75%"
+          "two-thirds" → "66.67%"
+        """
+        num_word = match.group(1).lower()
+        frac_word = match.group(2).lower()
+
+        # Get the number
+        if num_word not in self.num_words:
+            return match.group(0)  # Shouldn't happen, but be safe
+
+        numerator = self.num_words[num_word]
+
+        # Get the fraction - handle both "half" and "halves", "fourth" and "fourths", etc.
+        if frac_word not in self.fractions:
+            # Try removing 's' if present
+            frac_base = frac_word.rstrip("s")
+            if frac_base not in self.fractions:
+                return match.group(0)  # Not a recognized fraction
+            denominator = self.fractions[frac_base]
+        else:
+            denominator = self.fractions[frac_word]
+
+        result = numerator * denominator
+        return f"{result * 100:g}%"
 
     def _scale_replacer(self, match):
         try:
@@ -149,18 +261,72 @@ class MinimalTextCleaner:
 
     def _parse_number_phrase(self, match):
         text = match.group(0)
-        clean_text = text.lower().replace('-', ' ')
+        clean_text = text.lower().replace("-", " ")
         words = clean_text.split()
-        
+
         # If phrase is only multipliers (e.g. "million"), leave it for scale_pattern
         if all(w in self.multipliers for w in words):
             return text
-            
+
+        # IMPORTANT RULE: Fractions are ONLY converted when:
+        # 1. Preceded by a number (e.g., "one half", "three-fourths", "two thirds")
+        # 2. Preceded by a qualifier (e.g., "approx half", "roughly third")
+        #
+        # Standalone fractions like "first quarter", "second half" are preserved
+        # because they're not actually fractions - they're business/time period terminology
+
+        # List of qualifiers that can precede a fraction
+        fraction_qualifiers = {
+            "approx",
+            "approximately",
+            "roughly",
+            "nearly",
+            "about",
+            "around",
+            "some",
+            "upwards",
+        }
+
+        # Check what we have
+        has_number = any(w in self.num_words for w in words)
+        has_qualifier = any(w in fraction_qualifiers for w in words)
+        has_fraction = any(w in self.fractions for w in words)
+
+        # If it's ONLY a fraction word (standalone), preserve it
+        # Examples: "half", "quarter", "third" (when standing alone)
+        if has_fraction and not has_number and not has_qualifier:
+            return text  # Preserve standalone fractions
+
+        # Special case: Check for "number fraction_word" patterns like "three fourths"
+        # where "fourths" ends with "ths" but the base "fourth" is a fraction
+        # This handles cases where the regex splits hyphenated fractions
+        if len(words) >= 2:
+            for i in range(len(words) - 1):
+                word = words[i]
+                next_word = words[i + 1]
+
+                # Check if we have a number followed by something like "fourths"
+                if word in self.num_words:
+                    # Check if next word ends with "ths" (like "fourths", "thirds", "halves")
+                    if next_word.endswith("ths"):
+                        base = next_word[:-3]  # Remove 'ths' suffix
+                        if base in self.fractions:
+                            # Convert "three fourths" to "75%"
+                            num = self.num_words[word]
+                            frac = self.fractions[base]
+                            result = num * frac
+                            return f"{result * 100:g}%"
+                    # Also check for "halves" -> "half"
+                    elif next_word == "halves":
+                        num = self.num_words[word]
+                        result = num * 0.5
+                        return f"{result * 100:g}%"
+
         total_value = 0
         current_chunk = 0
         is_fraction = False
         fraction_value = 0.0
-        
+
         for word in words:
             if word in self.num_words:
                 current_chunk += self.num_words[word]
@@ -172,28 +338,40 @@ class MinimalTextCleaner:
                     total_value += (current_chunk if current_chunk else 1) * mult
                     current_chunk = 0
             elif word in self.fractions:
+                # Convert to fraction if:
+                # 1. We have accumulated a number before it (e.g., "one" before "half")
+                # 2. We have a qualifier before it (e.g., "approx" before "half")
                 if current_chunk > 0:
+                    # We have a number like "one", "two", "three"
                     fraction_value += current_chunk * self.fractions[word]
                     current_chunk = 0
                     is_fraction = True
-                elif word in ['half', 'halves']:
-                    fraction_value += 0.5
+                elif has_qualifier and word in ["half", "halves"]:
+                    # Allow qualifiers like "approx half", "roughly third"
+                    fraction_value += self.fractions[word]
                     is_fraction = True
-        
+                # Otherwise skip this fraction word (standalone case)
+
         if is_fraction:
             final_val = total_value + fraction_value
-            if final_val == 0: return text
+            if final_val == 0:
+                return text
             return f"{final_val * 100:g}%"
-            
+
         total_value += current_chunk
         if total_value == 0 and "zero" not in clean_text:
             return text
         return str(total_value)
 
-    def clean(self, text: str, company_name: Optional[str] = None, reporting_year: Optional[int] = None) -> str:
+    def clean(
+        self,
+        text: str,
+        company_name: Optional[str] = None,
+        reporting_year: Optional[int] = None,
+    ) -> str:
         if not text:
             return ""
-        
+
         # 1. Whitespace
         text = self.space_pattern.sub(" ", text).strip()
 
@@ -207,7 +385,9 @@ class MinimalTextCleaner:
             if len(core_name) > 2:
                 escaped_name = re.escape(core_name)
                 suffix_regex = r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
-                company_regex = re.compile(rf"\b{escaped_name}{suffix_regex}\b", re.IGNORECASE)
+                company_regex = re.compile(
+                    rf"\b{escaped_name}{suffix_regex}\b", re.IGNORECASE
+                )
                 text = company_regex.sub(COMPANY_TOKEN, text)
 
         # 4. General Suffix Removal
@@ -220,20 +400,24 @@ class MinimalTextCleaner:
         text = self.year_pattern.sub(r" <\1> ", text)
 
         # 5. Numbers
+        # First handle hyphenated fractions like "three-fourths" before they get split
+        text = self.hyphenated_fraction_pattern.sub(
+            self._convert_hyphenated_fraction, text
+        )
+
         text = self.a_multiplier_pattern.sub("one ", text)
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
-        
+
         # Percent normalization
         text = self.percent_pattern.sub("%", text)
         text = self.percent_space_pattern.sub(r"\1%", text)
-        
+
         # Final cleanup
         text = self.space_pattern.sub(" ", text).strip()
-        
-        return text
 
+        return text
 
 # ============================================================================
 # AUTOMATED TEST FRAMEWORK
