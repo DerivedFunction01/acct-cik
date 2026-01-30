@@ -158,8 +158,6 @@ class SPEC_BASE(Enum):
             r"bull",
             r"bear",
             r"ratio",
-            r"credit",
-            r"debit",
             r"box",
             r"diagonal",
         ],
