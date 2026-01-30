@@ -615,7 +615,6 @@ def dynamic_exchange() -> str:
         "Board",
         "Mercantile",
         "Commodity",
-        "Securities",
         "Financial",
         "Intercontinental",
         "Stock",
