@@ -8,7 +8,7 @@ from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
 from tqdm import tqdm
 
 # Import definitions
-from defs.union_regex import UNION_REGEX
+from defs.union_regex import UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX
 from defs.region_regex import (
     NORTH_AMERICA,
     EUROPE,
@@ -134,7 +134,7 @@ def filter_content(content_list, company_name=None, year=None):
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
         
-        if FILTER_REGEX.search(cleaned_block):
+        if FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block):
             filtered.append(cleaned_block)
             
     return filtered

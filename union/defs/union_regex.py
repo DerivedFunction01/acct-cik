@@ -116,20 +116,19 @@ class LABOR_TERMS:
         build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS),
         # organized labor
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
-        # Dynamic Union + Worker terms (e.g. Federation of Workers, Workers Union)
-        DYNAMIC_UNION_PATTERN,
     ]
+
 
 class RISK_TERMS:
     PHRASES = [
-        r"labor\s+risks?",
-        build_compound([CORE.LABOR, CORE.UNION], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT]),
-        build_compound([r"work", CORE.LABOR], [CORE.STOPPAGE, CORE.STRIKE, r"unrest"]),
-        r"slowdowns?",
-        r"walkouts?",
-        r"union\s+organizing",
-        r"efforts?\s+to\s+organize",
+        # Union disputes, campaigns, disagreements
+        build_compound([CORE.UNION], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT, r"drives?", r"efforts?", r"strikes?", r"walkouts?", r"work\s+stoppages?"]),
+        # Collective bargaining disputes
+        build_compound(
+            [CORE.COLLECTIVE, CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]
+        ),
     ]
+
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
