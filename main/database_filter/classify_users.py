@@ -1307,9 +1307,8 @@ def process_row(row: Tuple) -> Tuple:
             # Activity Tracking (Current Year Activity)
             # -------------------------------------------------------------
             is_term = sent_tag_reason == NoiseReason.TERM.value
-            has_flow = bool(set(evidence_tags_found).intersection(STRICT_FLOW_TAGS))
 
-            if is_term or has_flow:
+            if is_term:
                 # Ignore exclusions that would hide activity (Termination, Negation, etc.)
                 ignore_for_activity = {
                     NoiseReason.TERM.value,
