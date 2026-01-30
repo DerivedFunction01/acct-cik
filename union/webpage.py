@@ -1619,8 +1619,12 @@ def process_producer_consumer_adaptive():
                 q_rem = url_queue.qsize() if hasattr(url_queue, "qsize") else "N/A"
                 inv_size = raw_queue.qsize() if hasattr(raw_queue, "qsize") else "N/A"
 
+                # Calculate actual remaining (since queue is now just a small buffer)
+                remaining_count = initial_count - current_done
+
                 pbar.set_postfix(
-                    queue=q_rem,  # URL queue (should stay ~10)
+                    rem=remaining_count,
+                    q=q_rem,  # URL queue (should stay ~10)
                     inventory=f"{inv_size}/{CHUNK_SIZE}",  # Raw buffer
                     sleep=f"{rate_limiter.value*1000:.1f}ms",
                 )
