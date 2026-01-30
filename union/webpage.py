@@ -428,6 +428,10 @@ def save_process_result_batch(batch_df):
 
 
 # %%
+class TransientError(Exception):
+    """Raised when a fetch fails transiently (e.g. rate limit, timeout) and should be retried."""
+    pass
+
 def fetch_json(
     url: str, 
     rate_limiter: Optional["ThreadSafeRateLimiter"] = None,
@@ -452,19 +456,32 @@ def fetch_json(
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         debug_print("Fetching", url)
+        
+        if resp.status_code == 404:
+            # Permanent failure - return None so caller knows it's empty/missing
+            return None
+            
         if resp.status_code == 429:
             print(f"Rate Limited {resp.status_code} fetching {url}")
             if rate_limiter:
                 rate_limiter.signal_429()
-            return None
+            # Raise exception to prevent recording as "empty" in DB
+            raise TransientError(f"Rate Limited: {url}")
+            
         if resp.status_code != 200:
             print(f"Error {resp.status_code} fetching {url}")
+            # Treat 5xx as transient
+            if 500 <= resp.status_code < 600:
+                raise TransientError(f"Server Error {resp.status_code}: {url}")
             return None
         return resp.json()
-    except Exception as e:
-        print(f"Exception fetching {url}: {e}")
-        if rate_limiter:
+    except (requests.exceptions.RequestException, TransientError) as e:
+        print(f"Transient error fetching {url}: {e}")
+        if rate_limiter and not isinstance(e, TransientError):
             rate_limiter.signal_timeout()
+        raise # Re-raise to abort processing this CIK
+    except Exception as e:
+        print(f"Unexpected error fetching {url}: {e}")
         return None
 
 
