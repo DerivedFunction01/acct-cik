@@ -384,7 +384,7 @@ class MinimalTextCleaner:
             # Allow "half" and "quarter" to convert, but keep others (ordinals)
             is_safe = True
             for w in words:
-                if w not in ["half", "halves", "quarter", "quarters"]:
+                if w not in ["half", "halves"]:
                     is_safe = False
                     break
             if not is_safe:
@@ -439,7 +439,7 @@ class MinimalTextCleaner:
                     fraction_value += current_chunk * self.fractions[word]
                     current_chunk = 0
                     is_fraction = True
-                elif has_qualifier and word in ["half", "halves"]:
+                elif has_qualifier and word in ["half"]:
                     # Allow qualifiers like "approx half", "roughly third"
                     fraction_value += self.fractions[word]
                     is_fraction = True
@@ -947,7 +947,7 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "The business operates", None),
             ],
         ),
-        # Test 18: Standalone Fractions (Half/Quarter)
+        # Test 18: Standalone Fractions (Half Only)
         TestCase(
             name="Standalone Fractions",
             input_text="Half of our employees and a quarter of the staff.",
