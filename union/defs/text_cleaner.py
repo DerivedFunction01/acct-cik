@@ -57,6 +57,27 @@ class MinimalTextCleaner:
             (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         ]
 
+        # Bullet and Dashed Patterns
+        self.bullet_pattern = re.compile(
+            r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
+            r"(?:"
+            # 1. Capture years/numbers with parentheses: (2023) -> STRIP
+            r"\(\d+\)|"
+            # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
+            #    Uses negative lookahead to protect 19xx and 20xx
+            r"(?!(?:19|20)\d{2})\d+(?:\.|\)|\:)|"
+            # 3. Roman numerals and letters -> STRIP
+            r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
+            r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
+            r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
+            r")"
+            r"(?=\s)",  # Followed by whitespace
+            re.IGNORECASE,
+        )
+
+        # Dashed patterns: 1-2, 3-4 (range references)
+        self.dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+
         # Date and Year Patterns
         months = [
             "January",
@@ -97,7 +118,7 @@ class MinimalTextCleaner:
         )
 
         self.month_only_pattern = re.compile(
-            rf"\b(?:{self.months_pattern_str})\b", re.IGNORECASE
+            rf"\b(?:{self.months_pattern_str})\b"
         )
 
         self.year_pattern = YEAR_REGEX
@@ -486,11 +507,17 @@ class MinimalTextCleaner:
         # 4. General Suffix Removal
         text = self.text_suffix_pattern.sub("", text)
 
+        # NEW: Remove bullets
+        text = self.bullet_pattern.sub(" ", text)
+
         # 4b. Date and Year Removal
         text = self.date_md_pattern.sub(" ", text)
         text = self.date_dm_pattern.sub(" ", text)
         text = self.month_only_pattern.sub(" ", text)
         text = self.year_pattern.sub(r" <\1> ", text)
+
+        # NEW: Remove dashed numbers (after year protection)
+        text = self.dashed_pattern.sub(" ", text)
 
         # NEW: Protect False Fractions
         protected_map = {}
@@ -1001,6 +1028,34 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "33.33", None),
                 (TestType.CONTAINS, "20%", None),
                 (TestType.CONTAINS, "a quarter on the ground", None),
+            ],
+        ),
+        # Test 23: Bullets and Dashed Numbers
+        TestCase(
+            name="Bullets and Dashed Numbers",
+            input_text="1. Item one. (2) Item two. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year.",
+            validations=[
+                (TestType.NOT_CONTAINS, "1.", None),
+                (TestType.NOT_CONTAINS, "(2)", None),
+                (TestType.NOT_CONTAINS, "a.", None),
+                (TestType.NOT_CONTAINS, "(b)", None),
+                (TestType.NOT_CONTAINS, "i.", None),
+                (TestType.NOT_CONTAINS, "10-20", None),
+                (TestType.NOT_CONTAINS, "(2023)", None),
+                (TestType.CONTAINS, "Item one", None),
+                (TestType.CONTAINS, "range", None),
+                (TestType.CONTAINS, "Year", None),
+            ],
+        ),
+        # Test 24: Protected Years and Acronyms
+        TestCase(
+            name="Protected Years and Acronyms",
+            input_text="2023. Year. 2023-2024 Range. U.S. Policy. i.e. example.",
+            validations=[
+                (TestType.CONTAINS, "<2023>", None),
+                (TestType.CONTAINS, "<2024>", None),
+                (TestType.CONTAINS, "U.S.", None),
+                (TestType.CONTAINS, "i.e.", None),
             ],
         ),
     ]
