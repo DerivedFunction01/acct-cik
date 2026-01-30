@@ -35,7 +35,7 @@ NORTH_AMERICA = {
     Nation(
         "United States",
         [
-            "us",
+            "the US",
             "u.s.",
             "usa",
             "united states",
@@ -165,7 +165,6 @@ EUROPE = {
         "Unite the Union", "Unite",
         "UNISON",
         "GMB",
-        "CWU", "Communication Workers Union",
         "RMT", "National Union of Rail, Maritime and Transport Workers",
     ]),
     Nation("Norway", ["norway", "norwegian"], Region.EUROPE),
@@ -192,7 +191,7 @@ EUROPE = {
         Location("Munich", ["munich"]),
     ], [
         "IG Metall",
-        "ver.di", "United Services Union",
+        "ver.di",
         "IG BCE",
         "DGB", "German Trade Union Confederation",
     ], [
@@ -201,7 +200,6 @@ EUROPE = {
     Nation("France", ["france", "french"], Region.EUROPE, [
         Location("Paris", ["paris"]),
     ], [
-        "CGT", "General Confederation of Labour",
         "CFDT", "French Democratic Confederation of Labour",
         "FO", "Force Ouvrière",
     ], [
@@ -222,7 +220,6 @@ EUROPE = {
         Location("Barcelona", ["barcelona"]),
     ], [
         "CCOO", "Workers' Commissions",
-        "UGT", "General Union of Workers",
     ], [
         # Moved to International due to ambiguity with Latin America
     ]),
@@ -322,7 +319,6 @@ LATIN_AMERICA = {
         Location("Mexico City", ["mexico city", "cdmx"]),
     ], [
         "CTM", "Confederation of Mexican Workers",
-        "UNT", "National Union of Workers",
     ], [
         "Maquiladora",
     ]),
@@ -376,7 +372,6 @@ MIDDLE_EAST_AFRICA = {
         Location("Cape Town", ["cape town"]),
     ], [
         "COSATU", "Congress of South African Trade Unions",
-        "NUM", "National Union of Mineworkers",
         "AMCU", "Association of Mineworkers and Construction Union",
     ]),
     Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA, [
@@ -415,18 +410,18 @@ INTERNATIONAL = {
         "Sindicato", "Trabajo", "Huelga", "Gremios",
         "Minería", "Automóvil", "Automotriz",
         "Contrato Colectivo", "Convenio Colectivo", "Negociación colectiva",
-        "Aéreo", "Metal", "Metalúrgica", "Química", "Construcción", "Transporte",
+        "Aéreo", "Metalúrgica", "Química", "Construcción", "Transporte",
     ]),
     Nation("International Portuguese", [], Region.INTERNATIONAL, [], [], [
         "Sindicato", "Trabalho", "Greve",
         "Mineração", "Automotivo",
         "Convenção Coletiva", "Negociação coletiva",
-        "Aéreo", "Metal", "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Transporte",
+        "Aéreo", "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Transporte",
         "Bancários", "Petroleiros",
     ]),
     Nation("International French", [], Region.INTERNATIONAL, [], [], [
         "Syndicat", "Travail", "Salariés", "Grève",
         "Négociation collective", "Convention collective",
-        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Automobile", "Transport", "Minier",
+        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Minier",
     ]),
 }
