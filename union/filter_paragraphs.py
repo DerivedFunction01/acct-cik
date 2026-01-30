@@ -37,8 +37,8 @@ logging.basicConfig(
 # REGEX COMPILATION
 # =============================================================================
 
-def get_all_specific_unions():
-    """Extracts all specific union names from defined regions."""
+def get_all_specific_terms():
+    """Extracts all specific union names and translated keywords from defined regions."""
     regions = [
         NORTH_AMERICA,
         EUROPE,
@@ -48,14 +48,17 @@ def get_all_specific_unions():
         INTERNATIONAL,
     ]
     
-    union_names = set()
+    terms = set()
     for region in regions:
         for nation in region:
             # Add unions defined in the nation
             if nation.unions:
-                union_names.update(nation.unions)
+                terms.update(nation.unions)
+            # Add translated keywords (e.g. "Huelga", "Grève")
+            if nation.keywords:
+                terms.update(nation.keywords)
                 
-    return union_names
+    return terms
 
 def compile_filtering_regex():
     """
@@ -64,20 +67,20 @@ def compile_filtering_regex():
     # 1. Get generic pattern from union_regex.py
     generic_pattern = UNION_REGEX.pattern
     
-    # 2. Get specific union names from region_regex.py
-    specific_unions = get_all_specific_unions()
+    # 2. Get specific union names and keywords from region_regex.py
+    specific_terms = get_all_specific_terms()
     
-    if not specific_unions:
+    if not specific_terms:
         return UNION_REGEX
         
     # Escape and sort by length (descending) to ensure longest match first
     # This prevents "UAW" matching inside "UAW-Ford" if that was a separate term, etc.
-    sorted_unions = sorted(list(specific_unions), key=len, reverse=True)
-    escaped_unions = [re.escape(u) for u in sorted_unions]
+    sorted_terms = sorted(list(specific_terms), key=len, reverse=True)
+    escaped_terms = [re.escape(u) for u in sorted_terms]
     
-    # Create a pattern for specific unions
+    # Create a pattern for specific unions/keywords
     # We use non-capturing group (?:...) joined by OR
-    specific_pattern = r"(?:" + "|".join(escaped_unions) + r")"
+    specific_pattern = r"(?:" + "|".join(escaped_terms) + r")"
     
     # Combine: (Generic)|(Specific)
     # Note: UNION_REGEX likely already has flags, but we re-compile with IGNORECASE
