@@ -413,17 +413,34 @@ def save_process_result_batch(batch_df):
 
 
 # %%
-def fetch_json(url: str) -> dict | None:
+def fetch_json(
+    url: str, 
+    rate_limiter: Optional["ThreadSafeRateLimiter"] = None,
+    fetch_metrics: Optional[dict] = None,
+    metrics_lock: Optional[threading.Lock] = None
+) -> dict | None:
     global SEC_RATE_LIMIT
     headers = {
         "User-Agent": f"{random.randint(1000,9999)}-{random.randint(1000,9999)}@{''.join(random.choice(string.ascii_lowercase) for _ in range(random.randint(8,15)))}.com"
     }
-    time.sleep(SEC_RATE_LIMIT)
+    
+    if rate_limiter:
+        time.sleep(rate_limiter.value)
+    else:
+        time.sleep(SEC_RATE_LIMIT)
+
+    if fetch_metrics is not None and metrics_lock is not None:
+        with metrics_lock:
+            fetch_metrics["fetch_count"] += 1
+            fetch_metrics["last_sample_time"] = time.time()
+
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         debug_print("Fetching", url)
         if resp.status_code == 429:
             print(f"Rate Limited {resp.status_code} fetching {url}")
+            if rate_limiter:
+                rate_limiter.signal_429()
             return None
         if resp.status_code != 200:
             print(f"Error {resp.status_code} fetching {url}")
@@ -431,6 +448,8 @@ def fetch_json(url: str) -> dict | None:
         return resp.json()
     except Exception as e:
         print(f"Exception fetching {url}: {e}")
+        if rate_limiter:
+            rate_limiter.signal_timeout()
         return None
 
 
@@ -462,11 +481,16 @@ def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
     return links
 
 
-def get_cik_filings(cik: str) -> Optional[List[dict]]:
+def get_cik_filings(
+    cik: str, 
+    rate_limiter: Optional["ThreadSafeRateLimiter"] = None,
+    fetch_metrics: Optional[dict] = None,
+    metrics_lock: Optional[threading.Lock] = None
+) -> Optional[List[dict]]:
     cik = str(cik).zfill(10)
     url_main = f"https://data.sec.gov/submissions/CIK{cik}.json"
 
-    data = fetch_json(url_main)
+    data = fetch_json(url_main, rate_limiter, fetch_metrics, metrics_lock)
     if not data:
         return None
 
@@ -478,7 +502,12 @@ def get_cik_filings(cik: str) -> Optional[List[dict]]:
 
     older_files = data.get("filings", {}).get("files", [])
     for f in older_files:
-        older_data = fetch_json(f"https://data.sec.gov/submissions/{f.get('name')}")
+        older_data = fetch_json(
+            f"https://data.sec.gov/submissions/{f.get('name')}", 
+            rate_limiter, 
+            fetch_metrics, 
+            metrics_lock
+        )
         if isinstance(older_data, dict):
             links.extend(extract_filings(older_data, cik, name, ticker))
 
@@ -996,13 +1025,89 @@ def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
     return [f for f in filings if f.get("report_date", "").startswith(str(fyear))]
 
 
+def cik_fetch_worker(
+    cik_queue, 
+    result_queue, 
+    rate_limiter, 
+    stop_event, 
+    fetch_metrics, 
+    metrics_lock, 
+    already_done_set,
+    progress_counter
+):
+    """
+    Worker thread for fetching CIK filings.
+    """
+    while not stop_event.is_set():
+        try:
+            task = cik_queue.get(timeout=1)
+        except queue.Empty:
+            continue
+            
+        cik, years = task
+        
+        try:
+            years_to_fetch = [y for y in years if (cik, y) not in already_done_set]
+            if not years_to_fetch:
+                continue
+
+            # get_cik_filings handles rate limiting via fetch_json
+            filings = get_cik_filings(cik, rate_limiter, fetch_metrics, metrics_lock)
+            
+            cik_records = []
+            if filings is not None:
+                for fyear in years_to_fetch:
+                    year_filings = filter_by_fyear(filings, fyear)
+                    for filing in year_filings:
+                        cik_records.append({"cik": cik, "year": fyear, **filing})
+            
+            # Add placeholder for checked years
+            for year in years:
+                if (cik, year) not in already_done_set:
+                    cik_records.append({"cik": cik, "year": year, "url": ""})
+
+            if cik_records:
+                result_queue.put(cik_records)
+                
+        except Exception as e:
+            print(f"Error processing CIK {cik}: {e}")
+        finally:
+            cik_queue.task_done()
+            with progress_counter["lock"]:
+                progress_counter["val"] += 1
+
+
+def report_saver_worker(result_queue, stop_event):
+    """
+    Worker thread for saving report URLs to DB.
+    """
+    buffer = []
+    while not stop_event.is_set() or not result_queue.empty():
+        try:
+            records = result_queue.get(timeout=1)
+            buffer.extend(records)
+            
+            if len(buffer) >= 100:
+                save_batch_report_urls(pd.DataFrame(buffer))
+                debug_print(f"Saved {len(buffer)} urls to database")
+                buffer = []
+                
+        except queue.Empty:
+            continue
+        except Exception as e:
+            print(f"Error saving batch: {e}")
+            
+    # Flush remaining
+    if buffer:
+        save_batch_report_urls(pd.DataFrame(buffer))
+        print(f"Saved {len(buffer)} urls to database")
+
+
 def fetch_all_grouped(saveIteration: int = 100):
     """
-    Fetch filings using ProcessPoolExecutor for parallelism.
+    Fetch filings using a Queue-based Producer-Consumer model with Adaptive Rate Limiting.
     """
     global existing_report_df, all_derivatives_df, SEC_RATE_LIMIT, SEC_RATE
-
-    records = []
 
     if existing_report_df is None or existing_report_df.empty:
         existing_report_df = pd.DataFrame(columns=["cik", "year"])
@@ -1010,55 +1115,106 @@ def fetch_all_grouped(saveIteration: int = 100):
     already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
     cik_groups = all_derivatives_df.groupby("cik")["year"].apply(list).reset_index()
 
-    def process_cik(row):
+    # Prepare list of tasks
+    unprocessed_tasks = []
+    for row in cik_groups.itertuples(index=False):
         cik = row.cik
         years = row.year
-        cik_records = []
+        assert isinstance(years, list) or isinstance(years, set)
 
-        years_to_fetch = [y for y in years if (cik, y) not in already_done]
-        if not years_to_fetch:
-            return cik_records
+        # Quick check if any year needs fetching
+        if any((cik, y) not in already_done for y in years):
+            unprocessed_tasks.append((cik, years))
+            
+    total_tasks = len(unprocessed_tasks)
+    print(f"Found {total_tasks} CIKs to process.")
+    
+    if total_tasks == 0:
+        return fetch_report_data()
 
-        debug_print("Fetching", years_to_fetch)
-        filings = get_cik_filings(cik)
-        if filings is None:
-            print("Error fetching filings for", cik)
-            return cik_records
+    # Setup Queues
+    cik_queue = queue.Queue() # Thread-safe queue
+    result_queue = queue.Queue()
+    
+    # Setup Adaptive Rate Limiter
+    rate_limiter = ThreadSafeRateLimiter(SEC_RATE_LIMIT)
+    metrics_lock = threading.Lock()
+    fetch_metrics = {
+        "fetch_count": 0,
+        "last_sample_time": time.time(),
+        "last_adjustment_time": time.time(),
+    }
+    stop_event = threading.Event()
+    
+    # Start Rate Adjuster
+    rate_adjuster = threading.Thread(
+        target=rate_adjuster_worker,
+        args=(rate_limiter, fetch_metrics, metrics_lock, stop_event, SEC_RATE),
+        daemon=False
+    )
+    rate_adjuster.start()
 
-        for fyear in years_to_fetch:
-            year_filings = filter_by_fyear(filings, fyear)
-            for filing in year_filings:
-                cik_records.append({"cik": cik, "year": fyear, **filing})
+    # 2. Start Queue Filler
+    queue_filler_stop_event = threading.Event()
+    queue_filler = threading.Thread(
+        target=url_queue_filler_worker, # Reusing the generic filler
+        args=(
+            cik_queue,
+            unprocessed_tasks,
+            queue_filler_stop_event,
+            QUEUE_BATCH_SIZE,
+            QUEUE_FILL_INTERVAL_SECONDS
+        ),
+        daemon=False
+    )
+    queue_filler.start()
 
-        for year in years:
-            if (cik, year) not in already_done:
-                cik_records.append({"cik": cik, "year": year, "url": ""})
+    # 3. Start Fetch Workers
+    progress_counter = {"val": 0, "lock": threading.Lock()}
+    workers = []
+    for _ in range(NUM_THREADS):
+        t = threading.Thread(
+            target=cik_fetch_worker,
+            args=(cik_queue, result_queue, rate_limiter, stop_event, fetch_metrics, metrics_lock, already_done, progress_counter),
+            daemon=False
+        )
+        t.start()
+        workers.append(t)
+        
+    # 4. Start Saver Worker
+    saver = threading.Thread(
+        target=report_saver_worker,
+        args=(result_queue, stop_event),
+        daemon=False
+    )
+    saver.start()
 
-        return cik_records
-
-    # Use fewer workers for SEC API to avoid rate limiting
-    with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-        future_to_cik = {
-            executor.submit(process_cik, row): i
-            for i, row in enumerate(cik_groups.itertuples(index=False), start=1)
-        }
-        SEC_RATE_LIMIT = NUM_THREADS / SEC_RATE
-        for future in tqdm(as_completed(future_to_cik), total=len(future_to_cik)):
-            i = future_to_cik[future]
-            try:
-                cik_records = future.result()
-                records.extend(cik_records)
-
-                if i % saveIteration == 0 and records:
-                    save_batch_report_urls(pd.DataFrame(records))
-                    debug_print(f"Saved {len(records)} urls to database")
-                    records = []
-            except Exception as exc:
-                print(f"CIK processing generated an exception: {exc}")
-
-    if records:
-        save_batch_report_urls(pd.DataFrame(records))
-        print(f"Saved {len(records)} urls to database")
+    try:
+        with tqdm(total=total_tasks, unit="ciks") as pbar:
+            while True:
+                time.sleep(1)
+                
+                with progress_counter["lock"]:
+                    current_val = progress_counter["val"]
+                
+                pbar.n = current_val
+                pbar.refresh()
+                pbar.set_postfix(sleep=f"{rate_limiter.value*1000:.1f}ms")
+                
+                if current_val >= total_tasks:
+                    break
+                    
+    except KeyboardInterrupt:
+        print("Stopping...")
+    finally:
+        stop_event.set()
+        queue_filler_stop_event.set()
+        
+        queue_filler.join(timeout=5)
+        for t in workers:
+            t.join(timeout=5)
+        saver.join(timeout=5)
+        rate_adjuster.join()
 
     return fetch_report_data()
 
