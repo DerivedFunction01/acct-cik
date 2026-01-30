@@ -45,6 +45,7 @@ SUFFIX_ORGS = [
 REPRESENTATION_TERMS = [
     r"represented\s+by",
     r"affliat(?:ed|ion)\s+with",
+    r"covered\s+by",
 ]
 
 GAP = r"(?:\W+(?:\w+\W+){0,3}?)"
