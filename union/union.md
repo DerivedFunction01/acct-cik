@@ -12,7 +12,15 @@ This document specifies the expected JSON array output for `item1_details_json` 
 - Temporal scope (current vs. historical vs. future)
 - Data structure and field definitions
 
-**No code or regex patterns—just examples and rules for decision-making.**
+## Starter keywords to identify relevant sentences:
+Assume labour = labor, bargain = bargaining, union = unionized
+
+- collective + bargain
+- bargaining + (agreement, contracts)
+- union / unionized
+- non-union(ized)
+- employees/workers + represented by
+- labor + (agreements, contracts, organizations)
 
 ---
 
