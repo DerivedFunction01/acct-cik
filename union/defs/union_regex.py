@@ -78,6 +78,10 @@ REPRESENTATION_TERMS = [
 
 GAP = r"(?:\W+(?:\w+\W+){0,3}?)"
 
+# Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
+TITLE_PREFIX = r"(?:[A-Z][\w-]*\s+)*"
+TITLE_SUFFIX = r"(?:\s+[A-Z][\w-]*)*"
+
 UNION_TERMS = [
     CORE.UNION,
     CORE.FEDERATION,
@@ -88,10 +92,13 @@ UNION_TERMS = [
     CORE.ALLIANCE,
     CORE.SOCIETY,
 ]
-DYNAMIC_UNION_PATTERN = build_alternation([
+
+_CORE_DYNAMIC_PATTERN = build_alternation([
     build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
     build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
 ])
+DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
+
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN])
 
 class LABOR_TERMS:

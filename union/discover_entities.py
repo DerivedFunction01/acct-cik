@@ -13,6 +13,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
+from defs.union_regex import DYNAMIC_UNION_REGEX
 
 DB_PATH = "filtered_union_data.db"
 
@@ -94,6 +95,7 @@ def analyze_entities():
     
     single_word_counter = Counter()
     multi_word_counter = Counter()
+    dynamic_union_counter = Counter()
     
     row_count = 0
     
@@ -164,6 +166,11 @@ def analyze_entities():
                 if current_phrase:
                     phrase = " ".join(current_phrase)
                     (multi_word_counter if len(current_phrase) > 1 else single_word_counter)[phrase] += 1
+            
+            # Check for Dynamic Union Patterns
+            matches = DYNAMIC_UNION_REGEX.findall(text)
+            for m in matches:
+                dynamic_union_counter[" ".join(m.split())] += 1
 
     conn.close()
     print(f"Processed {row_count} rows.")
@@ -191,6 +198,14 @@ def analyze_entities():
         # Filter for Title Case (not all upper), Length > 2
         if not word.isupper() and word[0].isupper() and len(word) > 2 and word.lower() not in known_terms:
             print(f"{freq:5d} : {word}")
+            count += 1
+            if count >= 50: break
+            
+    print("\n--- Top Dynamic Union Pattern Matches ---")
+    count = 0
+    for phrase, freq in dynamic_union_counter.most_common(500):
+        if phrase.lower() not in known_terms:
+            print(f"{freq:5d} : {phrase}")
             count += 1
             if count >= 50: break
 
