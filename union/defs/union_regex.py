@@ -13,7 +13,7 @@ Use enums to build core terms, then use another enum or function to build out th
 """
 
 from enum import Enum
-from defs.regex_lib import build_compound, build_regex
+from defs.regex_lib import build_alternation, build_compound, build_regex
 
 
 class CORE(Enum):
@@ -88,6 +88,11 @@ UNION_TERMS = [
     CORE.ALLIANCE,
     CORE.SOCIETY,
 ]
+DYNAMIC_UNION_PATTERN = build_alternation([
+    build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
+    build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
+])
+DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN])
 
 class LABOR_TERMS:
     SPECIFIC_PHRASES = [
@@ -106,8 +111,7 @@ class LABOR_TERMS:
         # organized labor
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
         # Dynamic Union + Worker terms (e.g. Federation of Workers, Workers Union)
-        build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
-        build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
+        DYNAMIC_UNION_PATTERN,
     ]
 
 class RISK_TERMS:
