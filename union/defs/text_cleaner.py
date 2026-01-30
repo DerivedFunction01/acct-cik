@@ -771,7 +771,7 @@ def create_test_cases() -> List[TestCase]:
             name="Fourth Quarter (Business Period)",
             input_text="Fourth quarter earnings were strong.",
             validations=[
-                (TestType.CONTAINS, "fourth quarter", None),  # Should NOT be converted
+                (TestType.CONTAINS, "Fourth quarter", None),  # Should NOT be converted
                 (TestType.NOT_CONTAINS, "25%", None),
             ],
         ),
@@ -798,7 +798,7 @@ def create_test_cases() -> List[TestCase]:
             name="Ordinals - First, Second, Third",
             input_text="First, second, and third place finishers.",
             validations=[
-                (TestType.CONTAINS, "first", None),
+                (TestType.CONTAINS, "First", None),
                 (TestType.CONTAINS, "second", None),
                 (TestType.CONTAINS, "third", None),
             ],
