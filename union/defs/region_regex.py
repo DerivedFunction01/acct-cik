@@ -136,10 +136,12 @@ NORTH_AMERICA = {
             Location("Toronto", ["toronto"]),
             Location("Vancouver", ["vancouver"]),
             Location("Montreal", ["montreal"]),
+            Location("Ottawa", ["ottawa"]),
             Location("Ontario", ["ontario"]),
             Location("Quebec", ["quebec", "québec"]),
-            Location("Alberta", ["alberta", "calgary"]),
+            Location("Alberta", ["alberta", "calgary", "edmonton"]),
             Location("British Columbia", ["british columbia", "bc"]),
+            Location("Winnipeg", ["winnipeg"]),
         ],
         [
             "Unifor",
@@ -161,6 +163,8 @@ EUROPE = {
     Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], ["European Works Council", "Comité d'entreprise européen"]),
     Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE, [
         Location("London", ["london"]),
+        Location("Birmingham", ["birmingham"]),
+        Location("Manchester", ["manchester"]),
     ], [
         "Unite the Union", "Unite",
         "UNISON",
@@ -189,6 +193,10 @@ EUROPE = {
         Location("Frankfurt", ["frankfurt"]),
         Location("Berlin", ["berlin"]),
         Location("Munich", ["munich"]),
+        Location("Hamburg", ["hamburg"]),
+        Location("Stuttgart", ["stuttgart"]),
+        Location("Cologne", ["cologne", "koln"]),
+        Location("Dusseldorf", ["dusseldorf"]),
     ], [
         "IG Metall",
         "ver.di",
@@ -199,6 +207,8 @@ EUROPE = {
     ]),
     Nation("France", ["france", "french"], Region.EUROPE, [
         Location("Paris", ["paris"]),
+        Location("Lyon", ["lyon"]),
+        Location("Marseille", ["marseille"]),
     ], [
         "CFDT", "French Democratic Confederation of Labour",
         "FO", "Force Ouvrière",
@@ -208,6 +218,7 @@ EUROPE = {
     Nation("Italy", ["italy", "italian"], Region.EUROPE, [
         Location("Milan", ["milan"]),
         Location("Rome", ["rome"]),
+        Location("Turin", ["turin", "torino"]),
     ], [
         "CGIL", "Italian General Confederation of Labour",
         "CISL",
@@ -225,6 +236,7 @@ EUROPE = {
     ]),
     Nation("Netherlands", ["netherlands", "dutch", "holland"], Region.EUROPE, [
         Location("Amsterdam", ["amsterdam"]),
+        Location("Rotterdam", ["rotterdam"]),
     ], [], [
         "Vakbond", "Ondernemingsraad", "CAO", "Metaal", "Bouw", "Vervoer",
     ]),
@@ -234,6 +246,7 @@ EUROPE = {
     ]),
     Nation("Belgium", ["belgium", "belgian"], Region.EUROPE, [
         Location("Brussels", ["brussels"]),
+        Location("Antwerp", ["antwerp"]),
     ]),
     Nation("Austria", ["austria", "austrian"], Region.EUROPE, [
         Location("Vienna", ["vienna"]),
@@ -253,6 +266,8 @@ ASIA_PACIFIC = {
     Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC, [
         Location("Tokyo", ["tokyo"]),
         Location("Osaka", ["osaka"]),
+        Location("Nagoya", ["nagoya"]),
+        Location("Yokohama", ["yokohama"]),
     ], [
         "Rengo", "Japanese Trade Union Confederation",
         "UA Zensen",
@@ -261,6 +276,9 @@ ASIA_PACIFIC = {
     ]),
     Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC, [
         Location("Seoul", ["seoul"]),
+        Location("Busan", ["busan", "pusan"]),
+        Location("Incheon", ["incheon"]),
+        Location("Ulsan", ["ulsan"]),
     ], [
         "KCTU", "Korean Confederation of Trade Unions",
         "FKTU", "Federation of Korean Trade Unions",
@@ -275,6 +293,9 @@ ASIA_PACIFIC = {
         Location("Beijing", ["beijing"]),
         Location("Shenzhen", ["shenzhen"]),
         Location("Guangzhou", ["guangzhou"]),
+        Location("Tianjin", ["tianjin"]),
+        Location("Chongqing", ["chongqing"]),
+        Location("Wuhan", ["wuhan"]),
     ]),
     Nation("Thailand", ["thailand", "thai"], Region.ASIA_PACIFIC, [
         Location("Bangkok", ["bangkok"]),
