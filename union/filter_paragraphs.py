@@ -159,12 +159,57 @@ def create_target_db():
     conn.commit()
     conn.close()
 
+def copy_metadata_tables():
+    """Copies report_data and names tables from source to target DB."""
+    if not Path(SOURCE_DB).exists():
+        return
+
+    conn = sqlite3.connect(TARGET_DB)
+    c = conn.cursor()
+    
+    # Check if report_data already exists
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_data'")
+    if c.fetchone():
+        logging.info("report_data table already exists in target DB. Skipping copy.")
+        conn.close()
+        return
+
+    logging.info("Copying metadata tables (report_data, names) from source DB...")
+    
+    try:
+        # Attach source database
+        c.execute("ATTACH DATABASE ? AS src", (SOURCE_DB,))
+        
+        # Copy report_data
+        c.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_report_accession ON report_data(accession)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_report_url ON report_data(url)")
+        
+        # Copy names if exists
+        c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
+        if c.fetchone():
+            c.execute("CREATE TABLE names AS SELECT * FROM src.names")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_names_cik ON names(cik)")
+            
+        conn.commit()
+        logging.info("Metadata tables copied successfully.")
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error copying metadata: {e}")
+    finally:
+        try:
+            c.execute("DETACH DATABASE src")
+        except sqlite3.Error:
+            pass
+        conn.close()
+
 def main():
     if not Path(SOURCE_DB).exists():
         logging.error(f"Source database {SOURCE_DB} not found.")
         return
 
     create_target_db()
+    copy_metadata_tables()
     
     src_conn = sqlite3.connect(SOURCE_DB)
     src_cursor = src_conn.cursor()
