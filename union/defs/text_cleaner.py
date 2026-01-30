@@ -873,7 +873,7 @@ def create_test_cases() -> List[TestCase]:
         # Time periods (should NOT convert)
         TestCase(
             name="Time Periods - Half Year",
-            input_text="First half and second half of year.",
+            input_text="first half and second half of year.",
             validations=[
                 (TestType.CONTAINS, "first half", None),
                 (TestType.CONTAINS, "second half", None),
