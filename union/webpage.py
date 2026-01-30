@@ -2268,7 +2268,7 @@ if __name__ == "__main__":
     print("STEP 1: Fetch all 10-K report URLs from SEC")
     print("=" * 70)
     # Uncomment to run:
-    # fetch_all_grouped()
+    fetch_all_grouped()
 
     print("\n" + "=" * 70)
     print(f"STEP 2: Perform keyword extraction in parallel")
