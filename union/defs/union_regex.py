@@ -27,6 +27,7 @@ class CORE(Enum):
     STRIKE = r"strikes?"
     DISPUTE = r"disputes?"
     STOPPAGE = r"stoppages?"
+    DISAGREEMENT = r"disagreements?"
 
 WORKER_TERMS = [
     r"workers?",
@@ -101,7 +102,7 @@ class LABOR_TERMS:
 class RISK_TERMS:
     PHRASES = [
         r"labor\s+risks?",
-        build_compound([CORE.LABOR, CORE.UNION], [CORE.DISPUTE, r"campaigns?"]),
+        build_compound([CORE.LABOR, CORE.UNION], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT]),
         build_compound([r"work", CORE.LABOR], [CORE.STOPPAGE, CORE.STRIKE, r"unrest"]),
         r"slowdowns?",
         r"walkouts?",
