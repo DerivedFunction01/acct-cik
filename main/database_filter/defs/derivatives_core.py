@@ -578,7 +578,7 @@ def build_smart_regex(
 
 
 # --- Definitions for Export/Usage in other files ---
-BASE_TYPES = [b for b in Groups.UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
+BASE_TYPES = [b for b in Groups.CORE_UNAMBIGUOUS_BASES + Groups.AMBIGUOUS_BASES]
 ALL_BASE_TYPES = BASE_TYPES + [b for b in Groups.MISC_BASES]
 UNAMBIGUOUS_BASE_ENDING = [b for b in Groups.UNAMBIGUOUS_BASES]
 UNAMBIGUOUS_BASE_TYPES = UNAMBIGUOUS_BASE_ENDING.copy()
