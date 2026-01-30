@@ -1,6 +1,6 @@
 import re
 from typing import Optional
-from union.defs.regex_lib import build_alternation
+from union.defs.regex_lib import build_alternation, YEAR_REGEX
 
 COMPANY_TOKEN = "the Company"
 
@@ -12,7 +12,7 @@ class MinimalTextCleaner:
             r"co\.?", r"company", r"ltd\.?", r"limited", r"p\.?l\.?c\.?", 
             r"s\.?a\.?", r"group", r"holdings?", r"trust", r"assoc\.?", r"association"
         ]
-        
+
         # Suffixes to remove from the text generally (safer subset)
         self.text_suffixes = [
             r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?", 
@@ -24,7 +24,7 @@ class MinimalTextCleaner:
             r"\s+" + build_alternation(self.name_suffixes) + r"\.?$", 
             re.IGNORECASE
         )
-        
+
         # Regex to remove safe suffixes from text
         self.text_suffix_pattern = re.compile(
             r"\b" + build_alternation(self.text_suffixes) + r"\b\.?", 
@@ -45,23 +45,23 @@ class MinimalTextCleaner:
             "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec"
         ]
         self.months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
-        
+
         self.date_md_pattern = re.compile(
             rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)", 
             re.IGNORECASE
         )
-        
+
         self.date_dm_pattern = re.compile(
             rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{self.months_pattern_str})\b", 
             re.IGNORECASE
         )
-        
+
         self.month_only_pattern = re.compile(
             rf"\b(?:{self.months_pattern_str})\b", 
             re.IGNORECASE
         )
 
-        self.year_pattern = re.compile(r"\b(19\d{2}|20\d{2})\b")
+        self.year_pattern = YEAR_REGEX
 
         # Word to number mappings
         self.num_words = {
@@ -92,7 +92,7 @@ class MinimalTextCleaner:
             'ninth': 1/9, 'ninths': 1/9,
             'tenth': 0.1, 'tenths': 0.1
         }
-        
+
         # Build regex for number phrases
         all_words = list(self.num_words.keys()) + list(self.multipliers.keys()) + list(self.fractions.keys())
         word_pattern = build_alternation([re.escape(w) for w in all_words])
@@ -141,16 +141,16 @@ class MinimalTextCleaner:
         text = match.group(0)
         clean_text = text.lower().replace('-', ' ')
         words = clean_text.split()
-        
+
         # If phrase is only multipliers (e.g. "million"), leave it for scale_pattern
         if all(w in self.multipliers for w in words):
             return text
-            
+
         total_value = 0
         current_chunk = 0
         is_fraction = False
         fraction_value = 0.0
-        
+
         for word in words:
             if word in self.num_words:
                 current_chunk += self.num_words[word]
@@ -169,12 +169,12 @@ class MinimalTextCleaner:
                 elif word in ['half', 'halves']:
                     fraction_value += 0.5
                     is_fraction = True
-        
+
         if is_fraction:
             final_val = total_value + fraction_value
             if final_val == 0: return text
             return f"{final_val * 100:g}%"
-            
+
         total_value += current_chunk
         if total_value == 0 and "zero" not in clean_text:
             return text
@@ -183,7 +183,7 @@ class MinimalTextCleaner:
     def clean(self, text: str, company_name: Optional[str] = None, reporting_year: Optional[int] = None) -> str:
         if not text:
             return ""
-        
+
         # 1. Whitespace
         text = self.space_pattern.sub(" ", text).strip()
 
@@ -213,10 +213,10 @@ class MinimalTextCleaner:
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
-        
+
         # Final cleanup
         text = self.space_pattern.sub(" ", text).strip()
-        
+
         return text
 
 if __name__ == "__main__":
