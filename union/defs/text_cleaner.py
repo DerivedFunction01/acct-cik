@@ -207,6 +207,16 @@ class MinimalTextCleaner:
         self.hyphenated_fraction_pattern = re.compile(
             rf"\b({num_words_str})-({fraction_words}s?)\b", re.IGNORECASE
         )
+        self.fraction_qualifiers = {
+            "approx",
+            "approximately",
+            "roughly",
+            "nearly",
+            "about",
+            "around",
+            "some",
+            "upwards",
+        }
 
     def normalize_company_name(self, name: str) -> str:
         if not name:
@@ -276,20 +286,10 @@ class MinimalTextCleaner:
         # because they're not actually fractions - they're business/time period terminology
 
         # List of qualifiers that can precede a fraction
-        fraction_qualifiers = {
-            "approx",
-            "approximately",
-            "roughly",
-            "nearly",
-            "about",
-            "around",
-            "some",
-            "upwards",
-        }
 
         # Check what we have
         has_number = any(w in self.num_words for w in words)
-        has_qualifier = any(w in fraction_qualifiers for w in words)
+        has_qualifier = any(w in self.fraction_qualifiers for w in words)
         has_fraction = any(w in self.fractions for w in words)
 
         # If it's ONLY a fraction word (standalone), preserve it
