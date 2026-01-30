@@ -19,8 +19,10 @@ Assume labour = labor, bargain = bargaining, union = unionized
 - bargaining + (agreement, contracts)
 - union / unionized
 - non-union(ized)
+- unionization
 - employees/workers + represented by
 - labor + (agreements, contracts, organizations)
+- organized labor
 
 ---
 
