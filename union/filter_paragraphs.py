@@ -101,7 +101,7 @@ def init_worker():
     CLEANER = MinimalTextCleaner()
     CURRENCY_REMOVER = CurrencyRemover()
 
-def filter_content(content_list, company_name=None, year=None):
+def filter_content(content_list, company_name=None, year=None, allow_risk=False):
     """
     Filters a list of text blocks (paragraphs/tables).
     Cleans the text first, then checks for matches.
@@ -134,7 +134,12 @@ def filter_content(content_list, company_name=None, year=None):
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
         
-        if FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block):
+        is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
+        
+        if not is_match and allow_risk:
+            is_match = RISK_REGEX.search(cleaned_block)
+            
+        if is_match:
             filtered.append(cleaned_block)
             
     return filtered
@@ -164,8 +169,8 @@ def process_batch(rows):
         except json.JSONDecodeError:
             continue
             
-        filtered_item1 = filter_content(item1_list, company_name, year)
-        filtered_item1a = filter_content(item1a_list, company_name, year)
+        filtered_item1 = filter_content(item1_list, company_name, year, allow_risk=False)
+        filtered_item1a = filter_content(item1a_list, company_name, year, allow_risk=True)
         
         # Only keep row if we have relevant content in either section
         if filtered_item1 or filtered_item1a:

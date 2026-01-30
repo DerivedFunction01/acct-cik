@@ -62,6 +62,7 @@ WORKER_TERMS = [
 SUFFIX_AGREEMENTS = [
     r"agreements?",
     r"contracts?",
+    r"arrangements?"
 ]
 
 SUFFIX_ORGS = [
