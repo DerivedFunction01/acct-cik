@@ -1112,6 +1112,64 @@ def process_confirmed_evidence(
                     soft_counts[d.category] += 1
 
 
+def process_termination_activity(
+    clean_sent: str,
+    is_nst_warr: bool,
+    is_nst_conv: bool,
+    exclusion_tracker: Optional[GlobalExclusionTracker],
+    evidence_tags_set: Optional[Set[str]],
+    local_tracker: GlobalInstrumentTracker,
+    tracker: GlobalInstrumentTracker,
+    strict_categories: Set[str],
+    accumulated_cats: Set[str],
+) -> Set[str]:
+    """
+    Identifies categories associated with termination events.
+    Handles generic terminations via tracker resolution and inheritance.
+    """
+    # Ignore exclusions that would hide activity (Termination, Negation, etc.)
+    ignore_for_activity = {
+        NoiseReason.TERM.value,
+        NoiseReason.NEG.value,
+        NoiseReason.POT.value,
+        NoiseReason.ZERO.value,
+        NoiseReason.NO_HEDGE.value
+    }
+    
+    sent_scores_act = get_text_categories(
+        clean_sent,
+        is_nst_warr=is_nst_warr,
+        is_nst_conv=is_nst_conv,
+        exclusion_tracker=exclusion_tracker,
+        evidence_tags=evidence_tags_set,
+        ignore_reasons=ignore_for_activity
+    )
+    if sent_scores_act.get('gen', 0) == -1:
+        if 'gen' in sent_scores_act: del sent_scores_act['gen']
+    
+    strict_cats_act = derive_strict_categories(sent_scores_act, clean_sent)
+    
+    if not strict_cats_act:
+        # 1. Try resolving via trackers
+        resolved_act = local_tracker.resolve_instrument(clean_sent, sent_scores_act)
+        if not resolved_act:
+            resolved_act = tracker.resolve_instrument(clean_sent, sent_scores_act)
+        
+        if resolved_act:
+            strict_cats_act.add(resolved_act)
+        else:
+            # 2. Inheritance Logic: If only one category exists globally or locally, assume it
+            specific_strict = {c for c in strict_categories if c not in ("gen", "other")}
+            if len(specific_strict) == 1:
+                strict_cats_act.add(list(specific_strict)[0])
+            elif len(specific_strict) == 0:
+                specific_accum = {c for c in accumulated_cats if c not in ("gen", "other")}
+                if len(specific_accum) == 1:
+                    strict_cats_act.add(list(specific_accum)[0])
+
+    return strict_cats_act
+
+
 # =============================================================================
 # MAIN PROCESSING
 # =============================================================================
@@ -1309,44 +1367,17 @@ def process_row(row: Tuple) -> Tuple:
             is_term = sent_tag_reason == NoiseReason.TERM.value
 
             if is_term:
-                # Ignore exclusions that would hide activity (Termination, Negation, etc.)
-                ignore_for_activity = {
-                    NoiseReason.TERM.value,
-                    NoiseReason.NEG.value,
-                    NoiseReason.POT.value,
-                    NoiseReason.ZERO.value,
-                    NoiseReason.NO_HEDGE.value
-                }
-                sent_scores_act = get_text_categories(
+                strict_cats_act = process_termination_activity(
                     clean_sent,
                     is_nst_warr=effective_nst_warr,
                     is_nst_conv=effective_nst_conv,
                     exclusion_tracker=exclusion_tracker,
-                    evidence_tags=evidence_tags_set,
-                    ignore_reasons=ignore_for_activity
+                    evidence_tags_set=evidence_tags_set,
+                    local_tracker=local_tracker,
+                    tracker=tracker,
+                    strict_categories=strict_categories,
+                    accumulated_cats=accumulated_cats
                 )
-                if sent_scores_act.get('gen', 0) == -1:
-                    if 'gen' in sent_scores_act: del sent_scores_act['gen']
-                
-                strict_cats_act = derive_strict_categories(sent_scores_act, clean_sent)
-                
-                if not strict_cats_act:
-                    # 1. Try resolving via trackers
-                    resolved_act = local_tracker.resolve_instrument(clean_sent, sent_scores_act)
-                    if not resolved_act:
-                        resolved_act = tracker.resolve_instrument(clean_sent, sent_scores_act)
-                    
-                    if resolved_act:
-                        strict_cats_act.add(resolved_act)
-                    else:
-                        # 2. Inheritance Logic: If only one category exists globally or locally, assume it
-                        specific_strict = {c for c in strict_categories if c not in ("gen", "other")}
-                        if len(specific_strict) == 1:
-                            strict_cats_act.add(list(specific_strict)[0])
-                        elif len(specific_strict) == 0:
-                            specific_accum = {c for c in accumulated_cats if c not in ("gen", "other")}
-                            if len(specific_accum) == 1:
-                                strict_cats_act.add(list(specific_accum)[0])
 
                 if strict_cats_act:
                     activity_categories.update(strict_cats_act)
