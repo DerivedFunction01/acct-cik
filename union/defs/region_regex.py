@@ -34,7 +34,15 @@ class Nation:
 NORTH_AMERICA = {
     Nation(
         "United States",
-        ["us", "u.s.", "usa", "united states", add_restrictions(r"american?", lookbehinds=[r"central", r"latin", r"south"])],
+        [
+            "us",
+            "u.s.",
+            "usa",
+            "united states",
+            add_restrictions(
+                r"american?", lookbehinds=[r"central", r"latin", r"south"]
+            ),
+        ],
         Region.NORTH_AMERICA,
         [
             Location(
@@ -129,7 +137,7 @@ NORTH_AMERICA = {
             Location("Vancouver", ["vancouver"]),
             Location("Montreal", ["montreal"]),
             Location("Ontario", ["ontario"]),
-            Location("Quebec", ["quebec"]),
+            Location("Quebec", ["quebec", "québec"]),
             Location("Alberta", ["alberta", "calgary"]),
             Location("British Columbia", ["british columbia", "bc"]),
         ],
@@ -139,6 +147,10 @@ NORTH_AMERICA = {
             "Canadian Union of Public Employees",
             "CLC",
             "Canadian Labour Congress",
+            "CSN",
+            "Confédération des syndicats nationaux",
+            "FTQ",
+            "Fédération des travailleurs et travailleuses du Québec",
         ],
     ),
     Nation("North America", ["north america", "north american"], Region.NORTH_AMERICA),
@@ -193,7 +205,7 @@ EUROPE = {
         "CFDT", "French Democratic Confederation of Labour",
         "FO", "Force Ouvrière",
     ], [
-        "Syndicat", "Travail", "Salariés", "Comité Social et Économique", "Minier", "Grève", "Négociation collective", "Convention collective", "Aérien", "Métallurgie", "Chimie", "Cheminots", "Bâtiment",
+        "Comité Social et Économique", "Cheminots",
     ]),
     Nation("Italy", ["italy", "italian"], Region.EUROPE, [
         Location("Milan", ["milan"]),
@@ -379,8 +391,13 @@ MIDDLE_EAST_AFRICA = {
     ]),
     Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Morocco", ["morocco", "moroccan"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Tunisia", ["tunisia", "tunisian"], Region.MIDDLE_EAST_AFRICA),
+    Nation("Morocco", ["morocco", "moroccan"], Region.MIDDLE_EAST_AFRICA, [], [
+        "UMT", "Union Marocaine du Travail",
+        "CDT", "Confédération Démocratique du Travail",
+    ]),
+    Nation("Tunisia", ["tunisia", "tunisian"], Region.MIDDLE_EAST_AFRICA, [], [
+        "UGTT", "Union Générale Tunisienne du Travail",
+    ]),
     Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA),
     Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA),
 }
@@ -406,5 +423,10 @@ INTERNATIONAL = {
         "Convenção Coletiva", "Negociação coletiva",
         "Aéreo", "Metal", "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Transporte",
         "Bancários", "Petroleiros",
+    ]),
+    Nation("International French", [], Region.INTERNATIONAL, [], [], [
+        "Syndicat", "Travail", "Salariés", "Grève",
+        "Négociation collective", "Convention collective",
+        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Automobile", "Transport", "Minier",
     ]),
 }
