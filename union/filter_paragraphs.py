@@ -17,7 +17,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
-from defs.text_cleaner import MinimalTextCleaner
+from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover
 
 # =============================================================================
 # CONFIGURATION
@@ -92,12 +92,14 @@ def compile_filtering_regex():
 # Global regex for workers
 FILTER_REGEX = None
 CLEANER = None
+CURRENCY_REMOVER = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX, CLEANER
+    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER
     FILTER_REGEX = compile_filtering_regex()
     CLEANER = MinimalTextCleaner()
+    CURRENCY_REMOVER = CurrencyRemover()
 
 def filter_content(content_list, company_name=None, year=None):
     """
@@ -110,6 +112,8 @@ def filter_content(content_list, company_name=None, year=None):
         
     assert FILTER_REGEX is not None
     assert CLEANER is not None
+    assert CURRENCY_REMOVER is not None
+    
 
     filtered = []
     for block in content_list:
@@ -123,6 +127,12 @@ def filter_content(content_list, company_name=None, year=None):
             company_name=company_name, 
             reporting_year=year
         )
+        
+        # Remove currency figures to avoid confusion with employee counts
+        cleaned_block = CURRENCY_REMOVER.remove(cleaned_block)
+        
+        # Normalize whitespace
+        cleaned_block = " ".join(cleaned_block.split())
         
         if FILTER_REGEX.search(cleaned_block):
             filtered.append(cleaned_block)

@@ -562,6 +562,21 @@ class MinimalTextCleaner:
 
         return text
 
+class CurrencyRemover:
+    """
+    Removes currency amounts from text.
+    Designed to run AFTER MinimalTextCleaner has normalized numbers (removed commas).
+    """
+    def __init__(self):
+        self.currency_pattern = re.compile(
+            r"(?:\$\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"  # $1000, $ (1000), $(1000)
+            r"(?:\b\d+(?:\.\d+)?\s+(?:dollars?|usd|cents?)\b)", # 1000 dollars
+            re.IGNORECASE
+        )
+
+    def remove(self, text: str) -> str:
+        return self.currency_pattern.sub(" ", text)
+
 # ============================================================================
 # AUTOMATED TEST FRAMEWORK
 # ============================================================================
