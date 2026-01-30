@@ -24,6 +24,7 @@ class Nation:
     locations: list[Location] = field(default_factory=list)
     unions: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
+    code: str = ""
     
     def __hash__(self):
         return hash(self.name)
@@ -141,6 +142,7 @@ NORTH_AMERICA = {
             "TWU", "Transport Workers Union",
             "ATU", "Amalgamated Transit Union",
         ],
+        code="US",
     ),
     Nation(
         "Canada",
@@ -168,13 +170,14 @@ NORTH_AMERICA = {
             "FTQ",
             "Fédération des travailleurs et travailleuses du Québec",
         ],
+        code="CA",
     ),
-    Nation("North America", ["north america", "north american"], Region.NORTH_AMERICA),
-    Nation("domestic", ["domestic"], Region.NORTH_AMERICA),  # Dummy
+    Nation("North America", ["north america", "north american"], Region.NORTH_AMERICA, code="NA"),
+    Nation("domestic", ["domestic"], Region.NORTH_AMERICA, code="DOMESTIC"),  # Dummy
 }
 
 EUROPE = {
-    Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], ["European Works Council", "Comité d'entreprise européen"]),
+    Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], ["European Works Council", "Comité d'entreprise européen"], code="EU"),
     Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE, [
         Location("London", ["london"]),
         Location("Birmingham", ["birmingham"]),
@@ -186,25 +189,25 @@ EUROPE = {
         "RMT", "National Union of Rail, Maritime and Transport Workers",
         "ASLEF", "Associated Society of Locomotive Engineers and Firemen",
         "TSSA", "Transport Salaried Staffs' Association",
-    ]),
-    Nation("Norway", ["norway", "norwegian"], Region.EUROPE),
+    ], code="GB"),
+    Nation("Norway", ["norway", "norwegian"], Region.EUROPE, code="NO"),
     Nation("Sweden", ["sweden", "swedish"], Region.EUROPE, [
         Location("Stockholm", ["stockholm"]),
-    ]),
-    Nation("Denmark", ["denmark", "danish"], Region.EUROPE),
+    ], code="SE"),
+    Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
     Nation("Poland", ["poland", "polish"], Region.EUROPE, [
         Location("Warsaw", ["warsaw"]),
-    ]),
-    Nation("Hungary", ["hungary", "hungarian"], Region.EUROPE),
-    Nation("Czech Republic", ["czech republic", "czechia", "czech"], Region.EUROPE),
+    ], code="PL"),
+    Nation("Hungary", ["hungary", "hungarian"], Region.EUROPE, code="HU"),
+    Nation("Czech Republic", ["czech republic", "czechia", "czech"], Region.EUROPE, code="CZ"),
     Nation("Turkey", ["turkey", "turkish"], Region.EUROPE, [
         Location("Istanbul", ["istanbul"]),
-    ]),
+    ], code="TR"),
     Nation("Russia", ["russia", "russian"], Region.EUROPE, [
         Location("Moscow", ["moscow"]),
-    ]),
-    Nation("Bulgaria", ["bulgaria", "bulgarian"], Region.EUROPE),
-    Nation("Romania", ["romania", "romanian"], Region.EUROPE),
+    ], code="RU"),
+    Nation("Bulgaria", ["bulgaria", "bulgarian"], Region.EUROPE, code="BG"),
+    Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
     Nation("Germany", ["germany", "german", "deutschland"], Region.EUROPE, [
         Location("Frankfurt", ["frankfurt"]),
         Location("Berlin", ["berlin"]),
@@ -220,7 +223,7 @@ EUROPE = {
         "DGB", "German Trade Union Confederation",
     ], [
         "Gewerkschaft", "Arbeitnehmer", "Betriebsrat", "Tarifvertrag", "Bergbau", "Automobil", "Mitbestimmung", "Aufsichtsrat", "Tarifverhandlungen", "Luftfahrt", "Chemie", "Metall", "Bau", "Eisenbahn",
-    ]),
+    ], code="DE"),
     Nation("France", ["france", "french"], Region.EUROPE, [
         Location("Paris", ["paris"]),
         Location("Lyon", ["lyon"]),
@@ -230,7 +233,7 @@ EUROPE = {
         "FO", "Force Ouvrière",
     ], [
         "Comité Social et Économique", "Cheminots",
-    ]),
+    ], code="FR"),
     Nation("Italy", ["italy", "italian"], Region.EUROPE, [
         Location("Milan", ["milan"]),
         Location("Rome", ["rome"]),
@@ -241,7 +244,7 @@ EUROPE = {
         "UIL",
     ], [
         "Sindacato", "Lavoro", "Sciopero", "Automobilistico", "Contratto Collettivo", "Contrattazione", "Trasporti", "Metalmeccanici", "Chimico", "Edile", "Ferrovie",
-    ]),
+    ], code="IT"),
     Nation("Spain", ["spain", "spanish"], Region.EUROPE, [
         Location("Madrid", ["madrid"]),
         Location("Barcelona", ["barcelona"]),
@@ -249,35 +252,35 @@ EUROPE = {
         "CCOO", "Workers' Commissions",
     ], [
         # Moved to International due to ambiguity with Latin America
-    ]),
+    ], code="ES"),
     Nation("Netherlands", ["netherlands", "dutch", "holland"], Region.EUROPE, [
         Location("Amsterdam", ["amsterdam"]),
         Location("Rotterdam", ["rotterdam"]),
     ], [], [
         "Vakbond", "Ondernemingsraad", "CAO", "Metaal", "Bouw", "Vervoer", "Spoorwegen",
-    ]),
+    ], code="NL"),
     Nation("Switzerland", ["switzerland", "swiss"], Region.EUROPE, [
         Location("Zurich", ["zurich"]),
         Location("Geneva", ["geneva"]),
-    ]),
+    ], code="CH"),
     Nation("Belgium", ["belgium", "belgian"], Region.EUROPE, [
         Location("Brussels", ["brussels"]),
         Location("Antwerp", ["antwerp"]),
-    ]),
+    ], code="BE"),
     Nation("Austria", ["austria", "austrian"], Region.EUROPE, [
         Location("Vienna", ["vienna"]),
-    ]),
+    ], code="AT"),
     Nation("Ireland", ["ireland", "irish"], Region.EUROPE, [
         Location("Dublin", ["dublin"]),
-    ]),
-    Nation("Portugal", ["portugal", "portuguese"], Region.EUROPE),
-    Nation("Greece", ["greece", "greek"], Region.EUROPE),
-    Nation("Finland", ["finland", "finnish"], Region.EUROPE),
-    Nation("Ukraine", ["ukraine", "ukrainian"], Region.EUROPE),
+    ], code="IE"),
+    Nation("Portugal", ["portugal", "portuguese"], Region.EUROPE, code="PT"),
+    Nation("Greece", ["greece", "greek"], Region.EUROPE, code="GR"),
+    Nation("Finland", ["finland", "finnish"], Region.EUROPE, code="FI"),
+    Nation("Ukraine", ["ukraine", "ukrainian"], Region.EUROPE, code="UA"),
 }
 
 ASIA_PACIFIC = {
-    Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC),
+    Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC, code="APAC"),
     Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC),
     Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC, [
         Location("Tokyo", ["tokyo"]),
@@ -289,7 +292,7 @@ ASIA_PACIFIC = {
         "UA Zensen",
     ], [
         "Shunto",
-    ]),
+    ], code="JP"),
     Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC, [
         Location("Seoul", ["seoul"]),
         Location("Busan", ["busan", "pusan"]),
@@ -298,12 +301,12 @@ ASIA_PACIFIC = {
     ], [
         "KCTU", "Korean Confederation of Trade Unions",
         "FKTU", "Federation of Korean Trade Unions",
-    ]),
-    Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC),
-    Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC),
+    ], code="KR"),
+    Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC, code="SG"),
+    Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
     Nation("Taiwan", ["taiwan", "taiwanese"], Region.ASIA_PACIFIC, [
         Location("Taipei", ["taipei"]),
-    ]),
+    ], code="TW"),
     Nation("China", ["china", "chinese", "prc", "p.r.c."], Region.ASIA_PACIFIC, [
         Location("Shanghai", ["shanghai"]),
         Location("Beijing", ["beijing"]),
@@ -312,29 +315,29 @@ ASIA_PACIFIC = {
         Location("Tianjin", ["tianjin"]),
         Location("Chongqing", ["chongqing"]),
         Location("Wuhan", ["wuhan"]),
-    ]),
+    ], code="CN"),
     Nation("Thailand", ["thailand", "thai"], Region.ASIA_PACIFIC, [
         Location("Bangkok", ["bangkok"]),
-    ]),
+    ], code="TH"),
     Nation("Malaysia", ["malaysia", "malaysian"], Region.ASIA_PACIFIC, [
         Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
-    ]),
+    ], code="MY"),
     Nation("Philippines", ["philippines", "philippine", "filipino"], Region.ASIA_PACIFIC, [
         Location("Manila", ["manila"]),
-    ]),
+    ], code="PH"),
     Nation("Vietnam", ["vietnam", "vietnamese"], Region.ASIA_PACIFIC, [
         Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
         Location("Hanoi", ["hanoi"]),
-    ]),
+    ], code="VN"),
     Nation("Indonesia", ["indonesia", "indonesian"], Region.ASIA_PACIFIC, [
         Location("Jakarta", ["jakarta"]),
-    ]),
+    ], code="ID"),
     Nation("India", ["india", "indian"], Region.ASIA_PACIFIC, [
         Location("Mumbai", ["mumbai", "bombay"]),
         Location("Bangalore", ["bangalore", "bengaluru"]),
         Location("New Delhi", ["new delhi", "delhi"]),
-    ]),
-    Nation("Pakistan", ["pakistan", "pakistani"], Region.ASIA_PACIFIC),
+    ], code="IN"),
+    Nation("Pakistan", ["pakistan", "pakistani"], Region.ASIA_PACIFIC, code="PK"),
     Nation("Australia", ["australia", "australian"], Region.ASIA_PACIFIC, [
         Location("Sydney", ["sydney"]),
         Location("Melbourne", ["melbourne"]),
@@ -342,23 +345,23 @@ ASIA_PACIFIC = {
         "ACTU", "Australian Council of Trade Unions",
         "CFMEU", "Construction, Forestry, Maritime, Mining and Energy Union",
         "AWU", "Australian Workers' Union",
-    ]),
+    ], code="AU"),
     Nation("New Zealand", ["new zealand", "nz"], Region.ASIA_PACIFIC, [
         Location("Auckland", ["auckland"]),
-    ]),
-    Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC),
-    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC),
+    ], code="NZ"),
+    Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
+    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"),
 }
 
 LATIN_AMERICA = {
-    Nation("Latin America", ["latin america", "latam", "south america", "south american"], Region.LATIN_AMERICA, [], [], []),
+    Nation("Latin America", ["latin america", "latam", "south america", "south american"], Region.LATIN_AMERICA, code="LATAM"),
     Nation("Mexico", ["mexico", "mexican"], Region.LATIN_AMERICA, [
         Location("Mexico City", ["mexico city", "cdmx"]),
     ], [
         "CTM", "Confederation of Mexican Workers",
     ], [
         "Maquiladora",
-    ]),
+    ], code="MX"),
     Nation("Brazil", ["brazil", "brazilian"], Region.LATIN_AMERICA, [
         Location("Sao Paulo", ["sao paulo"]),
         Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
@@ -367,98 +370,162 @@ LATIN_AMERICA = {
         "Força Sindical",
     ], [
         "Dissídio",
-    ]),
+    ], code="BR"),
     Nation("Argentina", ["argentina", "argentine"], Region.LATIN_AMERICA, [
         Location("Buenos Aires", ["buenos aires"]),
-    ]),
+    ], code="AR"),
     Nation("Chile", ["chile", "chilean"], Region.LATIN_AMERICA, [
         Location("Santiago", ["santiago"]),
-    ]),
+    ], code="CL"),
     Nation("Colombia", ["colombia", "colombian"], Region.LATIN_AMERICA, [
         Location("Bogota", ["bogota"]),
-    ]),
-    Nation("Peru", ["peru", "peruvian"], Region.LATIN_AMERICA),
-    Nation("Venezuela", ["venezuela", "venezuelan"], Region.LATIN_AMERICA),
-    Nation("Ecuador", ["ecuador", "ecuadorian"], Region.LATIN_AMERICA),
-    Nation("Guatemala", ["guatemala", "guatemalan"], Region.LATIN_AMERICA),
-    Nation("Dominican Republic", ["dominican republic", "dominican"], Region.LATIN_AMERICA),
-    Nation("Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA),
-    Nation("Panama", ["panama", "panamanian"], Region.LATIN_AMERICA),
-    Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA),
-    Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA),
-    Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA),
+    ], code="CO"),
+    Nation("Peru", ["peru", "peruvian"], Region.LATIN_AMERICA, code="PE"),
+    Nation("Venezuela", ["venezuela", "venezuelan"], Region.LATIN_AMERICA, code="VE"),
+    Nation("Ecuador", ["ecuador", "ecuadorian"], Region.LATIN_AMERICA, code="EC"),
+    Nation("Guatemala", ["guatemala", "guatemalan"], Region.LATIN_AMERICA, code="GT"),
+    Nation("Dominican Republic", ["dominican republic", "dominican"], Region.LATIN_AMERICA, code="DO"),
+    Nation("Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA, code="CR"),
+    Nation("Panama", ["panama", "panamanian"], Region.LATIN_AMERICA, code="PA"),
+    Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
+    Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
+    Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA, code="PY"),
 }
 
 MIDDLE_EAST_AFRICA = {
-    Nation("Middle East", ["middle east", "middle eastern", "mena"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA),
+    Nation("Middle East", ["middle east", "middle eastern", "mena"], Region.MIDDLE_EAST_AFRICA, code="MEA"),
+    Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
     Nation("United Arab Emirates", ["uae", "u.a.e.", "emirates"], Region.MIDDLE_EAST_AFRICA, [
         Location("Dubai", ["dubai"]),
         Location("Abu Dhabi", ["abu dhabi"]),
-    ]),
+    ], code="AE"),
     Nation("Saudi Arabia", ["saudi arabia", "saudi"], Region.MIDDLE_EAST_AFRICA, [
         Location("Riyadh", ["riyadh"]),
-    ]),
+    ], code="SA"),
     Nation("Israel", ["israel", "israeli"], Region.MIDDLE_EAST_AFRICA, [
         Location("Tel Aviv", ["tel aviv"]),
         Location("Jerusalem", ["jerusalem"]),
-    ]),
-    Nation("Kuwait", ["kuwait", "kuwaiti"], Region.MIDDLE_EAST_AFRICA),
+    ], code="IL"),
+    Nation("Kuwait", ["kuwait", "kuwaiti"], Region.MIDDLE_EAST_AFRICA, code="KW"),
     Nation("South Africa", ["south africa", "south african"], Region.MIDDLE_EAST_AFRICA, [
         Location("Johannesburg", ["johannesburg", "joburg"]),
         Location("Cape Town", ["cape town"]),
     ], [
         "COSATU", "Congress of South African Trade Unions",
         "AMCU", "Association of Mineworkers and Construction Union",
-    ]),
+    ], code="ZA"),
     Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA, [
         Location("Lagos", ["lagos"]),
-    ]),
+    ], code="NG"),
     Nation("Kenya", ["kenya", "kenyan"], Region.MIDDLE_EAST_AFRICA, [
         Location("Nairobi", ["nairobi"]),
-    ]),
-    Nation("Tanzania", ["tanzania", "tanzanian"], Region.MIDDLE_EAST_AFRICA),
+    ], code="KE"),
+    Nation("Tanzania", ["tanzania", "tanzanian"], Region.MIDDLE_EAST_AFRICA, code="TZ"),
     Nation("Egypt", ["egypt", "egyptian"], Region.MIDDLE_EAST_AFRICA, [
         Location("Cairo", ["cairo"]),
-    ]),
-    Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA),
+    ], code="EG"),
+    Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA, code="ET"),
+    Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA, code="GH"),
     Nation("Morocco", ["morocco", "moroccan"], Region.MIDDLE_EAST_AFRICA, [], [
         "UMT", "Union Marocaine du Travail",
         "CDT", "Confédération Démocratique du Travail",
-    ]),
+    ], code="MA"),
     Nation("Tunisia", ["tunisia", "tunisian"], Region.MIDDLE_EAST_AFRICA, [], [
         "UGTT", "Union Générale Tunisienne du Travail",
-    ]),
-    Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA),
-    Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA),
+    ], code="TN"),
+    Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA, code="DZ"),
+    Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA, code="QA"),
 }
 
 INTERNATIONAL = {
-    Nation("International", ["international", "foreign", "overseas"], Region.INTERNATIONAL, [], [
-        "ITF", "International Transport Workers' Federation",
-        "UNI Global Union",
-        "IndustriALL",
-        "IUF",
-        "PSI", "Public Services International",
-    ]),
-    Nation("Global", ["global", "worldwide"], Region.INTERNATIONAL),
-    Nation("International Spanish", [], Region.INTERNATIONAL, [], [], [
-        "Sindicato", "Trabajo", "Huelga", "Gremios",
-        "Minería", "Automóvil", "Automotriz",
-        "Contrato Colectivo", "Convenio Colectivo", "Negociación colectiva",
-        "Aéreo", "Metalúrgica", "Química", "Construcción", "Transporte", "Ferrocarril", "Ferroviarios",
-    ]),
-    Nation("International Portuguese", [], Region.INTERNATIONAL, [], [], [
-        "Sindicato", "Trabalho", "Greve",
-        "Mineração", "Automotivo",
-        "Convenção Coletiva", "Negociação coletiva",
-        "Aéreo", "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Transporte",
-        "Bancários", "Petroleiros", "Ferroviários",
-    ]),
-    Nation("International French", [], Region.INTERNATIONAL, [], [], [
-        "Syndicat", "Travail", "Salariés", "Grève",
-        "Négociation collective", "Convention collective",
-        "Aérien", "Métallurgie", "Chimie", "Bâtiment", "Minier", "Ferroviaire",
-    ]),
+    Nation(
+        "International",
+        ["international", "foreign", "overseas", "global", "worldwide"],
+        Region.INTERNATIONAL,
+        [],
+        [
+            "ITF",
+            "International Transport Workers' Federation",
+            "UNI Global Union",
+            "IndustriALL",
+            "IUF",
+            "PSI",
+            "Public Services International",
+        ],
+        code="INT"),
+    Nation(
+        "International Spanish",
+        [],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        [
+            "Sindicato",
+            "Trabajo",
+            "Huelga",
+            "Gremios",
+            "Minería",
+            "Automóvil",
+            "Automotriz",
+            "Contrato Colectivo",
+            "Convenio Colectivo",
+            "Negociación colectiva",
+            "Aéreo",
+            "Metalúrgica",
+            "Química",
+            "Construcción",
+            "Transporte",
+            "Ferrocarril",
+            "Ferroviarios",
+        ],
+        code="INT_ES",
+    ),
+    Nation(
+        "International Portuguese",
+        [],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        [
+            "Sindicato",
+            "Trabalho",
+            "Greve",
+            "Mineração",
+            "Automotivo",
+            "Convenção Coletiva",
+            "Negociação coletiva",
+            "Aéreo",
+            "Metalúrgica",
+            "Metalúrgicos",
+            "Química",
+            "Construção",
+            "Transporte",
+            "Bancários",
+            "Petroleiros",
+            "Ferroviários",
+        ],
+        code="INT_PT",
+    ),
+    Nation(
+        "International French",
+        [],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        [
+            "Syndicat",
+            "Travail",
+            "Salariés",
+            "Grève",
+            "Négociation collective",
+            "Convention collective",
+            "Aérien",
+            "Métallurgie",
+            "Chimie",
+            "Bâtiment",
+            "Minier",
+            "Ferroviaire",
+        ],
+        code="INT_FR",
+    ),
 }

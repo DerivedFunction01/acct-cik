@@ -114,7 +114,7 @@ class LABOR_TERMS:
         # employees/workers + represented by
         build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
         # labor + (agreements, contracts, organizations)
-        build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS),
+        build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS + [CORE.UNION]),
         # organized labor
         build_compound([CORE.ORGANIZED], [CORE.LABOR]),
     ]
