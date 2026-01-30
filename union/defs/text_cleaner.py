@@ -218,6 +218,32 @@ class MinimalTextCleaner:
             "upwards",
         }
 
+        # False Fraction Protection
+        # Terms that are fractions but often used in dates/periods: quarter, half, third, fourth...
+        # We want to protect them when they are used as time periods or ordinals.
+        ordinals_and_time = [
+            "fiscal", "first", "second", "third", "fourth", "fifth", "sixth",
+            "next", "last", "previous", "current", "past", "this", "following",
+            "reporting", "subsequent",
+            r"\d+(?:st|nd|rd|th)"
+        ]
+        ordinals_pattern = build_alternation(ordinals_and_time)
+        
+        fraction_terms = [
+            "half", "halves", "quarter", "quarters", 
+            "third", "thirds", "fourth", "fourths",
+            "fifth", "fifths", "sixth", "sixths"
+        ]
+        fraction_terms_pattern = build_alternation(fraction_terms)
+        
+        self.false_fraction_pattern = re.compile(
+            rf"\b(?:{ordinals_pattern})\s+(?:of\s+(?:the\s+)?)?{fraction_terms_pattern}\b|"
+            rf"\b{fraction_terms_pattern}\s+(?:ended|ending)\b|"
+            rf"\bin\s+(?:the\s+)?(?:first|second|1st|2nd)\s+half\b|"
+            rf"\b{fraction_terms_pattern}\s+(?:full\s+)?years?\b",
+            re.IGNORECASE
+        )
+
     def normalize_company_name(self, name: str) -> str:
         if not name:
             return ""
@@ -295,7 +321,14 @@ class MinimalTextCleaner:
         # If it's ONLY a fraction word (standalone), preserve it
         # Examples: "half", "quarter", "third" (when standing alone)
         if has_fraction and not has_number and not has_qualifier:
-            return text  # Preserve standalone fractions
+            # Allow "half" and "quarter" to convert, but keep others (ordinals)
+            is_safe = True
+            for w in words:
+                if w not in ["half", "halves", "quarter", "quarters"]:
+                    is_safe = False
+                    break
+            if not is_safe:
+                return text  # Preserve standalone fractions like "third"
 
         # Special case: Check for "number fraction_word" patterns like "three fourths"
         # where "fourths" ends with "ths" but the base "fourth" is a fraction
@@ -399,6 +432,14 @@ class MinimalTextCleaner:
         text = self.month_only_pattern.sub(" ", text)
         text = self.year_pattern.sub(r" <\1> ", text)
 
+        # NEW: Protect False Fractions
+        protected_map = {}
+        def protect_match(m):
+            key = f"__FF_PROTECT_{len(protected_map)}__"
+            protected_map[key] = m.group(0)
+            return key
+        text = self.false_fraction_pattern.sub(protect_match, text)
+
         # 5. Numbers
         # First handle hyphenated fractions like "three-fourths" before they get split
         text = self.hyphenated_fraction_pattern.sub(
@@ -409,6 +450,10 @@ class MinimalTextCleaner:
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
+
+        # Restore False Fractions
+        for key, val in protected_map.items():
+            text = text.replace(key, val)
 
         # Percent normalization
         text = self.percent_pattern.sub("%", text)
@@ -839,6 +884,28 @@ def create_test_cases() -> List[TestCase]:
             input_text="The business operates in multiple countries.",
             validations=[
                 (TestType.CONTAINS, "The business operates", None),
+            ],
+        ),
+        # Test 18: Standalone Fractions (Half/Quarter)
+        TestCase(
+            name="Standalone Fractions",
+            input_text="Half of our employees and a quarter of the staff.",
+            validations=[
+                (TestType.CONTAINS, "50%", None),
+                (TestType.CONTAINS, "25%", None),
+            ],
+        ),
+        # Test 19: Protected Time Periods
+        TestCase(
+            name="Protected Time Periods",
+            input_text="In the first half of the year, fiscal quarter results were good. Third year of operation.",
+            validations=[
+                (TestType.CONTAINS, "first half", None),
+                (TestType.NOT_CONTAINS, "50%", None),
+                (TestType.CONTAINS, "fiscal quarter", None),
+                (TestType.NOT_CONTAINS, "25%", None),
+                (TestType.CONTAINS, "Third year", None),
+                (TestType.NOT_CONTAINS, "33.33%", None),
             ],
         ),
     ]
