@@ -261,7 +261,7 @@ class MinimalTextCleaner:
         ]
         ordinals_pattern = build_alternation(ordinals_and_time)
 
-        fraction_terms = list(self.num_words.keys() | self.fractions.keys())
+        fraction_terms = list(self.fractions.keys())
         fraction_terms_pattern = build_alternation(fraction_terms)
 
         # Terms that indicate a time period following a fraction
@@ -678,12 +678,13 @@ class TestValidator:
                 self.failed += 1
                 status = "✗ FAILED"
             
-            # Print test header
-            print(f"{status} | {result['name']}")
-            print("-" * 80)
+           
             
             # Print input/output
             if self.failed:
+                # Print test header
+                print(f"{status} | {result['name']}")
+                print("-" * 80)
                 print(f"Input: {result['input'][:100]}..." if len(result['input']) > 100 else f"Input: {result['input']}")
                 print(f"Output: {result['output'][:100]}..." if len(result['output']) > 100 else f"Output: {result['output']}")
             
