@@ -286,17 +286,26 @@ def save_batch_report_urls(df):
         except:
             pass
         try:
-            report = df[["cik", "year", "url"]].copy()
+            # Check if accession is already provided in the dataframe
+            cols = ["cik", "year", "url"]
+            if "accession" in df.columns:
+                cols.append("accession")
+            
+            report = df[cols].copy()
             report["original_url"] = report["url"]
             
-            def get_acc(u):
-                info = extract_accession_info(u)
-                return info["accession"] if info else None
-                
-            report["accession"] = report["url"].apply(get_acc)
+            if "accession" not in report.columns:
+                def get_acc(u):
+                    info = extract_accession_info(u)
+                    return info["accession"] if info else None
+                report["accession"] = report["url"].apply(get_acc)
             
             # Deduplicate by accession to ensure integrity before insertion
-            report = report.drop_duplicates(subset=["accession"])
+            # IMPORTANT: Only deduplicate rows that actually HAVE an accession.
+            # Rows with None accession (placeholders for missing years) should be kept.
+            valid_acc = report[report["accession"].notna()].drop_duplicates(subset=["accession"])
+            null_acc = report[report["accession"].isna()]
+            report = pd.concat([valid_acc, null_acc])
             
             report.to_sql("report_data", conn, if_exists="append", index=False)
             return True
@@ -477,6 +486,7 @@ def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
                     "url": link,
                     "ticker": ticker,
                     "type": f_type,
+                    "accession": accession,
                 }
             )
     return links
