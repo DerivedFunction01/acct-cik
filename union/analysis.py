@@ -13,6 +13,13 @@ class UnionAnalyzer:
     def __init__(self):
         self.extractor = UnionExtractor()
 
+    def _get_external_worker_count(self, region: str, countries: List[Dict[str, str]]) -> Optional[float]:
+        """
+        Placeholder: Connect to external DB to get worker counts for a region/country.
+        Currently returns None as requested.
+        """
+        return None
+
     def analyze_paragraph(self, text: str, item_type: str = "item1") -> List[Dict[str, Any]]:
         """
         Process a paragraph of text, splitting it into sentences and 
@@ -111,14 +118,20 @@ class UnionAnalyzer:
             
             if current_region in region_totals:
                 relevant_total = region_totals[current_region]
-            elif current_region in (
-                Region.INTERNATIONAL.value,
-                Region.UNKNOWN.value,
-                Region.NORTH_AMERICA.value,
-            ) and global_max_workers > 0:
-                 relevant_total = global_max_workers
-            else:
-                 relevant_total = last_employee_count or global_max_workers
+            
+            # Check external source if text didn't provide it
+            if not relevant_total:
+                relevant_total = self._get_external_worker_count(current_region, geo_context.get("countries", []))
+
+            if not relevant_total:
+                if current_region in (
+                    Region.INTERNATIONAL.value,
+                    Region.UNKNOWN.value,
+                    Region.NORTH_AMERICA.value,
+                ) and global_max_workers > 0:
+                    relevant_total = global_max_workers
+                else:
+                    relevant_total = last_employee_count or global_max_workers
 
             # 2. Determine Coverage Data
             coverage_data = self._determine_coverage_data(analysis, relevant_total)
