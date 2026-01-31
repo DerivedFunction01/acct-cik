@@ -323,7 +323,7 @@ class UnionAnalyzer:
             for term in analysis.negation_terms:
                 t_lower = term.lower()
                 # Check for Zero Coverage indicators ("no", "none")
-                if t_lower in ("no", "none", "neither", "nor", "never"):
+                if re.match(r"\b(?:no|none|neither|nor|never|without)\b", t_lower):
                     negation_type = NegationType.ZERO_COVERAGE.value
                     # Zero coverage takes precedence (e.g. "no union employees" -> 0%)
                     break

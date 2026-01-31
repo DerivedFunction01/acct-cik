@@ -21,7 +21,6 @@ WORKER_COUNT_REGEX = re.compile(rf"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{work
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 
 # Negation patterns
-NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
 NON_UNION_REGEX = re.compile(CORE.NONUNION.value, re.IGNORECASE)
 
 class MatchType(Enum):
@@ -204,13 +203,6 @@ class UnionExtractor:
                 geo_side_effect
             )
 
-        # 9. Extract Negation Terms (General)
-        process_matches(
-            NEGATION_REGEX, MatchType.NEGATION,
-            lambda m: m.group(0),
-            lambda m, val: analysis.negation_terms.append(val)
-        )
-        
         # 10. Extract Ratios (Before Numbers)
         process_matches(
             RATIO_REGEX, MatchType.RATIO,

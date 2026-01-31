@@ -134,9 +134,26 @@ class RISK_TERMS:
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
+
+NEGATION_TERMS = [
+    r"no", r"not", r"non", r"un", r"neither", r"nor", r"never", r"without", r"none"
+]
+
+COVERAGE_TERMS = [
+    r"represented",
+    r"covered",
+    r"affiliat(?:ed|ion)",
+    r"union(?:ized)?",
+    r"collective\s+bargaining",
+    r"agreements?",
+    r"contracts?",
+    r"arrangements?",
+]
+
 NON_COVERAGE_PHRASES = [
     r"at[- ]will",
-    r"(?:non|un|not|no)[- ]?(?:represented|covered|affiliat(?:ed|tion))",
+    r"operate\s+outside",
+    build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=r"[- ]?"),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
