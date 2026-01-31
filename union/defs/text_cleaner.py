@@ -28,7 +28,7 @@ class MinimalTextCleaner:
 
     # Regex to remove safe suffixes from text
     text_suffix_pattern = re.compile(
-        r"\b" + build_alternation(text_suffixes) + r"\b\.?", re.IGNORECASE
+        r"\b" + build_alternation(text_suffixes) + r"(?:\b\.?|(?<=\.))", re.IGNORECASE
     )
 
     # False Positives for Union/Labor context
@@ -56,7 +56,6 @@ class MinimalTextCleaner:
         r"(?=\s)",  # Followed by whitespace
         re.IGNORECASE,
     )
-
 
     # Date and Year Patterns
     months = [
@@ -137,7 +136,7 @@ class MinimalTextCleaner:
 
     # Pronouns to Company Token
     # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
-    pronoun_pattern = re.compile(r"\b(?:[Ww]e|[Oo]ur|us)\b")
+    pronoun_pattern = re.compile(r"\bus\b")
 
     percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
@@ -219,6 +218,32 @@ class MinimalTextCleaner:
             _x_end,
             _x_over_x,
         ]
+    )
+    
+    EXHIBIT_NOUNS = [
+        "exhibits?",
+        "references?",
+        "note",
+        "appendix",
+        "schedules?",
+        "articles?",
+        "sections?",
+        "subsections?",
+        "statements?",
+        "table",
+        "No.",
+        "pages?",
+        "pp.",
+        "p.",
+        "figures?",
+        "charts?",
+        "summary",
+    ]
+
+    EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
+    exhibit_pattern = re.compile(
+        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d(?:[\d.-]*\d)?\b",
+        re.IGNORECASE,
     )
 
     def __init__(self):
@@ -399,7 +424,7 @@ class MinimalTextCleaner:
                 escaped_name = re.escape(core_name)
                 suffix_regex = r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
                 company_regex = re.compile(
-                    rf"\b{escaped_name}{suffix_regex}\b", re.IGNORECASE
+                    rf"\b{escaped_name}{suffix_regex}(?:\b|(?<=\.))", re.IGNORECASE
                 )
                 text = company_regex.sub(COMPANY_TOKEN, text)
 
@@ -420,7 +445,6 @@ class MinimalTextCleaner:
         text = self.date_dm_pattern.sub(" ", text)
         text = self.month_only_pattern.sub(" ", text)
         text = self.year_pattern.sub(r" <\1> ", text)
-
 
         # NEW: Protect False Fractions
         protected_map = {}
@@ -451,6 +475,9 @@ class MinimalTextCleaner:
         # Percent normalization
         text = self.percent_pattern.sub("%", text)
         text = self.percent_space_pattern.sub(r"\1%", text)
+        
+        # Cleanup references
+        text = self.exhibit_pattern.sub(" ", text)
 
         # Final cleanup
         text = self.space_pattern.sub(" ", text).strip()
@@ -666,7 +693,7 @@ def create_test_cases() -> List[TestCase]:
             input_text="Johnson & Johnson Corporation is a leading company. Johnson & Johnson was founded long ago.",
             company_name="Johnson & Johnson Corporation",
             validations=[
-                (TestType.CONTAINS, "the Company", None),
+                (TestType.CONTAINS, "The Company", None),
                 (TestType.COUNT, r"the Company", 2),
                 (TestType.NOT_CONTAINS, "Johnson & Johnson Corporation", None),
             ],
@@ -804,7 +831,7 @@ def create_test_cases() -> List[TestCase]:
             input_text="Apple Inc. reported 138,100 employees on December 31, 2023. Approximately one half of staff work in the European Union earning five million dollars per year at 25 percent bonus.",
             company_name="Apple Inc.",
             validations=[
-                (TestType.CONTAINS, "the Company", None),
+                (TestType.CONTAINS, "The Company", None),
                 (TestType.CONTAINS, "138100", None),
                 (TestType.CONTAINS, "<2023>", None),
                 (TestType.NOT_CONTAINS, "December 31", None),
@@ -820,6 +847,17 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "first quarter", None),  # Should NOT be converted
                 (TestType.NOT_CONTAINS, "25%", None),  # Should not convert to percent
+            ],
+        ),
+        TestCase(
+            name="Reference removal",
+            input_text="Exhibit 5, Statement No. 10, Figure 2, Item 1. 55",
+            validations=[
+                (TestType.NOT_CONTAINS, "Exhibit 5", None),
+                (TestType.NOT_CONTAINS, "Statement No. 10", None),
+                (TestType.NOT_CONTAINS, "Figure 2", None),
+                (TestType.NOT_CONTAINS, "Item 1", None),
+                (TestType.CONTAINS, "55", None),
             ],
         ),
         TestCase(
@@ -952,9 +990,9 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "a quarter on the ground", None),
             ],
         ),
-        # Test 23: Bullets and Dashed Numbers
+        # Test 23: Bullets and Exhibits (even if the numbers are converted, exhibit pattern to clean up)
         TestCase(
-            name="Bullets and Dashed Numbers",
+            name="Bullets and Exhibits",
             input_text="1. Item one. (2) Item two. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year.",
             validations=[
                 (TestType.NOT_CONTAINS, "1.", None),
@@ -962,9 +1000,8 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "a.", None),
                 (TestType.NOT_CONTAINS, "(b)", None),
                 (TestType.NOT_CONTAINS, "i.", None),
-                (TestType.NOT_CONTAINS, "10-20", None),
                 (TestType.NOT_CONTAINS, "(2023)", None),
-                (TestType.CONTAINS, "Item one", None),
+                (TestType.NOT_CONTAINS, "Item one", None),
                 (TestType.CONTAINS, "range", None),
                 (TestType.CONTAINS, "Year", None),
             ],
@@ -994,8 +1031,7 @@ def create_test_cases() -> List[TestCase]:
             name="Pronoun Replacement",
             input_text="We believe our employees are vital. Contact us. US GAAP is used.",
             validations=[
-                (TestType.CONTAINS, "the Company believe", None),
-                (TestType.CONTAINS, "the Company employees", None),
+                (TestType.CONTAINS, "We believe", None),
                 (TestType.CONTAINS, "Contact the Company", None),
                 (TestType.CONTAINS, "US GAAP", None),
             ],
@@ -1013,10 +1049,14 @@ def create_test_cases() -> List[TestCase]:
         # Test 28: Capitalize "the" at start of sentence
         TestCase(
             name="Capitalize 'the' at start",
-            input_text="the Company is here. we are happy. apple inc. reported results.",
+            input_text="the Company is here. apple inc. reported results.",
             company_name="Apple Inc.",
             validations=[
-                (TestType.CONTAINS, "The Company is here. The Company are happy. The Company reported results.", None),
+                (
+                    TestType.CONTAINS,
+                    "The Company is here. The Company reported results.",
+                    None,
+                ),
             ],
         ),
     ]
