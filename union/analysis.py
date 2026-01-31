@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional
 
-from union.extraction import UnionExtractor, SentenceAnalysis
+from union.extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier, 
@@ -302,6 +302,11 @@ class UnionAnalyzer:
             "extracted_numbers": [],
         }
 
+        # NEW: Mixed Coverage Detection & Resolution
+        # If we have multiple counts or percentages, try to disambiguate using proximity
+        if len(analysis.worker_counts) > 1 or len(analysis.percentages) > 1:
+             self._resolve_mixed_coverage(analysis, data)
+
         # Check for Negation
         is_negated = False
         negation_type = None
@@ -327,7 +332,7 @@ class UnionAnalyzer:
                     negation_type = NegationType.NOT_COVERED.value
 
         # Extract Percentage
-        if analysis.percentages:
+        if analysis.percentages and not data["percentage"]:
             raw_pct = analysis.percentages[0]
             data["type"] = CoverageType.EXPLICIT_PERCENT.value
 
@@ -346,7 +351,7 @@ class UnionAnalyzer:
                     data["negation_type"] = negation_type
 
         # Handle "No employees" / "None" -> 0%
-        elif is_negated and negation_type == NegationType.ZERO_COVERAGE.value:
+        elif is_negated and negation_type == NegationType.ZERO_COVERAGE.value and not data["percentage"]:
             data["percentage"] = 0.0
             data["type"] = CoverageType.EXPLICIT_PERCENT.value  # Treated as explicit 0
             data["negated"] = True
@@ -358,6 +363,7 @@ class UnionAnalyzer:
             is_negated
             and negation_type == NegationType.NOT_COVERED.value
             and not analysis.percentages
+            and not data["percentage"]
         ):
             # "We are non-union" -> 0%
             data["percentage"] = 0.0
@@ -379,7 +385,7 @@ class UnionAnalyzer:
                 data["note"] = f"Calculated from ratio: {numerator} of {denominator}"
 
         # Handle Numbers (Basic mapping for now)
-        if analysis.numbers:
+        if analysis.numbers and not data["employee_count_covered"]:
             # Store raw numbers for potential downstream analysis (e.g. Compustat merging)
             data["extracted_numbers"] = analysis.numbers
 
@@ -410,6 +416,84 @@ class UnionAnalyzer:
                     )
 
         return data
+
+    def _resolve_mixed_coverage(self, analysis: SentenceAnalysis, data: Dict[str, Any]):
+        """
+        Resolves mixed coverage scenarios (e.g. "500 union, 200 non-union") by
+        mapping counts/percentages to the nearest positive/negative keywords.
+        Updates 'data' in-place.
+        """
+        # 1. Gather entities with spans
+        counts = [m for m in analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+        percents = [m for m in analysis._matches if m['type'] == MatchType.PERCENT]
+        
+        # Positive indicators: Union terms
+        positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)]
+        
+        # Negative indicators: Non-union terms or specific negation
+        negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION)]
+        
+        # Helper to find nearest indicator
+        def get_nearest_type(target_span):
+            t_start, t_end = target_span
+            best_dist = float('inf')
+            best_type = None # 'covered', 'not_covered'
+            
+            # Check positives
+            for p in positives:
+                p_start, p_end = p['span']
+                # Check overlap (strongest signal)
+                if p_start >= t_start and p_end <= t_end:
+                    return 'covered'
+                # Distance
+                dist = min(abs(t_start - p_end), abs(p_start - t_end))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_type = 'covered'
+            
+            # Check negatives
+            for n in negatives:
+                n_start, n_end = n['span']
+                if n_start >= t_start and n_end <= t_end:
+                    return 'not_covered'
+                dist = min(abs(t_start - n_end), abs(n_start - t_end))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_type = 'not_covered'
+            
+            return best_type
+
+        # Process Counts
+        if counts:
+            # Sort counts descending to identify potential total (heuristic: largest is total)
+            sorted_counts = sorted(counts, key=lambda x: x['val'], reverse=True)
+            largest_val = sorted_counts[0]['val']
+            
+            # If we have 3+ counts, or 2 counts that sum to approx the largest, assume largest is total
+            # For now, simple mapping
+            for c in counts:
+                val = c['val']
+                ctype = get_nearest_type(c['span'])
+                
+                if ctype == 'covered':
+                    data['employee_count_covered'] = val
+                elif ctype == 'not_covered':
+                    data['employee_count_not_covered'] = val
+                elif val == largest_val and len(counts) > 1:
+                    data['employee_count_total'] = val
+
+            # Calculate total/percentage if missing
+            if data['employee_count_covered'] and data['employee_count_not_covered']:
+                if not data['employee_count_total']:
+                    data['employee_count_total'] = data['employee_count_covered'] + data['employee_count_not_covered']
+                
+                # Calculate %
+                pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
+                data['calculated_percentage'] = round(pct, 2)
+                if not data['percentage']:
+                    data['percentage'] = round(pct, 2)
+                    data['type'] = CoverageType.CALCULATED.value
+                    data['note'] = f"Calculated from mixed counts: {data['employee_count_covered']} covered, {data['employee_count_not_covered']} not covered"
 
     def _analyze_item1a(self, sentences: List[str]) -> List[Dict[str, Any]]:
         """
