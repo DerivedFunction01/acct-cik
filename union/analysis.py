@@ -36,8 +36,31 @@ HISTORICAL_REGEX = build_regex([
     r"historical(?:ly)?",
     r"previously",
     r"prior\s+to",
-    r"(?:last|prior|past)\s+(?:fiscal|reporting)\s+(?:year|period)"
+    r"(?:last|prior|past)\s+(?:fiscal\s+|reporting\s+)?(?:year|period)"
 ])
+
+NEGATION_REGEX = build_regex([
+    r"no",
+    r"without",
+    r"neither",
+    r"none",
+    r"never"
+])
+
+REMAIN_REGEX = build_regex([
+    r"remaining",
+    r"rest",
+    r"balance",
+    r"other"
+])
+
+RANGE_REGEX = build_regex([
+    r"to",
+    r"-",
+    r"through",
+    r"and"
+])
+
 
 class UnionAnalyzer:
     def __init__(self):
@@ -46,12 +69,18 @@ class UnionAnalyzer:
     def _get_external_worker_count(self, region: str, countries: List[Dict[str, str]]) -> Optional[float]:
         """
         Placeholder: Connect to external DB to get worker counts for a region/country.
-        Currently returns None as requested.
+        Currently returns None.
         """
         return None
 
-    def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis) -> Dict[str, Any]:
+    def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis, is_historical: bool = False) -> Dict[str, Any]:
         is_conditional = bool(CONDITIONAL_REGEX.search(sentence))
+        temporal_scope = TemporalScope.CURRENT.value
+        if is_historical:
+            temporal_scope = TemporalScope.HISTORICAL.value
+        elif is_conditional:
+            temporal_scope = TemporalScope.CONDITIONAL.value
+
         return {
             "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
             "sentence": sentence,
@@ -60,7 +89,7 @@ class UnionAnalyzer:
             "third_party": analysis.supplier_terms,
             "specific_to_unions": bool(analysis.union_terms),
             "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
-            "temporal_scope": TemporalScope.CONDITIONAL.value if is_conditional else TemporalScope.CURRENT.value,
+            "temporal_scope": temporal_scope,
             "conditional": is_conditional,
             "note": None
         }
@@ -104,12 +133,13 @@ class UnionAnalyzer:
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
 
+            is_historical = False
             # Historical Check: If reporting_year is provided, skip purely historical sentences
             if reporting_year and analysis.years:
                 if all(y < reporting_year for y in analysis.years) or HISTORICAL_REGEX.search(sent):
                     # Check for explicit current indicators to override exclusion
                     if not CURRENT_REGEX.search(sent):
-                        continue
+                        is_historical = True
 
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
@@ -186,7 +216,7 @@ class UnionAnalyzer:
                     relevant_total = last_employee_count or global_max_workers
 
             # 2. Determine Coverage Data
-            coverage_data = self._determine_coverage_data(analysis, relevant_total, reporting_year)
+            coverage_data = self._determine_coverage_data(analysis, relevant_total, reporting_year, is_historical=is_historical)
 
             # 3. Construct Item 1 JSON
             # Rule: Include if we have union terms OR (coverage data AND inherited context)
@@ -207,7 +237,7 @@ class UnionAnalyzer:
                 and not coverage_data["negated"]
             ):
                 # It is a risk statement embedded in Item 1 (common in older filings)
-                results.append(self._create_risk_item(sent, analysis))
+                results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
                 should_include = False
 
             # Exclude "monitoring" statements with no data (Statement Only)
@@ -257,7 +287,7 @@ class UnionAnalyzer:
                     current["coverage_data"]["type"] != CoverageType.QUALITATIVE.value):
                     
                     # Check for "remaining", "rest" in sentence
-                    if re.search(r"\b(?:remaining|rest|balance|other)\b", next_item["sentence"], re.IGNORECASE):
+                    if  REMAIN_REGEX.search(next_item["sentence"]):
                         # Merge Data
                         c_data = current["coverage_data"]
                         n_data = next_item["coverage_data"]
@@ -417,7 +447,7 @@ class UnionAnalyzer:
         return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
     def _determine_coverage_data(
-        self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None, reporting_year: Optional[int] = None
+        self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None, reporting_year: Optional[int] = None, is_historical: bool = False
     ) -> Dict[str, Any]:
         """
         Extracts percentage, negation, and count data.
@@ -459,15 +489,14 @@ class UnionAnalyzer:
             negation_type = NegationType.NOT_COVERED.value
 
             for term in analysis.negation_terms:
-                t_lower = term.lower()
                 # Check for Zero Coverage indicators (Absolute negation)
-                if re.search(r"\b(?:no|none|neither|nor|never|without)\b", t_lower):
+                if NEGATION_REGEX.search(term):
                     negation_type = NegationType.ZERO_COVERAGE.value
                     # Zero coverage takes precedence (e.g. "no union employees" -> 0%)
                     break
 
                 # Check for Not Covered indicators (Status negation)
-                if NON_COVERAGE_REGEX.search(t_lower):
+                if NON_COVERAGE_REGEX.search(term):
                     negation_type = NegationType.NOT_COVERED.value
 
         # Check for Percentage Range (e.g. "33% to 37%")
@@ -480,7 +509,7 @@ class UnionAnalyzer:
                 span1 = matches[0]['span']
                 span2 = matches[1]['span']
                 text_between = analysis.text[span1[1]:span2[0]]
-                if re.search(r'\b(?:to|-|and)\b', text_between):
+                if RANGE_REGEX.search( text_between):
                     data["percentage"] = p1
                     data["ambiguity"] = f"RANGE_{p1}_TO_{p2}_PERCENT"
                     data["percentage_qualifier"] = PercentageQualifier.RANGE.value
@@ -629,7 +658,9 @@ class UnionAnalyzer:
                 data["relationship_status"] = status.value
 
         # Determine Temporal Scope based on reporting year
-        if reporting_year and analysis.years:
+        if is_historical:
+            data["temporal_scope"] = TemporalScope.HISTORICAL.value
+        elif reporting_year and analysis.years:
             future_years = [y for y in analysis.years if y > reporting_year]
             if future_years:
                 data["temporal_scope"] = TemporalScope.FUTURE.value
@@ -742,15 +773,16 @@ class UnionAnalyzer:
         for sent in sentences:
             analysis = self.extractor.analyze_sentence(sent)
 
+            is_historical = False
             # Historical Check for Risks
             if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
+                if all(y < reporting_year for y in analysis.years) or HISTORICAL_REGEX.search(sent):
                     if not CURRENT_REGEX.search(sent):
-                        continue
+                        is_historical = True
 
             # Item 1A logic: Look for risk terms
             if analysis.risk_terms:
-                results.append(self._create_risk_item(sent, analysis))
+                results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
         return results
 
 if __name__ == "__main__":

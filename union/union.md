@@ -1179,7 +1179,7 @@ null
     "type": "EXPLICIT_PERCENT",
     "percentage_qualifier": null,
     "negated": false,
-    "temporal_scope": "FUTURE_EXPECTED",
+    "temporal_scope": "FUTURE",
     "expected_date": "2007",
     "note": "Expected future unionization with estimated coverage"
   }

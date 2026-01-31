@@ -28,7 +28,7 @@ class NegationType(Enum):
 class TemporalScope(Enum):
     CURRENT = "CURRENT"
     FUTURE = "FUTURE"
-    FUTURE_EXPECTED = "FUTURE_EXPECTED"
+    HISTORICAL = "HISTORICAL"
     CONDITIONAL = "CONDITIONAL"
 
 class RiskType(Enum):
