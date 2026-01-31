@@ -122,12 +122,26 @@ class UnionAnalyzer:
             countries = []
             seen_codes = set()
             regions = set()
+            
+            unusual_combo = False
+            conflict_notes = []
 
             for m in explicit_matches:
                 if m.country and m.geo_code not in seen_codes:
                     countries.append({"name": m.country, "code": m.geo_code})
                     seen_codes.add(m.geo_code)
                 regions.add(m.region)
+
+            # Check for conflicts between Explicit Regions and Union Name Regions
+            if union_matches:
+                for um in union_matches:
+                    # If the union implies a specific region (e.g. UAW -> North America)
+                    # and that region is NOT in the explicit regions list (e.g. Europe)
+                    if um.region and um.region not in regions:
+                        # Ignore if explicit is "International" (too broad to conflict)
+                        if Region.INTERNATIONAL not in regions:
+                            unusual_combo = True
+                            conflict_notes.append(f"Union '{um.text}' ({um.region.value}) mismatches explicit region ({', '.join(r.value for r in regions)})")
 
             # Handle "International" language matches (e.g. "Sindicato" -> INT_PT)
             # If we have explicit countries, check if they align with the language
@@ -148,9 +162,11 @@ class UnionAnalyzer:
                 "explicit_countries": (
                     [c["name"] for c in countries] if union_matches else None
                 ),
+                "unusual_union_region_combo": unusual_combo,
                 "union_names_mentioned": (
                     [m.text for m in union_matches] if union_matches else None
                 ),
+                "note": "; ".join(conflict_notes) if conflict_notes else None
             }
 
         # 2. Inferred from Union Name (Medium Priority)
