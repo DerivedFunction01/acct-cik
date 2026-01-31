@@ -260,7 +260,7 @@ class UnionAnalyzer:
             # Filter out invalid codes (Regions masquerading as countries)
             valid_countries = []
             for c in countries:
-                if c["code"] and c["code"] not in ["", "AFRICA", "INT", "APAC", "LATAM", "EU", "MEA"]:
+                if c["code"]: # and c["code"] not in ["", "AFRICA", "INT", "APAC", "LATAM", "EU", "MEA"]:
                      valid_countries.append(c)
             countries = valid_countries
 
