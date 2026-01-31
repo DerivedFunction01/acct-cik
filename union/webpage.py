@@ -497,7 +497,7 @@ def extract_filings(data: dict, cik: str, name: str, ticker: str) -> List[dict]:
         if f_type in FILING_TYPES:
             accession = accession_numbers[i].replace("-", "")
             doc = primary_docs[i]
-            if not doc or doc.endswith(".txt"):
+            if not doc or doc.endswith(".txt") or doc.endswith("0001.htm"):
                 doc = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}.txt"
             link = f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{doc}"
             links.append(
