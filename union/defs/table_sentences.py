@@ -87,112 +87,122 @@ def _format_value(val: str, col_type: Optional[str], multiplier: float, currency
     except ValueError:
         return val
 
-def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:
-    """
-    Generates primitive sentences from a processed table dictionary using heuristics.
-    """
-    sentences = []
-    data = processed_table.get("data", [])
-    headers = processed_table.get("headers", {})
-    types = processed_table.get("types", {})
-    col_years = processed_table.get("years", {})
-    row_years = processed_table.get("row_years", {})
+def _build_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
     info = processed_table.get("info", {})
-    
     caption = _clean_cell(info.get("caption", ""))
-    currency = info.get("currency", "USD")
-    col_currencies = {}
     
+    # Heuristic: Extract year from caption if available
+    caption_year = None
+    m = YEAR_REGEX.search(caption)
+    if m:
+        caption_year = int(m.group(0))
+
     symbol_map = {}
     for code, props in MAJOR_CURRENCIES.items():
         for s in props["symbols"]:
             symbol_map[s] = code
 
-    multiplier = info.get("global_multiplier", 1.0)
-    
-    # Heuristic: Extract year from caption if available
-    caption_year = None
-    m = YEAR_REGEX.search(caption)
-    
-    if m:
-        caption_year = int(m.group(0))
-    
-    for r_idx, row in enumerate(data):
-        if not row:
-            continue
-        
-        # 1. Row Label
-        row_label = _clean_cell(row[0])
-        if not row_label:
-            continue
-            
-        # 2. Row Context (Year from section header)
-        row_year = row_years.get(r_idx)
-        
-        for c_idx, cell_value in enumerate(row):
-            if c_idx == 0: # Skip label column
-                continue
-            
-            val = cell_value.strip()
-            if not val or val in ["-", "—", "N/A", "n/a"]:
-                continue
-            
-            # Update currency if symbol found (longest match first)
-            for sym in sorted(symbol_map.keys(), key=len, reverse=True):
-                if sym in val:
-                    col_currencies[c_idx] = symbol_map[sym]
-                    break
+    return {
+        "data": processed_table.get("data", []),
+        "headers": processed_table.get("headers", {}),
+        "types": processed_table.get("types", {}),
+        "col_years": processed_table.get("years", {}),
+        "row_years": processed_table.get("row_years", {}),
+        "caption": caption,
+        "caption_year": caption_year,
+        "default_currency": info.get("currency", "USD"),
+        "multiplier": info.get("global_multiplier", 1.0),
+        "symbol_map": symbol_map,
+        "col_currencies": {} 
+    }
 
-            # 3. Column Context
-            header = _clean_cell(headers.get(c_idx, ""))
-            col_type = types.get(c_idx)
-            col_year = col_years.get(c_idx)
+def _resolve_year(col_year: Optional[int], row_year: Optional[int], caption_year: Optional[int]) -> Optional[int]:
+    return col_year if col_year else (row_year if row_year else caption_year)
+
+def _update_col_currency(val: str, c_idx: int, ctx: Dict[str, Any]):
+    symbol_map = ctx["symbol_map"]
+    # Update currency if symbol found (longest match first)
+    for sym in sorted(symbol_map.keys(), key=len, reverse=True):
+        if sym in val:
+            ctx["col_currencies"][c_idx] = symbol_map[sym]
+            break
+
+def _construct_subject(row_label: str, header: str, year: Optional[int]) -> str:
+    is_year_header = False
+    if year and str(year) in header:
+        # Check if header has other meaningful text
+        clean_header = re.sub(r'[^a-zA-Z]', '', header)
+        if len(clean_header) < 3: # e.g. "FY" or empty
+            is_year_header = True
             
-            # 4. Resolve Year (Column > Row > Caption)
-            year = col_year if col_year else (row_year if row_year else caption_year)
+    if header and not is_year_header:
+        # Heuristic: "Employees (North America)"
+        return f"{row_label} ({header})"
+    return row_label
+
+def _construct_verb(year: Optional[int]) -> str:
+    return "was" if year and year < 2025 else "is"
+
+def _construct_sentence_string(year: Optional[int], subject: str, verb: str, val_str: str, caption: str) -> str:
+    parts = []
+    if year:
+        parts.append(f"In {year},")
+    parts.append(subject)
+    parts.append(verb)
+    parts.append(val_str)
+    if caption:
+        clean_caption = caption.replace('\n', ' ')
+        parts.append(f"[{clean_caption}]")
+    return " ".join(parts) + "."
+
+def _process_cell(c_idx: int, val: str, row_label: str, row_year: Optional[int], ctx: Dict[str, Any]) -> Optional[str]:
+    val = val.strip()
+    if not val or val in ["-", "—", "N/A", "n/a"]:
+        return None
+
+    _update_col_currency(val, c_idx, ctx)
+    
+    header = _clean_cell(ctx["headers"].get(c_idx, ""))
+    col_type = ctx["types"].get(c_idx)
+    col_year = ctx["col_years"].get(c_idx)
+    
+    year = _resolve_year(col_year, row_year, ctx["caption_year"])
+    
+    subject = _construct_subject(row_label, header, year)
+    verb = _construct_verb(year)
+    
+    effective_currency = ctx["col_currencies"].get(c_idx, ctx["default_currency"])
+    formatted_val = _format_value(val, col_type, ctx["multiplier"], effective_currency)
+    
+    return _construct_sentence_string(year, subject, verb, formatted_val, ctx["caption"])
+
+def _process_row(r_idx: int, row: List[str], ctx: Dict[str, Any]) -> List[str]:
+    if not row:
+        return []
+    
+    row_label = _clean_cell(row[0])
+    if not row_label:
+        return []
+        
+    row_year = ctx["row_years"].get(r_idx)
+    sentences = []
+    
+    for c_idx, cell_value in enumerate(row):
+        if c_idx == 0: continue
+        sent = _process_cell(c_idx, cell_value, row_label, row_year, ctx)
+        if sent:
+            sentences.append(sent)
             
-            # 5. Construct Sentence
-            parts = []
-            
-            # [Time]
-            if year:
-                parts.append(f"In {year},")
-            
-            # [Subject]
-            # Combine Row Label and Header
-            # If header is essentially just the year, don't repeat it in subject
-            is_year_header = False
-            if year and str(year) in header:
-                # Check if header has other meaningful text
-                clean_header = re.sub(r'[^a-zA-Z]', '', header)
-                if len(clean_header) < 3: # e.g. "FY" or empty
-                    is_year_header = True
-            
-            if header and not is_year_header:
-                # Heuristic: "Employees (North America)"
-                subject = f"{row_label} ({header})"
-            else:
-                subject = row_label
-            
-            parts.append(subject)
-            
-            # [Verb]
-            # "was" for past, "is" for present/future/unknown
-            verb = "was" if year and year < 2025 else "is"
-            parts.append(verb)
-            
-            # [Value]
-            effective_currency = col_currencies.get(c_idx, currency)
-            formatted_val = _format_value(val, col_type, multiplier, effective_currency)
-            parts.append(formatted_val)
-            
-            # [Context/Caption]
-            if caption:
-                # Clean caption of newlines
-                clean_caption = caption.replace('\n', ' ')
-                parts.append(f"[{clean_caption}]")
-            
-            # Finalize
-            sentences.append(" ".join(parts) + ".")
+    return sentences
+
+def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:
+    """
+    Generates primitive sentences from a processed table dictionary using heuristics.
+    """
+    ctx = _build_context(processed_table)
+    sentences = []
+    
+    for r_idx, row in enumerate(ctx["data"]):
+        sentences.extend(_process_row(r_idx, row, ctx))
     
     return sentences
