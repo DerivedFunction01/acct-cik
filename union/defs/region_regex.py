@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
+import re
+from typing import Dict, List, Optional, Tuple, Any
 from defs.regex_lib import add_restrictions
 class Region(Enum):
     NORTH_AMERICA = "North America"
@@ -529,3 +531,99 @@ INTERNATIONAL = {
         code="INT_FR",
     ),
 }
+
+class RegionMatcher:
+    """
+    Compiles regexes for Regions, Nations, and Specific Unions.
+    Allows independent parsing of text to find these entities.
+    """
+    def __init__(self):
+        self.union_map: Dict[str, Tuple[Region, str]] = {} # term -> (Region, Country)
+        self.location_map: Dict[str, Tuple[Region, str, Optional[str]]] = {} # term -> (Region, Country, City)
+        
+        self.specific_union_regex: Optional[re.Pattern] = None
+        self.location_regex: Optional[re.Pattern] = None
+        
+        self._compile()
+
+    def _compile(self):
+        all_regions = [
+            NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
+            MIDDLE_EAST_AFRICA, INTERNATIONAL
+        ]
+        
+        union_phrases = set()
+        geo_phrases = set()
+
+        for region_set in all_regions:
+            for nation in region_set:
+                # 1. Map Specific Unions
+                for union_name in nation.unions:
+                    # Store mapping
+                    self.union_map[union_name.lower()] = (nation.region, nation.name)
+                    union_phrases.add(union_name)
+                
+                # 2. Map Nation Phrases (e.g. "USA", "United States")
+                for phrase in nation.phrases:
+                    self.location_map[phrase.lower()] = (nation.region, nation.name, None)
+                    geo_phrases.add(phrase)
+                
+                # 3. Map Nation Name
+                self.location_map[nation.name.lower()] = (nation.region, nation.name, None)
+                geo_phrases.add(nation.name)
+                
+                # 4. Map Locations (Cities/States)
+                for loc in nation.locations:
+                    # Location Name
+                    self.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name)
+                    geo_phrases.add(loc.name)
+                    
+                    # Location Phrases
+                    for phrase in loc.phrases:
+                        self.location_map[phrase.lower()] = (nation.region, nation.name, loc.name)
+                        geo_phrases.add(phrase)
+                    
+                    # Sub-cities
+                    for sub in loc.cities:
+                        self.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name)
+                        geo_phrases.add(sub.name)
+                        for phrase in sub.phrases:
+                            self.location_map[phrase.lower()] = (nation.region, nation.name, sub.name)
+                            geo_phrases.add(phrase)
+
+        # Helper to safely escape phrases (unless they are already regex patterns)
+        def safe_escape(phrases):
+            escaped = []
+            # Sort by length descending to match longest first
+            for p in sorted(list(phrases), key=len, reverse=True):
+                # If it starts with (? it is likely a regex lookbehind/ahead from add_restrictions
+                if p.startswith("(?"):
+                    escaped.append(p)
+                else:
+                    escaped.append(re.escape(p))
+            return escaped
+
+        # Compile Specific Union Regex
+        if union_phrases:
+            pattern_str = r"\b(?:" + "|".join(safe_escape(union_phrases)) + r")\b"
+            self.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
+
+        # Compile Location Regex
+        if geo_phrases:
+            pattern_str = r"\b(?:" + "|".join(safe_escape(geo_phrases)) + r")\b"
+            self.location_regex = re.compile(pattern_str, re.IGNORECASE)
+
+    def parse_unions(self, text: str) -> List[Dict[str, Any]]:
+        """Returns list of specific union matches with metadata."""
+        results = []
+        if self.specific_union_regex:
+            for m in self.specific_union_regex.finditer(text):
+                term = m.group(0)
+                region, country = self.union_map.get(term.lower(), (None, None))
+                results.append({
+                    "term": term,
+                    "region": region,
+                    "country": country,
+                    "span": m.span()
+                })
+        return results

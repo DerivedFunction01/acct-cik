@@ -1,13 +1,12 @@
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE
 from defs.region_regex import (
-    NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
-    MIDDLE_EAST_AFRICA, INTERNATIONAL, Region
-)
+    Region
+    , RegionMatcher)
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
@@ -42,164 +41,148 @@ class SentenceAnalysis:
 
 class UnionExtractor:
     def __init__(self):
-        self.geo_map: Dict[str, Tuple[Region, str, Optional[str]]] = {}
-        self.union_geo_map: Dict[str, Tuple[Region, str]] = {}
-        self.geo_regex: Optional[re.Pattern] = None
-        self._compile_geo_data()
-
-    def _compile_geo_data(self):
-        """Builds mapping and regex for geographic terms."""
-        all_regions = [
-            NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
-            MIDDLE_EAST_AFRICA, INTERNATIONAL
-        ]
-        
-        geo_phrases = set()
-
-        for region_set in all_regions:
-            for nation in region_set:
-                # Map Nation phrases
-                for phrase in nation.phrases:
-                    p_lower = phrase.lower()
-                    self.geo_map[p_lower] = (nation.region, nation.name, None)
-                    geo_phrases.add(phrase)
-                
-                # Map Nation name
-                n_lower = nation.name.lower()
-                self.geo_map[n_lower] = (nation.region, nation.name, None)
-                geo_phrases.add(nation.name)
-                
-                # Map Locations
-                for loc in nation.locations:
-                    for phrase in loc.phrases:
-                        p_lower = phrase.lower()
-                        self.geo_map[p_lower] = (nation.region, nation.name, loc.name)
-                        geo_phrases.add(phrase)
-                    
-                    l_lower = loc.name.lower()
-                    self.geo_map[l_lower] = (nation.region, nation.name, loc.name)
-                    geo_phrases.add(loc.name)
-                    
-                    for sub in loc.cities:
-                        for phrase in sub.phrases:
-                            p_lower = phrase.lower()
-                            self.geo_map[p_lower] = (nation.region, nation.name, sub.name)
-                            geo_phrases.add(phrase)
-                        
-                        s_lower = sub.name.lower()
-                        self.geo_map[s_lower] = (nation.region, nation.name, sub.name)
-                        geo_phrases.add(sub.name)
-
-                # Map Unions
-                for union_name in nation.unions:
-                    self.union_geo_map[union_name.lower()] = (nation.region, nation.name)
-
-        # Build a single regex for all geo phrases
-        # Sort by length descending to match longest phrases first
-        if geo_phrases:
-            sorted_phrases = sorted(list(geo_phrases), key=len, reverse=True)
-            escaped_phrases = [re.escape(p) for p in sorted_phrases]
-            pattern_str = r"\b(?:" + "|".join(escaped_phrases) + r")\b"
-            self.geo_regex = re.compile(pattern_str, re.IGNORECASE)
+        # Use the centralized RegionMatcher for all geo/specific union logic
+        self.matcher = RegionMatcher()
 
     def analyze_sentence(self, text: str) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
+        working_text = text  # Mutable text for masking
         
-        # 1. Extract Percentages
-        for m in PERCENT_REGEX.finditer(text):
-            try:
-                val = float(m.group(1))
-                analysis.percentages.append(val)
+        def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
+            nonlocal working_text
+            current_iter_matches = list(pattern.finditer(working_text))
+            if not current_iter_matches:
+                return
+
+            # Apply masking to working_text
+            chars = list(working_text)
+            
+            for m in current_iter_matches:
+                start, end = m.span()
+                val = m.group(0)
+                extracted = val
+                
+                if extractor_func:
+                    try:
+                        extracted = extractor_func(m)
+                    except (ValueError, IndexError):
+                        continue
+                
+                # Record match
                 analysis._matches.append({
-                    'type': 'PERCENT', 'val': val, 'span': m.span(), 'text': m.group(0)
+                    'type': type_name,
+                    'val': extracted,
+                    'span': (start, end),
+                    'text': val
                 })
-            except ValueError:
-                pass
+                
+                if side_effect:
+                    side_effect(m, extracted)
+                
+                # Mask with spaces
+                for i in range(start, end):
+                    chars[i] = ' '
+            
+            working_text = "".join(chars)
+
+        # 1. Extract Percentages
+        process_matches(
+            PERCENT_REGEX, 'PERCENT',
+            lambda m: float(m.group(1)),
+            lambda m, val: analysis.percentages.append(val)
+        )
 
         # 2. Extract Years
-        for m in YEAR_TOKEN_REGEX.finditer(text):
-            try:
-                val = int(m.group(1))
-                analysis.years.append(val)
-                analysis._matches.append({
-                    'type': 'YEAR', 'val': val, 'span': m.span(), 'text': m.group(0)
-                })
-            except ValueError:
-                pass
+        process_matches(
+            YEAR_TOKEN_REGEX, 'YEAR',
+            lambda m: int(m.group(1)),
+            lambda m, val: analysis.years.append(val)
+        )
 
-        # 3. Extract Numbers (avoid overlaps)
-        for m in NUMBER_REGEX.finditer(text):
-            start, end = m.span()
-            # Check overlap with PERCENT or YEAR
-            is_overlap = False
-            for existing in analysis._matches:
-                if existing['type'] in ('PERCENT', 'YEAR'):
-                    e_start, e_end = existing['span']
-                    if start < e_end and end > e_start:
-                        is_overlap = True
-                        break
-            
-            if not is_overlap:
-                try:
-                    val = float(m.group(0))
-                    analysis.numbers.append(val)
-                    analysis._matches.append({
-                        'type': 'NUMBER', 'val': val, 'span': m.span(), 'text': m.group(0)
-                    })
-                except ValueError:
-                    pass
+        # 3. Extract Specific Unions (Highest Priority for Unions)
+        # These are explicit names like "UAW", "IG Metall" defined in region_regex
+        if self.matcher.specific_union_regex:
+            def specific_union_side_effect(m, val):
+                analysis.union_terms.append(val)
+                lower_term = val.lower()
+                if lower_term in self.matcher.union_map:
+                    region, country = self.matcher.union_map[lower_term]
+                    analysis.geo_matches.append(GeoMatch(
+                        text=val, region=region, country=country, source_type="inferred_union"
+                    ))
 
-        # 4. Extract Union Terms
-        for m in UNION_REGEX.finditer(text):
-            analysis.union_terms.append(m.group(0))
-            analysis._matches.append({
-                'type': 'UNION_TERM', 'val': m.group(0), 'span': m.span()
-            })
-        
-        for m in DYNAMIC_UNION_REGEX.finditer(text):
-            term = m.group(0)
-            analysis.union_terms.append(term)
-            analysis._matches.append({
-                'type': 'UNION_NAME', 'val': term, 'span': m.span()
-            })
-            
-            lower_term = term.lower()
-            if lower_term in self.union_geo_map:
-                region, country = self.union_geo_map[lower_term]
+            process_matches(
+                self.matcher.specific_union_regex, 'SPECIFIC_UNION',
+                lambda m: m.group(0),
+                specific_union_side_effect
+            )
+
+        # 4. Extract Dynamic Union Names (Pattern-based)
+        def dynamic_union_side_effect(m, val):
+            analysis.union_terms.append(val)
+            lower_term = val.lower()
+            if lower_term in self.matcher.union_map:
+                region, country = self.matcher.union_map[lower_term]
                 analysis.geo_matches.append(GeoMatch(
-                    text=term, region=region, country=country, source_type="inferred_union"
+                    text=val, region=region, country=country, source_type="inferred_union"
                 ))
 
-        # 5. Extract Risk Terms
-        for m in RISK_REGEX.finditer(text):
-            analysis.risk_terms.append(m.group(0))
-            analysis._matches.append({
-                'type': 'RISK_TERM', 'val': m.group(0), 'span': m.span()
-            })
+        process_matches(
+            DYNAMIC_UNION_REGEX, 'UNION_NAME',
+            lambda m: m.group(0),
+            dynamic_union_side_effect
+        )
 
-        # 6. Extract Negation Terms
-        for m in NEGATION_REGEX.finditer(text):
-            analysis.negation_terms.append(m.group(0))
-            analysis._matches.append({
-                'type': 'NEGATION', 'val': m.group(0), 'span': m.span()
-            })
-            
-        # 7. Extract Non-Union Terms (Specific negation)
-        for m in NON_UNION_REGEX.finditer(text):
-            analysis.negation_terms.append(m.group(0))
-            analysis._matches.append({
-                'type': 'NON_UNION', 'val': m.group(0), 'span': m.span()
-            })
+        # 5. Extract Non-Union Terms (Specific negation)
+        process_matches(
+            NON_UNION_REGEX, 'NON_UNION',
+            lambda m: m.group(0),
+            lambda m, val: analysis.negation_terms.append(val)
+        )
+
+        # 6. Extract Risk Terms
+        process_matches(
+            RISK_REGEX, 'RISK_TERM',
+            lambda m: m.group(0),
+            lambda m, val: analysis.risk_terms.append(val)
+        )
+
+        # 7. Extract Union Terms (Generic)
+        process_matches(
+            UNION_REGEX, 'UNION_TERM',
+            lambda m: m.group(0),
+            lambda m, val: analysis.union_terms.append(val)
+        )
 
         # 8. Extract Geography (Explicit)
-        if self.geo_regex:
-            for m in self.geo_regex.finditer(text):
-                phrase = m.group(0).lower()
-                if phrase in self.geo_map:
-                    region, country, city = self.geo_map[phrase]
+        if self.matcher.location_regex:
+            def geo_side_effect(m, val):
+                phrase = val.lower()
+                if phrase in self.matcher.location_map:
+                    region, country, city = self.matcher.location_map[phrase]
                     analysis.geo_matches.append(GeoMatch(
-                        text=m.group(0), region=region, country=country, city=city, source_type="explicit"
+                        text=val, region=region, country=country, city=city, source_type="explicit"
                     ))
+            
+            process_matches(
+                self.matcher.location_regex, 'GEO',
+                lambda m: m.group(0),
+                geo_side_effect
+            )
+
+        # 9. Extract Negation Terms (General)
+        process_matches(
+            NEGATION_REGEX, 'NEGATION',
+            lambda m: m.group(0),
+            lambda m, val: analysis.negation_terms.append(val)
+        )
+
+        # 10. Extract Numbers (Generic - lowest priority)
+        process_matches(
+            NUMBER_REGEX, 'NUMBER',
+            lambda m: float(m.group(0)),
+            lambda m, val: analysis.numbers.append(val)
+        )
 
         return analysis
 
