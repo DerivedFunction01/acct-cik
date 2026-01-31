@@ -5,7 +5,10 @@ from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation
-from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE, WORKER_TERMS, NON_COVERAGE_REGEX
+from defs.union_regex import (
+    UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
+    NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
+)
 from defs.region_regex import (
     Region, RegionMatcher, GeoSource)
 
@@ -19,9 +22,6 @@ RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?o
 worker_term_pattern = build_alternation(WORKER_TERMS)
 WORKER_COUNT_REGEX = re.compile(rf"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}\b", re.IGNORECASE)
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
-
-# Negation patterns
-NON_UNION_REGEX = re.compile(CORE.NONUNION.value, re.IGNORECASE)
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -38,6 +38,8 @@ class MatchType(Enum):
     GEO = "GEO"
     NEGATION = "NEGATION"
     NUMBER = "NUMBER"
+    RELATIONSHIP_TERM = "RELATIONSHIP_TERM"
+    RELATIONSHIP_QUALITY = "RELATIONSHIP_QUALITY"
 
 @dataclass
 class GeoMatch:
@@ -60,6 +62,8 @@ class SentenceAnalysis:
     union_terms: List[str] = field(default_factory=list)
     risk_terms: List[str] = field(default_factory=list)
     negation_terms: List[str] = field(default_factory=list)
+    relationship_terms: List[str] = field(default_factory=list)
+    relationship_quality_terms: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     
     # Raw matches for debugging or precise location
@@ -229,6 +233,20 @@ class UnionExtractor:
             NUMBER_REGEX, MatchType.NUMBER,
             lambda m: float(m.group(0)),
             lambda m, val: analysis.numbers.append(val)
+        )
+
+        # 14. Extract Relationship Terms (e.g. "employee relations")
+        process_matches(
+            RELATIONSHIP_REGEX, MatchType.RELATIONSHIP_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.relationship_terms.append(val)
+        )
+
+        # 15. Extract Relationship Quality (e.g. "good", "strained")
+        process_matches(
+            RELATIONSHIP_QUALITY_REGEX, MatchType.RELATIONSHIP_QUALITY,
+            lambda m: m.group(0),
+            lambda m, val: analysis.relationship_quality_terms.append(val)
         )
 
         return analysis

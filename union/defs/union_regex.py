@@ -13,6 +13,7 @@ Use enums to build core terms, then use another enum or function to build out th
 """
 
 from enum import Enum
+import re
 from defs.regex_lib import build_alternation, build_compound, build_regex
 
 
@@ -132,6 +133,39 @@ class RISK_TERMS:
     ]
 
 
+RELATIONSHIP_QUALITY_TERMS = [
+    "good", "satisfactory", "positive", "strong", "excellent", "favorable",
+    "constructive", "cooperative", "harmonious", "cordial", "mutually beneficial",
+    "productive", "stable", "respectful"
+]
+
+RELATIONSHIP_NEGATIVE_TERMS = [
+    "poor", "strained", "difficult", "tense", "adversarial", "hostile", 
+    "challenging", "volatile", "unstable", "disruptive"
+]
+
+RELATIONSHIP_SUBJECTS = [
+    r"relations\b",
+    r"relationships?\b",
+    r"communications?\b",
+    r"engagement\b",
+    r"dialogue\b",
+]
+
+RELATIONSHIP_PHRASES = [
+    # "Employee relations", "Labor relations", "Union relations"
+    build_compound(WORKER_TERMS + [CORE.LABOR, CORE.UNION], RELATIONSHIP_SUBJECTS, sep_prefix=GAP),
+    # "Relations with employees", "Relationship with the union"
+    build_compound(RELATIONSHIP_SUBJECTS, [r"with"] + WORKER_TERMS + [CORE.LABOR, CORE.UNION], sep_prefix=GAP),
+    # "Working relationship"
+    r"working\s+relationships?",
+]
+
+RELATIONSHIP_REGEX = build_regex(RELATIONSHIP_PHRASES)
+# Match both positive and negative terms; analysis will distinguish them
+RELATIONSHIP_QUALITY_REGEX = build_regex(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS)
+
+
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
 
@@ -156,6 +190,9 @@ NON_COVERAGE_PHRASES = [
     build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=r"[- ]?"),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
+
+# Negation patterns
+NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")

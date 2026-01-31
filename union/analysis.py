@@ -4,11 +4,11 @@ from typing import List, Dict, Any, Optional
 from extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
-    Specificity, CoverageType, PercentageQualifier, 
-    NegationType, TemporalScope, RiskType
+    Specificity, CoverageType, PercentageQualifier,
+    NegationType, TemporalScope, RiskType, RelationshipStatus
 )
 from defs.text_cleaner import MinimalTextCleaner
-from defs.union_regex import NON_COVERAGE_REGEX
+from defs.union_regex import NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, RELATIONSHIP_NEGATIVE_TERMS
 
 
 
@@ -354,6 +354,7 @@ class UnionAnalyzer:
             "ambiguity": None,
             "note": None,
             "extracted_numbers": [],
+            "relationship_status": None,
         }
 
         # NEW: Mixed Coverage Detection & Resolution
@@ -509,6 +510,38 @@ class UnionAnalyzer:
         if data["percentage"] is not None and data["employee_count_total"] and not data["employee_count_covered"]:
              # Use round to avoid float precision issues
              data["employee_count_covered"] = round((data["percentage"] / 100) * data["employee_count_total"])
+
+        # Determine Relationship Status
+        if analysis.relationship_terms and analysis.relationship_quality_terms:
+            # Find the quality term closest to the relationship term
+            # For simplicity, we'll take the first quality term found if we have a relationship term
+            # A more robust approach would be distance-based, but this covers the templates provided.
+            
+            quality_term = analysis.relationship_quality_terms[0].lower()
+            
+            # Check for local negation of the quality term (e.g. "not good")
+            # We check if a negation term is within 3 words before the quality term
+            is_quality_negated = False
+            q_match = next((m for m in analysis._matches if m['type'] == MatchType.RELATIONSHIP_QUALITY), None)
+            
+            if q_match:
+                q_start = q_match['span'][0]
+                # Look for negation terms ending just before q_start
+                for n_match in [m for m in analysis._matches if m['type'] in (MatchType.NEGATION, MatchType.NON_COVERAGE)]:
+                    n_end = n_match['span'][1]
+                    # Check distance (approx 20 chars covers "are not", "is not")
+                    if 0 < (q_start - n_end) < 25:
+                        is_quality_negated = True
+                        break
+
+            status = RelationshipStatus.UNKNOWN
+            if quality_term in RELATIONSHIP_QUALITY_TERMS:
+                status = RelationshipStatus.NEGATIVE if is_quality_negated else RelationshipStatus.POSITIVE
+            elif quality_term in RELATIONSHIP_NEGATIVE_TERMS:
+                status = RelationshipStatus.POSITIVE if is_quality_negated else RelationshipStatus.NEGATIVE
+            
+            if status != RelationshipStatus.UNKNOWN:
+                data["relationship_status"] = status.value
 
         return data
 

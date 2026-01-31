@@ -34,3 +34,9 @@ class TemporalScope(Enum):
 class RiskType(Enum):
     LABOR_RISK = "LABOR_RISK"
     UNION_RISK = "UNION_RISK"
+
+class RelationshipStatus(Enum):
+    POSITIVE = "POSITIVE"
+    NEUTRAL = "NEUTRAL"
+    NEGATIVE = "NEGATIVE"
+    UNKNOWN = "UNKNOWN"
