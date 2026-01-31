@@ -1,6 +1,7 @@
 import re
 from typing import List, Dict, Optional, Set, Tuple
 from defs.regex_lib import build_regex
+from defs.region_regex import MAJOR_CURRENCIES
 
 # --- BASIC REGEX PATTERNS ---
 CAPTION_REGEX = re.compile(
@@ -64,23 +65,6 @@ COMMA_SPACE_REGEX = re.compile(r",\s+")
 TABLE_OF_CONTENTS_REGEX = re.compile(r"\.{3,}")
 PARAGRAPH_THRESHOLD = 250
 
-# --- MAJOR CURRENCIES (SIMPLIFIED) ---
-MAJOR_CURRENCIES = {
-    "USD": {"symbols": ["$"], "names": ["dollar", "dollars"], "prefix": True},
-    "EUR": {"symbols": ["€"], "names": ["euro", "euros"], "prefix": True},
-    "GBP": {"symbols": ["£"], "names": ["pound", "pounds", "sterling"], "prefix": True},
-    "JPY": {"symbols": ["¥"], "names": ["yen"], "prefix": True},
-    "CNY": {"symbols": ["¥"], "names": ["yuan", "renminbi"], "prefix": True},
-    "INR": {"symbols": ["₹"], "names": ["rupee", "rupees"], "suffix": True},
-    "CAD": {"symbols": ["C$", "CAD"], "names": ["canadian dollar"], "prefix": True},
-    "AUD": {"symbols": ["A$", "AUD"], "names": ["australian dollar"], "prefix": True},
-    "CHF": {"symbols": ["CHF"], "names": ["swiss franc"], "prefix": True},
-    "SEK": {"symbols": ["kr"], "names": ["krona", "kronor"], "suffix": True},
-    "NOK": {"symbols": ["kr"], "names": ["krone", "kroner"], "suffix": True},
-    "DKK": {"symbols": ["kr"], "names": ["krone"], "suffix": True},
-    "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
-    "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
-}
 
 PREFIX_SYMBOLS = set()
 SUFFIX_SYMBOLS = set()

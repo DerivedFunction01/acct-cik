@@ -693,7 +693,7 @@ class RegionMatcher:
     """
     union_map: Dict[str, Tuple[Region, str, str]] = {} # term -> (Region, Country, Code)
     location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {} # term -> (Region, Country, City, Code)
-    
+
     specific_union_regex: Optional[re.Pattern] = None
     location_regex: Optional[re.Pattern] = None
     _compiled = False
@@ -708,7 +708,7 @@ class RegionMatcher:
             NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
             MIDDLE_EAST_AFRICA, INTERNATIONAL
         ]
-        
+
         union_phrases = set()
         geo_phrases = set()
 
@@ -719,27 +719,27 @@ class RegionMatcher:
                     # Store mapping
                     cls.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
                     union_phrases.add(union_name)
-                
+
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
                     cls.location_map[phrase.lower()] = (nation.region, nation.name, None, nation.code)
                     geo_phrases.add(phrase)
-                
+
                 # 3. Map Nation Name
                 cls.location_map[nation.name.lower()] = (nation.region, nation.name, None, nation.code)
                 geo_phrases.add(nation.name)
-                
+
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
                     # Location Name
                     cls.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name, nation.code)
                     geo_phrases.add(loc.name)
-                    
+
                     # Location Phrases
                     for phrase in loc.phrases:
                         cls.location_map[phrase.lower()] = (nation.region, nation.name, loc.name, nation.code)
                         geo_phrases.add(phrase)
-                    
+
                     # Sub-cities
                     for sub in loc.cities:
                         cls.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name, nation.code)
@@ -769,7 +769,7 @@ class RegionMatcher:
         if geo_phrases:
             pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
             cls.location_regex = re.compile(pattern_str, re.IGNORECASE)
-        
+
         cls._compiled = True
 
     def parse_unions(self, text: str) -> List[Dict[str, Any]]:
@@ -787,3 +787,20 @@ class RegionMatcher:
                     "span": m.span()
                 })
         return results
+
+MAJOR_CURRENCIES = {
+    "USD": {"symbols": ["$"], "names": ["dollar", "dollars"], "prefix": True},
+    "EUR": {"symbols": ["€"], "names": ["euro", "euros"], "prefix": True},
+    "GBP": {"symbols": ["£"], "names": ["pound", "pounds", "sterling"], "prefix": True},
+    "JPY": {"symbols": ["¥"], "names": ["yen"], "prefix": True},
+    "CNY": {"symbols": ["¥"], "names": ["yuan", "renminbi"], "prefix": True},
+    "INR": {"symbols": ["₹"], "names": ["rupee", "rupees"], "suffix": True},
+    "CAD": {"symbols": ["C$", "CAD"], "names": ["canadian dollar"], "prefix": True},
+    "AUD": {"symbols": ["A$", "AUD"], "names": ["australian dollar"], "prefix": True},
+    "CHF": {"symbols": ["CHF"], "names": ["swiss franc"], "prefix": True},
+    "SEK": {"symbols": ["kr"], "names": ["krona", "kronor"], "suffix": True},
+    "NOK": {"symbols": ["kr"], "names": ["krone", "kroner"], "suffix": True},
+    "DKK": {"symbols": ["kr"], "names": ["krone"], "suffix": True},
+    "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
+    "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
+}

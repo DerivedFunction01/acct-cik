@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
 from defs.union_regex import WORKER_TERMS
+from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
 
@@ -496,13 +497,25 @@ class CurrencyRemover:
     Removes currency amounts from text.
     Designed to run AFTER MinimalTextCleaner has normalized numbers (removed commas).
     """
-    currency_pattern = re.compile(
-        r"(?:\$\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"  # $1000, $ (1000), $(1000)
-        r"(?:\b\d+(?:\.\d+)?\s+(?:dollars?|usd|cents?)\b)", # 1000 dollars
-        re.IGNORECASE
-    )
     def __init__(self):
-        pass
+        symbols = set()
+        suffixes = set(["cent", "cents"])
+
+        for code, props in MAJOR_CURRENCIES.items():
+            for s in props.get("symbols", []):
+                symbols.add(re.escape(s))
+            for n in props.get("names", []):
+                suffixes.add(re.escape(n))
+            suffixes.add(re.escape(code))
+
+        symbol_pattern = build_alternation(list(symbols))
+        suffix_pattern = build_alternation(list(suffixes))
+
+        self.currency_pattern = re.compile(
+            rf"(?:(?:{symbol_pattern})\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"
+            rf"(?:\b\d+(?:\.\d+)?\s+(?:{suffix_pattern})\b)",
+            re.IGNORECASE
+        )
 
     def remove(self, text: str) -> str:
         return self.currency_pattern.sub(" ", text)
