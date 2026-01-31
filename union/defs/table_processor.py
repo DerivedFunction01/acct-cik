@@ -786,34 +786,44 @@ class SimpleTableProcessor:
         return self.col_map if not self.invalid_table else {}
 
     def get_years(self) -> Dict[int, int]:
-        """Return column years detected from headers"""
+        """Return column years detected from headers, with forward filling."""
         if self.invalid_table:
             return {}
 
         years_map = {}
-        for idx, header in self.col_headers.items():
-            if not header:
-                continue
+        sorted_indices = sorted(self.col_headers.keys())
+        last_year = None
 
-            extracted_years = []
-            matches = YEAR_REGEX.findall(header)
-            
-            for m in matches:
-                # Handle tuple from regex groups
-                groups = m if isinstance(m, tuple) else [m]
-                for g in groups:
-                    if g and g.isdigit():
-                        y = int(g)
-                        # Handle 2-digit years
-                        if y < 100:
-                            y += 2000 if y < 50 else 1900
-                        extracted_years.append(y)
-            
-            # Filter for valid 4-digit years
-            valid_years = [y for y in extracted_years if 1900 <= y <= 2100]
-            
-            if valid_years:
-                years_map[idx] = max(valid_years)
+        for idx in sorted_indices:
+            header = self.col_headers[idx]
+            detected_year = None
+
+            if header:
+                extracted_years = []
+                matches = YEAR_REGEX.findall(header)
+                
+                for m in matches:
+                    # Handle tuple from regex groups
+                    groups = m if isinstance(m, tuple) else [m]
+                    for g in groups:
+                        if g and g.isdigit():
+                            y = int(g)
+                            # Handle 2-digit years
+                            if y < 100:
+                                y += 2000 if y < 50 else 1900
+                            extracted_years.append(y)
+                
+                # Filter for valid 4-digit years
+                valid_years = [y for y in extracted_years if 1900 <= y <= 2100]
+                
+                if valid_years:
+                    detected_year = max(valid_years)
+
+            if detected_year:
+                years_map[idx] = detected_year
+                last_year = detected_year
+            elif last_year is not None:
+                years_map[idx] = last_year
 
         return years_map
 
