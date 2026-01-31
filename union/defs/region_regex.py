@@ -614,12 +614,12 @@ class RegionMatcher:
 
         # Compile Specific Union Regex
         if union_phrases:
-            pattern_str = r"\b(?:" + "|".join(safe_escape(union_phrases)) + r")\b"
+            pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
             self.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
 
         # Compile Location Regex
         if geo_phrases:
-            pattern_str = r"\b(?:" + "|".join(safe_escape(geo_phrases)) + r")\b"
+            pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
             self.location_regex = re.compile(pattern_str, re.IGNORECASE)
 
     def parse_unions(self, text: str) -> List[Dict[str, Any]]:

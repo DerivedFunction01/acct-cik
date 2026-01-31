@@ -1,3 +1,4 @@
+#%%
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
@@ -187,10 +188,10 @@ class UnionExtractor:
 
         return analysis
 
-    def split_sentences(self, text: str) -> List[str]:
-        parts = SENTENCE_SPLIT_PATTERN.split(text)
+    def split_sentences(self, text: str | List[str]) -> List[str]:
+        parts = SENTENCE_SPLIT_PATTERN.split(text) if isinstance(text, str) else text
         return [p.strip() for p in parts if p.strip()]
-
+#%%
 if __name__ == "__main__":
     extractor = UnionExtractor()
     
