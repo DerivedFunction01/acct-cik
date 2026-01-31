@@ -1,6 +1,6 @@
 import re
 from typing import List, Dict, Optional, Set, Tuple
-from defs.regex_lib import build_regex, YEAR_REGEX
+from defs.regex_lib import build_regex
 
 # --- BASIC REGEX PATTERNS ---
 CAPTION_REGEX = re.compile(
@@ -14,6 +14,9 @@ HTML_TAG_REGEX = re.compile(r"<[^>]+>")
 WHITESPACE_REGEX = re.compile(r"\s+")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥₹%\(\)\-,]")
+
+# safe patterns for years in tables
+YEAR_REGEX = build_regex([r"(?:\d{1,2}/)+(\d{2,4})", r"(19[8-9]\d|20\d{2})"])
 
 # Header detection
 LAST_HEADER_PATTERN = build_regex([
@@ -205,6 +208,7 @@ class SimpleTableProcessor:
             )
             if not lines[old_marker_idx]:
                 lines[old_marker_idx] = ""
+            
             assert old_marker_line is not None
             lines[best_header_idx] = old_marker_line
             corrected_table = "\n".join(lines)
@@ -365,14 +369,22 @@ class SimpleTableProcessor:
             if any(filtered_row):
                 filtered_rows.append(filtered_row)
 
-        # Build column headers (no type inference needed)
+        # Build column headers with primitive type detection
         col_headers = {}
         col_map = {}
 
         for local_idx, global_col_idx in enumerate(active_col_indices):
             header_text = final_physical_headers.get(global_col_idx, "")
             col_headers[local_idx] = header_text
-            col_map[local_idx] = None  # No type inference
+
+            # Primitive type detection from sample data
+            sample_cells = [
+                row[local_idx]
+                for row in filtered_rows
+                if local_idx < len(row) and row[local_idx]
+            ]
+            col_type = self._detect_primitive_type(sample_cells)
+            col_map[local_idx] = col_type
 
         return filtered_rows, col_map, col_headers
 
@@ -693,6 +705,64 @@ class SimpleTableProcessor:
         clean = NUMERIC_WITH_SYMBOLS.sub("", val).strip()
         clean = UNIT_REGEX.sub("", clean)
         return bool(NUMERIC_PATTERN.match(clean))
+
+    def _detect_primitive_type(self, sample_cells: List[str]) -> Optional[str]:
+        """
+        Detect primitive column type from sample data.
+        Returns: 'date', 'percentage', 'dollar', 'text', or None
+        """
+        if not sample_cells:
+            return None
+
+        # Count occurrences of each type
+        date_count = 0
+        percent_count = 0
+        dollar_count = 0
+        text_count = 0
+
+        for cell in sample_cells:
+            if not cell:
+                continue
+
+            # Check for date (YYYY or MM/DD/YYYY pattern)
+            if YEAR_REGEX.search(cell):
+                date_count += 1
+            # Check for percentage
+            elif "%" in cell:
+                percent_count += 1
+            # Check for currency (dollar or other currency symbols)
+            elif any(symbol in cell for symbol in PREFIX_SYMBOLS | SUFFIX_SYMBOLS):
+                dollar_count += 1
+            # Check if numeric (without currency)
+            elif self._is_numeric(cell):
+                pass  # Could be any numeric type, not categorized
+            # Otherwise it's text
+            else:
+                text_count += 1
+
+        total = len(sample_cells)
+
+        # Determine dominant type (>50% threshold)
+        if date_count > total * 0.5:
+            return "date"
+        elif percent_count > total * 0.5:
+            return "percentage"
+        elif dollar_count > total * 0.5:
+            return "dollar"
+        elif text_count > total * 0.5:
+            return "text"
+
+        # Fallback: if significant amount of one type, return it
+        if date_count > 0:
+            return "date"
+        elif percent_count > 0:
+            return "percentage"
+        elif dollar_count > 0:
+            return "dollar"
+        elif text_count > 0:
+            return "text"
+
+        return None
 
     def get_data(self) -> List[List[str]]:
         """Return extracted table data"""
