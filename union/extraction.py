@@ -1,7 +1,7 @@
 #%%
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
@@ -13,6 +13,7 @@ from defs.region_regex import (
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
+RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}of\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
 
 # Negation patterns
 NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
@@ -20,6 +21,7 @@ NON_UNION_REGEX = re.compile(CORE.NONUNION.value, re.IGNORECASE)
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
+    RATIO = "RATIO"
     YEAR = "YEAR"
     SPECIFIC_UNION = "SPECIFIC_UNION"
     UNION_NAME = "UNION_NAME"
@@ -43,6 +45,7 @@ class GeoMatch:
 class SentenceAnalysis:
     text: str
     percentages: List[float] = field(default_factory=list)
+    ratios: List[Tuple[float, float]] = field(default_factory=list)
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
@@ -190,8 +193,15 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.negation_terms.append(val)
         )
-
-        # 10. Extract Numbers (Generic - lowest priority)
+        
+        # 10. Extract Ratios (Before Numbers)
+        process_matches(
+            RATIO_REGEX, MatchType.RATIO,
+            lambda m: (float(m.group(1)), float(m.group(2))),
+            lambda m, val: analysis.ratios.append(val)
+        )
+        
+        # 11. Extract Numbers (Generic - lowest priority)
         process_matches(
             NUMBER_REGEX, MatchType.NUMBER,
             lambda m: float(m.group(0)),

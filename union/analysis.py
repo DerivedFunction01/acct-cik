@@ -287,6 +287,18 @@ class UnionAnalyzer:
             data["negation_type"] = NegationType.QUALITATIVE_ZERO.value
             data["percentage_qualifier"] = PercentageQualifier.NONE.value
 
+        # Handle Ratios (Calculated Percentage)
+        elif not data["percentage"] and analysis.ratios:
+            numerator, denominator = analysis.ratios[0]
+            if denominator > 0:
+                pct = (numerator / denominator) * 100
+                data["percentage"] = round(pct, 2)
+                data["calculated_percentage"] = round(pct, 2)
+                data["type"] = CoverageType.CALCULATED.value
+                data["employee_count_covered"] = numerator
+                data["employee_count_total"] = denominator
+                data["note"] = f"Calculated from ratio: {numerator} of {denominator}"
+
         # Handle Numbers (Basic mapping for now)
         if analysis.numbers:
             # Store raw numbers for potential downstream analysis (e.g. Compustat merging)
