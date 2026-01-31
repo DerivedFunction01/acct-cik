@@ -17,7 +17,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
-from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover
+from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner
 from defs.table_processor import process_table
 from defs.table_sentences import generate_primitive_sentences
 
@@ -97,13 +97,15 @@ def compile_filtering_regex():
 FILTER_REGEX = None
 CLEANER = None
 CURRENCY_REMOVER = None
+CONTEXTUAL_CLEANER = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER
+    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER
     FILTER_REGEX = compile_filtering_regex()
     CLEANER = MinimalTextCleaner()
     CURRENCY_REMOVER = CurrencyRemover()
+    CONTEXTUAL_CLEANER = ContextualNumberCleaner()
 
 def filter_content(content_list, company_name=None, year=None, allow_risk=False):
     """
@@ -117,6 +119,7 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
     assert FILTER_REGEX is not None
     assert CLEANER is not None
     assert CURRENCY_REMOVER is not None
+    assert CONTEXTUAL_CLEANER is not None
     
     # Flatten and split content
     raw_blocks = []
@@ -162,6 +165,9 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
         
         # Remove currency figures to avoid confusion with employee counts
         cleaned_block = CURRENCY_REMOVER.remove(cleaned_block)
+        
+        # Remove non-employee numerics (facilities, growth rates)
+        cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block)
         
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())

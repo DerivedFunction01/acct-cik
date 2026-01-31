@@ -520,6 +520,61 @@ class CurrencyRemover:
     def remove(self, text: str) -> str:
         return self.currency_pattern.sub(" ", text)
 
+
+class ContextualNumberCleaner:
+    """Remove non-employee numbers from Item 1 union/labor paragraphs.
+        For example: We have 100 manufacturing facilities. There is 10% increase/decrease/growth. Decrease of 10%.
+    """
+    def __init__(self):
+        # 1. Physical Assets / Facilities
+        asset_terms = [
+            r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
+            r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?",
+            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?",
+            r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
+        ]
+        asset_pattern = build_alternation(asset_terms)
+        
+        # Matches: "100 [manufacturing] facilities"
+        # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
+        self.asset_regex = re.compile(
+            rf"\b\d+(?:\.\d+)?\s+(?:[\w-]+\s+){{0,2}}{asset_pattern}\b", 
+            re.IGNORECASE
+        )
+
+        # 2. Growth/Decline/Change (Percentages)
+       
+        change_terms = [
+            r"increase(?:s|d)?", r"decreases(?:s|d)?", r"growth", r"decline(?:s|d)?", r"reductions?",
+            r"gains?", r"loss(?:es)?", r"appreciation", r"depreciation", r"offsets?",
+            r"higher", r"lower", r"changes?", r"improvements?", r"drops?", r"rise(?:s|d|n)?"
+        ]
+
+        change_pattern = build_alternation(change_terms)
+        
+        # Matches: "10% increase"
+        self.change_pre_regex = re.compile(
+            rf"\b\d+(?:\.\d+)?\s*%\s+{change_pattern}\b", 
+            re.IGNORECASE
+        )
+        
+        # Matches: "increase of 10%" or "increase by 10%"
+        self.change_post_regex = re.compile(
+            rf"\b{change_pattern}\s+(?:of\s+|by\s+)?\d+(?:\.\d+)?\s*%\b", 
+            re.IGNORECASE
+        )
+
+    def clean(self, text: str) -> str:
+        if not text:
+            return ""
+            
+        text = self.asset_regex.sub(" ", text)
+        text = self.change_pre_regex.sub(" ", text)
+        text = self.change_post_regex.sub(" ", text)
+        
+        return text
+
+
 # ============================================================================
 # AUTOMATED TEST FRAMEWORK
 # ============================================================================
