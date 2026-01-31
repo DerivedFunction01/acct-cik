@@ -260,6 +260,50 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
     
     year = group.get("year")
     items = group.get("items", [])
+    if not items: return None
+
+    verb = "was" if year and year < 2025 else "is"
+
+    # Helper to clean headers (deduplicated logic)
+    def _clean_h(h):
+        if not h: return ""
+        if year and str(year) in h:
+             clean_h = re.sub(r'[^a-zA-Z]', '', h)
+             if len(clean_h) < 3:
+                 return ""
+        return h
+
+    # Check for Value + Percentage pair (common case)
+    values = [i for i in items if i["type"] in ["dollar", "value"]]
+    percents = [i for i in items if i["type"] == "percentage"]
+    
+    # Strict check for simple pair: exactly 2 items, one value, one percent
+    is_simple_pair = (len(items) == 2 and len(values) == 1 and len(percents) == 1)
+
+    # --- New Logic for Complex/Merged Cells ---
+    # If we have multiple items that aren't a simple Value/Percent pair, try verbose format
+    if len(items) > 1 and not is_simple_pair:
+        # Check if we have headers to make a descriptive sentence
+        items_with_headers = [i for i in items if _clean_h(i["header"])]
+        
+        # If we have headers for at least one item, use the verbose format
+        if items_with_headers:
+            parts = []
+            for i in items:
+                val = i["val"]
+                h = _clean_h(i["header"])
+                if h:
+                    parts.append(f"{h} {verb} {val}")
+                else:
+                    parts.append(val)
+            
+            intro_parts = []
+            if year:
+                intro_parts.append(f"In {year},")
+            intro_parts.append(f"for {row_info['label']},")
+            
+            return f"{' '.join(intro_parts)} {'; '.join(parts)}."
+
     
     # Construct Subject
     headers = [i["header"] for i in items if i["header"]]
@@ -272,31 +316,24 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
             
     clean_headers = []
     for h in unique_headers:
-        # Filter out headers that are just the year
-        if year and str(year) in h:
-             clean_h = re.sub(r'[^a-zA-Z]', '', h)
-             if len(clean_h) < 3:
-                 continue
-        clean_headers.append(h)
+        ch = _clean_h(h)
+        if ch:
+            clean_headers.append(ch)
         
     subject = row_info["label"]
     if clean_headers:
         subject += f" ({', '.join(clean_headers)})"
         
     # Construct Value String
-    values = [i["val"] for i in items if i["type"] in ["dollar", "value"]]
-    percents = [i["val"] for i in items if i["type"] == "percentage"]
-    
     val_str = ""
-    if values and percents:
-        val_str = f"{values[0]} ({percents[0]})"
-        if len(values) > 1 or len(percents) > 1:
-             val_str = ", ".join([i["val"] for i in items])
+    if is_simple_pair:
+        val_str = f"{values[0]['val']} ({percents[0]['val']})"
+    elif values and percents:
+        # Fallback for mixed bag that isn't a simple pair but has both
+        val_str = ", ".join([i["val"] for i in items])
     else:
         val_str = " ".join([i["val"] for i in items])
         
-    verb = "was" if year and year < 2025 else "is"
-    
     parts = []
     if year:
         parts.append(f"In {year},")
