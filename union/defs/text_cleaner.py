@@ -3,6 +3,7 @@ from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
 from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
+from defs.union_regex import WORKER_TERMS
 
 COMPANY_TOKEN = "the Company"
 
@@ -202,6 +203,12 @@ class MinimalTextCleaner:
         )
         # Handle "none of" -> "0% of"
         self.none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
+
+        # Handle "no [worker]" -> "0 [worker]"
+        worker_pattern = build_alternation(WORKER_TERMS)
+        self.no_worker_pattern = re.compile(
+            rf"\bno\s+((?:[\w-]+\s+){{0,2}}{worker_pattern})\b", re.IGNORECASE
+        )
 
         # Pronouns to Company Token
         # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
@@ -545,6 +552,7 @@ class MinimalTextCleaner:
 
         text = self.a_multiplier_pattern.sub("one ", text)
         text = self.none_of_pattern.sub("0% of", text)
+        text = self.no_worker_pattern.sub(r"0 \1", text)
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
         text = self.scale_pattern.sub(self._scale_replacer, text)
@@ -1102,6 +1110,16 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "the Company employees", None),
                 (TestType.CONTAINS, "Contact the Company", None),
                 (TestType.CONTAINS, "US GAAP", None),
+            ],
+        ),
+        # Test 27: No Workers -> 0 Workers
+        TestCase(
+            name="No Workers -> 0 Workers",
+            input_text="We have no employees and no unionized workers. no full-time staff.",
+            validations=[
+                (TestType.CONTAINS, "0 employees", None),
+                (TestType.CONTAINS, "0 unionized workers", None),
+                (TestType.CONTAINS, "0 full-time staff", None),
             ],
         ),
     ]
