@@ -18,6 +18,7 @@ RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?o
 # Worker Count Pattern: Number + (optional gap) + Worker Term
 worker_term_pattern = build_alternation(WORKER_TERMS)
 WORKER_COUNT_REGEX = re.compile(rf"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}\b", re.IGNORECASE)
+WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 
 # Negation patterns
 NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
@@ -28,6 +29,7 @@ class MatchType(Enum):
     RATIO = "RATIO"
     YEAR = "YEAR"
     WORKER_COUNT = "WORKER_COUNT"
+    WORKER_TERM = "WORKER_TERM"
     SPECIFIC_UNION = "SPECIFIC_UNION"
     UNION_NAME = "UNION_NAME"
     NON_UNION = "NON_UNION"
@@ -52,6 +54,7 @@ class SentenceAnalysis:
     percentages: List[float] = field(default_factory=list)
     ratios: List[Tuple[float, float]] = field(default_factory=list)
     worker_counts: List[float] = field(default_factory=list)
+    worker_terms: List[str] = field(default_factory=list)
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
@@ -213,8 +216,15 @@ class UnionExtractor:
             lambda m: float(m.group(1)),
             lambda m, val: analysis.worker_counts.append(val)
         )
+
+        # 12. Extract Worker Terms (Generic)
+        process_matches(
+            WORKER_TERM_REGEX, MatchType.WORKER_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.worker_terms.append(val)
+        )
         
-        # 12. Extract Numbers (Generic - lowest priority)
+        # 13. Extract Numbers (Generic - lowest priority)
         process_matches(
             NUMBER_REGEX, MatchType.NUMBER,
             lambda m: float(m.group(0)),

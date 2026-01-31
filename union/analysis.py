@@ -48,16 +48,23 @@ class UnionAnalyzer:
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
             has_coverage = bool(analysis.percentages or analysis.negation_terms)
+            has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
 
             # Update global context (Employee Counts) even if sentence is skipped
             if analysis.worker_counts:
                 last_employee_count = max(analysis.worker_counts) # Assume largest is total
 
-            if (
-                not analysis.union_terms
-                and not analysis.geo_matches
-                and not has_coverage
-            ):
+            # Relevance Check:
+            # 1. Union Terms: Always relevant.
+            # 2. Geo Matches: Relevant for context updates.
+            # 3. Coverage Data: Relevant ONLY if accompanied by Worker Context (to avoid "no debt" -> 0% coverage).
+            is_relevant = False
+            if analysis.union_terms or analysis.geo_matches:
+                is_relevant = True
+            elif has_coverage and has_worker_context:
+                is_relevant = True
+
+            if not is_relevant:
                 continue
 
             # 1. Determine Geographic Context
