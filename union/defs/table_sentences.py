@@ -87,16 +87,17 @@ def _format_value(val: str, col_type: Optional[str], multiplier: float, currency
     except ValueError:
         return val
 
-def _build_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
     info = processed_table.get("info", {})
     caption = _clean_cell(info.get("caption", ""))
     
-    # Heuristic: Extract year from caption if available
+    # Extract caption year
     caption_year = None
     m = YEAR_REGEX.search(caption)
     if m:
         caption_year = int(m.group(0))
 
+    # Build symbol map
     symbol_map = {}
     for code, props in MAJOR_CURRENCIES.items():
         for s in props["symbols"]:
@@ -109,100 +110,208 @@ def _build_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
         "col_years": processed_table.get("years", {}),
         "row_years": processed_table.get("row_years", {}),
         "caption": caption,
-        "caption_year": caption_year,
-        "default_currency": info.get("currency", "USD"),
+        "currency": info.get("currency", "USD"),
         "multiplier": info.get("global_multiplier", 1.0),
-        "symbol_map": symbol_map,
-        "col_currencies": {} 
+        "caption_year": caption_year,
+        "symbol_map": symbol_map
     }
 
-def _resolve_year(col_year: Optional[int], row_year: Optional[int], caption_year: Optional[int]) -> Optional[int]:
-    return col_year if col_year else (row_year if row_year else caption_year)
+def _extract_row_info(r_idx: int, row: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
+    if not row:
+        return {"valid": False}
+    
+    label = _clean_cell(row[0])
+    if not label:
+        return {"valid": False}
+        
+    return {
+        "valid": True,
+        "label": label,
+        "row_year": context["row_years"].get(r_idx)
+    }
 
-def _update_col_currency(val: str, c_idx: int, ctx: Dict[str, Any]):
-    symbol_map = ctx["symbol_map"]
-    # Update currency if symbol found (longest match first)
-    for sym in sorted(symbol_map.keys(), key=len, reverse=True):
+def _get_cell_info(c_idx: int, val: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    val = val.strip()
+    if not val or val in ["-", "—", "N/A", "n/a"]:
+        return {"valid": False}
+    
+    # Determine currency for this cell
+    cell_currency = context["currency"]
+    for sym in sorted(context["symbol_map"].keys(), key=len, reverse=True):
         if sym in val:
-            ctx["col_currencies"][c_idx] = symbol_map[sym]
+            cell_currency = context["symbol_map"][sym]
             break
-
-def _construct_subject(row_label: str, header: str, year: Optional[int]) -> str:
-    is_year_header = False
-    if year and str(year) in header:
-        # Check if header has other meaningful text
-        clean_header = re.sub(r'[^a-zA-Z]', '', header)
-        if len(clean_header) < 3: # e.g. "FY" or empty
-            is_year_header = True
             
-    if header and not is_year_header:
-        # Heuristic: "Employees (North America)"
-        return f"{row_label} ({header})"
-    return row_label
+    col_type = context["types"].get(c_idx)
+    col_year = context["col_years"].get(c_idx)
+    header = _clean_cell(context["headers"].get(c_idx, ""))
+    
+    # Resolve year (Column > Caption) - Row year handled in clustering
+    year = col_year if col_year else context["caption_year"]
+    
+    return {
+        "valid": True,
+        "val": val,
+        "type": col_type,
+        "year": year,
+        "header": header,
+        "currency": cell_currency,
+        "c_idx": c_idx
+    }
 
-def _construct_verb(year: Optional[int]) -> str:
-    return "was" if year and year < 2025 else "is"
+def _can_merge(group: Dict[str, Any], cell: Dict[str, Any]) -> bool:
+    if not group:
+        return True
+        
+    # 1. Year Consistency
+    if group.get("year") and cell.get("year") and group["year"] != cell["year"]:
+        return False
+    
+    # 2. Type Compatibility
+    g_types = group.get("types", set())
+    c_type = cell["type"]
+    
+    # Text merges with everything
+    if "text" in g_types or c_type == "text":
+        return True
+        
+    # Value/Dollar merges with Percentage
+    is_value_group = any(t in ["dollar", "value"] for t in g_types)
+    is_percent_group = "percentage" in g_types
+    
+    is_value_cell = c_type in ["dollar", "value"]
+    is_percent_cell = c_type == "percentage"
+    
+    if (is_value_group and is_percent_cell) or (is_percent_group and is_value_cell):
+        return True
+        
+    return False
 
-def _construct_sentence_string(year: Optional[int], subject: str, verb: str, val_str: str, caption: str) -> str:
+def _merge_cell(group: Dict[str, Any], cell: Dict[str, Any], context: Dict[str, Any]):
+    if "items" not in group:
+        group["items"] = []
+        group["types"] = set()
+        group["year"] = cell["year"]
+        group["headers"] = []
+    
+    # Update year if not set
+    if not group["year"] and cell["year"]:
+        group["year"] = cell["year"]
+        
+    formatted = _format_value(cell["val"], cell["type"], context["multiplier"], cell["currency"])
+    
+    group["items"].append({
+        "val": formatted,
+        "type": cell["type"],
+        "header": cell["header"]
+    })
+    group["types"].add(cell["type"])
+    if cell["header"]:
+        group["headers"].append(cell["header"])
+
+def _cluster_cells(row: List[str], row_info: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
+    groups = []
+    current_group = {}
+    
+    for c_idx, val in enumerate(row):
+        if c_idx == 0: continue
+        
+        cell = _get_cell_info(c_idx, val, context)
+        if not cell["valid"]:
+            continue
+            
+        # Apply row year if cell lacks specific year
+        if row_info["row_year"] and not cell["year"]:
+            cell["year"] = row_info["row_year"]
+            
+        # If cell has year and row has year, and they differ, cell year takes precedence (already set)
+
+        if _can_merge(current_group, cell):
+            _merge_cell(current_group, cell, context)
+        else:
+            if current_group:
+                groups.append(current_group)
+            current_group = {}
+            _merge_cell(current_group, cell, context)
+            
+    if current_group:
+        groups.append(current_group)
+        
+    return groups
+
+def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: Dict[str, Any]) -> Optional[str]:
+    if not group: return None
+    
+    year = group.get("year")
+    items = group.get("items", [])
+    
+    # Construct Subject
+    headers = [i["header"] for i in items if i["header"]]
+    unique_headers = []
+    seen = set()
+    for h in headers:
+        if h not in seen:
+            unique_headers.append(h)
+            seen.add(h)
+            
+    clean_headers = []
+    for h in unique_headers:
+        # Filter out headers that are just the year
+        if year and str(year) in h:
+             clean_h = re.sub(r'[^a-zA-Z]', '', h)
+             if len(clean_h) < 3:
+                 continue
+        clean_headers.append(h)
+        
+    subject = row_info["label"]
+    if clean_headers:
+        subject += f" ({', '.join(clean_headers)})"
+        
+    # Construct Value String
+    values = [i["val"] for i in items if i["type"] in ["dollar", "value"]]
+    percents = [i["val"] for i in items if i["type"] == "percentage"]
+    
+    val_str = ""
+    if values and percents:
+        val_str = f"{values[0]} ({percents[0]})"
+        if len(values) > 1 or len(percents) > 1:
+             val_str = ", ".join([i["val"] for i in items])
+    else:
+        val_str = " ".join([i["val"] for i in items])
+        
+    verb = "was" if year and year < 2025 else "is"
+    
     parts = []
     if year:
         parts.append(f"In {year},")
     parts.append(subject)
     parts.append(verb)
     parts.append(val_str)
-    if caption:
-        clean_caption = caption.replace('\n', ' ')
-        parts.append(f"[{clean_caption}]")
-    return " ".join(parts) + "."
-
-def _process_cell(c_idx: int, val: str, row_label: str, row_year: Optional[int], ctx: Dict[str, Any]) -> Optional[str]:
-    val = val.strip()
-    if not val or val in ["-", "—", "N/A", "n/a"]:
-        return None
-
-    _update_col_currency(val, c_idx, ctx)
     
-    header = _clean_cell(ctx["headers"].get(c_idx, ""))
-    col_type = ctx["types"].get(c_idx)
-    col_year = ctx["col_years"].get(c_idx)
-    
-    year = _resolve_year(col_year, row_year, ctx["caption_year"])
-    
-    subject = _construct_subject(row_label, header, year)
-    verb = _construct_verb(year)
-    
-    effective_currency = ctx["col_currencies"].get(c_idx, ctx["default_currency"])
-    formatted_val = _format_value(val, col_type, ctx["multiplier"], effective_currency)
-    
-    return _construct_sentence_string(year, subject, verb, formatted_val, ctx["caption"])
-
-def _process_row(r_idx: int, row: List[str], ctx: Dict[str, Any]) -> List[str]:
-    if not row:
-        return []
-    
-    row_label = _clean_cell(row[0])
-    if not row_label:
-        return []
+    if context["caption"]:
+        clean_cap = context["caption"].replace('\n', ' ')
+        parts.append(f"[{clean_cap}]")
         
-    row_year = ctx["row_years"].get(r_idx)
-    sentences = []
-    
-    for c_idx, cell_value in enumerate(row):
-        if c_idx == 0: continue
-        sent = _process_cell(c_idx, cell_value, row_label, row_year, ctx)
-        if sent:
-            sentences.append(sent)
-            
-    return sentences
+    return " ".join(parts) + "."
 
 def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:
     """
     Generates primitive sentences from a processed table dictionary using heuristics.
     """
-    ctx = _build_context(processed_table)
+    context = _extract_context(processed_table)
     sentences = []
     
-    for r_idx, row in enumerate(ctx["data"]):
-        sentences.extend(_process_row(r_idx, row, ctx))
-    
+    for r_idx, row in enumerate(context['data']):
+        if not row: continue
+        
+        row_info = _extract_row_info(r_idx, row, context)
+        if not row_info['valid']: continue
+        
+        groups = _cluster_cells(row, row_info, context)
+        
+        for group in groups:
+            sent = _render_sentence(group, row_info, context)
+            if sent:
+                sentences.append(sent)
+                
     return sentences
