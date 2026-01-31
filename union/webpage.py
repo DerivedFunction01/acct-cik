@@ -1071,7 +1071,21 @@ def cik_fetch_worker(
         cik, years = task
 
         try:
-            years_to_fetch = [y for y in years if (cik, y) not in already_done_set]
+            # Ensure consistent types (int) for checking against already_done_set
+            try:
+                cik_int = int(cik)
+            except (ValueError, TypeError):
+                cik_int = cik
+
+            years_to_fetch = []
+            for y in years:
+                try:
+                    y_int = int(y)
+                    if (cik_int, y_int) not in already_done_set:
+                        years_to_fetch.append(y_int)
+                except (ValueError, TypeError):
+                    pass
+
             if not years_to_fetch:
                 continue
 
@@ -1087,15 +1101,19 @@ def cik_fetch_worker(
                         try:
                             fyear = int(rdate.split("-")[0])
                             found_years.add(fyear)
-                            if (cik, fyear) not in already_done_set:
-                                cik_records.append({"cik": cik, "year": fyear, **filing})
+                            if (cik_int, fyear) not in already_done_set:
+                                cik_records.append({"cik": cik_int, "year": fyear, **filing})
                         except (ValueError, IndexError):
                             pass
 
             # Add placeholder for checked years that were NOT found
             for year in years:
-                if year not in found_years and (cik, year) not in already_done_set:
-                    cik_records.append({"cik": cik, "year": year, "url": ""})
+                try:
+                    y_int = int(year)
+                    if y_int not in found_years and (cik_int, y_int) not in already_done_set:
+                        cik_records.append({"cik": cik_int, "year": y_int, "url": ""})
+                except (ValueError, TypeError):
+                    pass
 
             if cik_records:
                 result_queue.put(cik_records)
@@ -1143,16 +1161,31 @@ def fetch_all_grouped(saveIteration: int = 100):
     if existing_report_df is None or existing_report_df.empty:
         # Load ALL data (valid=None) to ensure we don't retry failed/empty years
         existing_report_df = fetch_report_data(valid=None)
-
-    already_done = set(zip(existing_report_df["cik"], existing_report_df["year"]))
+    
+    # Ensure types match DB (int) for robust comparison
+    already_done = set()
+    for c, y in zip(existing_report_df["cik"], existing_report_df["year"]):
+        try:
+            already_done.add((int(c), int(y)))
+        except (ValueError, TypeError):
+            pass
+            
     cik_groups = all_derivatives_df.groupby("cik")["year"].apply(list).reset_index()
 
     # Prepare list of tasks
     unprocessed_tasks = []
     for row in cik_groups.itertuples(index=False):
-        cik = row.cik
-        years = row.year
-        assert isinstance(years, list) or isinstance(years, set)
+        try:
+            cik = int(row.cik) # type: ignore
+        except (ValueError, TypeError):
+            continue
+            
+        years = []
+        for y in row.year: # type: ignore
+            try:
+                years.append(int(y))
+            except (ValueError, TypeError):
+                pass
 
         # Quick check if any year needs fetching
         if any((cik, y) not in already_done for y in years):
