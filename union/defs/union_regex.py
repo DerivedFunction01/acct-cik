@@ -18,6 +18,7 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 
 class CORE(Enum):
     UNION = r"Union(?:ized|i(?:z|s)ation|s)?"
+    NONUNION = r"(?:non|un|not)[- ]?union(?:ized)?s?"
     COLLECTIVE = r"Collectives?"
     BARGAIN = r"Bargain(?:ing|s)?"
     LABOR = r"Labo(?:u)?rs?"
@@ -110,7 +111,7 @@ class LABOR_TERMS:
         # union / unionized / unionization
         CORE.UNION.value,
         # non-union(ized)
-        r"non[- ]union(?:ized)?",
+        CORE.UNION.value, 
         # employees/workers + represented by
         build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
         # labor + (agreements, contracts, organizations)
