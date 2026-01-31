@@ -141,6 +141,10 @@ class MinimalTextCleaner:
     percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
 
+    # Punctuation cleanup
+    punct_space_pattern = re.compile(r"\s+([,.;])")
+    double_punct_pattern = re.compile(r"([,.;])\1+")
+
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
     scale_map = {
@@ -478,6 +482,10 @@ class MinimalTextCleaner:
         text = self.percent_pattern.sub("%", text)
         text = self.percent_space_pattern.sub(r"\1%", text)
 
+        # Punctuation cleanup
+        text = self.punct_space_pattern.sub(r"\1", text)
+        text = self.double_punct_pattern.sub(r"\1", text)
+
         # Final cleanup
         text = self.space_pattern.sub(" ", text).strip()
 
@@ -631,7 +639,7 @@ class TestValidator:
         
         return validation
     
-    def run_all_tests(self, test_cases: List[TestCase]) -> bool:
+    def run_all_tests(self, test_cases: List[TestCase], debug: bool = False) -> bool:
         """Run all test cases and print results."""
         self.results = []
         self.passed = 0
@@ -653,10 +661,8 @@ class TestValidator:
                 self.failed += 1
                 status = "✗ FAILED"
             
-           
-            
             # Print input/output
-            if not result["passed"]:
+            if not result["passed"] or debug:
                 # Print test header
                 print(f"{status} | {result['name']}")
                 print("-" * 80)
@@ -1062,6 +1068,14 @@ def create_test_cases() -> List[TestCase]:
                 ),
             ],
         ),
+        # Test 29: Punctuation Cleanup
+        TestCase(
+            name="Punctuation Cleanup",
+            input_text="Word . Word , word .. word ,, word . . word",
+            validations=[
+                (TestType.EXACT, "Word. Word, word. word, word. word", None),
+            ],
+        ),
     ]
 
 
@@ -1069,6 +1083,6 @@ def run_tests():
     """Run the test suite."""
     test_cases = create_test_cases()
     validator = TestValidator()
-    all_passed = validator.run_all_tests(test_cases)
+    all_passed = validator.run_all_tests(test_cases, debug=False)
     
     return 0 if all_passed else 1
