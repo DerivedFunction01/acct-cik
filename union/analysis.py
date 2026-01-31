@@ -1,7 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional
 
-from union.extraction import UnionExtractor, SentenceAnalysis, MatchType
+from extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier, 
