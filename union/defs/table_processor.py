@@ -718,6 +718,7 @@ class SimpleTableProcessor:
         date_count = 0
         percent_count = 0
         dollar_count = 0
+        value_count = 0
         text_count = 0
 
         for cell in sample_cells:
@@ -735,12 +736,26 @@ class SimpleTableProcessor:
                 dollar_count += 1
             # Check if numeric (without currency)
             elif self._is_numeric(cell):
-                pass  # Could be any numeric type, not categorized
+                value_count += 1
             # Otherwise it's text
             else:
                 text_count += 1
 
         total = len(sample_cells)
+        if total == 0:
+            return None
+
+        # 1. Text Dominance
+        if text_count > total * 0.5:
+            return "text"
+
+        # 2. Mixed Detection
+        has_date = date_count > total * 0.1
+        has_percent = percent_count > total * 0.1
+        has_numeric = (dollar_count + value_count) > total * 0.1
+        
+        if sum([has_date, has_percent, has_numeric]) > 1:
+            return "mixed"
 
         # Determine dominant type (>50% threshold)
         if date_count > total * 0.5:
@@ -749,20 +764,14 @@ class SimpleTableProcessor:
             return "percentage"
         elif dollar_count > total * 0.5:
             return "dollar"
-        elif text_count > total * 0.5:
-            return "text"
+        elif value_count > total * 0.5:
+            return "value"
 
-        # Fallback: if significant amount of one type, return it
-        if date_count > 0:
-            return "date"
-        elif percent_count > 0:
-            return "percentage"
-        elif dollar_count > 0:
-            return "dollar"
-        elif text_count > 0:
-            return "text"
+        # Combined Numeric
+        if (dollar_count + value_count) > total * 0.5:
+            return "dollar" if dollar_count > value_count else "value"
 
-        return None
+        return "mixed"
 
     def get_data(self) -> List[List[str]]:
         """Return extracted table data"""
@@ -775,6 +784,38 @@ class SimpleTableProcessor:
     def get_types(self) -> Dict[int, Optional[str]]:
         """Return column types"""
         return self.col_map if not self.invalid_table else {}
+
+    def get_years(self) -> Dict[int, int]:
+        """Return column years detected from headers"""
+        if self.invalid_table:
+            return {}
+
+        years_map = {}
+        for idx, header in self.col_headers.items():
+            if not header:
+                continue
+
+            extracted_years = []
+            matches = YEAR_REGEX.findall(header)
+            
+            for m in matches:
+                # Handle tuple from regex groups
+                groups = m if isinstance(m, tuple) else [m]
+                for g in groups:
+                    if g and g.isdigit():
+                        y = int(g)
+                        # Handle 2-digit years
+                        if y < 100:
+                            y += 2000 if y < 50 else 1900
+                        extracted_years.append(y)
+            
+            # Filter for valid 4-digit years
+            valid_years = [y for y in extracted_years if 1900 <= y <= 2100]
+            
+            if valid_years:
+                years_map[idx] = max(valid_years)
+
+        return years_map
 
     def get_info(self) -> Dict:
         """Return table metadata"""
@@ -803,5 +844,6 @@ def process_table(table_text: str) -> Dict:
         "data": processor.get_data(),
         "headers": processor.get_headers(),
         "types": processor.get_types(),
+        "years": processor.get_years(),
         "info": processor.get_info(),
     }
