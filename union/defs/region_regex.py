@@ -691,16 +691,19 @@ class RegionMatcher:
     Compiles regexes for Regions, Nations, and Specific Unions.
     Allows independent parsing of text to find these entities.
     """
-    def __init__(self):
-        self.union_map: Dict[str, Tuple[Region, str, str]] = {} # term -> (Region, Country, Code)
-        self.location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {} # term -> (Region, Country, City, Code)
-        
-        self.specific_union_regex: Optional[re.Pattern] = None
-        self.location_regex: Optional[re.Pattern] = None
-        
-        self._compile()
+    union_map: Dict[str, Tuple[Region, str, str]] = {} # term -> (Region, Country, Code)
+    location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {} # term -> (Region, Country, City, Code)
+    
+    specific_union_regex: Optional[re.Pattern] = None
+    location_regex: Optional[re.Pattern] = None
+    _compiled = False
 
-    def _compile(self):
+    def __init__(self):
+        if not RegionMatcher._compiled:
+            RegionMatcher._compile()
+
+    @classmethod
+    def _compile(cls):
         all_regions = [
             NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
             MIDDLE_EAST_AFRICA, INTERNATIONAL
@@ -714,35 +717,35 @@ class RegionMatcher:
                 # 1. Map Specific Unions
                 for union_name in nation.unions:
                     # Store mapping
-                    self.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
+                    cls.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
                     union_phrases.add(union_name)
                 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
-                    self.location_map[phrase.lower()] = (nation.region, nation.name, None, nation.code)
+                    cls.location_map[phrase.lower()] = (nation.region, nation.name, None, nation.code)
                     geo_phrases.add(phrase)
                 
                 # 3. Map Nation Name
-                self.location_map[nation.name.lower()] = (nation.region, nation.name, None, nation.code)
+                cls.location_map[nation.name.lower()] = (nation.region, nation.name, None, nation.code)
                 geo_phrases.add(nation.name)
                 
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
                     # Location Name
-                    self.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name, nation.code)
+                    cls.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name, nation.code)
                     geo_phrases.add(loc.name)
                     
                     # Location Phrases
                     for phrase in loc.phrases:
-                        self.location_map[phrase.lower()] = (nation.region, nation.name, loc.name, nation.code)
+                        cls.location_map[phrase.lower()] = (nation.region, nation.name, loc.name, nation.code)
                         geo_phrases.add(phrase)
                     
                     # Sub-cities
                     for sub in loc.cities:
-                        self.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name, nation.code)
+                        cls.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name, nation.code)
                         geo_phrases.add(sub.name)
                         for phrase in sub.phrases:
-                            self.location_map[phrase.lower()] = (nation.region, nation.name, sub.name, nation.code)
+                            cls.location_map[phrase.lower()] = (nation.region, nation.name, sub.name, nation.code)
                             geo_phrases.add(phrase)
 
         # Helper to safely escape phrases (unless they are already regex patterns)
@@ -760,12 +763,14 @@ class RegionMatcher:
         # Compile Specific Union Regex
         if union_phrases:
             pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
-            self.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
+            cls.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
 
         # Compile Location Regex
         if geo_phrases:
             pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
-            self.location_regex = re.compile(pattern_str, re.IGNORECASE)
+            cls.location_regex = re.compile(pattern_str, re.IGNORECASE)
+        
+        cls._compiled = True
 
     def parse_unions(self, text: str) -> List[Dict[str, Any]]:
         """Returns list of specific union matches with metadata."""

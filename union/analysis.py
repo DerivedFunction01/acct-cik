@@ -12,8 +12,32 @@ from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, 
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
 )
+from defs.regex_lib import build_regex
 
+CONDITIONAL_REGEX = build_regex([
+    r"if",
+    r"could",
+    r"may",
+    r"might",
+    r"potential",
+    r"possible",
+    r"can"
+])
 
+CURRENT_REGEX = build_regex([
+    r"current(?:ly)?",
+    r"present",
+    r"now",
+    r"today",
+    r"this\s+(?:fiscal|reporting)\s+(?:year|period)"
+])
+
+HISTORICAL_REGEX = build_regex([
+    r"historical(?:ly)?",
+    r"previously",
+    r"prior\s+to",
+    r"(?:last|prior|past)\s+(?:fiscal|reporting)\s+(?:year|period)"
+])
 
 class UnionAnalyzer:
     def __init__(self):
@@ -27,7 +51,7 @@ class UnionAnalyzer:
         return None
 
     def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis) -> Dict[str, Any]:
-        is_conditional = bool(re.search(r"\b(?:if|could|may|might|potential|possible|can)\b", sentence, re.IGNORECASE))
+        is_conditional = bool(CONDITIONAL_REGEX.search(sentence))
         return {
             "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
             "sentence": sentence,
@@ -41,7 +65,7 @@ class UnionAnalyzer:
             "note": None
         }
 
-    def analyze_paragraph(self, text: str, item_type: str = "item1") -> List[Dict[str, Any]]:
+    def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Process a paragraph of text, splitting it into sentences and 
         extracting details based on item_type (item1 or item1a).
@@ -49,11 +73,11 @@ class UnionAnalyzer:
         sentences = self.extractor.split_sentences(text)
 
         if item_type == "item1a":
-            return self._analyze_item1a(sentences)
+            return self._analyze_item1a(sentences, reporting_year)
 
-        return self._analyze_item1(sentences)
+        return self._analyze_item1(sentences, reporting_year)
 
-    def _analyze_item1(self, sentences: List[str]) -> List[Dict[str, Any]]:
+    def _analyze_item1(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Analyzes sentences for Item 1 (Union Coverage) with context inheritance.
         """
@@ -79,6 +103,13 @@ class UnionAnalyzer:
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
+
+            # Historical Check: If reporting_year is provided, skip purely historical sentences
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years) or HISTORICAL_REGEX.search(sent):
+                    # Check for explicit current indicators to override exclusion
+                    if not CURRENT_REGEX.search(sent):
+                        continue
 
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
@@ -155,7 +186,7 @@ class UnionAnalyzer:
                     relevant_total = last_employee_count or global_max_workers
 
             # 2. Determine Coverage Data
-            coverage_data = self._determine_coverage_data(analysis, relevant_total)
+            coverage_data = self._determine_coverage_data(analysis, relevant_total, reporting_year)
 
             # 3. Construct Item 1 JSON
             # Rule: Include if we have union terms OR (coverage data AND inherited context)
@@ -386,7 +417,7 @@ class UnionAnalyzer:
         return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
     def _determine_coverage_data(
-        self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None
+        self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None, reporting_year: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Extracts percentage, negation, and count data.
@@ -597,6 +628,13 @@ class UnionAnalyzer:
             if status != RelationshipStatus.UNKNOWN:
                 data["relationship_status"] = status.value
 
+        # Determine Temporal Scope based on reporting year
+        if reporting_year and analysis.years:
+            future_years = [y for y in analysis.years if y > reporting_year]
+            if future_years:
+                data["temporal_scope"] = TemporalScope.FUTURE.value
+                data["expected_date"] = str(min(future_years))
+
         return data
 
     def _resolve_mixed_coverage(self, analysis: SentenceAnalysis, data: Dict[str, Any]):
@@ -693,15 +731,22 @@ class UnionAnalyzer:
              pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
              data['percentage'] = round(pct, 2)
              data['calculated_percentage'] = round(pct, 2)
+
              data['type'] = CoverageType.CALCULATED.value
 
-    def _analyze_item1a(self, sentences: List[str]) -> List[Dict[str, Any]]:
+    def _analyze_item1a(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
         Analyzes sentences for Item 1A (Risk Factors).
         """
         results = []
         for sent in sentences:
             analysis = self.extractor.analyze_sentence(sent)
+
+            # Historical Check for Risks
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years):
+                    if not CURRENT_REGEX.search(sent):
+                        continue
 
             # Item 1A logic: Look for risk terms
             if analysis.risk_terms:

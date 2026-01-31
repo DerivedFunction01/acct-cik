@@ -8,342 +8,223 @@ from defs.union_regex import WORKER_TERMS
 COMPANY_TOKEN = "the Company"
 
 class MinimalTextCleaner:
+    # Suffixes to strip from the passed company name
+    name_suffixes = [
+        r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?", r"co\.?",
+        r"company", r"ltd\.?", r"limited", r"p\.?l\.?c\.?", r"s\.?a\.?",
+        r"group", r"holdings?", r"trust", r"assoc\.?", r"association",
+    ]
+
+    # Suffixes to remove from the text generally (safer subset)
+    text_suffixes = [
+        r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?",
+        r"ltd\.?", r"limited", r"p\.?l\.?c\.?", r"s\.?a\.?",
+    ]
+
+    # Regex to strip suffixes from the end of the company name
+    name_suffix_pattern = re.compile(
+        r"\s+" + build_alternation(name_suffixes) + r"\.?$", re.IGNORECASE
+    )
+
+    # Regex to remove safe suffixes from text
+    text_suffix_pattern = re.compile(
+        r"\b" + build_alternation(text_suffixes) + r"\b\.?", re.IGNORECASE
+    )
+
+    # False Positives for Union/Labor context
+    false_positives = [
+        (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
+        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
+        (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
+        (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
+    ]
+
+    # Bullet and Dashed Patterns
+    bullet_pattern = re.compile(
+        r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
+        r"(?:"
+        # 1. Capture years/numbers with parentheses: (2023) -> STRIP
+        r"\(\d+\)|"
+        # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
+        #    Uses negative lookahead to protect 19xx and 20xx
+        r"(?!(?:19|20)\d{2})\d+(?:\.|\)|\:)|"
+        # 3. Roman numerals and letters -> STRIP
+        r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
+        r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
+        r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
+        r")"
+        r"(?=\s)",  # Followed by whitespace
+        re.IGNORECASE,
+    )
+
+    # Dashed patterns: 1-2, 3-4 (range references)
+    dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
+
+    # Date and Year Patterns
+    months = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December",
+        "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec",
+    ]
+    months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
+
+    date_md_pattern = re.compile(
+        rf"\b(?:{months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)",
+        re.IGNORECASE,
+    )
+
+    date_dm_pattern = re.compile(
+        rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{months_pattern_str})\b",
+        re.IGNORECASE,
+    )
+
+    month_only_pattern = re.compile(
+        rf"\b(?:{months_pattern_str})\b"
+    )
+
+    year_pattern = YEAR_REGEX
+
+    # Word to number mappings
+    num_words = {
+        "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
+        "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
+        "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
+        "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30,
+        "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70,
+        "eighty": 80, "ninety": 90,
+    }
+    multipliers = {
+        "hundred": 100, "thousand": 1_000, "million": 1_000_000,
+        "billion": 1_000_000_000, "trillion": 1_000_000_000_000,
+    }
+    fractions = {
+        "half": 0.5, "halves": 0.5, "quarter": 0.25, "quarters": 0.25,
+        "third": 1 / 3, "thirds": 1 / 3, "fourth": 0.25, "fourths": 0.25,
+        "fifth": 0.2, "fifths": 0.2, "sixth": 1 / 6, "sixths": 1 / 6,
+        "seventh": 1 / 7, "sevenths": 1 / 7, "eighth": 1 / 8, "eighths": 1 / 8,
+        "ninth": 1 / 9, "ninths": 1 / 9, "tenth": 0.1, "tenths": 0.1,
+    }
+
+    # Build regex for number phrases
+    _all_words = (
+        list(num_words.keys())
+        + list(multipliers.keys())
+        + list(fractions.keys())
+    )
+    _word_pattern = build_alternation([re.escape(w) for w in _all_words])
+    number_phrase_pattern = re.compile(
+        rf"\b{_word_pattern}(?:[\s-]+{_word_pattern})*\b", re.IGNORECASE
+    )
+
+    # Handle "a hundred", "a thousand" etc.
+    # Also handle "a quarter of", "a third of", "a fifth of"
+    a_multiplier_pattern = re.compile(
+        r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
+    )
+    # Handle "none of" -> "0% of"
+    none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
+
+    # Handle "all of" -> "100% of"
+    all_of_pattern = re.compile(r"\ball\s+of\b", re.IGNORECASE)
+
+    # Handle "no [worker]" -> "0 [worker]"
+    _worker_pattern = build_alternation(WORKER_TERMS)
+    no_worker_pattern = re.compile(
+        rf"\bno\s+((?:[\w-]+\s+){{0,2}}{_worker_pattern})\b", re.IGNORECASE
+    )
+
+    # Fix capitalization of "the" at start of sentences
+    fix_the_capitalization_pattern = re.compile(r"(^|[.!?]\s+)the\b")
+
+    # Pronouns to Company Token
+    # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
+    pronoun_pattern = re.compile(r"\b(?:[Ww]e|[Oo]ur|us)\b")
+
+    percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
+    percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
+
+    # Numbers
+    comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
+    scale_map = {
+        "thousand": 1_000,
+        "million": 1_000_000,
+        "billion": 1_000_000_000,
+        "trillion": 1_000_000_000_000,
+    }
+    scale_pattern = re.compile(
+        r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", re.IGNORECASE
+    )
+
+    space_pattern = re.compile(r"\s+")
+
+    # Pattern to handle hyphenated fractions like "three-fourths", "one-half"
+    # This must be processed BEFORE number_phrase_pattern
+    _fraction_words = "|".join(
+        list(fractions.keys())
+        + [
+            w[:-3] for w in fractions.keys() if w.endswith("ths")
+        ]  # base forms like "fourth" from "fourths"
+    )
+    _num_words_str = "|".join(num_words.keys())
+    hyphenated_fraction_pattern = re.compile(
+        rf"\b({_num_words_str})-({_fraction_words}s?)\b", re.IGNORECASE
+    )
+    fraction_qualifiers = {
+        "approx", "approx.", "approximately", "roughly", "nearly", "about", "around",
+    }
+
+    # False Fraction Protection
+    # Terms that are fractions but often used in dates/periods: quarter, half, third, fourth...
+    # We want to protect them when they are used as time periods or ordinals.
+    _ordinals_and_time = [
+        "fiscal", "first", "second", "third", "fourth", "fifth", "sixth",
+        "next", "last", "previous", "current", "past", r"th(?:is|ese)",
+        "following", r"report(?:ing|ed)?", "subsequent", "the", "remaining",
+        r"\d+(?:st|nd|rd|th)", "interim", "annual", "daily", "monthly",
+        "weekly", "prior", "ealier", "upcoming", "ensuing", "preceding",
+        "ending", "ended", "comparative", "consecutive", "cumulative",
+        "rolling", "trailing",
+    ]
+    _ordinals_pattern = build_alternation(_ordinals_and_time)
+
+    _fraction_terms = list(fractions.keys())
+    _fraction_terms_pattern = build_alternation(_fraction_terms)
+
+    # Terms that indicate a time period following a fraction
+    _time = build_alternation([
+        r"years?", r"quarters?", r"months?", r"weeks?", r"days?",
+        r"hours?", r"minutes?", r"seconds?", r"periods?", r"half",
+    ])
+    _period_terms = [
+        rf"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?{_time}",
+        r"centur(?:y|ies)"
+    ]
+    _period_pattern = build_alternation(_period_terms)
+
+    # Flexible gap (e.g. "quarter of the fiscal year")
+    # Allow up to 3 words between fraction and period
+    _gap_pattern = r"(?:\s+\w+){0,3}"
+
+    # Financial period patterns (YTD, YoY, etc.)
+    _x_to_date = rf"{_time}(?:\s*[-–]\s*|\s+to\s+)date"
+    _x_end = rf"{_time}(?:\s*[-–]\s*|\s+)end"
+    _x_over_x = rf"{_time}(?:\s*[-–]\s*|\s+over\s+){_time}"
+
+    false_fraction_pattern = build_regex(
+        [
+            rf"(?:{_ordinals_pattern})\s+(?:of\s+(?:the\s+)?)?{_fraction_terms_pattern}",
+            rf"{_fraction_terms_pattern}\s+(?:ended|ending)",
+            r"in\s+(?:the\s+)?(?:first|second|1st|2nd)\s+hal(?:f|ves)",
+            rf"{_fraction_terms_pattern}{_gap_pattern}\s+{_period_pattern}",
+            _x_to_date,
+            _x_end,
+            _x_over_x,
+        ]
+    )
+
     def __init__(self):
-        # Suffixes to strip from the passed company name
-        self.name_suffixes = [
-            r"inc\.?",
-            r"corp\.?",
-            r"corporation",
-            r"l\.?l\.?c\.?",
-            r"co\.?",
-            r"company",
-            r"ltd\.?",
-            r"limited",
-            r"p\.?l\.?c\.?",
-            r"s\.?a\.?",
-            r"group",
-            r"holdings?",
-            r"trust",
-            r"assoc\.?",
-            r"association",
-        ]
-
-        # Suffixes to remove from the text generally (safer subset)
-        self.text_suffixes = [
-            r"inc\.?",
-            r"corp\.?",
-            r"corporation",
-            r"l\.?l\.?c\.?",
-            r"ltd\.?",
-            r"limited",
-            r"p\.?l\.?c\.?",
-            r"s\.?a\.?",
-        ]
-
-        # Regex to strip suffixes from the end of the company name
-        self.name_suffix_pattern = re.compile(
-            r"\s+" + build_alternation(self.name_suffixes) + r"\.?$", re.IGNORECASE
-        )
-
-        # Regex to remove safe suffixes from text
-        self.text_suffix_pattern = re.compile(
-            r"\b" + build_alternation(self.text_suffixes) + r"\b\.?", re.IGNORECASE
-        )
-
-        # False Positives for Union/Labor context
-        self.false_positives = [
-            (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
-            (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
-            (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
-            (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
-        ]
-
-        # Bullet and Dashed Patterns
-        self.bullet_pattern = re.compile(
-            r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
-            r"(?:"
-            # 1. Capture years/numbers with parentheses: (2023) -> STRIP
-            r"\(\d+\)|"
-            # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
-            #    Uses negative lookahead to protect 19xx and 20xx
-            r"(?!(?:19|20)\d{2})\d+(?:\.|\)|\:)|"
-            # 3. Roman numerals and letters -> STRIP
-            r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
-            r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
-            r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
-            r")"
-            r"(?=\s)",  # Followed by whitespace
-            re.IGNORECASE,
-        )
-
-        # Dashed patterns: 1-2, 3-4 (range references)
-        self.dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
-
-        # Date and Year Patterns
-        months = [
-            "January",
-            "February",
-            "March",
-            "April",
-            "May",
-            "June",
-            "July",
-            "August",
-            "September",
-            "October",
-            "November",
-            "December",
-            "Jan",
-            "Feb",
-            "Mar",
-            "Apr",
-            "Jun",
-            "Jul",
-            "Aug",
-            "Sep",
-            "Sept",
-            "Oct",
-            "Nov",
-            "Dec",
-        ]
-        self.months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
-
-        self.date_md_pattern = re.compile(
-            rf"\b(?:{self.months_pattern_str})\s+(\d{{1,2}})(?:st|nd|rd|th)?(?:,)?(?!\d)",
-            re.IGNORECASE,
-        )
-
-        self.date_dm_pattern = re.compile(
-            rf"(?<!\d)(\d{{1,2}})(?:st|nd|rd|th)?\s+(?:of\s+)?(?:{self.months_pattern_str})\b",
-            re.IGNORECASE,
-        )
-
-        self.month_only_pattern = re.compile(
-            rf"\b(?:{self.months_pattern_str})\b"
-        )
-
-        self.year_pattern = YEAR_REGEX
-
-        # Word to number mappings
-        self.num_words = {
-            "zero": 0,
-            "one": 1,
-            "two": 2,
-            "three": 3,
-            "four": 4,
-            "five": 5,
-            "six": 6,
-            "seven": 7,
-            "eight": 8,
-            "nine": 9,
-            "ten": 10,
-            "eleven": 11,
-            "twelve": 12,
-            "thirteen": 13,
-            "fourteen": 14,
-            "fifteen": 15,
-            "sixteen": 16,
-            "seventeen": 17,
-            "eighteen": 18,
-            "nineteen": 19,
-            "twenty": 20,
-            "thirty": 30,
-            "forty": 40,
-            "fifty": 50,
-            "sixty": 60,
-            "seventy": 70,
-            "eighty": 80,
-            "ninety": 90,
-        }
-        self.multipliers = {
-            "hundred": 100,
-            "thousand": 1_000,
-            "million": 1_000_000,
-            "billion": 1_000_000_000,
-            "trillion": 1_000_000_000_000,
-        }
-        self.fractions = {
-            "half": 0.5,
-            "halves": 0.5,
-            "quarter": 0.25,
-            "quarters": 0.25,
-            "third": 1 / 3,
-            "thirds": 1 / 3,
-            "fourth": 0.25,
-            "fourths": 0.25,
-            "fifth": 0.2,
-            "fifths": 0.2,
-            "sixth": 1 / 6,
-            "sixths": 1 / 6,
-            "seventh": 1 / 7,
-            "sevenths": 1 / 7,
-            "eighth": 1 / 8,
-            "eighths": 1 / 8,
-            "ninth": 1 / 9,
-            "ninths": 1 / 9,
-            "tenth": 0.1,
-            "tenths": 0.1,
-        }
-
-        # Build regex for number phrases
-        all_words = (
-            list(self.num_words.keys())
-            + list(self.multipliers.keys())
-            + list(self.fractions.keys())
-        )
-        word_pattern = build_alternation([re.escape(w) for w in all_words])
-        self.number_phrase_pattern = re.compile(
-            rf"\b{word_pattern}(?:[\s-]+{word_pattern})*\b", re.IGNORECASE
-        )
-
-        # Handle "a hundred", "a thousand" etc.
-        # Also handle "a quarter of", "a third of", "a fifth of"
-        self.a_multiplier_pattern = re.compile(
-            r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
-        )
-        # Handle "none of" -> "0% of"
-        self.none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
-
-        # Handle "all of" -> "100% of"
-        self.all_of_pattern = re.compile(r"\ball\s+of\b", re.IGNORECASE)
-
-        # Handle "no [worker]" -> "0 [worker]"
-        worker_pattern = build_alternation(WORKER_TERMS)
-        self.no_worker_pattern = re.compile(
-            rf"\bno\s+((?:[\w-]+\s+){{0,2}}{worker_pattern})\b", re.IGNORECASE
-        )
-
-        # Fix capitalization of "the" at start of sentences
-        self.fix_the_capitalization_pattern = re.compile(r"(^|[.!?]\s+)the\b")
-
-        # Pronouns to Company Token
-        # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
-        self.pronoun_pattern = re.compile(r"\b(?:[Ww]e|[Oo]ur|us)\b")
-
-        self.percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
-        self.percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
-
-        # Numbers
-        self.comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
-        self.scale_map = {
-            "thousand": 1_000,
-            "million": 1_000_000,
-            "billion": 1_000_000_000,
-            "trillion": 1_000_000_000_000,
-        }
-        self.scale_pattern = re.compile(
-            r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", re.IGNORECASE
-        )
-
-        self.space_pattern = re.compile(r"\s+")
-
-        # Pattern to handle hyphenated fractions like "three-fourths", "one-half"
-        # This must be processed BEFORE number_phrase_pattern
-        fraction_words = "|".join(
-            list(self.fractions.keys())
-            + [
-                w[:-3] for w in self.fractions.keys() if w.endswith("ths")
-            ]  # base forms like "fourth" from "fourths"
-        )
-        num_words_str = "|".join(self.num_words.keys())
-        self.hyphenated_fraction_pattern = re.compile(
-            rf"\b({num_words_str})-({fraction_words}s?)\b", re.IGNORECASE
-        )
-        self.fraction_qualifiers = {
-            "approx",
-            "approx.",
-            "approximately",
-            "roughly",
-            "nearly",
-            "about",
-            "around",
-        }
-
-        # False Fraction Protection
-        # Terms that are fractions but often used in dates/periods: quarter, half, third, fourth...
-        # We want to protect them when they are used as time periods or ordinals.
-        ordinals_and_time = [
-            "fiscal",
-            "first",
-            "second",
-            "third",
-            "fourth",
-            "fifth",
-            "sixth",
-            "next",
-            "last",
-            "previous",
-            "current",
-            "past",
-            r"th(?:is|ese)",
-            "following",
-            r"report(?:ing|ed)?",
-            "subsequent",
-            "the",
-            "remaining",
-            r"\d+(?:st|nd|rd|th)",
-            "interim",
-            "annual",
-            "daily",
-            "monthly",
-            "weekly",
-            "prior",
-            "ealier",
-            "upcoming",
-            "ensuing",
-            "preceding",
-            "ending",
-            "ended",
-            "comparative",
-            "consecutive",
-            "cumulative",
-            "rolling",
-            "trailing",
-        ]
-        ordinals_pattern = build_alternation(ordinals_and_time)
-
-        fraction_terms = list(self.fractions.keys())
-        fraction_terms_pattern = build_alternation(fraction_terms)
-
-        # Terms that indicate a time period following a fraction
-        time = build_alternation([
-            r"years?",
-            r"quarters?",
-            r"months?",
-            r"weeks?",
-            r"days?",
-            r"hours?",
-            r"minutes?",
-            r"seconds?",
-            r"periods?",
-            r"half",
-        ])
-        period_terms = [
-            rf"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?{time}",
-            r"centur(?:y|ies)"
-        ]
-        period_pattern = build_alternation(period_terms)
-
-        # Flexible gap (e.g. "quarter of the fiscal year")
-        # Allow up to 3 words between fraction and period
-        gap_pattern = r"(?:\s+\w+){0,3}"
-
-        # Financial period patterns (YTD, YoY, etc.)
-        x_to_date = rf"{time}(?:\s*[-–]\s*|\s+to\s+)date"
-        x_end = rf"{time}(?:\s*[-–]\s*|\s+)end"
-        x_over_x = rf"{time}(?:\s*[-–]\s*|\s+over\s+){time}"
-
-        self.false_fraction_pattern = build_regex(
-            [
-                rf"(?:{ordinals_pattern})\s+(?:of\s+(?:the\s+)?)?{fraction_terms_pattern}",
-                rf"{fraction_terms_pattern}\s+(?:ended|ending)",
-                r"in\s+(?:the\s+)?(?:first|second|1st|2nd)\s+hal(?:f|ves)",
-                rf"{fraction_terms_pattern}{gap_pattern}\s+{period_pattern}",
-                x_to_date,
-                x_end,
-                x_over_x,
-            ]
-        )
+        pass
 
     def normalize_company_name(self, name: str) -> str:
         if not name:
@@ -585,12 +466,13 @@ class CurrencyRemover:
     Removes currency amounts from text.
     Designed to run AFTER MinimalTextCleaner has normalized numbers (removed commas).
     """
+    currency_pattern = re.compile(
+        r"(?:\$\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"  # $1000, $ (1000), $(1000)
+        r"(?:\b\d+(?:\.\d+)?\s+(?:dollars?|usd|cents?)\b)", # 1000 dollars
+        re.IGNORECASE
+    )
     def __init__(self):
-        self.currency_pattern = re.compile(
-            r"(?:\$\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"  # $1000, $ (1000), $(1000)
-            r"(?:\b\d+(?:\.\d+)?\s+(?:dollars?|usd|cents?)\b)", # 1000 dollars
-            re.IGNORECASE
-        )
+        pass
 
     def remove(self, text: str) -> str:
         return self.currency_pattern.sub(" ", text)
