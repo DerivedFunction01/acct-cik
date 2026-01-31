@@ -8,6 +8,21 @@ from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
 
+SPACE_PATTERN = re.compile(r"\s+")
+PUNCT_SPACE_PATTERN = re.compile(r"\s+([,.;:!?])")
+DOUBLE_PUNCT_PATTERN = re.compile(r"([,.;:!?])\1+")
+
+def clean_spaces_and_punctuation(text: str) -> str:
+    """
+    Normalizes whitespace and cleans up punctuation.
+    """
+    if not text:
+        return ""
+    text = SPACE_PATTERN.sub(" ", text).strip()
+    text = PUNCT_SPACE_PATTERN.sub(r"\1", text)
+    text = DOUBLE_PUNCT_PATTERN.sub(r"\1", text)
+    return text
+
 class MinimalTextCleaner:
     # Suffixes to strip from the passed company name
     name_suffixes = [
@@ -142,9 +157,6 @@ class MinimalTextCleaner:
     percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
 
-    # Punctuation cleanup
-    punct_space_pattern = re.compile(r"\s+([,.;])")
-    double_punct_pattern = re.compile(r"([,.;])\1+")
 
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
@@ -157,8 +169,6 @@ class MinimalTextCleaner:
     scale_pattern = re.compile(
         r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", re.IGNORECASE
     )
-
-    space_pattern = re.compile(r"\s+")
 
     # Pattern to handle hyphenated fractions like "three-fourths", "one-half"
     # This must be processed BEFORE number_phrase_pattern
@@ -421,7 +431,7 @@ class MinimalTextCleaner:
         texts = []
         for paragraph in paragraphs:
             # 1. Whitespace
-            paragraph = self.space_pattern.sub(" ", paragraph).strip()
+            paragraph = clean_spaces_and_punctuation(paragraph)
 
             # 2. False Positives
             for pat, repl in self.false_positives:
@@ -488,11 +498,7 @@ class MinimalTextCleaner:
             paragraph = self.percent_space_pattern.sub(r"\1%", paragraph)
 
             # Punctuation cleanup
-            paragraph = self.punct_space_pattern.sub(r"\1", paragraph)
-            paragraph = self.double_punct_pattern.sub(r"\1", paragraph)
-
-            # Final cleanup
-            paragraph = self.space_pattern.sub(" ", paragraph).strip()
+            paragraph = clean_spaces_and_punctuation(paragraph)
             
             # Long enough to be considered one, even if it is a single sentence
             if paragraph and len(paragraph) > 12:
@@ -527,7 +533,17 @@ class CurrencyRemover:
         )
 
     def clean(self, text: str) -> str:
-        return self.currency_pattern.sub(" ", text)
+        # split by double new lines
+        paragraphs = text.split("\n\n")
+        paragraphs = [p.strip() for p in paragraphs]
+        texts = []
+        for paragraph in paragraphs:
+            paragraph = self.currency_pattern.sub(" ", paragraph)
+            paragraph = clean_spaces_and_punctuation(paragraph)
+            if paragraph:
+                texts.append(paragraph)
+        text = "\n\n".join(texts)
+        return text
 
 
 class ContextualNumberCleaner:
@@ -543,7 +559,7 @@ class ContextualNumberCleaner:
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
         ]
         asset_pattern = build_alternation(asset_terms)
-        
+
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
@@ -552,7 +568,7 @@ class ContextualNumberCleaner:
         )
 
         # 2. Growth/Decline/Change (Percentages)
-       
+
         change_terms = [
             r"increase(?:s|d)?", r"decreases(?:s|d)?", r"growth", r"decline(?:s|d)?", r"reductions?",
             r"gains?", r"loss(?:es)?", r"appreciation", r"depreciation", r"offsets?",
@@ -560,13 +576,13 @@ class ContextualNumberCleaner:
         ]
 
         change_pattern = build_alternation(change_terms)
-        
+
         # Matches: "10% increase"
         self.change_pre_regex = re.compile(
             rf"\b\d+(?:\.\d+)?\s*%\s+{change_pattern}\b", 
             re.IGNORECASE
         )
-        
+
         # Matches: "increase of 10%" or "increase by 10%"
         self.change_post_regex = re.compile(
             rf"\b{change_pattern}\s+(?:of\s+|by\s+)?\d+(?:\.\d+)?\s*%\b", 
@@ -576,12 +592,18 @@ class ContextualNumberCleaner:
     def clean(self, text: str) -> str:
         if not text:
             return ""
-            
-        text = self.asset_regex.sub(" ", text)
-        text = self.change_pre_regex.sub(" ", text)
-        text = self.change_post_regex.sub(" ", text)
-        
-        return text
+        paragraphs = text.split("\n\n")
+        paragraphs = [p.strip() for p in paragraphs]
+        texts = []
+        for paragraph in paragraphs:
+            paragraph = self.asset_regex.sub(" ", paragraph)
+            paragraph = self.change_pre_regex.sub(" ", paragraph)
+            paragraph = self.change_post_regex.sub(" ", paragraph)
+            paragraph = clean_spaces_and_punctuation(paragraph)
+            if paragraph:
+                texts.append(paragraph)
+
+        return "\n\n".join(texts)
 
 
 # ============================================================================
