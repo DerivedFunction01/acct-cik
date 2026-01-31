@@ -1320,14 +1320,14 @@ null
   "sentence": "string - the exact sentence from the filing",
   "keyword_matched": "string or null - the union keyword that triggered inclusion",
   "geographic_context": {
-    "region": "USA | DOMESTIC | INTERNATIONAL_EUROPE | INTERNATIONAL_ASIA | INTERNATIONAL_OTHER | MIXED | UNKNOWN",
+    "region": "US and Canada | Latin America | Europe | Middle East & Africa | Asia Pacific | International | UNKNOWN",
     "countries": [
       {
         "name": "string - full country name (e.g., 'United States', 'Germany')",
         "code": "string - ISO 3166-1 alpha-2 code (US, DE, FR, GB, JP, etc.) or custom code"
       }
     ],
-    "specificity": "explicit | inherited_from_previous | inferred_from_union_name | explicit_and_inferred | implicit",
+    "specificity": "explicit | inherited_from_previous | inferred_from_union_name | inferred_from_language | explicit_and_inferred | implicit",
     "inherited_from_sentence_index": "number (only if specificity is inherited_from_previous)",
     "union_name_indicator": "string (the union name that inferred the region, if applicable)",
     "explicit_countries": ["array (only if specificity is explicit_and_inferred)"],
@@ -1446,6 +1446,9 @@ For regions or entities not covered by ISO 3166-1, use custom codes:
 - INT = International operations (no specific country)
 - EU = European Union (multi-country EU operations)
 - [CUSTOM] = Any other custom regional code you define
+- INT_ES = International Spanish (Latin America/Spain ambiguous)
+- INT_PT = International Portuguese (Brazil/Portugal ambiguous)
+- INT_FR = International French (France/Canada/Belgium ambiguous)
 
 ---
 
