@@ -554,16 +554,17 @@ class ContextualNumberCleaner:
         # 1. Physical Assets / Facilities
         asset_terms = [
             r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
-            r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?",
-            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?",
+            r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
+            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?"
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
         ]
+        
         asset_pattern = build_alternation(asset_terms)
 
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?\s+(?:[\w-]+\s+){{0,2}}{asset_pattern}\b", 
+            rf"\b\d+(?:\.\d+)?\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b", 
             re.IGNORECASE
         )
 
@@ -579,13 +580,13 @@ class ContextualNumberCleaner:
 
         # Matches: "10% increase"
         self.change_pre_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?\s*%\s+{change_pattern}\b", 
+            rf"\b\d+(?:\.\d+)?\s*%\s+({change_pattern})\b", 
             re.IGNORECASE
         )
 
         # Matches: "increase of 10%" or "increase by 10%"
         self.change_post_regex = re.compile(
-            rf"\b{change_pattern}\s+(?:of\s+|by\s+)?\d+(?:\.\d+)?\s*%\b", 
+            rf"\b({change_pattern})\s+(?:of\s+|by\s+)?\d+(?:\.\d+)?\s*%\b", 
             re.IGNORECASE
         )
 
@@ -596,9 +597,9 @@ class ContextualNumberCleaner:
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
-            paragraph = self.asset_regex.sub(" ", paragraph)
-            paragraph = self.change_pre_regex.sub(" ", paragraph)
-            paragraph = self.change_post_regex.sub(" ", paragraph)
+            paragraph = self.asset_regex.sub(r"\1", paragraph)
+            paragraph = self.change_pre_regex.sub(r"\1", paragraph)
+            paragraph = self.change_post_regex.sub(r"\1", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)

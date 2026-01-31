@@ -42,10 +42,10 @@ WORKER_TERMS = [
     r"Laborers?",
     r"Staff",
     r"Personnel",
-    r"Workforce",
+    r"Workforces?",
     r"Associates",
     r"Miners?",
-    r"(?:Dock|Steel|Auto|Metal)\s*[Ww]orkers?",
+    r"(?:Dock|Steel|Auto|Metal|Iron)\s*[Ww]orkers?",
     r"Teachers?",
     r"Nurses?",
     r"Pilots?",
@@ -59,6 +59,23 @@ WORKER_TERMS = [
     r"Teamsters?",
     r"Actors?",
     r"Writers?",
+    r"Instructors?",
+    r"Engineers?",
+    r"Dispatchers?",
+    r"Mechanics?"
+    r"Technicians?",
+    r"Operators?",
+    r"Custodians?",
+    r"Janitors?",
+    r"Security\s+(?:[Gg]uards?|[Oo]ficers?)",
+    r"Warehouse\s+Workers?",
+    r"Fabricators?",
+    r"Assemblers?",
+    r"Welders?",
+    r"Pipefitters?",
+    r"Boilermakers?",
+    r"Millwrights?",
+    r"Labor\s+Force"
 ]
 
 SUFFIX_AGREEMENTS = [
