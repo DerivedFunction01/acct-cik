@@ -109,7 +109,7 @@ def get_system_config():
 # =============================================================================
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
-from table_definitions import HTMLTableConverter
+from defs.table_definitions import HTMLTableConverter
 
 FILING_TYPES = {
     "10-K",
