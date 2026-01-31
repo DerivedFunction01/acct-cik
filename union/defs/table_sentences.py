@@ -90,12 +90,9 @@ def _format_value(val: str, col_type: Optional[str], multiplier: float, currency
 def _extract_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
     info = processed_table.get("info", {})
     caption = _clean_cell(info.get("caption", ""))
-    
+
     # Extract caption year
-    caption_year = None
-    m = YEAR_REGEX.search(caption)
-    if m:
-        caption_year = int(m.group(0))
+    caption_year = info.get("caption_year")
 
     # Build symbol map
     symbol_map = {}
@@ -103,17 +100,22 @@ def _extract_context(processed_table: Dict[str, Any]) -> Dict[str, Any]:
         for s in props["symbols"]:
             symbol_map[s] = code
 
+    # Prefer root 'types', fallback to info 'column_types'
+    col_types = processed_table.get("types")
+    if not col_types:
+        col_types = info.get("column_types", {})
+
     return {
         "data": processed_table.get("data", []),
         "headers": processed_table.get("headers", {}),
-        "types": processed_table.get("types", {}),
+        "types": col_types,
         "col_years": processed_table.get("years", {}),
         "row_years": processed_table.get("row_years", {}),
         "caption": caption,
         "currency": info.get("currency", "USD"),
         "multiplier": info.get("global_multiplier", 1.0),
         "caption_year": caption_year,
-        "symbol_map": symbol_map
+        "symbol_map": symbol_map,
     }
 
 def _extract_row_info(r_idx: int, row: List[str], context: Dict[str, Any]) -> Dict[str, Any]:
@@ -143,6 +145,20 @@ def _get_cell_info(c_idx: int, val: str, context: Dict[str, Any]) -> Dict[str, A
             break
             
     col_type = context["types"].get(c_idx)
+    
+    # Fallback for mixed or unknown types: infer from cell value
+    if not col_type or col_type == "mixed":
+        if YEAR_REGEX.search(val):
+            col_type = "date"
+        elif "%" in val:
+            col_type = "percentage"
+        elif any(s in val for s in context["symbol_map"]):
+            col_type = "dollar"
+        elif any(c.isdigit() for c in CLEAN_NUM_REGEX.sub("", val)):
+            col_type = "value"
+        else:
+            col_type = "text"
+
     col_year = context["col_years"].get(c_idx)
     header = _clean_cell(context["headers"].get(c_idx, ""))
     
@@ -288,10 +304,6 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
     parts.append(verb)
     parts.append(val_str)
     
-    if context["caption"]:
-        clean_cap = context["caption"].replace('\n', ' ')
-        parts.append(f"[{clean_cap}]")
-        
     return " ".join(parts) + "."
 
 def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:

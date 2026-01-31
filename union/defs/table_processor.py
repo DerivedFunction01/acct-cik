@@ -866,13 +866,32 @@ class SimpleTableProcessor:
 
     def get_info(self) -> Dict:
         """Return table metadata"""
+        caption_year = None
+        if self.caption:
+            matches = YEAR_REGEX.findall(self.caption)
+            years = []
+            for m in matches:
+                # Handle regex groups from YEAR_REGEX (tuples)
+                if isinstance(m, tuple):
+                    for g in m:
+                        if g:
+                            years.append(int(g))
+                else:
+                    years.append(int(m))
+            
+            valid_years = sorted(list(set([y for y in years if 1900 <= y <= 2100])))
+            if len(valid_years) == 1:
+                caption_year = valid_years[0]
+
         return {
             "caption": self.caption,
+            "caption_year": caption_year,
             "currency": self.table_currency,
             "global_multiplier": self.global_multiplier,
             "invalid": self.invalid_table,
             "num_rows": len(self.data),
             "num_cols": len(self.col_headers),
+            "column_types": self.col_map if not self.invalid_table else {},
         }
 
 
