@@ -730,23 +730,3 @@ def process_table(table_text: str) -> Dict:
         "headers": processor.get_headers(),
         "info": processor.get_info(),
     }
-
-
-if __name__ == "__main__":
-    example_table = """
-<TABLE>
-<CAPTION>Holdings in EUR (millions)</CAPTION>
-Interest Rate Swaps Fair Value Notional Amount Maturity
-<S><C>            <C>          <C>              <C>
-100.5 2000.0 2026
-200.3 3500.0 2027
-150.8 1500.0 2025
-</TABLE>
-"""
-
-    result = process_table(example_table)
-    print("Data rows:")
-    for row in result["data"]:
-        print(row)
-    print("\nHeaders:", result["headers"])
-    print("\nInfo:", result["info"])
