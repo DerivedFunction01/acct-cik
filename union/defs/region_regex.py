@@ -4,7 +4,7 @@ import re
 from typing import Dict, List, Optional, Tuple, Any
 from defs.regex_lib import add_restrictions
 class Region(Enum):
-    NORTH_AMERICA = "North America"
+    NORTH_AMERICA = "US and Canada"
     LATIN_AMERICA = "Latin America"
     EUROPE = "Europe"
     MIDDLE_EAST_AFRICA = "Middle East & Africa"

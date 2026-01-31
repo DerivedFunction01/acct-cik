@@ -60,10 +60,20 @@ The filing year is passed as a parameter, allowing automatic detection and exclu
   },
   "coverage_data": {
     "percentage": 12,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "EXPLICIT_PERCENT",
     "percentage_qualifier": null,
+    "employee_count_covered": null,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": false,
-    "temporal_scope": "CURRENT"
+    "negation_type": null,
+    "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
+    "note": null
   }
 }
 ```
@@ -102,10 +112,20 @@ The filing year is passed as a parameter, allowing automatic detection and exclu
   },
   "coverage_data": {
     "percentage": 55,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "EXPLICIT_PERCENT",
     "percentage_qualifier": null,
+    "employee_count_covered": null,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": false,
-    "temporal_scope": "CURRENT"
+    "negation_type": null,
+    "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
+    "note": null
   }
 }
 ```
@@ -131,15 +151,69 @@ The filing year is passed as a parameter, allowing automatic detection and exclu
   },
   "coverage_data": {
     "percentage": null,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "QUALITATIVE",
     "percentage_qualifier": "SIGNIFICANT",
+    "employee_count_covered": null,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": false,
-    "temporal_scope": "CURRENT"
+    "negation_type": null,
+    "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
+    "note": null
   }
 }
 ```
 
 ---
+
+### Example 3.5: Employee Counts Without Percentage
+
+**Input Sentence:**
+```
+"Out of our 50,000 U.S. employees, approximately 6,000 are represented by unions."
+```
+
+**Expected JSON Output:**
+```json
+{
+  "sentence": "Out of our 50,000 U.S. employees, approximately 6,000 are represented by unions.",
+  "keyword_matched": "unions",
+  "geographic_context": {
+    "region": "USA",
+    "countries": [
+      {
+        "name": "United States",
+        "code": "US"
+      }
+    ],
+    "specificity": "explicit"
+  },
+  "coverage_data": {
+    "percentage": 12,
+    "percentage_raw_stated": null,
+    "calculated_percentage": 12,
+    "type": "CALCULATED_FROM_COUNTS",
+    "percentage_qualifier": null,
+    "employee_count_covered": 6000,
+    "employee_count_not_covered": 44000,
+    "employee_count_total": 50000,
+    "negated": false,
+    "negation_type": null,
+    "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
+    "note": "Calculated percentage: 6,000 / 50,000 = 12%"
+  }
+}
+```
+
+**Calculation Rule:** When employee counts are provided (covered + not_covered + total), calculate the percentage and set `type: "CALCULATED_FROM_COUNTS"`. Store both the calculated percentage and the raw employee counts for downstream analysis/validation.
 
 ## Context Inheritance Across Sentences
 
@@ -163,7 +237,20 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
     "keyword_matched": null,
     "geographic_context": {
       "region": "INTERNATIONAL_EUROPE",
-      "countries": ["Germany", "France", "Spain"],
+      "countries": [
+        {
+          "name": "Germany",
+          "code": "DE"
+        },
+        {
+          "name": "France",
+          "code": "FR"
+        },
+        {
+          "name": "Spain",
+          "code": "ES"
+        }
+      ],
       "specificity": "explicit"
     },
     "coverage_data": null,
@@ -174,16 +261,38 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
     "keyword_matched": "collective bargaining agreements",
     "geographic_context": {
       "region": "INTERNATIONAL_EUROPE",
-      "countries": ["Germany", "France", "Spain"],
+      "countries": [
+        {
+          "name": "Germany",
+          "code": "DE"
+        },
+        {
+          "name": "France",
+          "code": "FR"
+        },
+        {
+          "name": "Spain",
+          "code": "ES"
+        }
+      ],
       "specificity": "inherited_from_previous",
       "inherited_from_sentence_index": 0
     },
     "coverage_data": {
       "percentage": 45,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
       "type": "EXPLICIT_PERCENT",
       "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
       "negated": false,
+      "negation_type": null,
       "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
       "note": "Geographic context inherited from Sentence 1"
     }
   },
@@ -192,15 +301,30 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
     "keyword_matched": "unionized",
     "geographic_context": {
       "region": "INTERNATIONAL_ASIA",
-      "countries": ["Japan"],
+      "countries": [
+        {
+          "name": "Japan",
+          "code": "JP"
+        }
+      ],
       "specificity": "explicit"
     },
     "coverage_data": {
       "percentage": 30,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
       "type": "EXPLICIT_PERCENT",
       "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
       "negated": false,
-      "temporal_scope": "CURRENT"
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null
     }
   }
 ]
@@ -283,10 +407,20 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
   },
   "coverage_data": {
     "percentage": null,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "QUALITATIVE",
     "percentage_qualifier": "UNSPECIFIED",
+    "employee_count_covered": null,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": false,
-    "temporal_scope": "CURRENT"
+    "negation_type": null,
+    "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
+    "note": null
   }
 }
 ```
@@ -611,11 +745,18 @@ If union is unknown AND sentence has no explicit geography or language clues:
   "coverage_data": {
     "percentage": 40,
     "percentage_raw_stated": 60,
+    "calculated_percentage": null,
     "type": "EXPLICIT_PERCENT",
     "percentage_qualifier": null,
+    "employee_count_covered": null,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": true,
     "negation_type": "NOT_COVERED",
     "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
     "note": "Original statement: 60% NOT covered. Inverted to: 40% covered"
   }
 }
@@ -644,11 +785,19 @@ If union is unknown AND sentence has no explicit geography or language clues:
   },
   "coverage_data": {
     "percentage": 0,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "EXPLICIT_PERCENT",
     "percentage_qualifier": null,
+    "employee_count_covered": 0,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": true,
     "negation_type": "ZERO_COVERAGE",
     "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
     "note": "Explicitly states zero unionization"
   }
 }
@@ -675,11 +824,19 @@ If union is unknown AND sentence has no explicit geography or language clues:
   },
   "coverage_data": {
     "percentage": 0,
+    "percentage_raw_stated": null,
+    "calculated_percentage": null,
     "type": "QUALITATIVE",
     "percentage_qualifier": "NONE",
+    "employee_count_covered": 0,
+    "employee_count_not_covered": null,
+    "employee_count_total": null,
     "negated": true,
     "negation_type": "QUALITATIVE_ZERO",
     "temporal_scope": "CURRENT",
+    "effective_date": null,
+    "expected_date": null,
+    "ambiguity": null,
     "note": "Qualitative expression of zero coverage"
   }
 }
@@ -1285,7 +1442,10 @@ null
 
 ## Custom Codes
 
-For regions or entities not covered by ISO 3166-1, use custom codes.
+For regions or entities not covered by ISO 3166-1, use custom codes:
+- INT = International operations (no specific country)
+- EU = European Union (multi-country EU operations)
+- [CUSTOM] = Any other custom regional code you define
 
 ---
 
