@@ -1,0 +1,766 @@
+Running Stress Test Analysis:
+
+[
+  {
+    "sentence": "In the United States, approximately 18% of the Company 45000 domestic employees are represented by various unions including the UAW, which covers 2340 of the Company automotive manufacturing workers in Michigan, and the International Brotherhood of Teamsters, whose members represent 3150 of the Company logistics workforce across the Company distribution centers.",
+    "keyword_matched": "UAW",
+    "geographic_context": {
+      "region": "US and Canada",
+      "countries": [
+        {
+          "name": "United States",
+          "code": "US"
+        },
+        {
+          "name": "domestic",
+          "code": "DOMESTIC"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "United States",
+        "domestic"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "UAW",
+        "International Brotherhood of Teamsters"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 18.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": [
+        45000.0,
+        2340.0,
+        3150.0
+      ]
+    }
+  },
+  {
+    "sentence": "The Company also have non-union segments, particularly in the Company corporate headquarters where 8500 of the Company 15000 white-collar staff operate outside any collective bargaining framework.",
+    "keyword_matched": "collective bargaining",
+    "geographic_context": {
+      "region": "US and Canada",
+      "countries": [
+        {
+          "name": "United States",
+          "code": "US"
+        },
+        {
+          "name": "domestic",
+          "code": "DOMESTIC"
+        }
+      ],
+      "specificity": "INHERITED_PREV",
+      "unusual_union_region_combo": false,
+      "note": null,
+      "inherited_from_sentence_index": 1
+    },
+    "coverage_data": {
+      "percentage": 0.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "QUALITATIVE",
+      "percentage_qualifier": "NONE",
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": true,
+      "negation_type": "QUALITATIVE_ZERO",
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "In Canada, the Company operations in Toronto and Vancouver include 1200 employees, of which Unifor represents approximately 55%, or 660 workers.",
+    "keyword_matched": "Unifor",
+    "geographic_context": {
+      "region": "US and Canada",
+      "countries": [
+        {
+          "name": "Canada",
+          "code": "CA"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "Canada"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "Unifor"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 55.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 660.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Elsewhere in North America, the Company Mexican manufacturing facilities in Monterrey and Guadalajara employ 5600 workers, 80% of whom (4480 workers) are affiliated with the Confederaci\u00f3n de Trabajadores de M\u00e9xico (CTM); however, the Company maintain a smaller non-union management tier of 1120 employees in those locations.",
+    "keyword_matched": "CTM",
+    "geographic_context": {
+      "region": "International",
+      "countries": [
+        {
+          "name": "North America",
+          "code": "NA"
+        },
+        {
+          "name": "Mexico",
+          "code": "MX"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "North America",
+        "Mexico"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "CTM"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 80.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 80.0,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 4480.0,
+      "employee_count_not_covered": 1120.0,
+      "employee_count_total": 5600.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 4480.0 covered, 1120.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Germany, where the Company operate 3 major plants, employs 8200 workers, with IG Metall representing approximately 72% (5904 workers); the remaining 28% (2296 workers) are management or non-union technical staff.",
+    "keyword_matched": "IG Metall",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "Germany",
+          "code": "DE"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "Germany"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "IG Metall"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 72.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 72.0,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 5904.0,
+      "employee_count_not_covered": 2296.0,
+      "employee_count_total": 8200.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 5904.0 covered, 2296.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "In France, the Company Paris headquarters and regional offices employ 3400 staff, of which the CFDT and CGT together represent approximately 40% (1360 workers), while 2040 remain unrepresented.",
+    "keyword_matched": "CFDT",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "France",
+          "code": "FR"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "France"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "CFDT",
+        "CGT"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 71.43,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 71.43,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 3400.0,
+      "employee_count_not_covered": 1360.0,
+      "employee_count_total": 4760.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 3400.0 covered, 1360.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "The United Kingdom operations, centered in Birmingham and London, employ 4100 workers; roughly 33.3333% (1367 workers) are members of Unite the Union, while the remaining 66.6667% (2733 workers) operate under non-union arrangements.",
+    "keyword_matched": "Unite the Union",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "United Kingdom",
+          "code": "GB"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "United Kingdom"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "Unite the Union"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 33.34,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 33.34,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 1367.0,
+      "employee_count_not_covered": 2733.0,
+      "employee_count_total": 4100.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 1367.0 covered, 2733.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "The Company note that in the Company smaller European footprint\u2014specifically the Company operations in Spain (Madrid facility: 920 employees) and Netherlands (Rotterdam: 680 employees)\u2014union representation is minimal; the Company have no specific data on unionization rates in these locations.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "Europe",
+          "code": "EU"
+        },
+        {
+          "name": "Spain",
+          "code": "ES"
+        },
+        {
+          "name": "Netherlands",
+          "code": "NL"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": null,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "QUALITATIVE",
+      "percentage_qualifier": null,
+      "employee_count_covered": 680.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Sweden and Norway, combined, employ 2100 workers, and given the national labor frameworks in these countries, the Company estimate that approximately 85% (1785 workers) operate under collective agreements, though specific union membership is not separately tracked.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "Sweden",
+          "code": "SE"
+        },
+        {
+          "name": "Norway",
+          "code": "NO"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 85.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 1785.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Japan, the Company largest Asian manufacturing hub, employs 12000 workers, but union activity is concentrated in the Company automotive division where the Japanese Association of Metal and Allied Workers (JAM) represents approximately 30% (3600 workers); the broader manufacturing base outside this agreement remains largely non-unionized (8400 workers).",
+    "keyword_matched": "Japanese Association of Metal and Allied Workers",
+    "geographic_context": {
+      "region": "Asia Pacific",
+      "countries": [
+        {
+          "name": "Japan",
+          "code": "JP"
+        },
+        {
+          "name": "Asia",
+          "code": ""
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "Japan",
+        "Asia"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "Japanese Association of Metal and Allied Workers",
+        "JAM"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 30.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 30.0,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 3600.0,
+      "employee_count_not_covered": 8400.0,
+      "employee_count_total": 12000.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 3600.0 covered, 8400.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "China, despite rapid growth, presents challenges in labor organization; the Company facilities in Shanghai and Shenzhen employ 7500 workers, but the Company have no formal unionization data and do not separately track union membership in these locations.",
+    "keyword_matched": "labor organization",
+    "geographic_context": {
+      "region": "Asia Pacific",
+      "countries": [
+        {
+          "name": "China",
+          "code": "CN"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": null,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "QUALITATIVE",
+      "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "In Australia, the Company Sydney and Melbourne operations employ 2800 workers, with the Australian Manufacturing Workers' Union (AMWU) representing approximately 45% (1260 workers), while the remainder operate as non-union staff (1540 workers).",
+    "keyword_matched": "Union",
+    "geographic_context": {
+      "region": "Asia Pacific",
+      "countries": [
+        {
+          "name": "Australia",
+          "code": "AU"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 64.52,
+      "percentage_raw_stated": null,
+      "calculated_percentage": 64.52,
+      "type": "CALCULATED_FROM_COUNTS",
+      "percentage_qualifier": null,
+      "employee_count_covered": 2800.0,
+      "employee_count_not_covered": 1540.0,
+      "employee_count_total": 4340.0,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": "Calculated from mixed counts: 2800.0 covered, 1540.0 not covered",
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "The Company Brazil operations in S\u00e3o Paulo and Rio de employ 1800 workers, of which approximately 50% (900 workers) are covered by collective bargaining agreements through various local unions, though the Company do not track individual union names in this region.",
+    "keyword_matched": "collective bargaining",
+    "geographic_context": {
+      "region": "Latin America",
+      "countries": [
+        {
+          "name": "Brazil",
+          "code": "BR"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 50.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 900.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Argentina, with 420 employees, has a smaller unionized portion at roughly 33% (139 workers).",
+    "keyword_matched": "unionized",
+    "geographic_context": {
+      "region": "Latin America",
+      "countries": [
+        {
+          "name": "Argentina",
+          "code": "AR"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 33.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 139.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "The Company operations in Chile and Colombia are nascent; Chile employs 280 workers with no current union representation, while Colombia, with 350 employees, has informal union representation that the Company estimate at 20% (70 workers), though exact figures are unavailable.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "Latin America",
+      "countries": [
+        {
+          "name": "Chile",
+          "code": "CL"
+        },
+        {
+          "name": "Colombia",
+          "code": "CO"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 20.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 70.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "South Africa, the Company only significant African footprint with 980 employees in Johannesburg and Cape Town, has approximately 40% union representation (392 workers) through the National Union of Metalworkers of South Africa (NUMSA), though the Company note labor relations in this region remain volatile.",
+    "keyword_matched": "National Union of Metalworkers of South Africa",
+    "geographic_context": {
+      "region": "Middle East & Africa",
+      "countries": [
+        {
+          "name": "South Africa",
+          "code": "ZA"
+        },
+        {
+          "name": "Africa",
+          "code": "AFRICA"
+        }
+      ],
+      "specificity": "INFERRED_EXPLICIT",
+      "explicit_countries": [
+        "South Africa",
+        "Africa"
+      ],
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": [
+        "National Union of Metalworkers of South Africa",
+        "NUMSA"
+      ],
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 40.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 392.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "In aggregate, the Company estimate that approximately 33% to 37% of the Company global workforce of approximately 120000 employees operates under some form of union representation or collective bargaining coverage, though precise global metrics are challenging given regional variations in data availability and labor law definitions.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "International",
+      "countries": [
+        {
+          "name": "International",
+          "code": "INT"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": 33.0,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "EXPLICIT_PERCENT",
+      "percentage_qualifier": null,
+      "employee_count_covered": 120000.0,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "Certain regions\u2014particularly the Nordics and Germany\u2014have implicit union coverage through national frameworks that exceed explicit unionization percentages.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "Germany",
+          "code": "DE"
+        }
+      ],
+      "specificity": "explicit",
+      "explicit_countries": null,
+      "unusual_union_region_combo": false,
+      "union_names_mentioned": null,
+      "note": null
+    },
+    "coverage_data": {
+      "percentage": null,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "QUALITATIVE",
+      "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  },
+  {
+    "sentence": "The Company continue to monitor labor relations across all geographies and remain committed to constructive engagement with union partners where they are present.",
+    "keyword_matched": "union",
+    "geographic_context": {
+      "region": "Europe",
+      "countries": [
+        {
+          "name": "Germany",
+          "code": "DE"
+        }
+      ],
+      "specificity": "INHERITED_PREV",
+      "unusual_union_region_combo": false,
+      "note": null,
+      "inherited_from_sentence_index": 25
+    },
+    "coverage_data": {
+      "percentage": null,
+      "percentage_raw_stated": null,
+      "calculated_percentage": null,
+      "type": "QUALITATIVE",
+      "percentage_qualifier": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "employee_count_total": null,
+      "negated": false,
+      "negation_type": null,
+      "temporal_scope": "CURRENT",
+      "effective_date": null,
+      "expected_date": null,
+      "ambiguity": null,
+      "note": null,
+      "extracted_numbers": []
+    }
+  }
+]

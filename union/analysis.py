@@ -322,15 +322,14 @@ class UnionAnalyzer:
 
             for term in analysis.negation_terms:
                 t_lower = term.lower()
-                # Check for Zero Coverage indicators ("no", "none")
-                if re.match(r"\b(?:no|none|neither|nor|never|without)\b", t_lower):
+                # Check for Zero Coverage indicators (Absolute negation)
+                if re.search(r"\b(?:no|none|neither|nor|never|without)\b", t_lower):
                     negation_type = NegationType.ZERO_COVERAGE.value
                     # Zero coverage takes precedence (e.g. "no union employees" -> 0%)
                     break
 
-                # Check for Non-Union specific terms (from NON_UNION_REGEX)
-                # e.g. "non-union", "not-union"
-                if "union" in t_lower:
+                # Check for Not Covered indicators (Status negation)
+                if re.search(r"\b(?:not|non|un)\b|at-will|operate\s+outside", t_lower):
                     negation_type = NegationType.NOT_COVERED.value
 
         # Extract Percentage

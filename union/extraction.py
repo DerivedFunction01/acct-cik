@@ -236,25 +236,3 @@ class UnionExtractor:
     def split_sentences(self, text: str | List[str]) -> List[str]:
         parts = SENTENCE_SPLIT_PATTERN.split(text) if isinstance(text, str) else text
         return [p.strip() for p in parts if p.strip()]
-#%%
-if __name__ == "__main__":
-    extractor = UnionExtractor()
-    
-    examples = [
-        "Approximately 12% of our U.S. workforce is represented by labor unions.",
-        "Our operations in Germany, France, and the UK have collective bargaining agreements covering approximately 55% of employees in those regions.",
-        "Approximately 30% of our employees are represented by the UAW (United Auto Workers).",
-        "We have no employees covered by collective bargaining agreements.",
-        "Union organizing efforts in key markets could increase our labor expenses."
-    ]
-    
-    for ex in examples:
-        print(f"Input: {ex}")
-        analysis = extractor.analyze_sentence(ex)
-        print(f"  Percentages: {analysis.percentages}")
-        print(f"  Numbers: {analysis.numbers}")
-        print(f"  Union Terms: {analysis.union_terms}")
-        print(f"  Risk Terms: {analysis.risk_terms}")
-        print(f"  Negation Terms: {analysis.negation_terms}")
-        print(f"  Geo Matches: {analysis.geo_matches}")
-        print("-" * 40)
