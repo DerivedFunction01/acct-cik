@@ -140,8 +140,17 @@ RELATIONSHIP_QUALITY_TERMS = [
 ]
 
 RELATIONSHIP_NEGATIVE_TERMS = [
-    "poor", "strained", "difficult", "tense", "adversarial", "hostile", 
-    "challenging", "volatile", "unstable", "disruptive"
+    "poor",
+    "strained",
+    "difficult",
+    "tense",
+    "adversarial",
+    "hostile",
+    "challenging",
+    "volatile",
+    "unstable",
+    "disruptive",
+    "uncooperative",
 ]
 
 RELATIONSHIP_SUBJECTS = [
@@ -157,6 +166,8 @@ RELATIONSHIP_PHRASES = [
     build_compound(WORKER_TERMS + [CORE.LABOR, CORE.UNION], RELATIONSHIP_SUBJECTS, sep_prefix=GAP),
     # "Relations with employees", "Relationship with the union"
     build_compound(RELATIONSHIP_SUBJECTS, [r"with"] + WORKER_TERMS + [CORE.LABOR, CORE.UNION], sep_prefix=GAP),
+    # cordial relationship
+    build_compound(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS, RELATIONSHIP_SUBJECTS, sep_prefix=GAP),
     # "Working relationship"
     r"working\s+relationships?",
 ]
