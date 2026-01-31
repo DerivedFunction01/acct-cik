@@ -532,14 +532,23 @@ INTERNATIONAL = {
     ),
 }
 
+INT_LANGUAGE_MAP = {
+    "INT_PT": {"BR", "PT"},
+    "INT_ES": {
+        "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", 
+        "GT", "DO", "CR", "PA", "UY", "BO", "PY"
+    },
+    "INT_FR": {"FR", "BE", "CH", "CA"},
+}
+
 class RegionMatcher:
     """
     Compiles regexes for Regions, Nations, and Specific Unions.
     Allows independent parsing of text to find these entities.
     """
     def __init__(self):
-        self.union_map: Dict[str, Tuple[Region, str]] = {} # term -> (Region, Country)
-        self.location_map: Dict[str, Tuple[Region, str, Optional[str]]] = {} # term -> (Region, Country, City)
+        self.union_map: Dict[str, Tuple[Region, str, str]] = {} # term -> (Region, Country, Code)
+        self.location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {} # term -> (Region, Country, City, Code)
         
         self.specific_union_regex: Optional[re.Pattern] = None
         self.location_regex: Optional[re.Pattern] = None
@@ -560,35 +569,35 @@ class RegionMatcher:
                 # 1. Map Specific Unions
                 for union_name in nation.unions:
                     # Store mapping
-                    self.union_map[union_name.lower()] = (nation.region, nation.name)
+                    self.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
                     union_phrases.add(union_name)
                 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
-                    self.location_map[phrase.lower()] = (nation.region, nation.name, None)
+                    self.location_map[phrase.lower()] = (nation.region, nation.name, None, nation.code)
                     geo_phrases.add(phrase)
                 
                 # 3. Map Nation Name
-                self.location_map[nation.name.lower()] = (nation.region, nation.name, None)
+                self.location_map[nation.name.lower()] = (nation.region, nation.name, None, nation.code)
                 geo_phrases.add(nation.name)
                 
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
                     # Location Name
-                    self.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name)
+                    self.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name, nation.code)
                     geo_phrases.add(loc.name)
                     
                     # Location Phrases
                     for phrase in loc.phrases:
-                        self.location_map[phrase.lower()] = (nation.region, nation.name, loc.name)
+                        self.location_map[phrase.lower()] = (nation.region, nation.name, loc.name, nation.code)
                         geo_phrases.add(phrase)
                     
                     # Sub-cities
                     for sub in loc.cities:
-                        self.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name)
+                        self.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name, nation.code)
                         geo_phrases.add(sub.name)
                         for phrase in sub.phrases:
-                            self.location_map[phrase.lower()] = (nation.region, nation.name, sub.name)
+                            self.location_map[phrase.lower()] = (nation.region, nation.name, sub.name, nation.code)
                             geo_phrases.add(phrase)
 
         # Helper to safely escape phrases (unless they are already regex patterns)
@@ -619,11 +628,12 @@ class RegionMatcher:
         if self.specific_union_regex:
             for m in self.specific_union_regex.finditer(text):
                 term = m.group(0)
-                region, country = self.union_map.get(term.lower(), (None, None))
+                region, country, code = self.union_map.get(term.lower(), (None, None, None))
                 results.append({
                     "term": term,
                     "region": region,
                     "country": country,
+                    "code": code,
                     "span": m.span()
                 })
         return results

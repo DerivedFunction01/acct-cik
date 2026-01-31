@@ -19,10 +19,8 @@ Assume labour = labor, bargain = bargaining, union = unionized
 - bargaining + (agreement, contracts)
 - union / unionized
 - non-union(ized)
-- unionization
 - employees/workers + represented by
 - labor + (agreements, contracts, organizations)
-- organized labor
 
 ---
 
@@ -52,7 +50,12 @@ The filing year is passed as a parameter, allowing automatic detection and exclu
   "keyword_matched": "labor unions",
   "geographic_context": {
     "region": "USA",
-    "countries": ["USA"],
+    "countries": [
+      {
+        "name": "United States",
+        "code": "US"
+      }
+    ],
     "specificity": "explicit"
   },
   "coverage_data": {
@@ -81,7 +84,20 @@ The filing year is passed as a parameter, allowing automatic detection and exclu
   "keyword_matched": "collective bargaining agreements",
   "geographic_context": {
     "region": "INTERNATIONAL",
-    "countries": ["Germany", "France", "UK"],
+    "countries": [
+      {
+        "name": "Germany",
+        "code": "DE"
+      },
+      {
+        "name": "France",
+        "code": "FR"
+      },
+      {
+        "name": "United Kingdom",
+        "code": "GB"
+      }
+    ],
     "specificity": "explicit"
   },
   "coverage_data": {
@@ -245,9 +261,22 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
   "keyword_matched": "represented by the UAW, IG Metall, Unite the Union",
   "geographic_context": {
     "region": "MIXED",
-    "countries": ["USA", "Germany", "UK"],
+    "countries": [
+      {
+        "name": "United States",
+        "code": "US"
+      },
+      {
+        "name": "Germany",
+        "code": "DE"
+      },
+      {
+        "name": "United Kingdom",
+        "code": "GB"
+      }
+    ],
     "specificity": "explicit_and_inferred",
-    "explicit_countries": ["USA", "Germany", "UK"],
+    "explicit_countries": ["United States", "Germany", "United Kingdom"],
     "inferred_countries": [],
     "union_names_mentioned": ["UAW", "IG Metall", "Unite the Union"],
     "note": "Multiple unions indicate multiple regions"
@@ -1135,7 +1164,12 @@ null
   "keyword_matched": "string or null - the union keyword that triggered inclusion",
   "geographic_context": {
     "region": "USA | DOMESTIC | INTERNATIONAL_EUROPE | INTERNATIONAL_ASIA | INTERNATIONAL_OTHER | MIXED | UNKNOWN",
-    "countries": ["array of country names explicitly mentioned"],
+    "countries": [
+      {
+        "name": "string - full country name (e.g., 'United States', 'Germany')",
+        "code": "string - ISO 3166-1 alpha-2 code (US, DE, FR, GB, JP, etc.) or custom code"
+      }
+    ],
     "specificity": "explicit | inherited_from_previous | inferred_from_union_name | explicit_and_inferred | implicit",
     "inherited_from_sentence_index": "number (only if specificity is inherited_from_previous)",
     "union_name_indicator": "string (the union name that inferred the region, if applicable)",
@@ -1182,6 +1216,76 @@ null
   "note": "string (optional explanation)"
 }
 ```
+
+---
+
+# COUNTRY CODES REFERENCE
+
+## Standard ISO 3166-1 Alpha-2 Codes
+
+**North America:**
+- US = United States
+- CA = Canada
+- MX = Mexico
+
+**Europe:**
+- GB = United Kingdom
+- DE = Germany
+- FR = France
+- IT = Italy
+- ES = Spain
+- SE = Sweden
+- NO = Norway
+- DK = Denmark
+- CH = Switzerland
+- NL = Netherlands
+- BE = Belgium
+- AT = Austria
+- PL = Poland
+- IE = Ireland
+- PT = Portugal
+- GR = Greece
+- CZ = Czech Republic
+- HU = Hungary
+- RO = Romania
+- BG = Bulgaria
+
+**Asia Pacific:**
+- JP = Japan
+- CN = China
+- IN = India
+- AU = Australia
+- NZ = New Zealand
+- SG = Singapore
+- KR = South Korea
+- TW = Taiwan
+- TH = Thailand
+- MY = Malaysia
+- ID = Indonesia
+- PH = Philippines
+- VN = Vietnam
+
+**Latin America:**
+- BR = Brazil
+- AR = Argentina
+- CL = Chile
+- CO = Colombia
+- PE = Peru
+- VE = Venezuela
+- MX = Mexico
+
+**Middle East & Africa:**
+- SA = Saudi Arabia
+- AE = United Arab Emirates
+- ZA = South Africa
+- EG = Egypt
+- IL = Israel
+- NG = Nigeria
+- KE = Kenya
+
+## Custom Codes
+
+For regions or entities not covered by ISO 3166-1, use custom codes.
 
 ---
 

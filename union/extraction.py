@@ -23,6 +23,7 @@ class GeoMatch:
     region: Region
     country: Optional[str] = None
     city: Optional[str] = None
+    geo_code: Optional[str] = None
     source_type: str = "explicit"  # explicit, inferred_union
 
 @dataclass
@@ -106,9 +107,9 @@ class UnionExtractor:
                 analysis.union_terms.append(val)
                 lower_term = val.lower()
                 if lower_term in self.matcher.union_map:
-                    region, country = self.matcher.union_map[lower_term]
+                    region, country, code = self.matcher.union_map[lower_term]
                     analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, source_type="inferred_union"
+                        text=val, region=region, country=country, geo_code=code, source_type="specific_union"
                     ))
 
             process_matches(
@@ -122,9 +123,9 @@ class UnionExtractor:
             analysis.union_terms.append(val)
             lower_term = val.lower()
             if lower_term in self.matcher.union_map:
-                region, country = self.matcher.union_map[lower_term]
+                region, country, code = self.matcher.union_map[lower_term]
                 analysis.geo_matches.append(GeoMatch(
-                    text=val, region=region, country=country, source_type="inferred_union"
+                    text=val, region=region, country=country, geo_code=code, source_type="inferred_union"
                 ))
 
         process_matches(
@@ -159,9 +160,9 @@ class UnionExtractor:
             def geo_side_effect(m, val):
                 phrase = val.lower()
                 if phrase in self.matcher.location_map:
-                    region, country, city = self.matcher.location_map[phrase]
+                    region, country, city, code = self.matcher.location_map[phrase]
                     analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, city=city, source_type="explicit"
+                        text=val, region=region, country=country, city=city, geo_code=code, source_type="explicit"
                     ))
             
             process_matches(
