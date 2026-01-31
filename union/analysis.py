@@ -7,6 +7,8 @@ from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier, 
     NegationType, TemporalScope, RiskType
 )
+from defs.text_cleaner import MinimalTextCleaner
+
 
 
 class UnionAnalyzer:
@@ -535,6 +537,7 @@ if __name__ == "__main__":
     import json
 
     analyzer = UnionAnalyzer()
+    cleaner = MinimalTextCleaner()
 
     stress_test_text = """
 Our labor relations landscape is highly complex given our truly global footprint. In the United States, approximately 18% of our 45,000 domestic employees are represented by various unions including the UAW, which covers 2,340 of our automotive manufacturing workers in Michigan, and the International Brotherhood of Teamsters, whose members represent 3,150 of our logistics workforce across our distribution centers. We also have non-union segments, particularly in our corporate headquarters where 8,500 of our 15,000 white-collar staff operate outside any collective bargaining framework. In Canada, our operations in Toronto and Vancouver include 1,200 employees, of which Unifor represents approximately 55%, or 660 workers. Elsewhere in North America, our Mexican manufacturing facilities in Monterrey and Guadalajara employ 5,600 workers, 80% of whom (4,480 workers) are affiliated with the Confederación de Trabajadores de México (CTM); however, we maintain a smaller non-union management tier of 1,120 employees in those locations.
@@ -546,5 +549,5 @@ In aggregate, we estimate that approximately 33% to 37% of our global workforce 
 """
 
     print("Running Stress Test Analysis:\n")
-    results = analyzer.analyze_paragraph(stress_test_text)
+    results = analyzer.analyze_paragraph(cleaner.clean(stress_test_text))
     print(json.dumps(results, indent=2))

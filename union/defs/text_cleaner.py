@@ -210,6 +210,9 @@ class MinimalTextCleaner:
             rf"\bno\s+((?:[\w-]+\s+){{0,2}}{worker_pattern})\b", re.IGNORECASE
         )
 
+        # Fix capitalization of "the" at start of sentences
+        self.fix_the_capitalization_pattern = re.compile(r"(^|[.!?]\s+)the\b")
+
         # Pronouns to Company Token
         # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
         self.pronoun_pattern = re.compile(r"\b(?:[Ww]e|[Oo]ur|us)\b")
@@ -520,6 +523,9 @@ class MinimalTextCleaner:
 
         # 3b. Pronoun Replacement
         text = self.pronoun_pattern.sub(COMPANY_TOKEN, text)
+
+        # Fix capitalization of "the" (e.g. "the Company" at start of sentence)
+        text = self.fix_the_capitalization_pattern.sub(lambda m: m.group(1) + "The", text)
 
         # 4. General Suffix Removal
         text = self.text_suffix_pattern.sub("", text)
@@ -1120,6 +1126,15 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "0 employees", None),
                 (TestType.CONTAINS, "0 unionized workers", None),
                 (TestType.CONTAINS, "0 full-time staff", None),
+            ],
+        ),
+        # Test 28: Capitalize "the" at start of sentence
+        TestCase(
+            name="Capitalize 'the' at start",
+            input_text="the Company is here. we are happy. apple inc. reported results.",
+            company_name="Apple Inc.",
+            validations=[
+                (TestType.CONTAINS, "The Company is here. The Company are happy. The Company reported results.", None),
             ],
         ),
     ]
