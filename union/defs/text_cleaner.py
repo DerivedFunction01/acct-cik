@@ -57,8 +57,6 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
-    # Dashed patterns: 1-2, 3-4 (range references)
-    dashed_pattern = re.compile(r"\b\d+[-]\d+\b")
 
     # Date and Year Patterns
     months = [
@@ -423,8 +421,6 @@ class MinimalTextCleaner:
         text = self.month_only_pattern.sub(" ", text)
         text = self.year_pattern.sub(r" <\1> ", text)
 
-        # NEW: Remove dashed numbers (after year protection)
-        text = self.dashed_pattern.sub(" ", text)
 
         # NEW: Protect False Fractions
         protected_map = {}
