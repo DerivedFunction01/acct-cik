@@ -158,6 +158,16 @@ class UnionAnalyzer:
             ):
                 should_include = False
 
+            # Exclude "monitoring" statements with no data (Statement Only)
+            if (
+                should_include
+                and not coverage_data["percentage"]
+                and not coverage_data["extracted_numbers"]
+                and not coverage_data["negated"]
+                and re.search(r"\b(?:monitor|committed|constructive|engagement|relations)\b", sent, re.IGNORECASE)
+            ):
+                should_include = False
+
             if should_include:
                 item = {
                     "sentence": sent,
@@ -212,6 +222,13 @@ class UnionAnalyzer:
                         if Region.INTERNATIONAL not in regions:
                             unusual_combo = True
                             conflict_notes.append(f"Union '{um.text}' ({um.region.value}) mismatches explicit region ({', '.join(r.value for r in regions)})")
+
+            # Filter out invalid codes (Regions masquerading as countries)
+            valid_countries = []
+            for c in countries:
+                if c["code"] and c["code"] not in ["", "AFRICA", "INT", "APAC", "LATAM", "EU", "MEA"]:
+                     valid_countries.append(c)
+            countries = valid_countries
 
             # Handle "International" language matches (e.g. "Sindicato" -> INT_PT)
             # If we have explicit countries, check if they align with the language
@@ -332,6 +349,21 @@ class UnionAnalyzer:
                 if re.search(r"\b(?:not|non|un)\b|at-will|operate\s+outside", t_lower):
                     negation_type = NegationType.NOT_COVERED.value
 
+        # Check for Percentage Range (e.g. "33% to 37%")
+        if len(analysis.percentages) >= 2:
+            p1 = analysis.percentages[0]
+            p2 = analysis.percentages[1]
+            # Find spans to check text between
+            matches = [m for m in analysis._matches if m['type'] == MatchType.PERCENT]
+            if len(matches) >= 2:
+                span1 = matches[0]['span']
+                span2 = matches[1]['span']
+                text_between = analysis.text[span1[1]:span2[0]]
+                if re.search(r'\b(?:to|-|and)\b', text_between):
+                    data["percentage"] = p1
+                    data["ambiguity"] = f"RANGE_{p1}_TO_{p2}_PERCENT"
+                    data["percentage_qualifier"] = "RANGE"
+
         # Extract Percentage
         if analysis.percentages and not data["percentage"]:
             raw_pct = analysis.percentages[0]
@@ -364,6 +396,7 @@ class UnionAnalyzer:
             is_negated
             and negation_type == NegationType.NOT_COVERED.value
             and not analysis.percentages
+            and not analysis.ratios
             and not data["percentage"]
         ):
             # "We are non-union" -> 0%
@@ -377,13 +410,27 @@ class UnionAnalyzer:
         elif not data["percentage"] and analysis.ratios:
             numerator, denominator = analysis.ratios[0]
             if denominator > 0:
-                pct = (numerator / denominator) * 100
-                data["percentage"] = round(pct, 2)
-                data["calculated_percentage"] = round(pct, 2)
-                data["type"] = CoverageType.CALCULATED.value
-                data["employee_count_covered"] = numerator
-                data["employee_count_total"] = denominator
-                data["note"] = f"Calculated from ratio: {numerator} of {denominator}"
+                # Check if negation applies to the ratio (e.g. "8500 of 15000 operate outside")
+                if is_negated and negation_type in (NegationType.NOT_COVERED.value, NegationType.ZERO_COVERAGE.value):
+                    data["employee_count_not_covered"] = numerator
+                    data["employee_count_total"] = denominator
+                    data["employee_count_covered"] = denominator - numerator
+                    
+                    pct_covered = (data["employee_count_covered"] / denominator) * 100
+                    data["percentage"] = round(pct_covered, 2)
+                    data["calculated_percentage"] = round(pct_covered, 2)
+                    data["type"] = CoverageType.CALCULATED.value
+                    data["negated"] = True
+                    data["negation_type"] = negation_type
+                    data["note"] = f"Calculated from ratio (negated): {numerator} not covered out of {denominator}"
+                else:
+                    pct = (numerator / denominator) * 100
+                    data["percentage"] = round(pct, 2)
+                    data["calculated_percentage"] = round(pct, 2)
+                    data["type"] = CoverageType.CALCULATED.value
+                    data["employee_count_covered"] = numerator
+                    data["employee_count_total"] = denominator
+                    data["note"] = f"Calculated from ratio: {numerator} of {denominator}"
 
         # Handle Numbers (Basic mapping for now)
         if analysis.numbers and not data["employee_count_covered"]:
@@ -420,6 +467,11 @@ class UnionAnalyzer:
                         data["note"] = (
                             f"Calculated: ({total} total - {val} not covered) / {total}"
                         )
+
+        # Calculate missing counts if we have percentage and total (e.g. USA: 18% of 45000)
+        if data["percentage"] is not None and data["employee_count_total"] and not data["employee_count_covered"]:
+             # Use round to avoid float precision issues
+             data["employee_count_covered"] = round((data["percentage"] / 100) * data["employee_count_total"])
 
         return data
 
@@ -469,15 +521,21 @@ class UnionAnalyzer:
             
             return best_type
 
-        # Process Counts
-        if counts:
-            # Sort counts descending to identify potential total (heuristic: largest is total)
+        # Process Counts with "Largest is Total" heuristic
+        if len(counts) >= 1:
             sorted_counts = sorted(counts, key=lambda x: x['val'], reverse=True)
             largest_val = sorted_counts[0]['val']
             
-            # If we have 3+ counts, or 2 counts that sum to approx the largest, assume largest is total
-            # For now, simple mapping
-            for c in counts:
+            # If we have multiple counts, assume largest is total
+            if len(counts) > 1:
+                data['employee_count_total'] = largest_val
+                # Remove largest from candidates to avoid double mapping
+                candidates = sorted_counts[1:]
+            else:
+                candidates = sorted_counts
+
+            # Map remaining counts
+            for c in candidates:
                 val = c['val']
                 ctype = get_nearest_type(c['span'])
                 
@@ -485,8 +543,6 @@ class UnionAnalyzer:
                     data['employee_count_covered'] = val
                 elif ctype == 'not_covered':
                     data['employee_count_not_covered'] = val
-                elif val == largest_val and len(counts) > 1:
-                    data['employee_count_total'] = val
 
             # Calculate total/percentage if missing
             if data['employee_count_covered'] and data['employee_count_not_covered']:

@@ -235,4 +235,11 @@ class UnionExtractor:
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
         parts = SENTENCE_SPLIT_PATTERN.split(text) if isinstance(text, str) else text
-        return [p.strip() for p in parts if p.strip()]
+        final_parts = []
+        for p in parts:
+            # Secondary split by semicolon to handle compound sentences like "Chile...; Colombia..."
+            sub_parts = p.split(';')
+            for sp in sub_parts:
+                if sp.strip():
+                    final_parts.append(sp.strip())
+        return final_parts
