@@ -33,7 +33,7 @@ class UnionAnalyzer:
             "sentence": sentence,
             "labor_keywords": analysis.union_terms,
             "risk_keywords": analysis.risk_terms,
-            "supplier_keywords": analysis.supplier_terms,
+            "third_party": analysis.supplier_terms,
             "specific_to_unions": bool(analysis.union_terms),
             "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
             "temporal_scope": TemporalScope.CONDITIONAL.value if is_conditional else TemporalScope.CURRENT.value,

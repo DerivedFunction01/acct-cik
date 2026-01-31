@@ -209,6 +209,7 @@ SUPPLIER_TERMS = [
     r"supply\s+chain",
     r"outsourc(?:e|ed|ing|es)",
     r"service\s+providers?",
+    r"customers?",
 ]
 SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
 
