@@ -2,7 +2,7 @@ import re
 from typing import List, Dict, Any, Optional
 
 from extraction import UnionExtractor, SentenceAnalysis, MatchType
-from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
+from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier,
     NegationType, TemporalScope, RiskType, RelationshipStatus
@@ -238,16 +238,37 @@ class UnionAnalyzer:
         # 1. Explicit Geography (Highest Priority)
         if explicit_matches:
             countries = []
+            regions_list = []
+            found_regions_map = {} # code -> (region_dict, region_enum)
             seen_codes = set()
             regions = set()
 
             unusual_combo = False
             conflict_notes = []
 
+            # Codes that identify a Region entity rather than a Country
+            
+
             for m in explicit_matches:
                 if m.country and m.geo_code not in seen_codes:
-                    countries.append({"name": m.country, "code": m.geo_code})
                     seen_codes.add(m.geo_code)
+                    
+                    if m.geo_code in REGION_CODES:
+                        # It is a region entity
+                        r_obj = {
+                            "name": m.country,
+                            "code": m.geo_code,
+                            "countries": []
+                        }
+                        regions_list.append(r_obj)
+                        found_regions_map[m.geo_code] = (r_obj, m.region)
+                    else:
+                        # It is a country
+                        countries.append({
+                            "name": m.country,
+                            "code": m.geo_code,
+                            "region_enum": m.region # Temporary for mapping
+                        })
                 regions.add(m.region)
 
             # Check for conflicts between Explicit Regions and Union Name Regions
@@ -260,13 +281,20 @@ class UnionAnalyzer:
                         if Region.INTERNATIONAL not in regions:
                             unusual_combo = True
                             conflict_notes.append(f"Union '{um.text}' ({um.region.value}) mismatches explicit region ({', '.join(r.value for r in regions)})")
-
-            # Filter out invalid codes (Regions masquerading as countries)
-            valid_countries = []
+            
+            # Map countries to regions
             for c in countries:
-                if c["code"]: # and c["code"] not in ["", "AFRICA", "INT", "APAC", "LATAM", "EU", "MEA"]:
-                     valid_countries.append(c)
-            countries = valid_countries
+                c_enum = c.get("region_enum")
+                for r_code, (r_obj, r_enum) in found_regions_map.items():
+                    # Map if in same broad region
+                    if c_enum == r_enum:
+                        r_obj["countries"].append({"name": c["name"], "code": c["code"]})
+                    # Special handling for Domestic -> US
+                    elif r_code == "DOMESTIC" and c["code"] == "US":
+                        r_obj["countries"].append({"name": c["name"], "code": c["code"]})
+                
+                # Remove temporary field
+                c.pop("region_enum", None)
 
             # Handle "International" language matches (e.g. "Sindicato" -> INT_PT)
             # If we have explicit countries, check if they align with the language
@@ -281,6 +309,7 @@ class UnionAnalyzer:
             return {
                 "region": region_val,
                 "countries": countries,
+                "regions": regions_list,
                 "specificity": (
                     Specificity.EXPLICIT.value if not union_matches else Specificity.EXPLICIT_INFERRED.value
                 ),
