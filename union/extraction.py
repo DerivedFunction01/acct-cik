@@ -13,7 +13,7 @@ from defs.region_regex import (
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
-RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}of\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
+RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
 
 # Negation patterns
 NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
