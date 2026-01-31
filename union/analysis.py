@@ -31,26 +31,33 @@ class UnionAnalyzer:
         """
         results = []
 
-        # Context inheritance state
-
-        self.extractor = UnionExtractor()
-
-        sentences = self.extractor.split_sentences(sentences)
+        # Pre-analyze all sentences to find global max (highest relevant number)
+        # This helps establish a "Global Total" context (e.g. "We have 50,000 employees total")
+        analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
+        
+        global_max_workers = 0.0
+        for ans in analyzed_sentences:
+            if ans.worker_counts:
+                global_max_workers = max(global_max_workers, max(ans.worker_counts))
 
         # Context inheritance state
         last_geo_context = None
         last_geo_sentence_idx = -1
         last_employee_count = None
+        
+        # Map specific regions/codes to their employee counts
+        # Key: Region Name or Country Code -> Value: Count
+        region_totals = {}
 
-        for idx, sent in enumerate(sentences):
-            analysis = self.extractor.analyze_sentence(sent)
+        for idx, analysis in enumerate(analyzed_sentences):
+            sent = sentences[idx]
 
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
             has_coverage = bool(analysis.percentages or analysis.negation_terms)
             has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
 
-            # Update global context (Employee Counts) even if sentence is skipped
+            # Update sequential context (Employee Counts) even if sentence is skipped
             if analysis.worker_counts:
                 last_employee_count = max(analysis.worker_counts) # Assume largest is total
 
@@ -81,8 +88,40 @@ class UnionAnalyzer:
                 last_geo_context = geo_context
                 last_geo_sentence_idx = idx
 
+            # Update Region Totals if this sentence has a worker count
+            # We assume if a sentence has a count and a specific region, that count applies to that region
+            if analysis.worker_counts:
+                current_max = max(analysis.worker_counts)
+                
+                # If context is explicit, map this count to the region/countries
+                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.EXPLICIT_INFERRED.value):
+                    region_key = geo_context["region"]
+                    region_totals[region_key] = current_max
+                    
+                    for c in geo_context.get("countries", []):
+                        region_totals[c["code"]] = current_max
+
+            # Determine best available total for calculation
+            # Priority: 
+            # 1. Region-specific total (if we are in that region)
+            # 2. Global total (if we are in Global/Unknown/International region)
+            # 3. Sequential fallback
+            relevant_total = None
+            current_region = geo_context["region"]
+            
+            if current_region in region_totals:
+                relevant_total = region_totals[current_region]
+            elif current_region in (
+                Region.INTERNATIONAL.value,
+                Region.UNKNOWN.value,
+                Region.NORTH_AMERICA.value,
+            ) and global_max_workers > 0:
+                 relevant_total = global_max_workers
+            else:
+                 relevant_total = last_employee_count or global_max_workers
+
             # 2. Determine Coverage Data
-            coverage_data = self._determine_coverage_data(analysis, last_employee_count)
+            coverage_data = self._determine_coverage_data(analysis, relevant_total)
 
             # 3. Construct Item 1 JSON
             # Rule: Include if we have union terms OR (coverage data AND inherited context)
@@ -164,9 +203,9 @@ class UnionAnalyzer:
             # e.g. Brazil (BR) + INT_PT (BR, PT) -> Consistent
 
             region_val = (
-                "MIXED"
+                Region.INTERNATIONAL.value
                 if len(regions) > 1
-                else (list(regions)[0].value if regions else "UNKNOWN")
+                else (list(regions)[0].value if regions else Region.UNKNOWN.value)
             )
 
             return {

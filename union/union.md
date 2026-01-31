@@ -384,7 +384,7 @@ Sentence 3: "We also have unionized operations in Japan with 30% coverage."
   "sentence": "Our workforce is represented by the UAW in the United States, IG Metall in Germany, and Unite the Union in the UK.",
   "keyword_matched": "represented by the UAW, IG Metall, Unite the Union",
   "geographic_context": {
-    "region": "MIXED",
+    "region": "International",
     "countries": [
       {
         "name": "United States",
