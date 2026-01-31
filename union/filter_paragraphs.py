@@ -115,24 +115,24 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
     """
     if not content_list:
         return []
-        
+
     assert FILTER_REGEX is not None
     assert CLEANER is not None
     assert CURRENCY_REMOVER is not None
     assert CONTEXTUAL_CLEANER is not None
-    
+
     # Flatten and split content
     raw_blocks = []
     for block in content_list:
         if not block:
             continue
-            
+
         # Split by tables
         parts = TABLE_SPLIT_PATTERN.split(block)
         for part in parts:
             if not part.strip():
                 continue
-                
+
             # Check if it's a table (keep as one block)
             if part.strip().lower().startswith("<table"):
                 try:
@@ -154,7 +154,7 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
 
     filtered = []
     for block in raw_blocks:
-            
+
         # Clean the text to remove false positives (e.g. "Credit Union")
         # and normalize company names
         cleaned_block = CLEANER.clean(
@@ -162,27 +162,27 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
             company_name=company_name, 
             reporting_year=year
         )
-        
+
         # Remove currency figures to avoid confusion with employee counts
-        cleaned_block = CURRENCY_REMOVER.remove(cleaned_block)
-        
+        cleaned_block = CURRENCY_REMOVER.clean(cleaned_block)
+
         # Remove non-employee numerics (facilities, growth rates)
         cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block)
-        
+
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
-        
+
         if not cleaned_block:
             continue
-        
+
         is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
-        
+
         if not is_match and allow_risk:
             is_match = RISK_REGEX.search(cleaned_block)
-            
+
         if is_match:
             filtered.append(cleaned_block)
-            
+
     return filtered
 
 def process_batch(rows):

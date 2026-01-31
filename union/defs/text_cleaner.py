@@ -415,81 +415,90 @@ class MinimalTextCleaner:
     ) -> str:
         if not text:
             return ""
+        
+        paragraphs = text.split("\n\n")
+        paragraphs = [p.strip() for p in paragraphs]
+        texts = []
+        for paragraph in paragraphs:
+            # 1. Whitespace
+            paragraph = self.space_pattern.sub(" ", paragraph).strip()
 
-        # 1. Whitespace
-        text = self.space_pattern.sub(" ", text).strip()
+            # 2. False Positives
+            for pat, repl in self.false_positives:
+                paragraph = pat.sub(repl, paragraph)
 
-        # 2. False Positives
-        for pat, repl in self.false_positives:
-            text = pat.sub(repl, text)
+            # 3. Company Name
+            if company_name:
+                core_name = self.normalize_company_name(company_name)
+                if len(core_name) > 2:
+                    escaped_name = re.escape(core_name)
+                    suffix_regex = r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
+                    company_regex = re.compile(
+                        rf"\b{escaped_name}{suffix_regex}(?:\b|(?<=\.))", re.IGNORECASE
+                    )
+                    paragraph = company_regex.sub(COMPANY_TOKEN, paragraph)
 
-        # 3. Company Name
-        if company_name:
-            core_name = self.normalize_company_name(company_name)
-            if len(core_name) > 2:
-                escaped_name = re.escape(core_name)
-                suffix_regex = r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
-                company_regex = re.compile(
-                    rf"\b{escaped_name}{suffix_regex}(?:\b|(?<=\.))", re.IGNORECASE
-                )
-                text = company_regex.sub(COMPANY_TOKEN, text)
+            # 3b. Pronoun Replacement
+            paragraph = self.pronoun_pattern.sub(COMPANY_TOKEN, paragraph)
 
-        # 3b. Pronoun Replacement
-        text = self.pronoun_pattern.sub(COMPANY_TOKEN, text)
+            # Fix capitalization of "the" (e.g. "the Company" at start of sentence)
+            paragraph = self.fix_the_capitalization_pattern.sub(lambda m: m.group(1) + "The", paragraph)
 
-        # Fix capitalization of "the" (e.g. "the Company" at start of sentence)
-        text = self.fix_the_capitalization_pattern.sub(lambda m: m.group(1) + "The", text)
+            # 4. General Suffix Removal
+            paragraph = self.text_suffix_pattern.sub("", paragraph)
 
-        # 4. General Suffix Removal
-        text = self.text_suffix_pattern.sub("", text)
+            # NEW: Remove bullets and Cleanup references
+            paragraph = self.exhibit_pattern.sub(" ", paragraph)
+            paragraph = self.bullet_pattern.sub(" ", paragraph)
 
-        # NEW: Remove bullets and Cleanup references
-        text = self.exhibit_pattern.sub(" ", text)
-        text = self.bullet_pattern.sub(" ", text)
+            # 4b. Date and Year Removal
+            paragraph = self.date_md_pattern.sub(" ", paragraph)
+            paragraph = self.date_dm_pattern.sub(" ", paragraph)
+            paragraph = self.month_only_pattern.sub(" ", paragraph)
+            paragraph = self.year_pattern.sub(r" <\1> ", paragraph)
 
-        # 4b. Date and Year Removal
-        text = self.date_md_pattern.sub(" ", text)
-        text = self.date_dm_pattern.sub(" ", text)
-        text = self.month_only_pattern.sub(" ", text)
-        text = self.year_pattern.sub(r" <\1> ", text)
+            # NEW: Protect False Fractions
+            protected_map = {}
+            def protect_match(m):
+                key = f"__FF_PROTECT_{len(protected_map)}__"
+                protected_map[key] = m.group(0)
+                return key
+            paragraph = self.false_fraction_pattern.sub(protect_match, paragraph)
 
-        # NEW: Protect False Fractions
-        protected_map = {}
-        def protect_match(m):
-            key = f"__FF_PROTECT_{len(protected_map)}__"
-            protected_map[key] = m.group(0)
-            return key
-        text = self.false_fraction_pattern.sub(protect_match, text)
+            # 5. Numbers
+            # First handle hyphenated fractions like "three-fourths" before they get split
+            paragraph = self.hyphenated_fraction_pattern.sub(
+                self._convert_hyphenated_fraction, paragraph
+            )
 
-        # 5. Numbers
-        # First handle hyphenated fractions like "three-fourths" before they get split
-        text = self.hyphenated_fraction_pattern.sub(
-            self._convert_hyphenated_fraction, text
-        )
+            paragraph = self.a_multiplier_pattern.sub("one ", paragraph)
+            paragraph = self.none_of_pattern.sub("0% of", paragraph)
+            paragraph = self.all_of_pattern.sub("100% of", paragraph)
+            paragraph = self.no_worker_pattern.sub(r"0 \1", paragraph)
+            paragraph = self.number_phrase_pattern.sub(self._parse_number_phrase, paragraph)
+            paragraph = self.comma_pattern.sub("", paragraph)
+            paragraph = self.scale_pattern.sub(self._scale_replacer, paragraph)
 
-        text = self.a_multiplier_pattern.sub("one ", text)
-        text = self.none_of_pattern.sub("0% of", text)
-        text = self.all_of_pattern.sub("100% of", text)
-        text = self.no_worker_pattern.sub(r"0 \1", text)
-        text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
-        text = self.comma_pattern.sub("", text)
-        text = self.scale_pattern.sub(self._scale_replacer, text)
+            # Restore False Fractions
+            for key, val in protected_map.items():
+                paragraph = paragraph.replace(key, val)
 
-        # Restore False Fractions
-        for key, val in protected_map.items():
-            text = text.replace(key, val)
+            # Percent normalization
+            paragraph = self.percent_pattern.sub("%", paragraph)
+            paragraph = self.percent_space_pattern.sub(r"\1%", paragraph)
 
-        # Percent normalization
-        text = self.percent_pattern.sub("%", text)
-        text = self.percent_space_pattern.sub(r"\1%", text)
+            # Punctuation cleanup
+            paragraph = self.punct_space_pattern.sub(r"\1", paragraph)
+            paragraph = self.double_punct_pattern.sub(r"\1", paragraph)
 
-        # Punctuation cleanup
-        text = self.punct_space_pattern.sub(r"\1", text)
-        text = self.double_punct_pattern.sub(r"\1", text)
-
-        # Final cleanup
-        text = self.space_pattern.sub(" ", text).strip()
-
+            # Final cleanup
+            paragraph = self.space_pattern.sub(" ", paragraph).strip()
+            
+            # Long enough to be considered one, even if it is a single sentence
+            if paragraph and len(paragraph) > 12:
+                texts.append(paragraph)
+            
+        text = "\n\n".join(texts)
         return text
 
 class CurrencyRemover:
@@ -517,7 +526,7 @@ class CurrencyRemover:
             re.IGNORECASE
         )
 
-    def remove(self, text: str) -> str:
+    def clean(self, text: str) -> str:
         return self.currency_pattern.sub(" ", text)
 
 

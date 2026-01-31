@@ -1,5 +1,4 @@
-
-#%%
+# %%
 """
 Comprehensive test paragraph for union extraction with fictional company,
 specific reporting year, and mix of simple and complex statements.
@@ -12,11 +11,11 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 import json
 from extraction import UnionExtractor
 from analysis import UnionAnalyzer
-from defs.text_cleaner import MinimalTextCleaner
+from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner
 
 
 TEST_PARAGRAPH = """
-TechAdvance Manufacturing Corp operates a diverse global workforce across 
+TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
 our total employee base reached approximately 38,500 across all regions.
 
@@ -92,10 +91,12 @@ if __name__ == "__main__":
     # Test setup
     analyzer = UnionAnalyzer()
     cleaner = MinimalTextCleaner()
+    currency_remover = CurrencyRemover()
+    contextual_cleaner = ContextualNumberCleaner()
 
     # Reporting year context
     reporting_year = 2023
-    company_name = "TechAdvance Manufacturing Corp"
+    company_name = "TechAdvance Manufacturing Corp LTD."
 
     print(f"Testing {company_name} 10-K Filing (Reporting Year: {reporting_year})\n")
     print("=" * 80)
@@ -103,6 +104,12 @@ if __name__ == "__main__":
 
     # Clean the text
     cleaned_text = cleaner.clean(TEST_PARAGRAPH)
+    cleaned_text = currency_remover.clean(cleaned_text)
+    cleaned_text = contextual_cleaner.clean(cleaned_text)
+    print("="* 80)
+    print("Cleaned Text:\n")
+    print(cleaned_text)
+    print("\n" + "=" * 80)
 
     # Analyze with context
     results = analyzer.analyze_paragraph(
