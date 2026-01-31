@@ -1186,7 +1186,7 @@ null
 }
 ```
 
-**Uncertainty Rule:** Use `temporal_scope: "FUTURE_EXPECTED"` for anticipated/forecasted future unionization.
+**Uncertainty Rule:** Use `temporal_scope: "FUTURE"` for anticipated/forecasted future unionization.
 
 ---
 
