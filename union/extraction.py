@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN
-from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation
+from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE, WORKER_TERMS
 from defs.region_regex import (
     Region, RegionMatcher, GeoSource)
 
@@ -15,6 +15,10 @@ NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
 
+# Worker Count Pattern: Number + (optional gap) + Worker Term
+worker_term_pattern = build_alternation(WORKER_TERMS)
+WORKER_COUNT_REGEX = re.compile(rf"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}\b", re.IGNORECASE)
+
 # Negation patterns
 NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
 NON_UNION_REGEX = re.compile(CORE.NONUNION.value, re.IGNORECASE)
@@ -23,6 +27,7 @@ class MatchType(Enum):
     PERCENT = "PERCENT"
     RATIO = "RATIO"
     YEAR = "YEAR"
+    WORKER_COUNT = "WORKER_COUNT"
     SPECIFIC_UNION = "SPECIFIC_UNION"
     UNION_NAME = "UNION_NAME"
     NON_UNION = "NON_UNION"
@@ -46,6 +51,7 @@ class SentenceAnalysis:
     text: str
     percentages: List[float] = field(default_factory=list)
     ratios: List[Tuple[float, float]] = field(default_factory=list)
+    worker_counts: List[float] = field(default_factory=list)
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
@@ -200,8 +206,15 @@ class UnionExtractor:
             lambda m: (float(m.group(1)), float(m.group(2))),
             lambda m, val: analysis.ratios.append(val)
         )
+
+        # 11. Extract Worker Counts (Specific Numbers)
+        process_matches(
+            WORKER_COUNT_REGEX, MatchType.WORKER_COUNT,
+            lambda m: float(m.group(1)),
+            lambda m, val: analysis.worker_counts.append(val)
+        )
         
-        # 11. Extract Numbers (Generic - lowest priority)
+        # 12. Extract Numbers (Generic - lowest priority)
         process_matches(
             NUMBER_REGEX, MatchType.NUMBER,
             lambda m: float(m.group(0)),

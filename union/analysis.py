@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from union.extraction import UnionExtractor, SentenceAnalysis
 from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
@@ -40,6 +40,7 @@ class UnionAnalyzer:
         # Context inheritance state
         last_geo_context = None
         last_geo_sentence_idx = -1
+        last_employee_count = None
 
         for idx, sent in enumerate(sentences):
             analysis = self.extractor.analyze_sentence(sent)
@@ -47,6 +48,11 @@ class UnionAnalyzer:
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
             has_coverage = bool(analysis.percentages or analysis.negation_terms)
+
+            # Update global context (Employee Counts) even if sentence is skipped
+            if analysis.worker_counts:
+                last_employee_count = max(analysis.worker_counts) # Assume largest is total
+
             if (
                 not analysis.union_terms
                 and not analysis.geo_matches
@@ -69,7 +75,7 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = idx
 
             # 2. Determine Coverage Data
-            coverage_data = self._determine_coverage_data(analysis)
+            coverage_data = self._determine_coverage_data(analysis, last_employee_count)
 
             # 3. Construct Item 1 JSON
             # Rule: Include if we have union terms OR (coverage data AND inherited context)
@@ -125,7 +131,7 @@ class UnionAnalyzer:
             countries = []
             seen_codes = set()
             regions = set()
-            
+
             unusual_combo = False
             conflict_notes = []
 
@@ -212,7 +218,9 @@ class UnionAnalyzer:
         # 4. Fallback
         return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
-    def _determine_coverage_data(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
+    def _determine_coverage_data(
+        self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None
+    ) -> Dict[str, Any]:
         """
         Extracts percentage, negation, and count data.
         """
@@ -245,7 +253,7 @@ class UnionAnalyzer:
             # Determine type by checking all terms
             # Default to NOT_COVERED (e.g. "not")
             negation_type = NegationType.NOT_COVERED.value
-            
+
             for term in analysis.negation_terms:
                 t_lower = term.lower()
                 # Check for Zero Coverage indicators ("no", "none")
@@ -253,7 +261,7 @@ class UnionAnalyzer:
                     negation_type = NegationType.ZERO_COVERAGE.value
                     # Zero coverage takes precedence (e.g. "no union employees" -> 0%)
                     break
-                
+
                 # Check for Non-Union specific terms (from NON_UNION_REGEX)
                 # e.g. "non-union", "not-union"
                 if "union" in t_lower:
@@ -287,7 +295,11 @@ class UnionAnalyzer:
             data["employee_count_covered"] = 0
 
         # Handle "Non-union" -> 0% (if no other numbers)
-        elif is_negated and negation_type == NegationType.NOT_COVERED.value and not analysis.percentages:
+        elif (
+            is_negated
+            and negation_type == NegationType.NOT_COVERED.value
+            and not analysis.percentages
+        ):
             # "We are non-union" -> 0%
             data["percentage"] = 0.0
             data["type"] = CoverageType.QUALITATIVE.value
@@ -311,6 +323,32 @@ class UnionAnalyzer:
         if analysis.numbers:
             # Store raw numbers for potential downstream analysis (e.g. Compustat merging)
             data["extracted_numbers"] = analysis.numbers
+
+            # Heuristic: If we have negation "not covered" and a number, assume it's the count not covered
+            if (
+                is_negated
+                and negation_type == NegationType.NOT_COVERED.value
+                and not data["percentage"]
+            ):
+                val = analysis.numbers[0]
+                data["employee_count_not_covered"] = val
+                data["negated"] = True
+                data["negation_type"] = NegationType.NOT_COVERED.value
+
+                # Try to calculate percentage if we have a total
+                total = inherited_total_count
+                if analysis.worker_counts:
+                    total = max(analysis.worker_counts)
+
+                if total and total > val:
+                    data["employee_count_total"] = total
+                    pct_covered = ((total - val) / total) * 100
+                    data["calculated_percentage"] = round(pct_covered, 2)
+                    data["percentage"] = round(pct_covered, 2)
+                    data["type"] = CoverageType.CALCULATED.value
+                    data["note"] = (
+                        f"Calculated: ({total} total - {val} not covered) / {total}"
+                    )
 
         return data
 
