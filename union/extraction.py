@@ -5,7 +5,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation
-from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE, WORKER_TERMS
+from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE, WORKER_TERMS, NON_COVERAGE_REGEX
 from defs.region_regex import (
     Region, RegionMatcher, GeoSource)
 
@@ -33,6 +33,7 @@ class MatchType(Enum):
     SPECIFIC_UNION = "SPECIFIC_UNION"
     UNION_NAME = "UNION_NAME"
     NON_UNION = "NON_UNION"
+    NON_COVERAGE = "NON_COVERAGE"
     RISK_TERM = "RISK_TERM"
     UNION_TERM = "UNION_TERM"
     GEO = "GEO"
@@ -164,6 +165,13 @@ class UnionExtractor:
             NON_UNION_REGEX, MatchType.NON_UNION,
             lambda m: m.group(0),
             lambda m, val: analysis.negation_terms.append(val)
+        )
+        
+        # 5b. Extract Non-Coverage Terms (at-will, unrepresented)
+        process_matches(
+            NON_COVERAGE_REGEX, MatchType.NON_COVERAGE,
+            lambda m: m.group(0),
+            lambda m, val: analysis.negation_terms.append(val) # Treat as negation term for general logic
         )
 
         # 6. Extract Risk Terms

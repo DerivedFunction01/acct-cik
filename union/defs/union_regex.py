@@ -134,6 +134,11 @@ class RISK_TERMS:
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
+NON_COVERAGE_PHRASES = [
+    r"at[- ]will",
+    r"(?:non|un|not|no)[- ]?(?:represented|covered|affiliat(?:ed|tion))",
+]
+NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")

@@ -411,9 +411,14 @@ class UnionAnalyzer:
                     data["calculated_percentage"] = round(pct_covered, 2)
                     data["percentage"] = round(pct_covered, 2)
                     data["type"] = CoverageType.CALCULATED.value
-                    data["note"] = (
-                        f"Calculated: ({total} total - {val} not covered) / {total}"
-                    )
+                    
+                    if pct_covered > 100.0:
+                        data["ambiguity"] = "CALCULATION_ERROR_OVER_100"
+                        data["note"] = f"Calculated percentage {pct_covered:.2f}% exceeds 100%"
+                    else:
+                        data["note"] = (
+                            f"Calculated: ({total} total - {val} not covered) / {total}"
+                        )
 
         return data
 
@@ -431,7 +436,7 @@ class UnionAnalyzer:
         positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)]
         
         # Negative indicators: Non-union terms or specific negation
-        negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION)]
+        negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION, MatchType.NON_COVERAGE)]
         
         # Helper to find nearest indicator
         def get_nearest_type(target_span):
@@ -493,7 +498,12 @@ class UnionAnalyzer:
                 if not data['percentage']:
                     data['percentage'] = round(pct, 2)
                     data['type'] = CoverageType.CALCULATED.value
-                    data['note'] = f"Calculated from mixed counts: {data['employee_count_covered']} covered, {data['employee_count_not_covered']} not covered"
+                    
+                    if pct > 100.0:
+                        data["ambiguity"] = "CALCULATION_ERROR_OVER_100"
+                        data["note"] = f"Calculated percentage {pct:.2f}% exceeds 100%"
+                    else:
+                        data['note'] = f"Calculated from mixed counts: {data['employee_count_covered']} covered, {data['employee_count_not_covered']} not covered"
 
     def _analyze_item1a(self, sentences: List[str]) -> List[Dict[str, Any]]:
         """
