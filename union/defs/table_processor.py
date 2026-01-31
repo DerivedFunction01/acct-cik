@@ -827,6 +827,59 @@ class SimpleTableProcessor:
 
         return years_map
 
+    def get_row_years(self) -> Dict[int, int]:
+        """
+        Return row years detected from section headers (transposed tables).
+        Logic: If a row has a year in the first column and is otherwise empty,
+        it sets the year for subsequent rows.
+        """
+        if self.invalid_table:
+            return {}
+
+        row_years = {}
+        current_year = None
+
+        for idx, row in enumerate(self.data):
+            if not row:
+                continue
+
+            # Check for section header: First cell is year, others empty
+            first_cell = row[0].strip()
+            is_header = False
+            
+            # Check emptiness of other cells
+            other_cells_empty = True
+            for cell in row[1:]:
+                if cell.strip():
+                    other_cells_empty = False
+                    break
+            
+            if other_cells_empty and first_cell:
+                # Check if first cell is a year
+                matches = YEAR_REGEX.findall(first_cell)
+                valid_years_found = []
+                for m in matches:
+                    groups = m if isinstance(m, tuple) else [m]
+                    for g in groups:
+                        if g and g.isdigit():
+                            y = int(g)
+                            # Handle 2-digit years
+                            if y < 100:
+                                y += 2000 if y < 50 else 1900
+                            if 1900 <= y <= 2100:
+                                valid_years_found.append(y)
+                
+                # Only treat as header if EXACTLY one unique year is found
+                unique_years = set(valid_years_found)
+                if len(unique_years) == 1:
+                    current_year = unique_years.pop()
+                    is_header = True
+            
+            if not is_header and current_year is not None:
+                row_years[idx] = current_year
+
+        return row_years
+
     def get_info(self) -> Dict:
         """Return table metadata"""
         return {
@@ -855,5 +908,6 @@ def process_table(table_text: str) -> Dict:
         "headers": processor.get_headers(),
         "types": processor.get_types(),
         "years": processor.get_years(),
+        "row_years": processor.get_row_years(),
         "info": processor.get_info(),
     }
