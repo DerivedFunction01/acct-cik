@@ -8,7 +8,10 @@ from defs.output_enums import (
     NegationType, TemporalScope, RiskType, RelationshipStatus
 )
 from defs.text_cleaner import MinimalTextCleaner
-from defs.union_regex import NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, RELATIONSHIP_NEGATIVE_TERMS
+from defs.union_regex import (
+    NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, 
+    RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
+)
 
 
 
@@ -165,7 +168,7 @@ class UnionAnalyzer:
                 and not coverage_data["percentage"]
                 and not coverage_data["extracted_numbers"]
                 and not coverage_data["negated"]
-                and re.search(r"\b(?:monitor|committed|constructive|engagement|relations)\b", sent, re.IGNORECASE)
+                and BOILERPLATE_REGEX.search(sent)
             ):
                 should_include = False
 

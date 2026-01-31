@@ -165,6 +165,11 @@ RELATIONSHIP_REGEX = build_regex(RELATIONSHIP_PHRASES)
 # Match both positive and negative terms; analysis will distinguish them
 RELATIONSHIP_QUALITY_REGEX = build_regex(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS)
 
+BOILERPLATE_TERMS = [
+    "monitor", "committed", "constructive", "engagement", "relations"
+]
+BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
+
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
