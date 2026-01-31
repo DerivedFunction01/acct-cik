@@ -242,14 +242,22 @@ class UnionAnalyzer:
         # "No employees", "None of", "Not covered"
         if analysis.negation_terms:
             is_negated = True
-            # Determine type
-            term = analysis.negation_terms[0].lower()
-            if "no " in term or "none" in term:
-                negation_type = NegationType.ZERO_COVERAGE.value
-            elif "non-union" in term or "non union" in term:
-                negation_type = NegationType.NOT_COVERED.value  # Usually implies 100% not covered if applied to whole
-            else:
-                negation_type = NegationType.NOT_COVERED.value
+            # Determine type by checking all terms
+            # Default to NOT_COVERED (e.g. "not")
+            negation_type = NegationType.NOT_COVERED.value
+            
+            for term in analysis.negation_terms:
+                t_lower = term.lower()
+                # Check for Zero Coverage indicators ("no", "none")
+                if t_lower in ("no", "none", "neither", "nor", "never"):
+                    negation_type = NegationType.ZERO_COVERAGE.value
+                    # Zero coverage takes precedence (e.g. "no union employees" -> 0%)
+                    break
+                
+                # Check for Non-Union specific terms (from NON_UNION_REGEX)
+                # e.g. "non-union", "not-union"
+                if "union" in t_lower:
+                    negation_type = NegationType.NOT_COVERED.value
 
         # Extract Percentage
         if analysis.percentages:
