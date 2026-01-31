@@ -34,6 +34,8 @@ logging.basicConfig(
     handlers=[logging.StreamHandler()]
 )
 
+TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+
 # =============================================================================
 # REGEX COMPILATION
 # =============================================================================
@@ -114,11 +116,30 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
     assert CLEANER is not None
     assert CURRENCY_REMOVER is not None
     
-
-    filtered = []
+    # Flatten and split content
+    raw_blocks = []
     for block in content_list:
         if not block:
             continue
+            
+        # Split by tables
+        parts = TABLE_SPLIT_PATTERN.split(block)
+        for part in parts:
+            if not part.strip():
+                continue
+                
+            # Check if it's a table (keep as one block)
+            if part.strip().lower().startswith("<table"):
+                raw_blocks.append(part.strip())
+            else:
+                # Split text by double newlines
+                lines = part.split('\n\n')
+                for line in lines:
+                    if line.strip():
+                        raw_blocks.append(line.strip())
+
+    filtered = []
+    for block in raw_blocks:
             
         # Clean the text to remove false positives (e.g. "Credit Union")
         # and normalize company names
@@ -133,6 +154,9 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
         
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
+        
+        if not cleaned_block:
+            continue
         
         is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
         
