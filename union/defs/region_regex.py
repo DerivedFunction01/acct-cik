@@ -240,6 +240,7 @@ EUROPE = {
     ], [
         "CFDT", "French Democratic Confederation of Labour",
         "FO", "Force Ouvrière",
+        "CGT", "Confédération Générale du Travail",
     ], [
         "Comité Social et Économique", "Cheminots",
     ], code="FR"),
@@ -299,6 +300,7 @@ ASIA_PACIFIC = {
     ], [
         "Rengo", "Japanese Trade Union Confederation",
         "UA Zensen",
+        "JAM", "Japanese Association of Metal and Allied Workers",
     ], [
         "Shunto",
     ], code="JP"),
@@ -422,6 +424,7 @@ MIDDLE_EAST_AFRICA = {
     ], [
         "COSATU", "Congress of South African Trade Unions",
         "AMCU", "Association of Mineworkers and Construction Union",
+        "NUMSA", "National Union of Metalworkers of South Africa",
     ], code="ZA"),
     Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA, [
         Location("Lagos", ["lagos"]),
