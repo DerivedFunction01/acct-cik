@@ -498,7 +498,7 @@ class UnionAnalyzer:
                     data["type"] = CoverageType.CALCULATED.value
                     
                     if pct_covered > 100.0:
-                        data["ambiguity"] = "CALCULATION_ERROR_OVER_100"
+                        data["ambiguity"] = PercentageQualifier.CALC_ERROR.value
                         data["note"] = f"Calculated percentage {pct_covered:.2f}% exceeds 100%"
                     else:
                         data["note"] = (
