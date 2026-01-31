@@ -772,6 +772,10 @@ class SimpleTableProcessor:
         """Return column headers"""
         return self.col_headers if not self.invalid_table else {}
 
+    def get_types(self) -> Dict[int, Optional[str]]:
+        """Return column types"""
+        return self.col_map if not self.invalid_table else {}
+
     def get_info(self) -> Dict:
         """Return table metadata"""
         return {
@@ -798,5 +802,6 @@ def process_table(table_text: str) -> Dict:
     return {
         "data": processor.get_data(),
         "headers": processor.get_headers(),
+        "types": processor.get_types(),
         "info": processor.get_info(),
     }
