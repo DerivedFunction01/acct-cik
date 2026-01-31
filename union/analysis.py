@@ -26,6 +26,21 @@ class UnionAnalyzer:
         """
         return None
 
+    def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis) -> Dict[str, Any]:
+        is_conditional = bool(re.search(r"\b(?:if|could|may|might|potential|possible|can)\b", sentence, re.IGNORECASE))
+        return {
+            "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
+            "sentence": sentence,
+            "labor_keywords": analysis.union_terms,
+            "risk_keywords": analysis.risk_terms,
+            "supplier_keywords": analysis.supplier_terms,
+            "specific_to_unions": bool(analysis.union_terms),
+            "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
+            "temporal_scope": TemporalScope.CONDITIONAL.value if is_conditional else TemporalScope.CURRENT.value,
+            "conditional": is_conditional,
+            "note": None
+        }
+
     def analyze_paragraph(self, text: str, item_type: str = "item1") -> List[Dict[str, Any]]:
         """
         Process a paragraph of text, splitting it into sentences and 
@@ -160,6 +175,8 @@ class UnionAnalyzer:
                 and not coverage_data["percentage"]
                 and not coverage_data["negated"]
             ):
+                # It is a risk statement embedded in Item 1 (common in older filings)
+                results.append(self._create_risk_item(sent, analysis))
                 should_include = False
 
             # Exclude "monitoring" statements with no data (Statement Only)
@@ -189,7 +206,8 @@ class UnionAnalyzer:
         skip_indices = set()
         
         for i in range(len(results)):
-            if i in skip_indices:
+            # Skip if processed or if it's a Risk Item (no geographic_context)
+            if i in skip_indices or "geographic_context" not in results[i]:
                 continue
                 
             current = results[i]
@@ -197,6 +215,10 @@ class UnionAnalyzer:
             # Check if next item is a candidate for merging
             if i + 1 < len(results):
                 next_item = results[i+1]
+                
+                # Skip merging if next item is a Risk Item
+                if "geographic_context" not in next_item:
+                    continue
                 
                 # Criteria: Next item inherits from Current, and Current has data
                 if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
@@ -683,21 +705,7 @@ class UnionAnalyzer:
 
             # Item 1A logic: Look for risk terms
             if analysis.risk_terms:
-                is_conditional = bool(re.search(r"\b(?:if|could|may|might|potential|possible|can)\b", sent, re.IGNORECASE))
-
-                item = {
-                    "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
-                    "sentence": sent,
-                    "labor_keywords": analysis.union_terms,
-                    "risk_keywords": analysis.risk_terms,
-                    "supplier_keywords": analysis.supplier_terms,
-                    "specific_to_unions": bool(analysis.union_terms),
-                    "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
-                    "temporal_scope": TemporalScope.CONDITIONAL.value if is_conditional else TemporalScope.CURRENT.value,
-                    "conditional": is_conditional,
-                    "note": None
-                }
-                results.append(item)
+                results.append(self._create_risk_item(sent, analysis))
         return results
 
 if __name__ == "__main__":
