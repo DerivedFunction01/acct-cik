@@ -8,6 +8,7 @@ from defs.output_enums import (
     NegationType, TemporalScope, RiskType
 )
 from defs.text_cleaner import MinimalTextCleaner
+from defs.union_regex import NON_COVERAGE_REGEX
 
 
 
@@ -309,7 +310,7 @@ class UnionAnalyzer:
             if lang_matches:
                 m = lang_matches[0]
                 return {
-                    "region": "International",  # Broad region
+                    "region": Region.INTERNATIONAL.value,  # Broad region
                     "countries": [],  # No specific country known
                     "specificity": Specificity.INFERRED_LANG.value,
                     "union_name_indicator": m.text,
@@ -380,7 +381,7 @@ class UnionAnalyzer:
                     break
 
                 # Check for Not Covered indicators (Status negation)
-                if re.search(r"\b(?:not|non|un)\b|at-will|operate\s+outside", t_lower):
+                if NON_COVERAGE_REGEX.search(t_lower):
                     negation_type = NegationType.NOT_COVERED.value
 
         # Check for Percentage Range (e.g. "33% to 37%")
@@ -396,7 +397,7 @@ class UnionAnalyzer:
                 if re.search(r'\b(?:to|-|and)\b', text_between):
                     data["percentage"] = p1
                     data["ambiguity"] = f"RANGE_{p1}_TO_{p2}_PERCENT"
-                    data["percentage_qualifier"] = "RANGE"
+                    data["percentage_qualifier"] = PercentageQualifier.RANGE.value
 
         # Extract Percentage
         if analysis.percentages and not data["percentage"]:
