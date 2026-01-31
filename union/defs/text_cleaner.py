@@ -831,6 +831,8 @@ def create_test_cases() -> List[TestCase]:
             company_name="Apple Inc.",
             validations=[
                 (TestType.CONTAINS, "The Company", None),
+                (TestType.NOT_CONTAINS, "The Company.", None),
+                (TestType.NOT_CONTAINS, "The Company .", None),
                 (TestType.CONTAINS, "138100", None),
                 (TestType.CONTAINS, "<2023>", None),
                 (TestType.NOT_CONTAINS, "December 31", None),
