@@ -1,9 +1,8 @@
 import re
-from typing import List, Dict, Any, Optional, Set
-from dataclasses import asdict
+from typing import List, Dict, Any
 
-from union.extraction import UnionExtractor, SentenceAnalysis, GeoMatch
-from defs.region_regex import Region, INT_LANGUAGE_MAP
+from union.extraction import UnionExtractor, SentenceAnalysis
+from defs.region_regex import Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier, 
     NegationType, TemporalScope, RiskType
@@ -113,12 +112,12 @@ class UnionAnalyzer:
         language inference, or inheritance.
         """
         explicit_matches = [
-            m for m in analysis.geo_matches if m.source_type == "explicit"
+            m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
         ]
         union_matches = [
             m
             for m in analysis.geo_matches
-            if m.source_type in ("specific_union", "inferred_union")
+            if m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
         ]
 
         # 1. Explicit Geography (Highest Priority)

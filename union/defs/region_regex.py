@@ -11,6 +11,11 @@ class Region(Enum):
     ASIA_PACIFIC = "Asia Pacific"
     INTERNATIONAL = "International"
 
+class GeoSource(Enum):
+    EXPLICIT = "EXPLICIT"
+    SPECIFIC_UNION = "GEO_UNION"
+    INFERRED_UNION = "INFERRED_UNION"
+
 
 @dataclass
 class Location:

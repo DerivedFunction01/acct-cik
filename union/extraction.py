@@ -2,12 +2,12 @@
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
+from enum import Enum
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.union_regex import UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, CORE
 from defs.region_regex import (
-    Region
-    , RegionMatcher)
+    Region, RegionMatcher, GeoSource)
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
@@ -18,6 +18,18 @@ YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 NEGATION_REGEX = re.compile(r"\b(?:no|not|none|neither|nor|never)\b", re.IGNORECASE)
 NON_UNION_REGEX = re.compile(CORE.NONUNION.value, re.IGNORECASE)
 
+class MatchType(Enum):
+    PERCENT = "PERCENT"
+    YEAR = "YEAR"
+    SPECIFIC_UNION = "SPECIFIC_UNION"
+    UNION_NAME = "UNION_NAME"
+    NON_UNION = "NON_UNION"
+    RISK_TERM = "RISK_TERM"
+    UNION_TERM = "UNION_TERM"
+    GEO = "GEO"
+    NEGATION = "NEGATION"
+    NUMBER = "NUMBER"
+
 @dataclass
 class GeoMatch:
     text: str
@@ -25,7 +37,7 @@ class GeoMatch:
     country: Optional[str] = None
     city: Optional[str] = None
     geo_code: Optional[str] = None
-    source_type: str = "explicit"  # explicit, inferred_union
+    source_type: GeoSource = GeoSource.EXPLICIT
 
 @dataclass
 class SentenceAnalysis:
@@ -89,14 +101,14 @@ class UnionExtractor:
 
         # 1. Extract Percentages
         process_matches(
-            PERCENT_REGEX, 'PERCENT',
+            PERCENT_REGEX, MatchType.PERCENT,
             lambda m: float(m.group(1)),
             lambda m, val: analysis.percentages.append(val)
         )
 
         # 2. Extract Years
         process_matches(
-            YEAR_TOKEN_REGEX, 'YEAR',
+            YEAR_TOKEN_REGEX, MatchType.YEAR,
             lambda m: int(m.group(1)),
             lambda m, val: analysis.years.append(val)
         )
@@ -110,11 +122,11 @@ class UnionExtractor:
                 if lower_term in self.matcher.union_map:
                     region, country, code = self.matcher.union_map[lower_term]
                     analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, geo_code=code, source_type="specific_union"
+                        text=val, region=region, country=country, geo_code=code, source_type=GeoSource.SPECIFIC_UNION
                     ))
 
             process_matches(
-                self.matcher.specific_union_regex, 'SPECIFIC_UNION',
+                self.matcher.specific_union_regex, MatchType.SPECIFIC_UNION,
                 lambda m: m.group(0),
                 specific_union_side_effect
             )
@@ -126,32 +138,32 @@ class UnionExtractor:
             if lower_term in self.matcher.union_map:
                 region, country, code = self.matcher.union_map[lower_term]
                 analysis.geo_matches.append(GeoMatch(
-                    text=val, region=region, country=country, geo_code=code, source_type="inferred_union"
+                    text=val, region=region, country=country, geo_code=code, source_type=GeoSource.INFERRED_UNION
                 ))
 
         process_matches(
-            DYNAMIC_UNION_REGEX, 'UNION_NAME',
+            DYNAMIC_UNION_REGEX, MatchType.UNION_NAME,
             lambda m: m.group(0),
             dynamic_union_side_effect
         )
 
         # 5. Extract Non-Union Terms (Specific negation)
         process_matches(
-            NON_UNION_REGEX, 'NON_UNION',
+            NON_UNION_REGEX, MatchType.NON_UNION,
             lambda m: m.group(0),
             lambda m, val: analysis.negation_terms.append(val)
         )
 
         # 6. Extract Risk Terms
         process_matches(
-            RISK_REGEX, 'RISK_TERM',
+            RISK_REGEX, MatchType.RISK_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.risk_terms.append(val)
         )
 
         # 7. Extract Union Terms (Generic)
         process_matches(
-            UNION_REGEX, 'UNION_TERM',
+            UNION_REGEX, MatchType.UNION_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.union_terms.append(val)
         )
@@ -163,25 +175,25 @@ class UnionExtractor:
                 if phrase in self.matcher.location_map:
                     region, country, city, code = self.matcher.location_map[phrase]
                     analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, city=city, geo_code=code, source_type="explicit"
+                        text=val, region=region, country=country, city=city, geo_code=code, source_type=GeoSource.EXPLICIT
                     ))
             
             process_matches(
-                self.matcher.location_regex, 'GEO',
+                self.matcher.location_regex, MatchType.GEO,
                 lambda m: m.group(0),
                 geo_side_effect
             )
 
         # 9. Extract Negation Terms (General)
         process_matches(
-            NEGATION_REGEX, 'NEGATION',
+            NEGATION_REGEX, MatchType.NEGATION,
             lambda m: m.group(0),
             lambda m, val: analysis.negation_terms.append(val)
         )
 
         # 10. Extract Numbers (Generic - lowest priority)
         process_matches(
-            NUMBER_REGEX, 'NUMBER',
+            NUMBER_REGEX, MatchType.NUMBER,
             lambda m: float(m.group(0)),
             lambda m, val: analysis.numbers.append(val)
         )
