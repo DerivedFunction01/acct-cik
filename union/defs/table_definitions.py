@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from typing import List, Union
 import textwrap
 
+
 @dataclass
 class GenericTable:
     """
@@ -16,7 +17,10 @@ class GenericTable:
     title: str
 
     def _format_row_with_wrapping(
-        self, cells: List[str] | List[List[str]], widths: List[int], alignments: List[str]
+        self,
+        cells: List[str] | List[List[str]],
+        widths: List[int],
+        alignments: List[str],
     ) -> List[str]:
         """
         Formats a single logical row into multiple physical lines with text wrapping.
@@ -59,20 +63,37 @@ class GenericTable:
             # It's a list of lists (multi-line header)
             for header_row in self.headers:
                 assert isinstance(header_row, list)
-                header_lines.extend(self._format_row_with_wrapping(header_row, self.widths, self.alignments))
+                header_lines.extend(
+                    self._format_row_with_wrapping(
+                        header_row, self.widths, self.alignments
+                    )
+                )
         else:
             # It's a single list of strings, but we need to assert its type for the type checker.
             assert all(isinstance(h, str) for h in self.headers)
-            header_lines.extend(self._format_row_with_wrapping(self.headers, self.widths, self.alignments))
+            header_lines.extend(
+                self._format_row_with_wrapping(
+                    self.headers, self.widths, self.alignments
+                )
+            )
 
-        separator = "  ".join(['-' * w for w in self.widths])
-        sec_tags_line = "<S>".ljust(self.widths[0] + 2) + "".join(["<C>".ljust(w + 2) for w in self.widths[1:]]).rstrip()
+        separator = "  ".join(["-" * w for w in self.widths])
+        sec_tags_line = (
+            "<S>".ljust(self.widths[0] + 2)
+            + "".join(["<C>".ljust(w + 2) for w in self.widths[1:]]).rstrip()
+        )
 
         all_rows = header_lines + [separator, sec_tags_line]
         for row_data in self.data_rows:
-            all_rows.extend(self._format_row_with_wrapping(row_data, self.widths, self.alignments))
+            all_rows.extend(
+                self._format_row_with_wrapping(row_data, self.widths, self.alignments)
+            )
 
-        return f"\n\n<TABLE>\n<CAPTION>\n{self.title}</CAPTION>\n\n" + "\n".join(all_rows) + "\n</TABLE>\n\n"
+        return (
+            f"\n\n<TABLE>\n<CAPTION>\n{self.title}</CAPTION>\n\n"
+            + "\n".join(all_rows)
+            + "\n</TABLE>\n\n"
+        )
 
 
 @dataclass
@@ -113,12 +134,19 @@ class HTMLTableConverter:
         # --- UPDATE: Fallback Logic ---
         # If header_row_count is 0, default to 1 so the first row becomes the header.
         # Otherwise, use the detected count.
-        effective_header_count = (
-            self.header_row_count if self.header_row_count > 0 else 1
-        )
+        if self.header_row_count > 0:
+            split_idx = self.header_row_count
+        else:
+            split_idx = 0
+            for i, row in enumerate(self.grid):
+                if row and row[0].strip():
+                    split_idx = i
+                    break
+            if split_idx == 0:
+                split_idx = 1
 
         # Safety check: ensure we don't slice beyond the grid
-        split_idx = min(effective_header_count, len(self.grid))
+        split_idx = min(split_idx, len(self.grid))
 
         headers = self.grid[:split_idx]  # Captures ALL header rows
         data_rows = self.grid[split_idx:]

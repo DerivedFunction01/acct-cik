@@ -113,12 +113,19 @@ class HTMLTableConverter:
         # --- UPDATE: Fallback Logic ---
         # If header_row_count is 0, default to 1 so the first row becomes the header.
         # Otherwise, use the detected count.
-        effective_header_count = (
-            self.header_row_count if self.header_row_count > 0 else 1
-        )
+        if self.header_row_count > 0:
+            split_idx = self.header_row_count
+        else:
+            split_idx = 0
+            for i, row in enumerate(self.grid):
+                if row and row[0].strip():
+                    split_idx = i
+                    break
+            if split_idx == 0:
+                split_idx = 1
 
         # Safety check: ensure we don't slice beyond the grid
-        split_idx = min(effective_header_count, len(self.grid))
+        split_idx = min(split_idx, len(self.grid))
 
         headers = self.grid[:split_idx]  # Captures ALL header rows
         data_rows = self.grid[split_idx:]
