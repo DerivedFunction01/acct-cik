@@ -7,7 +7,7 @@ from defs.output_enums import (
     Specificity, CoverageType, PercentageQualifier,
     NegationType, TemporalScope, RiskType, RelationshipStatus
 )
-from defs.text_cleaner import MinimalTextCleaner
+
 from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, 
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
@@ -36,7 +36,12 @@ HISTORICAL_REGEX = build_regex([
     r"historical(?:ly)?",
     r"previously",
     r"prior\s+to",
-    r"(?:last|prior|past)\s+(?:fiscal\s+|reporting\s+)?(?:year|period)"
+    r"(?:last|prior|past|previous)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
+])
+
+FUTURE_REGEX = build_regex([
+    r"in\s+the\s+future",
+    r"(?:future|next|upcoming)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
 ])
 
 NEGATION_REGEX = build_regex([
@@ -75,9 +80,12 @@ class UnionAnalyzer:
 
     def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis, is_historical: bool = False) -> Dict[str, Any]:
         is_conditional = bool(CONDITIONAL_REGEX.search(sentence))
+        is_future = bool(FUTURE_REGEX.search(sentence))
         temporal_scope = TemporalScope.CURRENT.value
         if is_historical:
             temporal_scope = TemporalScope.HISTORICAL.value
+        elif is_future:
+            temporal_scope = TemporalScope.FUTURE.value
         elif is_conditional:
             temporal_scope = TemporalScope.CONDITIONAL.value
 
@@ -665,6 +673,9 @@ class UnionAnalyzer:
             if future_years:
                 data["temporal_scope"] = TemporalScope.FUTURE.value
                 data["expected_date"] = str(min(future_years))
+        
+        if data["temporal_scope"] == TemporalScope.CURRENT.value and FUTURE_REGEX.search(analysis.text):
+            data["temporal_scope"] = TemporalScope.FUTURE.value
 
         return data
 
