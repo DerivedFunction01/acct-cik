@@ -106,6 +106,79 @@ NORTH_AMERICA = {
                     Location("Miami", ["miami"]),
                 ],
             ),
+            Location(
+                "Michigan",
+                ["michigan", "mi"],
+                [
+                    Location("Detroit", ["detroit", "motor city"]),
+                    Location("Dearborn", ["dearborn"]),
+                    Location("Flint", ["flint"]),
+                    Location("Lansing", ["lansing"]),
+                ],
+            ),
+            Location(
+                "Ohio",
+                ["ohio", "oh"],
+                [
+                    Location("Cleveland", ["cleveland"]),
+                    Location("Columbus", ["columbus"]),
+                    Location("Toledo", ["toledo"]),
+                    Location("Marysville", ["marysville"]),
+                ],
+            ),
+            Location(
+                "Pennsylvania",
+                ["pennsylvania", "pa"],
+                [
+                    Location("Pittsburgh", ["pittsburgh"]),
+                    Location("Philadelphia", ["philadelphia", "philly"]),
+                ],
+            ),
+            Location(
+                "Indiana",
+                ["indiana"],
+                [
+                    Location("Indianapolis", ["indianapolis"]),
+                    Location("Lafayette", ["lafayette"]),
+                    Location("Princeton", ["princeton"]),
+                ],
+            ),
+            Location(
+                "Kentucky",
+                ["kentucky", "ky"],
+                [
+                    Location("Louisville", ["louisville"]),
+                    Location("Georgetown", ["georgetown"]),
+                ],
+            ),
+            Location(
+                "Tennessee",
+                ["tennessee", "tn"],
+                [
+                    Location("Nashville", ["nashville"]),
+                    Location("Chattanooga", ["chattanooga"]),
+                    Location("Smyrna", ["smyrna"]),
+                    Location("Spring Hill", ["spring hill"]),
+                ],
+            ),
+            Location(
+                "Alabama",
+                ["alabama", "al"],
+                [
+                    Location("Birmingham", ["birmingham"]),
+                    Location("Huntsville", ["huntsville"]),
+                    Location("Tuscaloosa", ["tuscaloosa"]),
+                    Location("Lincoln", ["lincoln"]),
+                ],
+            ),
+            Location(
+                "Missouri",
+                ["missouri", "mo"],
+                [
+                    Location("St. Louis", ["st. louis"]),
+                    Location("Kansas City", ["kansas city"]),
+                ],
+            ),
         ],
         [
             "UAW",
@@ -291,7 +364,7 @@ EUROPE = {
 
 ASIA_PACIFIC = {
     Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC, code="APAC"),
-    Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC),
+    Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC, code="ASIA"),
     Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC, [
         Location("Tokyo", ["tokyo"]),
         Location("Osaka", ["osaka"]),
@@ -549,6 +622,20 @@ INT_LANGUAGE_MAP = {
         "GT", "DO", "CR", "PA", "UY", "BO", "PY"
     },
     "INT_FR": {"FR", "BE", "CH", "CA"},
+}
+REGION_CODES = {
+    "NA",
+    "DOMESTIC",
+    "EU",
+    "APAC",
+    "ASIA",
+    "LATAM",
+    "MEA",
+    "AFRICA",
+    "INT",
+    "INT_ES",
+    "INT_PT",
+    "INT_FR",
 }
 
 class RegionMatcher:
