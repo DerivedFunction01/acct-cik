@@ -204,6 +204,9 @@ class MinimalTextCleaner:
         # Handle "none of" -> "0% of"
         self.none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
 
+        # Handle "all of" -> "100% of"
+        self.all_of_pattern = re.compile(r"\ball\s+of\b", re.IGNORECASE)
+
         # Handle "no [worker]" -> "0 [worker]"
         worker_pattern = build_alternation(WORKER_TERMS)
         self.no_worker_pattern = re.compile(
@@ -558,6 +561,7 @@ class MinimalTextCleaner:
 
         text = self.a_multiplier_pattern.sub("one ", text)
         text = self.none_of_pattern.sub("0% of", text)
+        text = self.all_of_pattern.sub("100% of", text)
         text = self.no_worker_pattern.sub(r"0 \1", text)
         text = self.number_phrase_pattern.sub(self._parse_number_phrase, text)
         text = self.comma_pattern.sub("", text)
