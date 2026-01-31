@@ -18,6 +18,8 @@ from defs.region_regex import (
     INTERNATIONAL,
 )
 from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover
+from defs.table_processor import process_table
+from defs.table_sentences import generate_primitive_sentences
 
 # =============================================================================
 # CONFIGURATION
@@ -130,7 +132,16 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
                 
             # Check if it's a table (keep as one block)
             if part.strip().lower().startswith("<table"):
-                raw_blocks.append(part.strip())
+                try:
+                    processed = process_table(part.strip())
+                    sentences = generate_primitive_sentences(processed)
+                    if sentences:
+                        raw_blocks.extend(sentences)
+                    else:
+                        raw_blocks.append(part.strip())
+                except Exception:
+                    raw_blocks.append(part.strip())
+
             else:
                 # Split text by double newlines
                 lines = part.split('\n\n')
