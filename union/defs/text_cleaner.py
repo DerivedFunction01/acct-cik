@@ -219,7 +219,7 @@ class MinimalTextCleaner:
             _x_over_x,
         ]
     )
-    
+
     EXHIBIT_NOUNS = [
         "exhibits?",
         "references?",
@@ -238,11 +238,12 @@ class MinimalTextCleaner:
         "figures?",
         "charts?",
         "summary",
+        "items?",
     ]
 
     EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
     exhibit_pattern = re.compile(
-        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d(?:[\d.-]*\d)?\b",
+        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d(?:[\d\.\-]*\d)?\b",
         re.IGNORECASE,
     )
 
@@ -437,7 +438,8 @@ class MinimalTextCleaner:
         # 4. General Suffix Removal
         text = self.text_suffix_pattern.sub("", text)
 
-        # NEW: Remove bullets
+        # NEW: Remove bullets and Cleanup references
+        text = self.exhibit_pattern.sub(" ", text)
         text = self.bullet_pattern.sub(" ", text)
 
         # 4b. Date and Year Removal
@@ -475,9 +477,6 @@ class MinimalTextCleaner:
         # Percent normalization
         text = self.percent_pattern.sub("%", text)
         text = self.percent_space_pattern.sub(r"\1%", text)
-        
-        # Cleanup references
-        text = self.exhibit_pattern.sub(" ", text)
 
         # Final cleanup
         text = self.space_pattern.sub(" ", text).strip()
@@ -993,9 +992,11 @@ def create_test_cases() -> List[TestCase]:
         # Test 23: Bullets and Exhibits (even if the numbers are converted, exhibit pattern to clean up)
         TestCase(
             name="Bullets and Exhibits",
-            input_text="1. Item one. (2) Item two. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year.",
+            input_text="1. Item 1-2. (2) Item 39.52. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year.",
             validations=[
                 (TestType.NOT_CONTAINS, "1.", None),
+                (TestType.NOT_CONTAINS, "1-2", None),
+                (TestType.NOT_CONTAINS, "39.52", None),
                 (TestType.NOT_CONTAINS, "(2)", None),
                 (TestType.NOT_CONTAINS, "a.", None),
                 (TestType.NOT_CONTAINS, "(b)", None),
