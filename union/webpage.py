@@ -884,7 +884,7 @@ def extract_content(data: str, asHTML=True) -> str:
             text = h.handle(soup_str)
         except Exception as e:
             print(f"⚠️  html2text conversion failed: {e}")
-            text = soup.get_text(separator="\n", strip=True)
+            text = soup.get_text(separator="\n\n", strip=True)
 
     else:
         # Plain text processing (unchanged)
