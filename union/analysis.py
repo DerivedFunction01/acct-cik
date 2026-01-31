@@ -9,7 +9,7 @@ from defs.output_enums import (
 )
 
 from defs.union_regex import (
-    NON_COVERAGE_REGEX, RELATIONSHIP_QUALITY_TERMS, 
+    NON_COVERAGE_REGEX, RELATIONSHIP_NEUTRAL_TERMS, RELATIONSHIP_QUALITY_TERMS, 
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
 )
 from defs.regex_lib import build_regex
@@ -657,7 +657,9 @@ class UnionAnalyzer:
                         break
 
             status = RelationshipStatus.UNKNOWN
-            if quality_term in RELATIONSHIP_QUALITY_TERMS:
+            if quality_term in RELATIONSHIP_NEUTRAL_TERMS:
+                status = RelationshipStatus.NEGATIVE if is_quality_negated else RelationshipStatus.NEUTRAL 
+            elif quality_term in RELATIONSHIP_QUALITY_TERMS:
                 status = RelationshipStatus.NEGATIVE if is_quality_negated else RelationshipStatus.POSITIVE
             elif quality_term in RELATIONSHIP_NEGATIVE_TERMS:
                 status = RelationshipStatus.POSITIVE if is_quality_negated else RelationshipStatus.NEGATIVE

@@ -19,12 +19,14 @@ TechAdvance Manufacturing operates a diverse global workforce across
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
 our total employee base reached approximately 38,500 across all regions.
 
-In our United States operations, which employ 16,800 workers, approximately 22% 
+In our United States operations, we own 15 automobile manufacturing facilities, 
+which employ 16,800 workers, and approximately 22% 
 (3,696 employees) are represented by labor unions. Our largest unionized segment 
 comprises 2,100 production workers in our Ohio and Indiana facilities, organized 
 under the United Auto Workers (UAW) agreement that became effective in 2022. 
 Additionally, our West Coast logistics centers employ 1,596 workers represented 
 by the International Brotherhood of Teamsters, covering 100% of those facilities.
+We have a mutually beneficial relationship with UAW and Teamsters.
 
 Our non-union domestic workforce of 13,104 employees consists primarily of 
 engineering, administrative, and management personnel at our headquarters in 

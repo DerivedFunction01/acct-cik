@@ -134,9 +134,21 @@ class RISK_TERMS:
 
 
 RELATIONSHIP_QUALITY_TERMS = [
-    "good", "satisfactory", "positive", "strong", "excellent", "favorable",
-    "constructive", "cooperative", "harmonious", "cordial", "mutually beneficial",
-    "productive", "stable", "respectful"
+    "good",
+    "satisfactory",
+    "positive",
+    "strong",
+    "excellent",
+    "favorable",
+    "constructive",
+    "cooperative",
+    "harmonious",
+    "cordial",
+    "mutually beneficial",
+    "beneficial",
+    "productive",
+    "stable",
+    "respectful",
 ]
 
 RELATIONSHIP_NEGATIVE_TERMS = [
@@ -152,6 +164,13 @@ RELATIONSHIP_NEGATIVE_TERMS = [
     "disruptive",
     "uncooperative",
 ]
+RELATIONSHIP_NEUTRAL_TERMS = [
+    r"neutral",
+    r"mutual",    
+    r"normal",
+    r"standard",
+    r"ordinary",
+]
 
 RELATIONSHIP_SUBJECTS = [
     r"relations\b",
@@ -159,22 +178,35 @@ RELATIONSHIP_SUBJECTS = [
     r"communications?\b",
     r"engagement\b",
     r"dialogue\b",
+    r"stances?\b"
 ]
 
 RELATIONSHIP_PHRASES = [
     # "Employee relations", "Labor relations", "Union relations"
-    build_compound(WORKER_TERMS + [CORE.LABOR, CORE.UNION], RELATIONSHIP_SUBJECTS, sep_prefix=GAP),
+    build_compound(
+        WORKER_TERMS + [CORE.LABOR, CORE.UNION], RELATIONSHIP_SUBJECTS, sep_prefix=GAP
+    ),
     # "Relations with employees", "Relationship with the union"
-    build_compound(RELATIONSHIP_SUBJECTS, [r"with"] + WORKER_TERMS + [CORE.LABOR, CORE.UNION], sep_prefix=GAP),
+    build_compound(
+        RELATIONSHIP_SUBJECTS,
+        [r"with"] + WORKER_TERMS + [CORE.LABOR, CORE.UNION],
+        sep_prefix=GAP,
+    ),
     # cordial relationship
-    build_compound(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS, RELATIONSHIP_SUBJECTS, sep_prefix=GAP),
+    build_compound(
+        RELATIONSHIP_QUALITY_TERMS
+        + RELATIONSHIP_NEGATIVE_TERMS
+        + RELATIONSHIP_NEUTRAL_TERMS,
+        RELATIONSHIP_SUBJECTS,
+        sep_prefix=GAP,
+    ),
     # "Working relationship"
     r"working\s+relationships?",
 ]
 
 RELATIONSHIP_REGEX = build_regex(RELATIONSHIP_PHRASES)
 # Match both positive and negative terms; analysis will distinguish them
-RELATIONSHIP_QUALITY_REGEX = build_regex(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS)
+RELATIONSHIP_QUALITY_REGEX = build_regex(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS + RELATIONSHIP_NEUTRAL_TERMS)
 
 BOILERPLATE_TERMS = [
     "monitor", "committed", "constructive", "engagement", "relations"
