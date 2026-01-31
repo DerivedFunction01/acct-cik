@@ -26,26 +26,22 @@
     - [x] Save relevant, cleaned paragraphs to `filtered_union_data.db`.
     - [x] Copy metadata (`report_data`, `names`) to the filtered database.
 
-## ✅ Phase 3.5: Entity Discovery (Explore)
-- [ ] **Entity Discovery Script** (`discover_entities.py`)
-    - [ ] Scan filtered text for consecutive capitalized words.
-    - [ ] Filter out known unions/regions/noise.
-    - [ ] Report potential new unions or countries for manual review.
-
 ## 🚧 Phase 4: Analysis & Extraction (Analyze)
-- [ ] **Region Assignment**
-    - [ ] Create a script to scan filtered paragraphs against `region_regex.py`.
-    - [ ] Assign specific `Nation` and `Region` tags based on matches (e.g., "IG Metall" -> Germany).
-    - [ ] Handle disambiguation (e.g., generic "International" vs. specific country).
-- [ ] **Employee Count Extraction**
-    - [ ] Develop regex logic to extract employee numbers (e.g., "approximately 5,000 employees").
-    - [ ] Distinguish between "total employees" and "unionized employees".
-    - [ ] Calculate unionization rates where available.
+- [ ] **Extraction Logic Implementation** (`union_extractor.py`)
+    - [ ] **Sentence Segmentation**: Split paragraphs into sentences while preserving context for inheritance.
+    - [ ] **Temporal Scope Engine**: Implement rules to classify statements as PAST, CURRENT, or FUTURE (handling "decertified", "will be", etc.).
+    - [ ] **Geographic State Machine**: Implement context inheritance (carrying region forward) and inference (Union Name -> Region).
+    - [ ] **Negation & Calculation**:
+        - [ ] Detect "NOT covered" and flip percentages (e.g., 60% not covered -> 40% covered).
+        - [ ] Calculate percentages from raw employee counts (Covered / Total).
+    - [ ] **Risk Classification (Item 1A)**: Differentiate between generic `LABOR_RISK` and specific `UNION_RISK`.
+- [ ] **JSON Construction**
+    - [ ] Build `item1_details_json` array with full metadata (specificity, ambiguity flags).
+    - [ ] Build `item1a_details_json` array for risk factors.
 
-## ⏳ Phase 5: Reporting (Load)
+## ⏳ Phase 5: Reporting & Validation (Load)
 - [ ] **Data Aggregation**
-    - [ ] Join extracted tags and counts with company metadata (CIK, Year, Name).
-    - [ ] Generate a final structured dataset (CSV/SQL).
+    - [ ] Process all rows in `filtered_union_data.db` and store results (JSON columns or JSONL).
 - [ ] **Validation**
-    - [ ] Manual review of a sample set to verify region assignment accuracy.
-    - [ ] Verify employee count extraction against known ground truths.
+    - [ ] Verify JSON schema compliance against `union.md`.
+    - [ ] Manual audit of "Ambiguous" or "Inferred" flags.

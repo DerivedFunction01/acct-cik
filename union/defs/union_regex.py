@@ -215,7 +215,8 @@ SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
 
 NON_COVERAGE_PHRASES = [
     r"at[- ]will",
-    r"operate\s+outside",
+    r"operate(?:s|d)?\s+outside",
+    r"decertif(?:ied|y|ications?)",
     build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=r"[- ]?"),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
