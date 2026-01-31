@@ -8,6 +8,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation
 from defs.union_regex import (
     UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
+    , SUPPLIER_REGEX
 )
 from defs.region_regex import (
     Region, RegionMatcher, GeoSource)
@@ -40,6 +41,7 @@ class MatchType(Enum):
     NUMBER = "NUMBER"
     RELATIONSHIP_TERM = "RELATIONSHIP_TERM"
     RELATIONSHIP_QUALITY = "RELATIONSHIP_QUALITY"
+    SUPPLIER_TERM = "SUPPLIER_TERM"
 
 @dataclass
 class GeoMatch:
@@ -64,6 +66,7 @@ class SentenceAnalysis:
     negation_terms: List[str] = field(default_factory=list)
     relationship_terms: List[str] = field(default_factory=list)
     relationship_quality_terms: List[str] = field(default_factory=list)
+    supplier_terms: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     
     # Raw matches for debugging or precise location
@@ -247,6 +250,13 @@ class UnionExtractor:
             RELATIONSHIP_QUALITY_REGEX, MatchType.RELATIONSHIP_QUALITY,
             lambda m: m.group(0),
             lambda m, val: analysis.relationship_quality_terms.append(val)
+        )
+
+        # 16. Extract Supplier Terms (Third Party Risk)
+        process_matches(
+            SUPPLIER_REGEX, MatchType.SUPPLIER_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.supplier_terms.append(val)
         )
 
         return analysis

@@ -200,6 +200,18 @@ COVERAGE_TERMS = [
     r"arrangements?",
 ]
 
+SUPPLIER_TERMS = [
+    r"suppliers?",
+    r"vendors?",
+    r"third\s+part(?:y|ies)",
+    r"contractors?",
+    r"sub[- ]?contractors?",
+    r"supply\s+chain",
+    r"outsourc(?:e|ed|ing|es)",
+    r"service\s+providers?",
+]
+SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
+
 NON_COVERAGE_PHRASES = [
     r"at[- ]will",
     r"operate\s+outside",
