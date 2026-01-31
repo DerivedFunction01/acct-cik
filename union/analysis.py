@@ -4,6 +4,10 @@ from dataclasses import asdict
 
 from union.extraction import UnionExtractor, SentenceAnalysis, GeoMatch
 from defs.region_regex import Region, INT_LANGUAGE_MAP
+from defs.output_enums import (
+    Specificity, CoverageType, PercentageQualifier, 
+    NegationType, TemporalScope, RiskType
+)
 
 
 class UnionAnalyzer:
@@ -58,9 +62,9 @@ class UnionAnalyzer:
 
             # Update inheritance state if we found explicit or strong inferred context
             if geo_context["specificity"] in (
-                "explicit",
-                "explicit_and_inferred",
-                "inferred_from_union_name",
+                Specificity.EXPLICIT.value,
+                Specificity.EXPLICIT_INFERRED.value,
+                Specificity.INFERRED_UNION.value,
             ):
                 last_geo_context = geo_context
                 last_geo_sentence_idx = idx
@@ -75,7 +79,7 @@ class UnionAnalyzer:
                 should_include = True
             elif (
                 coverage_data
-                and geo_context["specificity"] == "inherited_from_previous"
+                and geo_context["specificity"] == Specificity.INHERITED.value
             ):
                 should_include = True
 
@@ -157,7 +161,7 @@ class UnionAnalyzer:
                 "region": region_val,
                 "countries": countries,
                 "specificity": (
-                    "explicit" if not union_matches else "explicit_and_inferred"
+                    Specificity.EXPLICIT.value if not union_matches else Specificity.EXPLICIT_INFERRED.value
                 ),
                 "explicit_countries": (
                     [c["name"] for c in countries] if union_matches else None
@@ -179,7 +183,7 @@ class UnionAnalyzer:
                 return {
                     "region": m.region.value,
                     "countries": [{"name": m.country, "code": m.geo_code}],
-                    "specificity": "inferred_from_union_name",
+                    "specificity": Specificity.INFERRED_UNION.value,
                     "union_name_indicator": m.text,
                 }
 
@@ -190,7 +194,7 @@ class UnionAnalyzer:
                 return {
                     "region": "International",  # Broad region
                     "countries": [],  # No specific country known
-                    "specificity": "inferred_from_language",
+                    "specificity": Specificity.INFERRED_LANG.value,
                     "union_name_indicator": m.text,
                     "note": f"Inferred from language term '{m.text}' ({m.geo_code})",
                 }
@@ -199,7 +203,7 @@ class UnionAnalyzer:
         if last_context:
             # Create a copy of the last context but mark as inherited
             ctx = last_context.copy()
-            ctx["specificity"] = "inherited_from_previous"
+            ctx["specificity"] = Specificity.INHERITED.value
             ctx["inherited_from_sentence_index"] = last_idx
             # Remove fields specific to the source sentence
             ctx.pop("union_names_mentioned", None)
@@ -207,7 +211,7 @@ class UnionAnalyzer:
             return ctx
 
         # 4. Fallback
-        return {"region": "UNKNOWN", "countries": [], "specificity": "implicit"}
+        return {"region": "UNKNOWN", "countries": [], "specificity": Specificity.IMPLICIT.value}
 
     def _determine_coverage_data(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         """
@@ -217,14 +221,14 @@ class UnionAnalyzer:
             "percentage": None,
             "percentage_raw_stated": None,
             "calculated_percentage": None,
-            "type": "QUALITATIVE",
+            "type": CoverageType.QUALITATIVE.value,
             "percentage_qualifier": None,
             "employee_count_covered": None,
             "employee_count_not_covered": None,
             "employee_count_total": None,
             "negated": False,
             "negation_type": None,
-            "temporal_scope": "CURRENT",  # Default
+            "temporal_scope": TemporalScope.CURRENT.value,  # Default
             "effective_date": None,
             "expected_date": None,
             "ambiguity": None,
@@ -242,23 +246,23 @@ class UnionAnalyzer:
             # Determine type
             term = analysis.negation_terms[0].lower()
             if "no " in term or "none" in term:
-                negation_type = "ZERO_COVERAGE"
+                negation_type = NegationType.ZERO_COVERAGE.value
             elif "non-union" in term or "non union" in term:
-                negation_type = "NOT_COVERED"  # Usually implies 100% not covered if applied to whole
+                negation_type = NegationType.NOT_COVERED.value  # Usually implies 100% not covered if applied to whole
             else:
-                negation_type = "NOT_COVERED"
+                negation_type = NegationType.NOT_COVERED.value
 
         # Extract Percentage
         if analysis.percentages:
             raw_pct = analysis.percentages[0]
-            data["type"] = "EXPLICIT_PERCENT"
+            data["type"] = CoverageType.EXPLICIT_PERCENT.value
 
-            if is_negated and negation_type == "NOT_COVERED":
+            if is_negated and negation_type == NegationType.NOT_COVERED.value:
                 # "12% are NOT covered" -> 88% covered
                 data["percentage"] = 100.0 - raw_pct
                 data["percentage_raw_stated"] = raw_pct
                 data["negated"] = True
-                data["negation_type"] = "NOT_COVERED"
+                data["negation_type"] = NegationType.NOT_COVERED.value
                 data["note"] = f"Inverted from {raw_pct}% not covered"
             else:
                 data["percentage"] = raw_pct
@@ -268,21 +272,21 @@ class UnionAnalyzer:
                     data["negation_type"] = negation_type
 
         # Handle "No employees" / "None" -> 0%
-        elif is_negated and negation_type == "ZERO_COVERAGE":
+        elif is_negated and negation_type == NegationType.ZERO_COVERAGE.value:
             data["percentage"] = 0.0
-            data["type"] = "EXPLICIT_PERCENT"  # Treated as explicit 0
+            data["type"] = CoverageType.EXPLICIT_PERCENT.value  # Treated as explicit 0
             data["negated"] = True
-            data["negation_type"] = "ZERO_COVERAGE"
+            data["negation_type"] = NegationType.ZERO_COVERAGE.value
             data["employee_count_covered"] = 0
 
         # Handle "Non-union" -> 0% (if no other numbers)
-        elif is_negated and negation_type == "NOT_COVERED" and not analysis.percentages:
+        elif is_negated and negation_type == NegationType.NOT_COVERED.value and not analysis.percentages:
             # "We are non-union" -> 0%
             data["percentage"] = 0.0
-            data["type"] = "QUALITATIVE"
+            data["type"] = CoverageType.QUALITATIVE.value
             data["negated"] = True
-            data["negation_type"] = "QUALITATIVE_ZERO"
-            data["percentage_qualifier"] = "NONE"
+            data["negation_type"] = NegationType.QUALITATIVE_ZERO.value
+            data["percentage_qualifier"] = PercentageQualifier.NONE.value
 
         # Handle Numbers (Basic mapping for now)
         if analysis.numbers:
@@ -304,13 +308,13 @@ class UnionAnalyzer:
                 is_conditional = bool(re.search(r"\b(?:if|could|may|might|potential|possible|can)\b", sent, re.IGNORECASE))
 
                 item = {
-                    "type": "UNION_RISK" if analysis.union_terms else "LABOR_RISK",
+                    "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
                     "sentence": sent,
                     "labor_keywords": analysis.union_terms,
                     "risk_keywords": analysis.risk_terms,
                     "specific_to_unions": bool(analysis.union_terms),
                     "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
-                    "temporal_scope": "CONDITIONAL" if is_conditional else "CURRENT",
+                    "temporal_scope": TemporalScope.CONDITIONAL.value if is_conditional else TemporalScope.CURRENT.value,
                     "conditional": is_conditional,
                     "note": None
                 }
