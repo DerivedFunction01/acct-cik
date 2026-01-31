@@ -10,6 +10,8 @@ class Region(Enum):
     MIDDLE_EAST_AFRICA = "Middle East & Africa"
     ASIA_PACIFIC = "Asia Pacific"
     INTERNATIONAL = "International"
+    UNKNOWN = "Unknown"
+
 
 class GeoSource(Enum):
     EXPLICIT = "EXPLICIT"

@@ -210,7 +210,7 @@ class UnionAnalyzer:
             return ctx
 
         # 4. Fallback
-        return {"region": "UNKNOWN", "countries": [], "specificity": Specificity.IMPLICIT.value}
+        return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
     def _determine_coverage_data(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         """
