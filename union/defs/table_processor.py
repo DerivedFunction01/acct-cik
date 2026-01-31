@@ -894,6 +894,58 @@ class SimpleTableProcessor:
             "column_types": self.col_map if not self.invalid_table else {},
         }
 
+    def to_string(self) -> str:
+        """
+        Reconstructs the table string from the processed data.
+        Uses GenericTable to format it with SEC tags (<S>, <C>) so it can be re-parsed.
+        """
+        if self.invalid_table or not self.data:
+            return ""
+
+        from defs.table_definitions import GenericTable
+
+        # 1. Prepare Headers
+        # col_headers is Dict[int, str], we need List[str]
+        if not self.col_headers:
+             num_cols = len(self.data[0]) if self.data else 0
+             headers = [""] * num_cols
+        else:
+            num_cols = len(self.col_headers)
+            headers = [self.col_headers.get(i, "") for i in range(num_cols)]
+
+        # 2. Prepare Data
+        data_rows = self.data
+        
+        # Safety check: ensure data rows have same length as headers
+        if data_rows:
+            max_data_cols = max(len(r) for r in data_rows)
+            if max_data_cols > num_cols:
+                headers.extend([""] * (max_data_cols - num_cols))
+                num_cols = max_data_cols
+
+        # 3. Calculate Widths
+        widths = [0] * num_cols
+        for i, h in enumerate(headers):
+            widths[i] = max(widths[i], len(h))
+        
+        for row in data_rows:
+            for i, cell in enumerate(row):
+                if i < num_cols:
+                    widths[i] = max(widths[i], len(cell))
+        
+        widths = [max(w, 1) for w in widths]
+
+        # 4. Determine Alignments
+        alignments = []
+        for i in range(num_cols):
+            ctype = self.col_map.get(i, "text")
+            alignments.append("l" if ctype == "text" else "r")
+
+        # 5. Build
+        return GenericTable(
+            headers=headers, data_rows=data_rows, widths=widths, 
+            alignments=alignments, title=self.caption or ""
+        ).build()
 
 def process_table(table_text: str) -> Dict:
     """
@@ -913,4 +965,5 @@ def process_table(table_text: str) -> Dict:
         "years": processor.get_years(),
         "row_years": processor.get_row_years(),
         "info": processor.get_info(),
+        "fixed_table": processor.to_string(),
     }
