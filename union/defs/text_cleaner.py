@@ -135,8 +135,8 @@ class MinimalTextCleaner:
     fix_the_capitalization_pattern = re.compile(r"(^|[.!?]\s+)the\b")
 
     # Pronouns to Company Token
-    # Note: 'us' is strictly lowercase to avoid matching 'US' (United States)
-    pronoun_pattern = re.compile(r"\bus\b")
+    # Note: 'us' is strictly not allcaps to avoid matching 'US' (United States)
+    pronoun_pattern = re.compile(r"\b[Uu]s\b")
 
     percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
