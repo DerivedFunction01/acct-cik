@@ -1875,21 +1875,28 @@ def process_producer_consumer_adaptive():
 
     # 5. Populate Queue
     processed_set = get_processed_accessions()
-    total_files_in_manifest = len(existing_report_df)
+    
+    # Filter to only valid URLs (ignore placeholders) to ensure accurate stats
+    valid_reports_df = existing_report_df[
+        (existing_report_df["url"].notna()) & 
+        (existing_report_df["url"] != "")
+    ]
+    
+    total_files_in_manifest = len(valid_reports_df)
     already_in_warehouse = len(processed_set)
 
     print("=" * 60)
     print(f"   • Total Files in Manifest:    {total_files_in_manifest:,}")
     print(f"   • Already Processed:          {already_in_warehouse:,}")
     print(
-        f"   • Net Requirements (ToDo):    {total_files_in_manifest - already_in_warehouse:,}"
+        f"   • Net Requirements (ToDo):    {max(0, total_files_in_manifest - already_in_warehouse):,}"
     )
     print("=" * 60)
 
     # Build list (not queue) of unprocessed URLs
     unprocessed_urls = []
-    for r in existing_report_df.itertuples(index=False):
-        if r.url and r.accession and r.accession not in processed_set:
+    for r in valid_reports_df.itertuples(index=False):
+        if r.accession and r.accession not in processed_set:
             unprocessed_urls.append((r.url, r.accession))
 
     total_to_process = len(unprocessed_urls)
