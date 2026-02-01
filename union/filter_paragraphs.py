@@ -139,7 +139,8 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
                     processed = process_table(part.strip())
                     sentences = generate_primitive_sentences(processed)
                     if sentences:
-                        raw_blocks.extend(sentences)
+                        paragraph = " ".join(sentences)
+                        raw_blocks.append(paragraph)
                     else:
                         raw_blocks.append(part.strip())
                 except Exception:
