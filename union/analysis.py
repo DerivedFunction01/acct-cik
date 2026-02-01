@@ -36,7 +36,7 @@ HISTORICAL_REGEX = build_regex([
     r"historical(?:ly)?",
     r"previously",
     r"prior\s+to",
-    r"(?:last|prior|past|previous)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
+    r"(?:last|prior|past|previous|preceding)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
 ])
 
 FUTURE_REGEX = build_regex([
