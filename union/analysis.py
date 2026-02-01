@@ -552,7 +552,7 @@ class UnionAnalyzer:
         last_geo_sentence_idx = -1
         last_employee_count = None
         
-        # Totals found strictly within this block
+        # Totals found strictly within this block (prevent double counting)
         local_totals = {}
         
         # Effective totals for lookup (Previous Paragraph + Local So Far)
