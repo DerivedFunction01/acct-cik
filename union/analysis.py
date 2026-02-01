@@ -152,6 +152,29 @@ class QualitativeTerm:
 QUALITATIVE_TERMS = [
     # ===== 100% TIER =====
     QualitativeTerm(
+        core_terms=["all"],
+        suffix_terms=["of"],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+    
+    QualitativeTerm(
+        core_terms=["are", "is", "were", "was"],
+        prefix_terms=["all"],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+
+    QualitativeTerm(
+        core_terms=["all"],
+        prefix_terms=["are", "is", "were", "was"],  # "are all", "were all"
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+    QualitativeTerm(
         core_terms=["complete", "entire", "full", "whole"],
         suffix_terms=["portion", "number", "amount", "share"],
         positive_pct=100.0,
@@ -163,13 +186,6 @@ QUALITATIVE_TERMS = [
         positive_pct=95.0,
         negated_pct=None,  # Could be 94% or 10%
         requires_suffix=False,
-    ),
-    QualitativeTerm(
-        core_terms=["all"],
-        suffix_terms=["of", "are", "were"],
-        positive_pct=100.0,
-        negated_pct=None,  # Could be 99% or 1%
-        requires_suffix=True,
     ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
