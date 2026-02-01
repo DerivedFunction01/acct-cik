@@ -1136,6 +1136,51 @@ class UnionAnalyzer:
                             f"Calculated: ({total} total - {val} not covered) / {total}"
                         )
 
+        # Fallback: If we have numbers but no covered count, look for numbers near coverage terms
+        if data["employee_count_covered"] is None and analysis.numbers:
+             coverage_types = (MatchType.COVERAGE_TERM, MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+             coverage_matches = [m for m in analysis._matches if m['type'] in coverage_types]
+             
+             if coverage_matches:
+                 number_matches = [m for m in analysis._matches if m['type'] in (MatchType.NUMBER, MatchType.WORKER_COUNT)]
+                 best_num = None
+                 min_dist = float('inf')
+                 
+                 for nm in number_matches:
+                     n_val = nm['val']
+                     # Skip if this number is already used as total or not_covered
+                     if n_val == data.get("employee_count_total") or n_val == data.get("employee_count_not_covered"):
+                         continue
+                     
+                     n_start, n_end = nm['span'] # Access dict key
+                     for cm in coverage_matches:
+                         c_start, c_end = cm['span'] # Access dict key
+                         # Calculate distance
+                         dist = 0
+                         if n_end < c_start: dist = c_start - n_end
+                         elif c_end < n_start: dist = n_start - c_end
+                         
+                         if dist < 50: # Proximity threshold
+                             if dist < min_dist:
+                                 min_dist = dist
+                                 best_num = n_val
+                 
+                 if best_num is not None:
+                     data["employee_count_covered"] = best_num
+                     data["note"] = (data["note"] or "") + f" | Inferred covered count {best_num} from proximity to coverage term"
+
+        # Calculate percentage if we have covered count and a valid total
+        calc_total = data["employee_count_total"] or inherited_total_count
+        if data["percentage"] is None and data["employee_count_covered"] is not None and calc_total:
+             if calc_total >= data["employee_count_covered"] and calc_total > 0:
+                 pct = (data["employee_count_covered"] / calc_total) * 100
+                 data["percentage"] = round(pct, 2)
+                 data["calculated_percentage"] = round(pct, 2)
+                 data["type"] = CoverageType.CALCULATED.value
+                 if not data["employee_count_total"]:
+                     data["employee_count_total"] = calc_total
+                 data["note"] = (data["note"] or "") + f" | Calculated % from {data['employee_count_covered']}/{calc_total}"
+
         # Qualitative Quants (Soft Percent)
         # Used if explicit or calculated percentage is missing
         if data["percentage"] is None:
@@ -1241,7 +1286,7 @@ class UnionAnalyzer:
         all_values = counts + [n for n in numbers if n['span'] not in count_spans]
 
         # Indicators
-        positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)]
+        positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME, MatchType.COVERAGE_TERM)]
         negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION, MatchType.NON_COVERAGE)]
         totals = [m for m in analysis._matches if m['type'] in (MatchType.WORKER_TERM,)]
         
@@ -1573,15 +1618,43 @@ class UnionAnalyzer:
         if calc_adjusted is not None and calc_adjusted != calc_weighted:
             candidates.append(calc_adjusted)
 
-        majority_pct = None
-        for c in candidates:
-            if c is not None and candidates.count(c) > 1:
-                majority_pct = c
+        # Candidate Selection Logic for International and Domestic
+        candidate_log = {
+            "international_added": False,
+            "domestic_added": False,
+            "domestic_msg": "Not found"
+        }
+
+        international_pct = region_percentages.get("International")
+        if international_pct is not None:
+            candidates.append(international_pct)
+            candidate_log["international_added"] = True
+
+        domestic_keys = ["United States", "US", "USA", "Domestic", "North America", "US and Canada"]
+        domestic_pct = None
+        for k in domestic_keys:
+            if k in region_percentages:
+                domestic_pct = region_percentages[k]
+                if len(region_percentages) == 1:
+                    candidates.append(domestic_pct)
+                    candidate_log["domestic_added"] = True
+                    candidate_log["domestic_msg"] = f"Added {k} (Sole Region)"
+                else:
+                    candidate_log["domestic_msg"] = f"Skipped {k} (Multiple Regions)"
                 break
+
+        majority_pct = None
+        clean_candidates = [c for c in candidates if c is not None]
+        if clean_candidates:
+            # Use mode (most frequent) to determine consensus, breaking ties by priority order
+            mode_candidate = max(clean_candidates, key=clean_candidates.count)
+            if clean_candidates.count(mode_candidate) > 1:
+                majority_pct = mode_candidate
         
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
             "region_percentages": region_percentages,
+            "global_percentage": international_pct,
             "first_coverage_percentage": first_pct,
             "last_coverage_percentage": last_pct,
             "closest_to_weighted_percentage": closest_pct,
@@ -1589,5 +1662,6 @@ class UnionAnalyzer:
             "total_employees_analyzed": round(total_employees, 2),
             "calculation_log": calculation_log,
             "debug_candidates": candidates,
-            "outlier_stats": outlier_debug
+            "outlier_stats": outlier_debug,
+            "candidate_selection_log": candidate_log
         }

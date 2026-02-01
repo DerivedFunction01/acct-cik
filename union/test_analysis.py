@@ -26,13 +26,17 @@ long-standing preference for direct employee engagement.
 
 In our United States operations, we operate 18 automobile assembly plants 
 which employ 14,200 hourly production workers, of which approximately 
-82% (11,644 employees) are represented by labor unions under multiple 
+11,644 employees are represented by labor unions under multiple 
 agreements with the United Auto Workers (UAW). Our primary UAW-covered 
 facility in Michigan employs 3,800 workers, whom are all unionized.
 
-Additionally, our East Coast distribution centers employ 920 workers, all 
-of whom are represented by the International Brotherhood of Teamsters 
-(100% coverage).
+Additionally, our East Coast distribution centers originally operated under 
+union representation from 1985 through 2002,  when we successfully decertified 
+the International Brotherhood of Teamsters agreement. However, following 
+workforce expansion and operational changes, the workforce 
+at these facilities was re-unionized in 2019. As of the end of 2023, these 
+920 workers remain fully represented by the International Brotherhood 
+of Teamsters under a new collective bargaining agreement.
 
 Our non-union domestic workforce totals 89,400 employees and consists 
 primarily of software engineers, data scientists, corporate staff, sales, 

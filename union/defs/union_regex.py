@@ -294,6 +294,7 @@ COVERAGE_TERMS = [
     r"contracts?",
     r"arrangements?",
 ]
+COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 
 SUPPLIER_TERMS = [
     r"suppliers?",

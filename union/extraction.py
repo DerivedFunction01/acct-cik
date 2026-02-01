@@ -8,7 +8,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_rege
 from defs.union_regex import (
     UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
-    , SUPPLIER_REGEX
+    , SUPPLIER_REGEX, COVERAGE_REGEX
 )
 from defs.region_regex import (
     Region, RegionMatcher, GeoSource)
@@ -47,6 +47,7 @@ class MatchType(Enum):
     RELATIONSHIP_TERM = "RELATIONSHIP_TERM"
     RELATIONSHIP_QUALITY = "RELATIONSHIP_QUALITY"
     SUPPLIER_TERM = "SUPPLIER_TERM"
+    COVERAGE_TERM = "COVERAGE_TERM"
 
 @dataclass
 class GeoMatch:
@@ -72,6 +73,7 @@ class SentenceAnalysis:
     relationship_terms: List[str] = field(default_factory=list)
     relationship_quality_terms: List[str] = field(default_factory=list)
     supplier_terms: List[str] = field(default_factory=list)
+    coverage_terms: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     
     # Raw matches for debugging or precise location
@@ -262,6 +264,13 @@ class UnionExtractor:
             SUPPLIER_REGEX, MatchType.SUPPLIER_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.supplier_terms.append(val)
+        )
+        
+        # 17. Extract Coverage Terms (e.g. "represented", "covered")
+        process_matches(
+            COVERAGE_REGEX, MatchType.COVERAGE_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.coverage_terms.append(val)
         )
 
         return analysis
