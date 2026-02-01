@@ -46,6 +46,8 @@ FUTURE_REGEX = build_regex([
 
 NEGATION_REGEX = build_regex([
     r"no",
+    r"not",
+    r"nor",
     r"without",
     r"neither",
     r"none",
@@ -834,7 +836,7 @@ class UnionAnalyzer:
                 data["negation_type"] = NegationType.NOT_COVERED.value
 
                 # Try to calculate percentage if we have a total
-                total = inherited_total_count
+                total = data["employee_count_total"]
                 if analysis.worker_counts:
                     total = max(analysis.worker_counts)
 
@@ -887,7 +889,7 @@ class UnionAnalyzer:
                      data["note"] = (data["note"] or "") + f" | Inferred covered count {best_num} from proximity to coverage term"
 
         # Calculate percentage if we have covered count and a valid total
-        calc_total = data["employee_count_total"] or inherited_total_count
+        calc_total = data["employee_count_total"]
         if data["percentage"] is None and data["employee_count_covered"] is not None and calc_total:
              if calc_total >= data["employee_count_covered"] and calc_total > 0:
                  pct = (data["employee_count_covered"] / calc_total) * 100
@@ -1166,41 +1168,31 @@ class UnionAnalyzer:
 
             pct = data.get("percentage")
             covered_count = data.get("employee_count_covered")
-
-            # Handle implicit 0% (e.g. "0 employees covered") even if pct is None
-            if pct is None:
-                if covered_count == 0:
-                    pct = 0.0
-                else:
-                    log_entry["reason"] = "No percentage or zero-covered count found"
-                    continue
-            
-            log_entry["percentage"] = pct
-            valid_percentages.append(pct)
+            not_covered = data.get("employee_count_not_covered")
 
             # Determine weight (Total Employees)
             weight = data.get("employee_count_total")
             weight_source = "Explicit in item"
-            
+
             # Get context-aware totals if available
             item_totals = item.get("lookup_totals", region_totals)
 
             # If total is missing, try to derive it from covered/not_covered
             if not weight:
-                not_covered = data.get("employee_count_not_covered")
-
                 if covered_count is not None and not_covered is not None:
                     weight = covered_count + not_covered
                     weight_source = "Derived (Covered + Not Covered)"
-                elif covered_count is not None and pct > 0:
+                elif covered_count is not None and pct is not None and pct > 0:
                     weight = covered_count / (pct / 100.0)
                     weight_source = "Derived (Covered / Pct)"
-                elif not_covered is not None and pct < 100:
+                elif not_covered is not None and pct is not None and pct < 100:
                     weight = not_covered / (1.0 - (pct / 100.0))
                     weight_source = "Derived (Not Covered / Inverse Pct)"
 
                 # If still no weight, try to look it up from extracted raw numbers
-                if not weight:
+                # Only use lookup if we have a percentage (e.g. "18% of workforce")
+                # If we only have a count (e.g. "920 workers"), do NOT use lookup to avoid false denominator
+                if not weight and pct is not None:
                     geo = item.get("geographic_context", {})
                     region = geo.get("region")
                     
@@ -1227,6 +1219,32 @@ class UnionAnalyzer:
             if not weight and item.get("last_seen_count"):
                 weight = item.get("last_seen_count")
                 weight_source = "Fallback: Last Seen Count"
+
+            # Resolve Percentage if missing (using the weight we just found, or bucket logic)
+            if pct is None:
+                if covered_count is not None:
+                    if covered_count == 0:
+                        pct = 0.0
+                    elif weight and weight > 0:
+                        pct = (covered_count / weight) * 100.0
+                        if pct > 100.0: pct = 100.0
+                    else:
+                        # Bucket Logic: Treat as 100% of X
+                        pct = 100.0
+                        weight = covered_count
+                        weight_source = "Implied 100% from Count"
+                elif not_covered is not None:
+                     # Bucket Logic: Treat as 0% of Y
+                     pct = 0.0
+                     weight = not_covered
+                     weight_source = "Implied 0% from Count"
+
+            if pct is None:
+                log_entry["reason"] = "No percentage or zero-covered count found"
+                continue
+
+            log_entry["percentage"] = pct
+            valid_percentages.append(pct)
 
             if weight and weight > 0:
                 # Add to grouping bucket instead of direct sum

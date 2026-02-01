@@ -129,12 +129,6 @@ class QualitativeTerm:
 
 
 QUALITATIVE_TERMS = [
-    QualitativeTerm(
-        core_terms=["fully", "completely", "entirely"],
-        positive_pct=100.0,
-        negated_pct=None,
-        requires_suffix=False,
-    ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
         core_terms=["majority", "bulk"],
