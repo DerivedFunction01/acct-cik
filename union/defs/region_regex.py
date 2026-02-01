@@ -300,7 +300,7 @@ EUROPE = {
         Location("Birmingham", ["birmingham"]),
         Location("Manchester", ["manchester"]),
     ], [
-        "Unite the Union", "Unite",
+        "Unite the Union",
         "UNISON",
         "GMB",
         "RMT", "National Union of Rail, Maritime and Transport Workers",

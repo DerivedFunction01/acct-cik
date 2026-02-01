@@ -471,7 +471,7 @@ class UnionAnalyzer:
 
             # 2. Calculate Global Max (scan all text)
             all_sentences_flat = self.extractor.split_sentences(text)
-            global_max = self._get_global_max(all_sentences_flat)
+            global_max = self._get_global_max(all_sentences_flat, reporting_year)
 
             # 3. Process Paragraphs
             results = []
@@ -498,11 +498,23 @@ class UnionAnalyzer:
 
         return {"items": results, "summary": summary}
 
-    def _get_global_max(self, sentences: List[str]) -> float:
+    def _get_global_max(self, sentences: List[str], reporting_year: Optional[int] = None) -> float:
         global_max_workers = 0.0
         for s in sentences:
             ans = self.extractor.analyze_sentence(s)
-            if ans.worker_counts:
+
+            # Check for historical context
+            is_historical = False
+            years_indicate_past = False
+            if reporting_year and ans.years:
+                if all(y < reporting_year for y in ans.years):
+                    years_indicate_past = True
+
+            if years_indicate_past or HISTORICAL_REGEX.search(s):
+                if not CURRENT_REGEX.search(s):
+                    is_historical = True
+
+            if ans.worker_counts and not is_historical:
                 global_max_workers = max(global_max_workers, max(ans.worker_counts))
         return global_max_workers
 
@@ -555,7 +567,7 @@ class UnionAnalyzer:
             has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
 
             # Update sequential context (Employee Counts) even if sentence is skipped
-            if analysis.worker_counts:
+            if analysis.worker_counts and not is_historical:
                 last_employee_count = max(analysis.worker_counts) # Assume largest is total
 
             # Relevance Check:
