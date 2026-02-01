@@ -140,7 +140,9 @@ class UnionAnalyzer:
             temporal_scope = TemporalScope.FUTURE.value
         elif is_conditional:
             temporal_scope = TemporalScope.CONDITIONAL.value
-
+        # Return something if there is something to return
+        if not analysis.union_terms:
+            return {}
         return {
             "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
             "sentence": sentence,
@@ -148,7 +150,7 @@ class UnionAnalyzer:
             "risk_keywords": analysis.risk_terms,
             "third_party": analysis.supplier_terms,
             "specific_to_unions": bool(analysis.union_terms),
-            "union_mention": analysis.union_terms[0] if analysis.union_terms else None,
+            "union_mention": analysis.union_terms,
             "temporal_scope": temporal_scope,
             "conditional": is_conditional,
             "note": None
@@ -182,7 +184,6 @@ class UnionAnalyzer:
 
         if item_type == "item1a":
             results = self._analyze_item1a(sentences, reporting_year)
-            summary = self.compute_weighted_coverage(results)
         else:
             # 1. Split into paragraphs to handle local context
             paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
@@ -412,7 +413,9 @@ class UnionAnalyzer:
                 and not coverage_data["negated"]
             ):
                 # It is a risk statement embedded in Item 1 (common in older filings)
-                results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
+                result = self._create_risk_item(sent, analysis, is_historical=is_historical)
+                if result:
+                    results.append(result)
                 should_include = False
 
             # Exclude "monitoring" statements with no data (Statement Only)
@@ -429,7 +432,7 @@ class UnionAnalyzer:
                 item = {
                     "sentence": sent,
                     "keyword_matched": (
-                        analysis.union_terms[0] if analysis.union_terms else None
+                        analysis.union_terms if analysis.union_terms else None
                     ),
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
@@ -1138,8 +1141,15 @@ class UnionAnalyzer:
                         is_historical = True
 
             # Item 1A logic: Look for risk terms
-            if analysis.risk_terms:
-                results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
+            if (analysis.risk_terms or 
+                analysis.union_terms or 
+                analysis.supplier_terms or
+                analysis.relationship_quality_terms or
+                analysis.relationship_terms
+            ):
+                result = self._create_risk_item(sent, analysis, is_historical=is_historical)
+                if result:
+                    results.append(result)
         return results
 
     def _group_nearby_percentages(self, candidates: List[float], tolerance: float = 1.0) -> Dict[float, List[float]]:

@@ -14,7 +14,7 @@ from analysis import UnionAnalyzer
 from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner
 
 
-TEST_PARAGRAPH = """
+ITEM_1 = """
 ITEM 1. BUSINESS
 
 TechAdvance Manufacturing Corp and its subsidiaries operate a global manufacturing, logistics, and 
@@ -65,7 +65,8 @@ Summary. Worldwide, as of December 31, 2023, our unionized workforce totaled app
 18,800 employees, representing approximately 19% of our total global workforce. This represented a 
 modest decline from prior year due to operational changes and divestitures.
 """
-"""
+
+ITEM_1A = """
 
 ITEM 1A. RISK FACTORS
 
@@ -174,7 +175,7 @@ if __name__ == "__main__":
     print()
 
     # Clean the text
-    cleaned_text = cleaner.clean(TEST_PARAGRAPH)
+    cleaned_text = cleaner.clean(ITEM_1)
     cleaned_text = currency_remover.clean(cleaned_text)
     cleaned_text = contextual_cleaner.clean(cleaned_text)
     print("="* 80)
@@ -223,5 +224,24 @@ if __name__ == "__main__":
     print(f"Sentences with employee counts: {total_with_counts}")
     print(f"Negated coverage statements: {negated_items}")
     print(f"Inherited geographic context: {inherited_geo}")
+
+    # Item 1A
+    cleaned_text = cleaner.clean(ITEM_1A)
+    cleaned_text = currency_remover.clean(cleaned_text)
+    cleaned_text = contextual_cleaner.clean(cleaned_text)
+
+    print("="* 80)
+    print("Cleaned Text (Item 1A):\n")
+    print(cleaned_text)
+    print("\n" + "=" * 80)
+
+    analysis_output_1a = analyzer.analyze_paragraph(
+        cleaned_text, item_type="item1a", reporting_year=reporting_year
+    )
+
+    results_1a = analysis_output_1a.get("items", [])
+
+    print(f"Total Risk Factors Extracted: {len(results_1a)}\n")
+    print(json.dumps(results_1a, indent=2))
 
 # %%
