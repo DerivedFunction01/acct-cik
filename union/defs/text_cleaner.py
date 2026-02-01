@@ -136,20 +136,30 @@ class MinimalTextCleaner:
         r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
     )
 
-    # Qualitative terms to numeric conversion map
+    # Qualitative financial terms to numeric conversion map
+    _hundred = [
+        r"all(?=\s+(?:of|are|is|were|material)\b)",
+        r"entirety", # the entirety, entirety of
+        # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun
+        r"(?:complete|entire|full) portions?"
+    ]
+    _hundred_alternation = build_alternation(_hundred)
+
     # Format: (Regex Pattern, Replacement String)
     qualitative_patterns = [
-        # "none of" -> "0% of"
-        (build_regex([r"none\s+(?:of|are|is|were)"]), "0% of"),
-        
-        # "all of" -> "100% of"
-        (build_regex([r"all\s+(?:of|are|is|were|material)"]), "100% of"),
-        
-        # "entirety/fully/completely" -> "100%"
-        (build_regex(["entirety", "fully", "completely"]), "100%"),
-        
-        # "de minimis/immaterial/..." -> "0%"
-        (build_regex(["de minimis", "immaterial", "not material", "insignificant"]), "0%"),
+        # "none of" -> "0%"
+        (
+            build_regex(
+                [
+                    r"none(?=\s+(?:of|are|is|were)\b)",
+                    "de minimis",
+                    r"(?<=\b(?:are|were|is)\s)none",
+                ]
+            ),
+            "0%",
+        ),
+        # "all of/entirety" -> "100%"
+        (build_regex([_hundred_alternation]), "100%"),
     ]
 
     # Handle "no [worker]" -> "0 [worker]"
@@ -193,7 +203,7 @@ class MinimalTextCleaner:
         rf"\b({_num_words_str})-({_fraction_words}s?)\b", re.IGNORECASE
     )
     fraction_qualifiers = {
-        "approx", "approx.", "approximately", "roughly", "nearly", "about", "around",
+        "approx", "approx.", "approximately", "roughly", "nearly", "about", "around", "almost"
     }
 
     # False Fraction Protection
