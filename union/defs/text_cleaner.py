@@ -139,7 +139,6 @@ class MinimalTextCleaner:
     # Qualitative financial terms to numeric conversion map
     _hundred = [
         r"all(?=\s+(?:of|are|is|were|material)\b)",
-        r"entirety", # the entirety, entirety of
         # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun
         r"(?:complete|entire|full|whole) portions?"
     ]
@@ -152,13 +151,12 @@ class MinimalTextCleaner:
             build_regex(
                 [
                     r"none(?=\s+(?:of|are|is|were)\b)",
-                    "de minimis",
                     r"(?<=\b(?:are|were|is)\s)none",
                 ]
             ),
             "0%",
         ),
-        # "all of/entirety" -> "100%"
+        # "all of" -> "100%"
         (build_regex([_hundred_alternation]), "100%"),
     ]
 

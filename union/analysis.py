@@ -66,8 +66,56 @@ RANGE_REGEX = build_regex([
     r"and"
 ])
 
+QUALITATIVE_MULTIPLIERS = [
+    # ~95% — almost / nearly / virtually
+    (
+        build_regex(
+            [
+                r"almost",
+                r"nearly",
+                r"virtually",
+            ]
+        ),
+        0.95,
+    ),
+    # ~90% — slightly under / just under / below / less than 
+    (
+        build_regex(
+            [
+                r"(?:slightly|just)\s+(?:under|below)",
+                r"less\s+than",
+            ]
+        ),
+        0.90,
+    ),
+    # ~80% — materially less than
+    (
+        build_regex(
+            [
+                r"materially\s+less\s+than",
+            ]
+        ),
+        0.80,
+    ),
+    # ~110% — slightly over / just over / above / more than
+    (
+        build_regex(
+            [
+                r"(?:slightly|just)\s+(?:over|above)",
+                r"more\s+than",
+            ]
+        ),
+        1.10,
+    ),
+]
+
+
 QUALITATIVE_QUANT_PATTERNS = [
-    # All of -> 100% (replaced by text cleaner, so virtually/almost all of -> virtually 100%, etc)
+    # 95%+
+    (
+        build_regex([r"entirety"]), 
+        95.0
+    ),
     # 75% — vast / substantial / overwhelming majority
     (
         build_regex(
@@ -77,7 +125,7 @@ QUALITATIVE_QUANT_PATTERNS = [
     ),
     # 65% — predominant portion/share
     (
-        build_regex([build_compound([r"predominant"], [r"portion", r"share", r"number"])]),
+        build_regex([build_compound([r"predominant"], [r"portion", r"share", r"number"]), r"considerable\s+majority"]),
         65.0,
     ),
     # 60% — bulk of
@@ -85,7 +133,7 @@ QUALITATIVE_QUANT_PATTERNS = [
         build_regex([r"bulk(?=\s+of)"]),
         60.0,
     ),
-    # 51% — majority / most of
+    # 51% — majority / most of 
     (
         build_regex([r"majority", r"most(?=\s+of)"]),
         51.0,
@@ -100,12 +148,12 @@ QUALITATIVE_QUANT_PATTERNS = [
         build_regex([build_compound([r"considerable"], [r"portion", r"number"])]),
         30.0,
     ),
-    # 25% — significant / substantial / large portion/number
+    # 25% — significant / substantial / large portion/number / meaningful
     (
         build_regex(
             [
                 build_compound(
-                    [r"significant", r"substantial", r"large"], [r"portion", r"number"]
+                    [r"significant", r"substantial", r"large", r"meaningful"], [r"portion", r"number", r"amount"]
                 )
             ]
         ),
@@ -116,9 +164,11 @@ QUALITATIVE_QUANT_PATTERNS = [
         build_regex([build_compound([r"good"], [r"portion", r"part", r"number"])]),
         20.0,
     ),
-    # 15% — fair portion / fair share
+    # 15% — fair portion / fair share / modest
     (
-        build_regex([build_compound([r"fair"], [r"portion", r"share", r"number"])]),
+        build_regex([
+            build_compound([r"fair", r"modest"], [r"portion", r"share", r"number"]),
+        ]),
         15.0,
     ),
     # 10% — minority / small/minor/little portion/number / fraction of
@@ -127,19 +177,19 @@ QUALITATIVE_QUANT_PATTERNS = [
             [
                 r"minority",
                 build_compound(
-                    [r"small", r"minor", r"little"], [r"portion", r"number"]
+                    [r"small", r"minor", r"little", r"fractional"], [r"portion", r"number"]
                 ),
                 r"fraction(?=\s+of)",
             ]
         ),
         10.0,
     ),
-    # 5% — handful of
+    # 5% — handful of / nominal / few
     (
-        build_regex([r"handful(?=\s+of)", r"few(?=\s+of)"]),
+        build_regex([r"handful(?=\s+of)", r"few(?=\s+of)", r"nominal(?=\s+number)"]),
         5.0,
     ),
-    # 2% — insignificant / minimal / tiny portion / immaterial / negligible / not material
+    # 1% — insignificant / minimal / tiny portion / immaterial / negligible / de minimis
     (
         build_regex(
             [
@@ -149,9 +199,11 @@ QUALITATIVE_QUANT_PATTERNS = [
                 r"immaterial",
                 r"negligible",
                 r"not material",
+                r"de\s+minimis",
+                r"nominal(?=\s+amount)"
             ]
         ),
-        2.0,
+        1.0,
     ),
 ]
 
