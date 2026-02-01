@@ -187,12 +187,18 @@ class UnionAnalyzer:
             sent = sentences[idx]
 
             is_historical = False
-            # Historical Check: If reporting_year is provided, skip purely historical sentences
+            
+            # Historical Check
+            # 1. Check explicit years against reporting_year
+            years_indicate_past = False
             if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years) or HISTORICAL_REGEX.search(sent):
-                    # Check for explicit current indicators to override exclusion
-                    if not CURRENT_REGEX.search(sent):
-                        is_historical = True
+                if all(y < reporting_year for y in analysis.years):
+                    years_indicate_past = True
+            
+            # 2. Check regex (independent of explicit years) or explicit past years
+            if years_indicate_past or HISTORICAL_REGEX.search(sent):
+                if not CURRENT_REGEX.search(sent):
+                    is_historical = True
 
             # Skip if no relevant info (no union terms and no explicit coverage data)
             # We allow sentences without union terms IF they have coverage data AND we have inherited context
@@ -899,6 +905,9 @@ class UnionAnalyzer:
         total_weighted_pct = 0.0
         total_employees = 0.0
         calculation_log = []
+        
+        # Grouping to handle duplicates: Key = (weight, region_signature)
+        grouped_items = {}
 
         for item in results:
             log_entry = {
@@ -909,12 +918,13 @@ class UnionAnalyzer:
                 "weight_source": None,
                 "reason": None
             }
+            calculation_log.append(log_entry)
+            
             data = item.get("coverage_data", {})
             
             # Filter out historical data
             if data.get("temporal_scope") != TemporalScope.CURRENT.value:
                 log_entry["reason"] = f"Temporal scope: {data.get('temporal_scope')}"
-                calculation_log.append(log_entry)
                 continue
 
             pct = data.get("percentage")
@@ -926,7 +936,6 @@ class UnionAnalyzer:
                     pct = 0.0
                 else:
                     log_entry["reason"] = "No percentage or zero-covered count found"
-                    calculation_log.append(log_entry)
                     continue
             
             log_entry["percentage"] = pct
@@ -982,15 +991,41 @@ class UnionAnalyzer:
                 weight_source = "Fallback: Last Seen Count"
 
             if weight and weight > 0:
-                total_weighted_pct += (pct * weight)
-                total_employees += weight
-                log_entry["status"] = "included"
-                log_entry["weight_used"] = weight
-                log_entry["weight_source"] = weight_source
+                # Add to grouping bucket instead of direct sum
+                geo = item.get("geographic_context", {})
+                region_sig = (
+                    geo.get("region", "UNKNOWN"),
+                    tuple(sorted(c["code"] for c in geo.get("countries", [])))
+                )
+                
+                key = (weight, region_sig)
+                if key not in grouped_items:
+                    grouped_items[key] = []
+                
+                grouped_items[key].append({
+                    "pct": pct,
+                    "log": log_entry,
+                    "weight_source": weight_source
+                })
             else:
                 log_entry["reason"] = "No valid weight (total employees) found"
+
+        # Process grouped items
+        for (weight, _), entries in grouped_items.items():
+            # Average the percentages for this weight group
+            avg_pct = sum(e["pct"] for e in entries) / len(entries)
             
-            calculation_log.append(log_entry)
+            # Add to total stats ONCE
+            total_weighted_pct += (avg_pct * weight)
+            total_employees += weight
+            
+            # Update logs
+            for e in entries:
+                e["log"]["status"] = "included"
+                e["log"]["weight_used"] = weight
+                e["log"]["weight_source"] = e["weight_source"]
+                if len(entries) > 1:
+                    e["log"]["reason"] = f"Averaged with {len(entries)-1} others (Avg Pct: {avg_pct:.2f}%)"
 
         weighted_avg = 0.0
         if total_employees > 0:
