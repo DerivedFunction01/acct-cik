@@ -109,23 +109,36 @@ QUALITATIVE_MULTIPLIERS = [
     ),
 ]
 
+QUANT_SUFFIX = [r"portion", r"number", r"amount", r"share"]
 
 QUALITATIVE_QUANT_PATTERNS = [
     # 95%+
-    (
-        build_regex([r"entirety"]), 
-        95.0
-    ),
+    (build_regex([r"entirety"]), 95.0),
     # 75% — vast / substantial / overwhelming majority
     (
         build_regex(
-            [build_compound([r"vast", r"substantial", r"overwhelming"], [r"majority"])]
+            [
+                build_compound(
+                    [r"vast", r"substantial", r"overwhelming"],
+                    [r"majority", r"bulk(?=\s+of)"],
+                )
+            ]
         ),
         75.0,
     ),
     # 65% — predominant portion/share
     (
-        build_regex([build_compound([r"predominant"], [r"portion", r"share", r"number"]), r"considerable\s+majority"]),
+        build_regex(
+            [
+                build_compound(
+                    [r"predominant", r"vast", r"substantial", r"overwhelming"],
+                    QUANT_SUFFIX,
+                ),
+                build_compound(
+                    [r"considerable", r"significant"], [r"majority", r"bulk(?=\s+of)"]
+                ),
+            ]
+        ),
         65.0,
     ),
     # 60% — bulk of
@@ -133,19 +146,33 @@ QUALITATIVE_QUANT_PATTERNS = [
         build_regex([r"bulk(?=\s+of)"]),
         60.0,
     ),
-    # 51% — majority / most of 
+    # 51% — majority / most of
     (
         build_regex([r"majority", r"most(?=\s+of)"]),
         51.0,
     ),
     # 40% — major portion / major part
     (
-        build_regex([build_compound([r"major"], [r"portion", r"part"])]),
+        build_regex(
+            [
+                build_compound([r"major"], QUANT_SUFFIX),
+                build_compound(
+                    [
+                        r"predominant",
+                        r"vast",
+                        r"substantial",
+                        r"overwhelming",
+                        r"considerable",
+                    ],
+                    [r"minority"],
+                ),
+            ]
+        ),
         40.0,
     ),
     # 30% — considerable portion/number
     (
-        build_regex([build_compound([r"considerable"], [r"portion", r"number"])]),
+        build_regex([build_compound([r"considerable"], QUANT_SUFFIX)]),
         30.0,
     ),
     # 25% — significant / substantial / large portion/number / meaningful
@@ -153,7 +180,8 @@ QUALITATIVE_QUANT_PATTERNS = [
         build_regex(
             [
                 build_compound(
-                    [r"significant", r"substantial", r"large", r"meaningful"], [r"portion", r"number", r"amount"]
+                    [r"significant", r"substantial", r"large", r"meaningful"],
+                    QUANT_SUFFIX,
                 )
             ]
         ),
@@ -161,14 +189,16 @@ QUALITATIVE_QUANT_PATTERNS = [
     ),
     # 20% — good portion / good part
     (
-        build_regex([build_compound([r"good"], [r"portion", r"part", r"number"])]),
+        build_regex([build_compound([r"good"], QUANT_SUFFIX)]),
         20.0,
     ),
     # 15% — fair portion / fair share / modest
     (
-        build_regex([
-            build_compound([r"fair", r"modest"], [r"portion", r"share", r"number"]),
-        ]),
+        build_regex(
+            [
+                build_compound([r"fair", r"modest"], QUANT_SUFFIX),
+            ]
+        ),
         15.0,
     ),
     # 10% — minority / small/minor/little portion/number / fraction of
@@ -177,7 +207,8 @@ QUALITATIVE_QUANT_PATTERNS = [
             [
                 r"minority",
                 build_compound(
-                    [r"small", r"minor", r"little", r"fractional"], [r"portion", r"number"]
+                    [r"small", r"minor", r"little", r"fractional"],
+                    QUANT_SUFFIX,
                 ),
                 r"fraction(?=\s+of)",
             ]
@@ -186,21 +217,25 @@ QUALITATIVE_QUANT_PATTERNS = [
     ),
     # 5% — handful of / nominal / few
     (
-        build_regex([r"handful(?=\s+of)", r"few(?=\s+of)", r"nominal(?=\s+number)"]),
+        build_regex(
+            [
+                r"handful(?=\s+of)",
+                r"few(?=\s+of)",
+                build_compound([r"nominal"], list(set(QUANT_SUFFIX) - {"amount"})),
+            ]
+        ),
         5.0,
     ),
     # 1% — insignificant / minimal / tiny portion / immaterial / negligible / de minimis
     (
         build_regex(
             [
-                build_compound(
-                    [r"insignificant", r"minimal", r"tiny"], [r"portion", r"number"]
-                ),
+                build_compound([r"insignificant", r"minimal", r"tiny"], QUANT_SUFFIX),
                 r"immaterial",
                 r"negligible",
                 r"not material",
                 r"de\s+minimis",
-                r"nominal(?=\s+amount)"
+                r"nominal(?=\s+amount)",
             ]
         ),
         1.0,
