@@ -1281,7 +1281,9 @@ def fetch_all_grouped(saveIteration: int = 100):
         saver.join(timeout=5)
         rate_adjuster.join()
 
-    return fetch_report_data(valid=None)
+    # Update global dataframe so subsequent steps see the new data
+    existing_report_df = fetch_report_data(valid=None)
+    return existing_report_df
 
 
 class ThreadSafeRateLimiter:
