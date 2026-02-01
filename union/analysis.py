@@ -971,11 +971,16 @@ class UnionAnalyzer:
                 if note:
                     data["note"] = note
 
-            data["percentage"] = raw_pct
-            if is_negated:
-                # "No employees (0%)" or similar redundancy
-                data["negated"] = True
-                data["negation_type"] = negation_type
+            if is_negated and (abs(raw_pct - 100.0) < 0.1 or abs(raw_pct - 95.0) < 0.1):
+                data["percentage"] = None
+                data["type"] = CoverageType.QUALITATIVE.value
+                data["note"] = f"Ignored negated {raw_pct}% (likely 'not all'/'not entire')"
+            else:
+                data["percentage"] = raw_pct
+                if is_negated:
+                    # "No employees (0%)" or similar redundancy
+                    data["negated"] = True
+                    data["negation_type"] = negation_type
 
         # Handle "No employees" / "None" -> 0%
         elif is_negated and negation_type == NegationType.ZERO_COVERAGE.value and not data["percentage"]:
