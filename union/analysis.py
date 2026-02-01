@@ -12,7 +12,7 @@ from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_NEUTRAL_TERMS, RELATIONSHIP_QUALITY_TERMS, 
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
 )
-from defs.regex_lib import build_regex
+from defs.regex_lib import build_compound, build_regex
 
 CONDITIONAL_REGEX = build_regex([
     r"if",
@@ -65,6 +65,95 @@ RANGE_REGEX = build_regex([
     r"through",
     r"and"
 ])
+
+QUALITATIVE_QUANT_PATTERNS = [
+    # All of -> 100% (replaced by text cleaner, so virtually/almost all of -> virtually 100%, etc)
+    # 75% — vast / substantial / overwhelming majority
+    (
+        build_regex(
+            [build_compound([r"vast", r"substantial", r"overwhelming"], [r"majority"])]
+        ),
+        75.0,
+    ),
+    # 65% — predominant portion/share
+    (
+        build_regex([build_compound([r"predominant"], [r"portion", r"share", r"number"])]),
+        65.0,
+    ),
+    # 60% — bulk of
+    (
+        build_regex([r"bulk(?=\s+of)"]),
+        60.0,
+    ),
+    # 51% — majority / most of
+    (
+        build_regex([r"majority", r"most(?=\s+of)"]),
+        51.0,
+    ),
+    # 40% — major portion / major part
+    (
+        build_regex([build_compound([r"major"], [r"portion", r"part"])]),
+        40.0,
+    ),
+    # 30% — considerable portion/number
+    (
+        build_regex([build_compound([r"considerable"], [r"portion", r"number"])]),
+        30.0,
+    ),
+    # 25% — significant / substantial / large portion/number
+    (
+        build_regex(
+            [
+                build_compound(
+                    [r"significant", r"substantial", r"large"], [r"portion", r"number"]
+                )
+            ]
+        ),
+        25.0,
+    ),
+    # 20% — good portion / good part
+    (
+        build_regex([build_compound([r"good"], [r"portion", r"part", r"number"])]),
+        20.0,
+    ),
+    # 15% — fair portion / fair share
+    (
+        build_regex([build_compound([r"fair"], [r"portion", r"share", r"number"])]),
+        15.0,
+    ),
+    # 10% — minority / small/minor/little portion/number / fraction of
+    (
+        build_regex(
+            [
+                r"minority",
+                build_compound(
+                    [r"small", r"minor", r"little"], [r"portion", r"number"]
+                ),
+                r"fraction(?=\s+of)",
+            ]
+        ),
+        10.0,
+    ),
+    # 5% — handful of
+    (
+        build_regex([r"handful(?=\s+of)", r"few(?=\s+of)"]),
+        5.0,
+    ),
+    # 2% — insignificant / minimal / tiny portion / immaterial / negligible / not material
+    (
+        build_regex(
+            [
+                build_compound(
+                    [r"insignificant", r"minimal", r"tiny"], [r"portion", r"number"]
+                ),
+                r"immaterial",
+                r"negligible",
+                r"not material",
+            ]
+        ),
+        2.0,
+    ),
+]
 
 
 class UnionAnalyzer:
@@ -714,6 +803,21 @@ class UnionAnalyzer:
                         data["note"] = (
                             f"Calculated: ({total} total - {val} not covered) / {total}"
                         )
+
+        # Qualitative Quants (Soft Percent)
+        # Used if explicit or calculated percentage is missing
+        if data["percentage"] is None:
+            for pattern, soft_val in QUALITATIVE_QUANT_PATTERNS:
+                if pattern.search(analysis.text):
+                    if is_negated and negation_type == NegationType.NOT_COVERED.value:
+                        data["percentage"] = 100.0 - soft_val
+                        data["type"] = CoverageType.QUALITATIVE.value
+                        data["note"] = f"Soft inferred (inverted) from term: {pattern.pattern}"
+                    elif not is_negated:
+                        data["percentage"] = soft_val
+                        data["type"] = CoverageType.QUALITATIVE.value
+                        data["note"] = f"Soft inferred from term: {pattern.pattern}"
+                    break
 
         # Calculate missing counts if we have percentage and total (e.g. USA: 18% of 45000)
         if data["percentage"] is not None and data["employee_count_total"] and not data["employee_count_covered"]:
