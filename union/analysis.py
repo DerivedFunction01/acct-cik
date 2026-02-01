@@ -166,7 +166,7 @@ QUALITATIVE_TERMS = [
     ),
     QualitativeTerm(
         core_terms=["all"],
-        suffix_terms=["of"],
+        suffix_terms=["of", "are", "were"],
         positive_pct=100.0,
         negated_pct=None,  # Could be 99% or 1%
         requires_suffix=True,
