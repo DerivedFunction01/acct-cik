@@ -11,9 +11,9 @@ from defs.output_enums import (
 
 from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_NEUTRAL_TERMS, RELATIONSHIP_QUALITY_TERMS, 
-    RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
+    RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX, WORKER_TERMS
 )
-from defs.regex_lib import build_compound, build_regex, to_build_alternation
+from defs.regex_lib import build_compound, build_regex, to_build_alternation, build_alternation
 
 CONDITIONAL_REGEX = build_regex([
     r"if",
@@ -150,43 +150,6 @@ class QualitativeTerm:
         return self.negated_pct if is_negated else self.positive_pct
 
 QUALITATIVE_TERMS = [
-    # ===== 100% TIER =====
-    QualitativeTerm(
-        core_terms=["all"],
-        suffix_terms=["of"],
-        positive_pct=100.0,
-        negated_pct=None,
-        requires_suffix=True,
-    ),
-    
-    QualitativeTerm(
-        core_terms=["are", "is", "were", "was"],
-        prefix_terms=["all"],
-        positive_pct=100.0,
-        negated_pct=None,
-        requires_suffix=False,
-    ),
-
-    QualitativeTerm(
-        core_terms=["all"],
-        prefix_terms=["are", "is", "were", "was"],  # "are all", "were all"
-        positive_pct=100.0,
-        negated_pct=None,
-        requires_suffix=False,
-    ),
-    QualitativeTerm(
-        core_terms=["complete", "entire", "full", "whole"],
-        suffix_terms=["portion", "number", "amount", "share"],
-        positive_pct=100.0,
-        negated_pct=None,  # Too ambiguous
-        requires_suffix=True,
-    ),
-    QualitativeTerm(
-        core_terms=["entirety"],
-        positive_pct=95.0,
-        negated_pct=None,  # Could be 94% or 10%
-        requires_suffix=False,
-    ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
         core_terms=["majority", "bulk"],
@@ -421,6 +384,7 @@ for term in QUALITATIVE_TERMS:
         'term': term,
         'pattern_str': pattern_str
     })
+
 
 class UnionAnalyzer:
     def __init__(self):

@@ -53,6 +53,7 @@ class MinimalTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
+        (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
     ]
 
     # Bullet and Dashed Patterns
@@ -136,6 +137,15 @@ class MinimalTextCleaner:
         r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
     )
 
+    # Qualitative financial terms to numeric conversion map
+    _hundred = [
+        r"all", # all in all is rare to see in a financial filing
+        r"entire",
+        # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun/adj, not adverb
+        r"(?:complete|full|whole) portions?",
+    ]
+    _hundred_alternation = build_alternation(_hundred)
+
     # Format: (Regex Pattern, Replacement String)
     qualitative_patterns = [
         # "none of" -> "0%"
@@ -148,6 +158,10 @@ class MinimalTextCleaner:
             ),
             "0%",
         ),
+        # "all of/entire" -> "100%"
+        (build_regex([_hundred_alternation]), "100%"),
+        # entirety -> 95%
+        (build_regex([r"entirety"]), "95%")
     ]
 
     # Handle "no [worker]" -> "0 [worker]"
