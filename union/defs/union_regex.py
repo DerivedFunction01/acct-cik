@@ -18,8 +18,9 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 
 
 class CORE(Enum):
-    UNION = r"Union(?:ized|i(?:z|s)ation|s)?"
+    UNION = r"(?:re[- ])?Union(?:ized|i(?:z|s)ation|s)?"
     NONUNION = r"(?:non|un|not)[- ]?union(?:ized)?s?"
+    REUNIONIZE = r"Re[- ]?unioni(?:z|s)(?:ations?|ed?)"
     COLLECTIVE = r"Collectives?"
     BARGAIN = r"Bargain(?:ing|s)?"
     LABOR = r"Labo(?:u)?rs?"
@@ -128,6 +129,8 @@ class LABOR_TERMS:
         build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS),
         # union / unionized / unionization
         CORE.UNION.value,
+        # reunionize, re-unionization, 
+        CORE.REUNIONIZE.value,
         # non-union(ized)
         CORE.UNION.value, 
         # employees/workers + represented by
@@ -142,7 +145,7 @@ class LABOR_TERMS:
 class RISK_TERMS:
     PHRASES = [
         # Union disputes, campaigns, disagreements
-        build_compound([CORE.UNION], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT, r"drives?", r"efforts?", r"strikes?", r"walkouts?", r"work\s+stoppages?"]),
+        build_compound([CORE.UNION, CORE.REUNIONIZE], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT, r"drives?", r"efforts?", r"strikes?", r"walkouts?", r"work\s+stoppages?"]),
         # Collective bargaining disputes
         build_compound(
             [CORE.COLLECTIVE, CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]

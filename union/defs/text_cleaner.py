@@ -555,10 +555,10 @@ class ContextualNumberCleaner:
         asset_terms = [
             r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
             r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
-            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?"
+            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?",
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
         ]
-        
+
         asset_pattern = build_alternation(asset_terms)
 
         # Matches: "100 [manufacturing] facilities"
@@ -584,10 +584,55 @@ class ContextualNumberCleaner:
             re.IGNORECASE
         )
 
-        # Matches: "increase of 10%" or "increase by 10%"
+        # Matches: "increase of approx 10%" or "increase by 10%"
         self.change_post_regex = re.compile(
-            rf"\b({change_pattern})\s+(?:of\s+|by\s+)?\d+(?:\.\d+)?\s*%\b", 
-            re.IGNORECASE
+            rf"\b({change_pattern})"
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # allow 0–3 filler words
+            rf"(?:of\s+|by\s+)?"
+            rf"\d+(?:\.\d+)?\s*%\b",
+            re.IGNORECASE,
+        )
+
+        # 3. Personnel Events (Hiring, Firing, Furlough)
+        personnel_event_terms = [
+            r"furlough(?:s|ed|ing)?",
+            r"recall(?:s|ed|ing)?",
+            r"hir(?:es?|ed|ing)",
+            r"fir(?:es?|ed|ing)",
+            r"layoffs?",
+            r"lay(?:ing)?\s+off",
+            r"laid\s+off",
+            r"terminat(?:es?|ed|ing|ions?)",
+            r"recruit(?:s|ed|ing|ment)?",
+            r"redundanc(?:y|ies)",
+            r"severance",
+            r"retention",
+            r"turnover",
+            r"attritions?",
+            r"headcount\s+reductions?",
+            r"job\s+cuts?",
+            r"eliminat(?:es?|ed|ing|ions?)",
+            r"downsiz(?:es?|ed|ing)",
+            r"separat(?:es?|ed|ing|ions?)",
+            r"reduc(?:es?|ed|ing|tions?)",
+        ]
+        personnel_event_pattern = build_alternation(personnel_event_terms)
+
+        # Matches: "furloughed [approx] 20000"
+        self.personnel_event_regex = re.compile(
+            rf"\b({personnel_event_pattern})"
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to 2 filler words
+            rf"(?:of\s+|by\s+|approximately\s+|approx\.\s+|about\s+)?"
+            rf"\d+(?:\.\d+)?\b",
+            re.IGNORECASE,
+        )
+
+        # 100 layoffs, etc
+        self.personnel_event_reverse_regex = re.compile(
+            rf"\b\d+(?:\.\d+)?"
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to 2 filler words
+            rf"({personnel_event_pattern})\b",
+            re.IGNORECASE,
         )
 
     def clean(self, text: str) -> str:
@@ -600,6 +645,8 @@ class ContextualNumberCleaner:
             paragraph = self.asset_regex.sub(r"\1", paragraph)
             paragraph = self.change_pre_regex.sub(r"\1", paragraph)
             paragraph = self.change_post_regex.sub(r"\1", paragraph)
+            paragraph = self.personnel_event_regex.sub(r"\1", paragraph)
+            paragraph = self.personnel_event_reverse_regex.sub(r"\1", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
