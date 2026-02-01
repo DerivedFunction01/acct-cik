@@ -669,6 +669,24 @@ class UnionAnalyzer:
         # 4. Fallback
         return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
+    def _apply_qualitative_multipliers(self, raw_pct: float, span: Tuple[int, int], text: str) -> Tuple[float, Optional[str]]:
+        """
+        Applies qualitative multipliers (e.g. "almost", "nearly") to a percentage.
+        """
+        start_idx = span[0]
+        # Look back window (e.g. "almost 20%")
+        window = text[max(0, start_idx - 30):start_idx]
+        
+        for pattern, mult in QUALITATIVE_MULTIPLIERS:
+            if pattern.search(window):
+                new_pct = raw_pct * mult
+                # Cap at 100% if original was <= 100
+                if new_pct > 100.0 and raw_pct <= 100.0:
+                    new_pct = 100.0
+                return round(new_pct, 2), f"Adjusted from {raw_pct}% (x{mult}) via term matching '{pattern.pattern}'"
+        
+        return raw_pct, None
+
     def _determine_coverage_data(
         self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None, reporting_year: Optional[int] = None, is_historical: bool = False
     ) -> Dict[str, Any]:
@@ -741,6 +759,13 @@ class UnionAnalyzer:
         if analysis.percentages and not data["percentage"]:
             raw_pct = analysis.percentages[0]
             data["type"] = CoverageType.EXPLICIT_PERCENT.value
+
+            # Check for multipliers
+            pct_match = next((m for m in analysis._matches if m['type'] == MatchType.PERCENT and m['val'] == raw_pct), None)
+            if pct_match:
+                raw_pct, note = self._apply_qualitative_multipliers(raw_pct, pct_match['span'], analysis.text)
+                if note:
+                    data["note"] = note
 
             data["percentage"] = raw_pct
             if is_negated:
@@ -978,16 +1003,23 @@ class UnionAnalyzer:
         # Map Percentages
         for p in percents:
             ptype = get_nearest_type(p['span'])
+            
+            adj_val, note = self._apply_qualitative_multipliers(p['val'], p['span'], analysis.text)
+            
             if ptype == 'not_covered':
                 # Invert
-                val = p['val']
+                val = adj_val
                 data['percentage'] = 100.0 - val
                 data['percentage_raw_stated'] = val
                 data['negated'] = True
                 data['negation_type'] = NegationType.NOT_COVERED.value
                 data['note'] = f"Inverted from {val}% not covered"
+                if note:
+                    data['note'] += f" ({note})"
             elif ptype == 'covered':
-                data['percentage'] = p['val']
+                data['percentage'] = adj_val
+                if note:
+                    data['note'] = note
 
         # Map Counts
         total_candidates = []
