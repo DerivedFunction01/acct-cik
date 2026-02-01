@@ -135,11 +135,22 @@ class MinimalTextCleaner:
     a_multiplier_pattern = re.compile(
         r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
     )
-    # Handle "none of" -> "0% of"
-    none_of_pattern = re.compile(r"\bnone\s+(?:of|are|is|were)\b", re.IGNORECASE)
 
-    # Handle "all of" -> "100% of"
-    all_of_pattern = re.compile(r"\ball\s+(?:of|are|is|were)\b", re.IGNORECASE)
+    # Qualitative terms to numeric conversion map
+    # Format: (Regex Pattern, Replacement String)
+    qualitative_patterns = [
+        # "none of" -> "0% of"
+        (build_regex([r"none\s+(?:of|are|is|were)"]), "0% of"),
+        
+        # "all of" -> "100% of"
+        (build_regex([r"all\s+(?:of|are|is|were|material)"]), "100% of"),
+        
+        # "entirety/fully/completely" -> "100%"
+        (build_regex(["entirety", "fully", "completely"]), "100%"),
+        
+        # "de minimis/immaterial/..." -> "0%"
+        (build_regex(["de minimis", "immaterial", "not material", "insignificant"]), "0%"),
+    ]
 
     # Handle "no [worker]" -> "0 [worker]"
     _worker_pattern = build_alternation(WORKER_TERMS)
@@ -482,8 +493,8 @@ class MinimalTextCleaner:
             )
 
             paragraph = self.a_multiplier_pattern.sub("one ", paragraph)
-            paragraph = self.none_of_pattern.sub("0% of", paragraph)
-            paragraph = self.all_of_pattern.sub("100% of", paragraph)
+            for pattern, replacement in self.qualitative_patterns:
+                paragraph = pattern.sub(replacement, paragraph)
             paragraph = self.no_worker_pattern.sub(r"0 \1", paragraph)
             paragraph = self.number_phrase_pattern.sub(self._parse_number_phrase, paragraph)
             paragraph = self.comma_pattern.sub("", paragraph)
