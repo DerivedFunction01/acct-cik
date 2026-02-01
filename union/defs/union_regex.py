@@ -46,7 +46,7 @@ WORKER_TERMS = [
     r"Workforces?",
     r"Associates",
     r"Miners?",
-    r"(?:Dock|Steel|Auto|Metal|Iron|Auto)\s*[Ww]orkers?",
+    r"(?:Dock|Steel|Auto|Metal|Iron|Auto|Rail(?:road)?)\s*[Ww]orkers?",
     r"Teachers?",
     r"Nurses?",
     r"Pilots?",
@@ -63,8 +63,7 @@ WORKER_TERMS = [
     r"Instructors?",
     r"Engineers?",
     r"Dispatchers?",
-    r"Mechanics?"
-    r"Technicians?",
+    r"Mechanics?" r"Technicians?",
     r"Operators?",
     r"Custodians?",
     r"Janitors?",
@@ -76,7 +75,7 @@ WORKER_TERMS = [
     r"Pipefitters?",
     r"Boilermakers?",
     r"Millwrights?",
-    r"Labor\s+Force"
+    r"Labor\s+[Ff]orce",
 ]
 NOUNS = [
     r"whom?",
