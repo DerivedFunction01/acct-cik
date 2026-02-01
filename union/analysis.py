@@ -313,7 +313,9 @@ class UnionAnalyzer:
                     ),
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
-                    "lookup_totals": effective_totals.copy() # Snapshot for summary calculation
+                    "lookup_totals": effective_totals.copy(), # Snapshot for summary calculation
+                    "last_seen_count": last_employee_count,
+                    "sentence_index": idx
                 }
                 results.append(item)
 
@@ -339,20 +341,27 @@ class UnionAnalyzer:
                 
                 # Criteria: Next item inherits from Current, and Current has data
                 if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
-                    next_item["geographic_context"].get("inherited_from_sentence_index") == i and # Approximation since we don't store original index in result, but sequential usually implies it
-                    current["coverage_data"]["type"] != CoverageType.QUALITATIVE.value):
+                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index")):
                     
-                    # Check for "remaining", "rest" in sentence
-                    if  REMAIN_REGEX.search(next_item["sentence"]):
-                        # Merge Data
-                        c_data = current["coverage_data"]
-                        n_data = next_item["coverage_data"]
-                        
-                        # Fill in missing pieces
-                        if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
-                            c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
-                        
-                        skip_indices.add(i+1)
+                    # Merge Data
+                    c_data = current["coverage_data"]
+                    n_data = next_item["coverage_data"]
+                    
+                    # 1. Fill in missing Percentage
+                    if c_data["percentage"] is None and n_data["percentage"] is not None:
+                        c_data["percentage"] = n_data["percentage"]
+                        c_data["negated"] = n_data["negated"]
+                        c_data["negation_type"] = n_data["negation_type"]
+                        c_data["type"] = n_data["type"]
+                        c_data["note"] = (c_data["note"] or "") + " | " + (n_data["note"] or "")
+
+                    # 2. Fill in missing Counts
+                    if not c_data["employee_count_covered"] and n_data["employee_count_covered"]:
+                        c_data["employee_count_covered"] = n_data["employee_count_covered"]
+                    if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
+                        c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
+                    
+                    skip_indices.add(i+1)
             
             merged_results.append(current)
 
@@ -946,6 +955,11 @@ class UnionAnalyzer:
                         if region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
                             weight = global_workforce
                             weight_source = "Global Fallback"
+            
+            # 4. Fallback to last seen count in block (for cases where region lookup failed but number was in previous sentence)
+            if not weight and item.get("last_seen_count"):
+                weight = item.get("last_seen_count")
+                weight_source = "Fallback: Last Seen Count"
 
             if weight and weight > 0:
                 total_weighted_pct += (pct * weight)
