@@ -97,14 +97,13 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
         except json.JSONDecodeError:
             pass
         
-        # Only store if we have results
-        if item1_analysis or item1a_analysis:
-            results.append((
-                accession,
-                json.dumps(item1_analysis),
-                json.dumps(item1a_analysis),
-                period
-            ))
+        # Store the result, even when empty (allows cases where the text is empty)
+        results.append((
+            accession,
+            json.dumps(item1_analysis),
+            json.dumps(item1a_analysis),
+            period
+        ))
             
     return results
 
