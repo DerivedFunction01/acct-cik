@@ -686,8 +686,10 @@ class UnionAnalyzer:
         }
 
         # NEW: Mixed Coverage Detection & Resolution
-        # If we have multiple counts or percentages, try to disambiguate using proximity
-        if len(analysis.worker_counts) > 1 or len(analysis.percentages) > 1:
+        # If we have counts or percentages, try to disambiguate using proximity
+        # Changed from > 1 to >= 1 to handle singular statements
+        # Also run if we have negation and numbers (to catch "200 managers not covered" where managers isn't a worker term)
+        if (len(analysis.worker_counts) >= 1 or len(analysis.percentages) >= 1 or (analysis.negation_terms and len(analysis.numbers) >= 1)):
              self._resolve_mixed_coverage(analysis, data)
 
         # Check for Negation
@@ -761,6 +763,10 @@ class UnionAnalyzer:
             data["negated"] = True
             data["negation_type"] = NegationType.ZERO_COVERAGE.value
             data["employee_count_covered"] = 0
+            
+            # If we identified a not_covered count (via resolve_mixed), set total
+            if data["employee_count_not_covered"] is not None:
+                data["employee_count_total"] = data["employee_count_not_covered"]
 
         # Handle explicit "0" count in positive context -> 0%
         # Only if it's the only number to avoid ambiguity (e.g. "0 union, 500 total")
@@ -1136,10 +1142,38 @@ class UnionAnalyzer:
                 results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
         return results
 
+    def _group_nearby_percentages(self, candidates: List[float], tolerance: float = 1.0) -> Dict[float, List[float]]:
+        """Groups candidates within tolerance of group average"""
+        if not candidates:
+            return {}
+        
+        sorted_candidates = sorted(candidates)
+        groups = []
+        
+        for pct in sorted_candidates:
+            found_group = False
+            for group in groups:
+                current_avg = sum(group) / len(group)
+                if abs(pct - current_avg) <= tolerance:
+                    group.append(pct)
+                    found_group = True
+                    break
+            
+            if not found_group:
+                groups.append([pct])
+        
+        grouped_dict = {}
+        for group in groups:
+            final_avg = sum(group) / len(group)
+            grouped_dict[final_avg] = group
+            
+        return grouped_dict
+
+
     def compute_weighted_coverage(self, results: List[Dict[str, Any]], global_workforce: float = 0.0, region_totals: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         """
-        Computes a weighted average of union coverage percentages from the analysis results.
-        Weights are based on the total employee count associated with each percentage.
+        Computes a weighted average of union coverage percentages from analysis results.
+        Then selects the BEST TEXT CANDIDATE that matches the calculation.
         """
         if region_totals is None:
             region_totals = {}
@@ -1149,11 +1183,8 @@ class UnionAnalyzer:
         region_stats = {}
         calculation_log = []
         
-        # Grouping to handle duplicates: Key = (weight, region_signature)
         grouped_items = {}
         weighted_points = []
-
-        # Track all valid percentages found in order
         valid_percentages = []
 
         for item in results:
@@ -1169,8 +1200,7 @@ class UnionAnalyzer:
             
             data = item.get("coverage_data", {})
             
-            # Filter out historical data
-            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
+            if data.get("temporal_scope") != "CURRENT":
                 log_entry["reason"] = f"Temporal scope: {data.get('temporal_scope')}"
                 continue
 
@@ -1178,38 +1208,35 @@ class UnionAnalyzer:
             covered_count = data.get("employee_count_covered")
             not_covered = data.get("employee_count_not_covered")
 
-            # Determine weight (Total Employees)
             weight = data.get("employee_count_total")
             weight_source = "Explicit in item"
 
-            # Get context-aware totals if available
-            item_totals = item.get("lookup_totals", region_totals)
-
-            # If total is missing, try to derive it from covered/not_covered
             if not weight:
                 if covered_count is not None and not_covered is not None:
                     weight = covered_count + not_covered
                     weight_source = "Derived (Covered + Not Covered)"
-                elif covered_count is not None and pct is not None and pct > 0:
+                elif not_covered is not None and (pct == 0.0 or (pct is None and data.get("negated"))):
+                    weight = not_covered
+                    weight_source = "Implied Total from Not Covered (0%)"
+
+            item_totals = item.get("lookup_totals", region_totals)
+
+            if not weight:
+                if covered_count is not None and pct is not None and pct > 0:
                     weight = covered_count / (pct / 100.0)
                     weight_source = "Derived (Covered / Pct)"
                 elif not_covered is not None and pct is not None and pct < 100:
                     weight = not_covered / (1.0 - (pct / 100.0))
                     weight_source = "Derived (Not Covered / Inverse Pct)"
 
-                # If still no weight, try to look it up from extracted raw numbers
-                # Only use lookup if we have a percentage (e.g. "18% of workforce")
-                # If we only have a count (e.g. "920 workers"), do NOT use lookup to avoid false denominator
                 if not weight and pct is not None:
                     geo = item.get("geographic_context", {})
                     region = geo.get("region")
                     
-                    # 1. Try specific region lookup
                     if region and region in item_totals:
                         weight = item_totals[region]
                         weight_source = f"Lookup Region: {region}"
                     
-                    # 2. Try country lookup
                     elif geo.get("countries"):
                         for c in geo["countries"]:
                             if c["code"] in item_totals:
@@ -1217,18 +1244,15 @@ class UnionAnalyzer:
                                 weight_source = f"Lookup Country: {c['code']}"
                                 break
                     
-                    # 3. Fallback to global workforce if item is global/international
                     if not weight and global_workforce > 0:
-                        if region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                        if region in ("International", "UNKNOWN"):
                             weight = global_workforce
                             weight_source = "Global Fallback"
             
-            # 4. Fallback to last seen count in block (for cases where region lookup failed but number was in previous sentence)
             if not weight and item.get("last_seen_count"):
                 weight = item.get("last_seen_count")
                 weight_source = "Fallback: Last Seen Count"
 
-            # Resolve Percentage if missing (using the weight we just found, or bucket logic)
             if pct is None:
                 if covered_count is not None:
                     if covered_count == 0:
@@ -1237,15 +1261,13 @@ class UnionAnalyzer:
                         pct = (covered_count / weight) * 100.0
                         if pct > 100.0: pct = 100.0
                     else:
-                        # Bucket Logic: Treat as 100% of X
                         pct = 100.0
                         weight = covered_count
                         weight_source = "Implied 100% from Count"
                 elif not_covered is not None:
-                     # Bucket Logic: Treat as 0% of Y
-                     pct = 0.0
-                     weight = not_covered
-                     weight_source = "Implied 0% from Count"
+                    pct = 0.0
+                    weight = not_covered
+                    weight_source = "Implied 0% from Count"
 
             if pct is None:
                 log_entry["reason"] = "No percentage or zero-covered count found"
@@ -1255,7 +1277,6 @@ class UnionAnalyzer:
             valid_percentages.append(pct)
 
             if weight and weight > 0:
-                # Add to grouping bucket instead of direct sum
                 geo = item.get("geographic_context", {})
                 region_sig = (
                     geo.get("region", "UNKNOWN"),
@@ -1276,29 +1297,32 @@ class UnionAnalyzer:
 
         # Process grouped items
         for (weight, region_sig), entries in grouped_items.items():
-            # Average the percentages for this weight group
             avg_pct = sum(e["pct"] for e in entries) / len(entries)
             
             weighted_points.append((avg_pct, weight))
-            
-            # Add to total stats ONCE
             total_weighted_pct += (avg_pct * weight)
             total_employees += weight
             
-            # Track region stats
             region_name = region_sig[0]
             if region_name not in region_stats:
                 region_stats[region_name] = {"weighted_sum": 0.0, "total_employees": 0.0}
             region_stats[region_name]["weighted_sum"] += (avg_pct * weight)
             region_stats[region_name]["total_employees"] += weight
             
-            # Update logs
             for e in entries:
                 e["log"]["status"] = "included"
                 e["log"]["weight_used"] = weight
                 e["log"]["weight_source"] = e["weight_source"]
+                
                 if len(entries) > 1:
-                    e["log"]["reason"] = f"Averaged with {len(entries)-1} others (Avg Pct: {avg_pct:.2f}%)"
+                    e["log"]["reason"] = (
+                        f"Merged with {len(entries)-1} others (Same Weight {weight} & Region). "
+                        f"Group Avg: {avg_pct:.2f}%. Weight {weight} counted ONCE for group."
+                    )
+                else:
+                    e["log"]["reason"] = (
+                        f"Included. Contribution: {avg_pct:.2f}% * {weight} employees"
+                    )
 
         weighted_avg = 0.0
         if total_employees > 0:
@@ -1309,7 +1333,7 @@ class UnionAnalyzer:
             if stats["total_employees"] > 0:
                 region_percentages[r] = round(stats["weighted_sum"] / stats["total_employees"], 2)
 
-        # Outlier detection and adjusted average
+        # Outlier detection
         adjusted_weighted_avg = weighted_avg
         outlier_debug = {"applied": False}
         if len(weighted_points) >= 4:
@@ -1318,7 +1342,6 @@ class UnionAnalyzer:
                 mean_val = statistics.mean(pcts)
                 stdev_val = statistics.stdev(pcts)
                 if stdev_val > 0:
-                    # Filter: keep points within 2 standard deviations
                     filtered_points = [
                         (p, w) for p, w in weighted_points 
                         if abs(p - mean_val) <= 2 * stdev_val
@@ -1340,7 +1363,7 @@ class UnionAnalyzer:
             except statistics.StatisticsError:
                 pass
 
-        # Determine additional metrics
+        # Extract metrics
         first_pct = valid_percentages[0] if valid_percentages else None
         last_pct = valid_percentages[-1] if valid_percentages else None
         
@@ -1350,55 +1373,77 @@ class UnionAnalyzer:
             closest_pct = min(valid_percentages, key=lambda x: abs(x - weighted_avg))
             median_pct = round(statistics.median(valid_percentages), 2)
 
-        # Majority vote on the likely percentage: if the same one appears
-        # Between closest, first, and final, pick that one. Else use weighted average.
-        calc_weighted = round(weighted_avg, 2) if total_employees > 0 else None
-        calc_adjusted = round(adjusted_weighted_avg, 2) if total_employees > 0 else None
-
+        # CANDIDATES: Only TEXT percentages from the filing
+        # Do NOT include calc_weighted or calc_adjusted
         candidates = [
-            first_pct, 
-            last_pct, 
-            closest_pct, 
-            calc_weighted,
-            median_pct
+            first_pct,          # Text: first % in results
+            last_pct,           # Text: last % in results
+            closest_pct,        # Text: closest to weighted avg
+            median_pct          # Text: median of all %
         ]
 
-        # Only add adjusted if it differs from weighted to avoid double-counting calculated values
-        if calc_adjusted is not None and calc_adjusted != calc_weighted:
-            candidates.append(calc_adjusted)
-
-        # Candidate Selection Logic for International and Domestic
-        candidate_log = {
-            "international_added": False,
-            "domestic_added": False,
-            "domestic_msg": "Not found"
-        }
-
+        # Add regional percentages (text from calculations, but based on extracted data)
         international_pct = region_percentages.get("International")
         if international_pct is not None:
             candidates.append(international_pct)
-            candidate_log["international_added"] = True
 
         domestic_keys = ["United States", "US", "USA", "Domestic", "North America", "US and Canada"]
-        domestic_pct = None
         for k in domestic_keys:
             if k in region_percentages:
                 domestic_pct = region_percentages[k]
                 if len(region_percentages) == 1:
                     candidates.append(domestic_pct)
-                    candidate_log["domestic_added"] = True
-                    candidate_log["domestic_msg"] = f"Added {k} (Sole Region)"
-                else:
-                    candidate_log["domestic_msg"] = f"Skipped {k} (Multiple Regions)"
                 break
 
-        majority_pct = None
+        # ===== CANDIDATE SELECTION =====
+        # Pick the TEXT candidate closest to the calculated weighted average
+        
+        likely_percentage = None
         clean_candidates = [c for c in candidates if c is not None]
+        
+        candidate_selection_debug = {
+            "text_candidates_considered": clean_candidates,
+            "weighted_avg_calculated": round(weighted_avg, 2),
+            "matching_logic": "Select TEXT candidate closest to calculated weighted average"
+        }
+        
         if clean_candidates:
-            # Use mode (most frequent) to determine consensus, breaking ties by priority order
-            mode_candidate = max(clean_candidates, key=clean_candidates.count)
-            if clean_candidates.count(mode_candidate) > 1:
-                majority_pct = mode_candidate
+            # Find which candidate from the text is closest to our calculation
+            closest_text_candidate = min(
+                clean_candidates, 
+                key=lambda x: abs(x - weighted_avg)
+            )
+            likely_percentage = closest_text_candidate
+            
+            candidate_selection_debug["winner"] = likely_percentage
+            candidate_selection_debug["distance_from_weighted_avg"] = round(
+                abs(likely_percentage - weighted_avg), 2
+            )
+            candidate_selection_debug["reasoning"] = (
+                f"Selected {likely_percentage}% from text because it's closest to "
+                f"calculated weighted average ({round(weighted_avg, 2)}%)"
+            )
+        
+        # Optional: Tolerance-based grouping for additional analysis
+        tolerance_winner = None
+        if clean_candidates:
+            tolerance_groups = self._group_nearby_percentages(clean_candidates, tolerance=1.0)
+            
+            if tolerance_groups:
+                largest_group_avg = max(tolerance_groups.keys(), 
+                                    key=lambda avg: len(tolerance_groups[avg]))
+                tolerance_winner = {
+                    "value": round(largest_group_avg, 2),
+                    "group_members": len(tolerance_groups[largest_group_avg]),
+                    "group_values": sorted(tolerance_groups[largest_group_avg]),
+                    "all_groups": {
+                        round(avg, 2): {
+                            "count": len(values),
+                            "values": sorted(values)
+                        }
+                        for avg, values in tolerance_groups.items()
+                    }
+                }
         
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
@@ -1407,10 +1452,11 @@ class UnionAnalyzer:
             "first_coverage_percentage": first_pct,
             "last_coverage_percentage": last_pct,
             "closest_to_weighted_percentage": closest_pct,
-            "likely_percentage": majority_pct,
+            "likely_percentage": likely_percentage,
+            "candidate_selection": candidate_selection_debug,
+            "tolerance_analysis": tolerance_winner,
             "total_employees_analyzed": round(total_employees, 2),
             "calculation_log": calculation_log,
-            "debug_candidates": candidates,
-            "outlier_stats": outlier_debug,
-            "candidate_selection_log": candidate_log
+            "debug_candidates": clean_candidates,
+            "outlier_stats": outlier_debug
         }

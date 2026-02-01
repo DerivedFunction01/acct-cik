@@ -1045,10 +1045,10 @@ class RegionMatcher:
                     cls.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
                     union_phrases.add(union_name)
 
-                # 1b. Map Keywords (Treat as Specific Unions for detection)
+                # 1b. Map Keywords (Treat as Phrases for detection - Region Match Only)
                 for keyword in nation.keywords:
-                    cls.union_map[keyword.lower()] = (nation.region, nation.name, nation.code)
-                    union_phrases.add(keyword)
+                    cls.location_map[keyword.lower()] = (nation.region, nation.name, None, nation.code)
+                    geo_phrases.add(keyword)
 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
