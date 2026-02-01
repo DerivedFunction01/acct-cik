@@ -18,8 +18,8 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 
 
 class CORE(Enum):
-    UNION = r"(?:re[- ])?Union(?:ized|i(?:z|s)ation|s)?"
-    NONUNION = r"(?:non|un|not)[- ]?union(?:ized)?s?"
+    UNION = r"Union(?:i(?:z|s)ed|i(?:z|s)ation|s)?"
+    NONUNION = r"(?:non|un|not)[- ]?union(?:i(?:z|s)ed|s)?"
     REUNIONIZE = r"Re[- ]?unioni(?:z|s)(?:ations?|ed?)"
     COLLECTIVE = r"Collectives?"
     BARGAIN = r"Bargain(?:ing|s)?"
@@ -93,9 +93,9 @@ SUFFIX_ORGS = [
 ]
 
 REPRESENTATION_TERMS = [
-    r"represented\s+by",
-    r"affliat(?:ed|ion)\s+with",
-    r"covered\s+by",
+    r"represented", # removed by
+    r"affliat(?:ed|ion)", # removed with
+    r"covered", # removed by
 ]
 
 GAP = r"(?:\s+(?:of|the|for|&|[A-Z][\w-]*)){0,3}\s+"
@@ -135,7 +135,7 @@ class LABOR_TERMS:
         # reunionize, re-unionization, 
         CORE.REUNIONIZE.value,
         # non-union(ized)
-        CORE.UNION.value, 
+        CORE.NONUNION.value, 
         # employees/workers + represented by
         build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
         # labor + (agreements, contracts, organizations)
@@ -281,7 +281,7 @@ NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")
-    
+    print(NON_UNION_REGEX.search("Remaining operations in Brazil and Argentina (combined 1,100 workers) are non-union."))
     examples = [
         # Should Match
         "International Brotherhood of Teamsters",
@@ -299,7 +299,7 @@ def run_test():
         "State of the Union",
         "Credit Union",
     ]
-    
+
     for ex in examples:
         matches = DYNAMIC_UNION_REGEX.findall(ex)
         print(f"Input:  {ex}")

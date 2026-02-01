@@ -589,7 +589,7 @@ class UnionAnalyzer:
             # 2. Geo Matches: Relevant for context updates.
             # 3. Coverage Data: Relevant ONLY if accompanied by Worker Context (to avoid "no debt" -> 0% coverage).
             is_relevant = False
-            if analysis.union_terms or analysis.geo_matches:
+            if analysis.union_terms or analysis.geo_matches or analysis.negation_terms:
                 is_relevant = True
             elif has_coverage and has_worker_context:
                 is_relevant = True
@@ -667,12 +667,21 @@ class UnionAnalyzer:
 
             # 3. Construct Item 1 JSON
             # Rule: Include if we have union terms OR (coverage data AND inherited context)
+            # Also include if we have explicit coverage data (percentage/negation) with explicit geography
             should_include = False
+            
+            has_data = (
+                coverage_data.get("percentage") is not None 
+                or coverage_data.get("employee_count_covered") is not None
+                or coverage_data.get("negated")
+            )
+
             if analysis.union_terms:
                 should_include = True
-            elif (
-                coverage_data
-                and geo_context["specificity"] == Specificity.INHERITED.value
+            elif has_data and geo_context["specificity"] in (
+                Specificity.EXPLICIT.value, 
+                Specificity.EXPLICIT_INFERRED.value,
+                Specificity.INHERITED.value
             ):
                 should_include = True
 
@@ -1112,7 +1121,7 @@ class UnionAnalyzer:
                 if analysis.worker_counts:
                     total = max(analysis.worker_counts)
 
-                if total and total > val:
+                if total and total >= val:
                     data["employee_count_total"] = total
                     pct_covered = ((total - val) / total) * 100
                     data["calculated_percentage"] = round(pct_covered, 2)
