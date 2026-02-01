@@ -81,7 +81,6 @@ WORKER_TERMS = [
 NOUNS = [
     r"whom?",
     r"the(?:m|y)",
-    CORE.UNION.value
 ]
 SUFFIX_AGREEMENTS = [
     r"agreements?",

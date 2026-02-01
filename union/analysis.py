@@ -1,6 +1,7 @@
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, field
+import statistics
 
 from extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
@@ -1358,10 +1359,12 @@ class UnionAnalyzer:
 
         total_weighted_pct = 0.0
         total_employees = 0.0
+        region_stats = {}
         calculation_log = []
         
         # Grouping to handle duplicates: Key = (weight, region_signature)
         grouped_items = {}
+        weighted_points = []
 
         # Track all valid percentages found in order
         valid_percentages = []
@@ -1469,13 +1472,22 @@ class UnionAnalyzer:
                 log_entry["reason"] = "No valid weight (total employees) found"
 
         # Process grouped items
-        for (weight, _), entries in grouped_items.items():
+        for (weight, region_sig), entries in grouped_items.items():
             # Average the percentages for this weight group
             avg_pct = sum(e["pct"] for e in entries) / len(entries)
+            
+            weighted_points.append((avg_pct, weight))
             
             # Add to total stats ONCE
             total_weighted_pct += (avg_pct * weight)
             total_employees += weight
+            
+            # Track region stats
+            region_name = region_sig[0]
+            if region_name not in region_stats:
+                region_stats[region_name] = {"weighted_sum": 0.0, "total_employees": 0.0}
+            region_stats[region_name]["weighted_sum"] += (avg_pct * weight)
+            region_stats[region_name]["total_employees"] += weight
             
             # Update logs
             for e in entries:
@@ -1488,18 +1500,70 @@ class UnionAnalyzer:
         weighted_avg = 0.0
         if total_employees > 0:
             weighted_avg = total_weighted_pct / total_employees
+            
+        region_percentages = {}
+        for r, stats in region_stats.items():
+            if stats["total_employees"] > 0:
+                region_percentages[r] = round(stats["weighted_sum"] / stats["total_employees"], 2)
+
+        # Outlier detection and adjusted average
+        adjusted_weighted_avg = weighted_avg
+        outlier_debug = {"applied": False}
+        if len(weighted_points) >= 4:
+            pcts = [p[0] for p in weighted_points]
+            try:
+                mean_val = statistics.mean(pcts)
+                stdev_val = statistics.stdev(pcts)
+                if stdev_val > 0:
+                    # Filter: keep points within 2 standard deviations
+                    filtered_points = [
+                        (p, w) for p, w in weighted_points 
+                        if abs(p - mean_val) <= 2 * stdev_val
+                    ]
+
+                    outlier_debug = {
+                        "applied": True,
+                        "mean": round(mean_val, 4),
+                        "stdev": round(stdev_val, 4),
+                        "original_count": len(weighted_points),
+                        "filtered_count": len(filtered_points)
+                    }
+
+                    if filtered_points and len(filtered_points) < len(weighted_points):
+                        f_total_weighted = sum(p * w for p, w in filtered_points)
+                        f_total_weight = sum(w for _, w in filtered_points)
+                        if f_total_weight > 0:
+                            adjusted_weighted_avg = f_total_weighted / f_total_weight
+            except statistics.StatisticsError:
+                pass
 
         # Determine additional metrics
         first_pct = valid_percentages[0] if valid_percentages else None
         last_pct = valid_percentages[-1] if valid_percentages else None
         
         closest_pct = None
+        median_pct = None
         if valid_percentages:
             closest_pct = min(valid_percentages, key=lambda x: abs(x - weighted_avg))
+            median_pct = round(statistics.median(valid_percentages), 2)
 
         # Majority vote on the likely percentage: if the same one appears
         # Between closest, first, and final, pick that one. Else use weighted average.
-        candidates = [first_pct, last_pct, closest_pct]
+        calc_weighted = round(weighted_avg, 2) if total_employees > 0 else None
+        calc_adjusted = round(adjusted_weighted_avg, 2) if total_employees > 0 else None
+
+        candidates = [
+            first_pct, 
+            last_pct, 
+            closest_pct, 
+            calc_weighted,
+            median_pct
+        ]
+
+        # Only add adjusted if it differs from weighted to avoid double-counting calculated values
+        if calc_adjusted is not None and calc_adjusted != calc_weighted:
+            candidates.append(calc_adjusted)
+
         majority_pct = None
         for c in candidates:
             if c is not None and candidates.count(c) > 1:
@@ -1508,10 +1572,13 @@ class UnionAnalyzer:
         
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
+            "region_percentages": region_percentages,
             "first_coverage_percentage": first_pct,
             "last_coverage_percentage": last_pct,
             "closest_to_weighted_percentage": closest_pct,
             "likely_percentage": majority_pct,
             "total_employees_analyzed": round(total_employees, 2),
-            "calculation_log": calculation_log
+            "calculation_log": calculation_log,
+            "debug_candidates": candidates,
+            "outlier_stats": outlier_debug
         }
