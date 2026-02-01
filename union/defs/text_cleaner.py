@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
 from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
-from defs.union_regex import WORKER_TERMS
+from defs.union_regex import NOUNS, WORKER_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
@@ -165,7 +165,7 @@ class MinimalTextCleaner:
     ]
 
     # Handle "no [worker]" -> "0 [worker]"
-    _worker_pattern = build_alternation(WORKER_TERMS)
+    _worker_pattern = build_alternation(WORKER_TERMS + NOUNS)
     no_worker_pattern = re.compile(
         rf"\bno\s+((?:[\w-]+\s+){{0,2}}{_worker_pattern})\b", re.IGNORECASE
     )
@@ -174,6 +174,11 @@ class MinimalTextCleaner:
     # Ensure not preceded by "not"
     all_worker_pattern = re.compile(
         rf"(?<!\bnot\s)\ball\s+((?:[\w-]+\s+){{0,3}}{_worker_pattern})\b", re.IGNORECASE
+    )
+
+    # Handle "[worker] ... were/are all" -> "[worker] ... were/are 100%"
+    worker_all_pattern = re.compile(
+        rf"\b({_worker_pattern}(?:\s+[\w-]+){{0,3}}\s+(?:were|are)?)\s+all\b", re.IGNORECASE
     )
 
     # Fix capitalization of "the" at start of sentences
@@ -514,6 +519,7 @@ class MinimalTextCleaner:
             for pattern, replacement in self.qualitative_patterns:
                 paragraph = pattern.sub(replacement, paragraph)
             paragraph = self.all_worker_pattern.sub(r"100% of \1", paragraph)
+            paragraph = self.worker_all_pattern.sub(r"\1 100%", paragraph)
             paragraph = self.no_worker_pattern.sub(r"0 \1", paragraph)
             paragraph = self.number_phrase_pattern.sub(self._parse_number_phrase, paragraph)
             paragraph = self.comma_pattern.sub("", paragraph)

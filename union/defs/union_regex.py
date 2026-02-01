@@ -78,7 +78,11 @@ WORKER_TERMS = [
     r"Millwrights?",
     r"Labor\s+Force"
 ]
-
+NOUNS = [
+    r"whom?",
+    r"the(?:m|y)",
+    CORE.UNION.value
+]
 SUFFIX_AGREEMENTS = [
     r"agreements?",
     r"contracts?",

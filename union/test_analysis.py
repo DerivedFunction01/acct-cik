@@ -124,7 +124,7 @@ if __name__ == "__main__":
     reporting_year = 2023
     company_name = "TechAdvance Manufacturing Corp LTD."
 
-    print(f"Testing {company_name} 10-K Filing (Reporting Year: {reporting_year})\n")
+    print(f"Testing {company_name} Fictional 10-K Filing (Reporting Year: {reporting_year})\n")
     print("=" * 80)
     print()
 

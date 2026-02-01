@@ -877,10 +877,13 @@ class UnionAnalyzer:
         # 4. Fallback
         return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
-    def _apply_qualitative_multipliers(self, raw_pct: float, span: Tuple[int, int], text: str) -> Tuple[float, Optional[str]]:
+    def _apply_qualitative_multipliers(self, raw_pct: float, span: Tuple[int, int], text: str, apply: bool = False) -> Tuple[float, Optional[str]]:
         """
         Applies qualitative multipliers (e.g. "almost", "nearly") to a percentage.
         """
+        if not apply:
+            return raw_pct, None
+
         start_idx = span[0]
         # Look back window (e.g. "almost 20%")
         window = text[max(0, start_idx - 30):start_idx]
@@ -981,6 +984,7 @@ class UnionAnalyzer:
                 raw_pct, note = self._apply_qualitative_multipliers(raw_pct, pct_match['span'], analysis.text)
                 if note:
                     data["note"] = note
+                data["percentage"] = raw_pct
 
             else:
                 data["percentage"] = raw_pct
@@ -1334,6 +1338,9 @@ class UnionAnalyzer:
         # Grouping to handle duplicates: Key = (weight, region_signature)
         grouped_items = {}
 
+        # Track all valid percentages found in order
+        valid_percentages = []
+
         for item in results:
             log_entry = {
                 "sentence_snippet": item.get("sentence", "")[:60] + "...",
@@ -1364,6 +1371,7 @@ class UnionAnalyzer:
                     continue
             
             log_entry["percentage"] = pct
+            valid_percentages.append(pct)
 
             # Determine weight (Total Employees)
             weight = data.get("employee_count_total")
@@ -1456,8 +1464,29 @@ class UnionAnalyzer:
         if total_employees > 0:
             weighted_avg = total_weighted_pct / total_employees
 
+        # Determine additional metrics
+        first_pct = valid_percentages[0] if valid_percentages else None
+        last_pct = valid_percentages[-1] if valid_percentages else None
+        
+        closest_pct = None
+        if valid_percentages:
+            closest_pct = min(valid_percentages, key=lambda x: abs(x - weighted_avg))
+
+        # Majority vote on the likely percentage: if the same one appears
+        # Between closest, first, and final, pick that one. Else use weighted average.
+        candidates = [first_pct, last_pct, closest_pct]
+        majority_pct = None
+        for c in candidates:
+            if c is not None and candidates.count(c) > 1:
+                majority_pct = c
+                break
+        
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
+            "first_coverage_percentage": first_pct,
+            "last_coverage_percentage": last_pct,
+            "closest_to_weighted_percentage": closest_pct,
+            "likely_percentage": majority_pct,
             "total_employees_analyzed": round(total_employees, 2),
             "calculation_log": calculation_log
         }
