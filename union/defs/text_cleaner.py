@@ -295,6 +295,9 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
+    # Regex for acronyms with dots (2-5 letters) e.g. U.S., U.S.A.
+    acronym_pattern = re.compile(r"\b(?:[A-Z]\.){2,5}")
+
     def __init__(self):
         pass
 
@@ -450,6 +453,31 @@ class MinimalTextCleaner:
             return text
         return str(total_value)
 
+    def normalize_acronyms(self, text: str) -> str:
+        """
+        Normalizes acronyms (e.g. U.S. -> US) by removing dots, 
+        unless the dot acts as a sentence terminator (followed by uppercase).
+        """
+        def replace_func(match):
+            original = match.group(0)
+            normalized = original.replace(".", "")
+            
+            end_idx = match.end()
+            full_text = match.string
+            
+            # Scan forward past whitespace
+            i = end_idx
+            while i < len(full_text) and full_text[i].isspace():
+                i += 1
+            
+            # If we hit end of string or found an uppercase letter, treat as sentence end
+            if i >= len(full_text) or full_text[i].isupper():
+                return f"{normalized}."
+            
+            return normalized
+
+        return self.acronym_pattern.sub(replace_func, text)
+
     def clean(
         self,
         text: str,
@@ -466,6 +494,9 @@ class MinimalTextCleaner:
         for paragraph in paragraphs:
             # 1. Whitespace
             paragraph = clean_spaces_and_punctuation(paragraph)
+
+            # 2. Normalize Acronyms (Early)
+            paragraph = self.normalize_acronyms(paragraph)
 
             # 2. False Positives
             for pat, repl in self.false_positives:
@@ -587,7 +618,7 @@ class ContextualNumberCleaner:
         For example: We have 100 manufacturing facilities. There is 10% increase/decrease/growth. Decrease of 10%.
     """
     def __init__(self):
-        
+
         # 1. Physical Assets / Facilities
         asset_terms = [
             r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
@@ -611,10 +642,31 @@ class ContextualNumberCleaner:
         # 2. Growth/Decline/Change (Percentages)
 
         change_terms = [
-            r"increase(?:s|d)?", r"decreases(?:s|d)?", r"growth", r"decline(?:s|d)?", r"reductions?",
-            r"gains?", r"loss(?:es)?", r"appreciation", r"depreciation", r"offsets?",
-            r"higher", r"lower", r"changes?", r"improvements?", r"drops?", r"rise(?:s|d|n)?",
-            r"transitions?",
+            # Increase / Growth
+            r"increase(?:s|d|ing)?",
+            r"growth",  # noun only
+            r"grow(?:s|n|ing)?",
+            r"rise(?:s|r|n|ing|d)?",
+            r"gain(?:s|ed|ing)?",
+            r"improv(?:es?|ed|ing|ements?)",
+            # Decrease / Decline
+            r"decrease(?:s|d|ing)?",
+            r"declin(?:e|es|ed|ing)?",
+            r"drop(?:s|ped|ping)?",
+            r"loss(?:es)?",
+            r"reduc(?:es?|ed|ing|tions?)",
+            # Appreciation / Depreciation
+            r"appreciat(?:es?|ed|ing|ions?)",
+            r"depreciat(?:es?|ed|ing|ions?)",
+            # Offset
+            r"offset(?:s|ted|ting)?",
+            # Higher / Lower (comparatives)
+            r"higher",
+            r"lower",
+            # Change (generic)
+            r"chang(?:es?|ed|ing)",
+            # Transition
+            r"transition(?:s|ed|ing)?",
         ]
 
         change_pattern = build_alternation(change_terms)
@@ -628,8 +680,8 @@ class ContextualNumberCleaner:
         # Matches: "increase of approx 10%" or "increase by 10%"
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # allow N filler words
-            rf"\d+(?:\.\d+)?\s*%\b",
+            rf"(?:\s+[\w-]+){{0,5}}\s+"  # allow N filler words
+            rf"\d+(?:\.\d+)?\s*%?\b",
             re.IGNORECASE,
         )
 
@@ -681,11 +733,11 @@ class ContextualNumberCleaner:
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
-            paragraph = self.asset_regex.sub(r"\1", paragraph)
-            paragraph = self.change_pre_regex.sub(r"\1", paragraph)
-            paragraph = self.change_post_regex.sub(r"\1", paragraph)
-            paragraph = self.personnel_event_regex.sub(r"\1", paragraph)
-            paragraph = self.personnel_event_reverse_regex.sub(r"\1", paragraph)
+            paragraph = self.asset_regex.sub(r" \1 ", paragraph)
+            paragraph = self.change_pre_regex.sub(r" \1 ", paragraph)
+            paragraph = self.change_post_regex.sub(r" \1 ", paragraph)
+            paragraph = self.personnel_event_regex.sub(r" \1 ", paragraph)
+            paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)

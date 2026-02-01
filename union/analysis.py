@@ -460,8 +460,15 @@ class UnionAnalyzer:
                     continue
                 
                 # Criteria: Next item inherits from Current, and Current has data
+                # Prevent merging if current item is 100% covered (cannot add non-covered) or 0% covered (cannot add covered)
+                # This avoids polluting explicit "All" or "None" groups with contradictory data from subsequent sentences
+                c_pct = current["coverage_data"].get("percentage")
+                is_saturated = (c_pct == 100.0)
+                is_empty = (c_pct == 0.0)
+
                 if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
-                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index")):
+                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index") and
+                    not is_saturated and not is_empty):
                     
                     # Merge Data
                     c_data = current["coverage_data"]
@@ -811,9 +818,10 @@ class UnionAnalyzer:
                     data["note"] = f"Calculated from ratio: {numerator} of {denominator}"
 
         # Handle Numbers (Basic mapping for now)
-        if analysis.numbers and not data["employee_count_covered"]:
+        nums_to_check = analysis.numbers if analysis.numbers else analysis.worker_counts
+        if nums_to_check and not data["employee_count_covered"]:
             # Store raw numbers for potential downstream analysis (e.g. Compustat merging)
-            data["extracted_numbers"] = analysis.numbers
+            data["extracted_numbers"] = nums_to_check
             
             # Check for "Percent OF Number" pattern (Global Aggregate case)
             # If we have a percentage and a number, and "of" is between them, the number is Total
@@ -821,8 +829,8 @@ class UnionAnalyzer:
                 # Simple check: is there a number that is larger than covered count?
                 # Or check text proximity?
                 # For now, if we have a percentage, and a large number, assume it's total
-                if analysis.numbers[0] > 1000 and (not data["employee_count_covered"] or analysis.numbers[0] > data["employee_count_covered"]):
-                     data["employee_count_total"] = analysis.numbers[0]
+                if nums_to_check[0] > 1000 and (not data["employee_count_covered"] or nums_to_check[0] > data["employee_count_covered"]):
+                     data["employee_count_total"] = nums_to_check[0]
 
             # Heuristic: If we have negation "not covered" and a number, assume it's the count not covered
             if (
@@ -830,7 +838,7 @@ class UnionAnalyzer:
                 and negation_type == NegationType.NOT_COVERED.value
                 and not data["percentage"]
             ):
-                val = analysis.numbers[0]
+                val = nums_to_check[0]
                 data["employee_count_not_covered"] = val
                 data["negated"] = True
                 data["negation_type"] = NegationType.NOT_COVERED.value
@@ -856,7 +864,7 @@ class UnionAnalyzer:
                         )
 
         # Fallback: If we have numbers but no covered count, look for numbers near coverage terms
-        if data["employee_count_covered"] is None and analysis.numbers:
+        if data["employee_count_covered"] is None and (analysis.numbers or analysis.worker_counts):
              coverage_types = (MatchType.COVERAGE_TERM, MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
              coverage_matches = [m for m in analysis._matches if m['type'] in coverage_types]
              
@@ -879,7 +887,7 @@ class UnionAnalyzer:
                          if n_end < c_start: dist = c_start - n_end
                          elif c_end < n_start: dist = n_start - c_end
                          
-                         if dist < 50: # Proximity threshold
+                         if dist < 150: # Proximity threshold
                              if dist < min_dist:
                                  min_dist = dist
                                  best_num = n_val
@@ -940,7 +948,7 @@ class UnionAnalyzer:
         # Calculate missing counts if we have percentage and total (e.g. USA: 18% of 45000)
         calc_total_for_count = data["employee_count_total"] or inherited_total_count
         
-        if data["percentage"] is not None and calc_total_for_count and not data["employee_count_covered"]:
+        if data["percentage"] is not None and calc_total_for_count and data["employee_count_covered"] is None:
              # Use round to avoid float precision issues
              data["employee_count_covered"] = round((data["percentage"] / 100) * calc_total_for_count)
              if not data["employee_count_total"]:

@@ -106,7 +106,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Massachusetts",
-                ["massachusetts", "ma"],
+                ["massachusetts"],
                 [
                     Location("Boston", ["boston"]),
                 ],
@@ -127,7 +127,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Michigan",
-                ["michigan", "mi"],
+                ["michigan"],
                 [
                     Location("Detroit", ["detroit", "motor city"]),
                     Location("Dearborn", ["dearborn"]),
@@ -137,7 +137,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Ohio",
-                ["ohio", "oh"],
+                ["ohio"],
                 [
                     Location("Cleveland", ["cleveland"]),
                     Location("Columbus", ["columbus"]),
@@ -147,7 +147,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Pennsylvania",
-                ["pennsylvania", "pa"],
+                ["pennsylvania"],
                 [
                     Location("Pittsburgh", ["pittsburgh"]),
                     Location("Philadelphia", ["philadelphia", "philly"]),
@@ -244,7 +244,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Delaware",
-                ["delaware", "de"],
+                ["delaware"],
                 [
                     Location("Wilmington", ["wilmington"]),
                     Location("Dover", ["dover"]),
@@ -262,7 +262,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Hawaii",
-                ["hawaii", "hi"],
+                ["hawaii"],
                 [
                     Location("Honolulu", ["honolulu"]),
                     Location("Hilo", ["hilo"]),
@@ -271,7 +271,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Idaho",
-                ["idaho", "id"],
+                ["idaho"],
                 [
                     Location("Boise", ["boise"]),
                     Location("Idaho Falls", ["idaho falls"]),
@@ -298,7 +298,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Louisiana",
-                ["louisiana", "la"],
+                ["louisiana"],
                 [
                     Location("New Orleans", ["new orleans"]),
                     Location("Baton Rouge", ["baton rouge"]),
@@ -307,7 +307,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Maine",
-                ["maine", "me"],
+                ["maine"],
                 [
                     Location("Portland", ["portland, me"]),
                     Location("Augusta", ["augusta, me"]),
@@ -352,7 +352,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Nebraska",
-                ["nebraska", "ne"],
+                ["nebraska"],
                 [
                     Location("Omaha", ["omaha"]),
                     Location("Lincoln", ["lincoln, ne"]),
@@ -415,7 +415,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Oklahoma",
-                ["oklahoma", "ok"],
+                ["oklahoma"],
                 [
                     Location("Oklahoma City", ["oklahoma city"]),
                     Location("Tulsa", ["tulsa"]),
@@ -424,7 +424,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Oregon",
-                ["oregon", "or"],
+                ["oregon"],
                 [
                     Location("Portland", ["portland, or"]),
                     Location("Eugene", ["eugene"]),
@@ -1044,6 +1044,11 @@ class RegionMatcher:
                     # Store mapping
                     cls.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
                     union_phrases.add(union_name)
+
+                # 1b. Map Keywords (Treat as Specific Unions for detection)
+                for keyword in nation.keywords:
+                    cls.union_map[keyword.lower()] = (nation.region, nation.name, nation.code)
+                    union_phrases.add(keyword)
 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
