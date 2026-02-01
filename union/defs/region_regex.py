@@ -184,7 +184,313 @@ NORTH_AMERICA = {
                 ["missouri", "mo"],
                 [
                     Location("St. Louis", ["st. louis"]),
+                    Location("Kansas City", ["kansas city, mo"]),
+                ],
+            ),
+            Location(
+                "Alaska",
+                ["alaska", "ak"],
+                [
+                    Location("Anchorage", ["anchorage"]),
+                    Location("Fairbanks", ["fairbanks"]),
+                    Location("Juneau", ["juneau"]),
+                ],
+            ),
+            Location(
+                "Arkansas",
+                ["arkansas", "ar"],
+                [
+                    Location("Little Rock", ["little rock"]),
+                    Location("Fayetteville", ["fayetteville"]),
+                    Location("Fort Smith", ["fort smith"]),
+                ],
+            ),
+            Location(
+                "Colorado",
+                ["colorado", "co"],
+                [
+                    Location("Denver", ["denver"]),
+                    Location("Colorado Springs", ["colorado springs"]),
+                    Location("Boulder", ["boulder"]),
+                ],
+            ),
+            Location(
+                "Connecticut",
+                ["connecticut", "ct"],
+                [
+                    Location("Hartford", ["hartford"]),
+                    Location("New Haven", ["new haven"]),
+                    Location("Stamford", ["stamford"]),
+                ],
+            ),
+            Location(
+                "Delaware",
+                ["delaware", "de"],
+                [
+                    Location("Wilmington", ["wilmington"]),
+                    Location("Dover", ["dover"]),
+                    Location("Newark", ["newark"]),
+                ],
+            ),
+            Location(
+                "Georgia",
+                ["georgia", "ga"],
+                [
+                    Location("Atlanta", ["atlanta"]),
+                    Location("Savannah", ["savannah"]),
+                    Location("Augusta", ["augusta"]),
+                ],
+            ),
+            Location(
+                "Hawaii",
+                ["hawaii", "hi"],
+                [
+                    Location("Honolulu", ["honolulu"]),
+                    Location("Hilo", ["hilo"]),
+                    Location("Kailua", ["kailua"]),
+                ],
+            ),
+            Location(
+                "Idaho",
+                ["idaho", "id"],
+                [
+                    Location("Boise", ["boise"]),
+                    Location("Idaho Falls", ["idaho falls"]),
+                    Location("Twin Falls", ["twin falls"]),
+                ],
+            ),
+            Location(
+                "Iowa",
+                ["iowa", "ia"],
+                [
+                    Location("Des Moines", ["des moines"]),
+                    Location("Cedar Rapids", ["cedar rapids"]),
+                    Location("Davenport", ["davenport"]),
+                ],
+            ),
+            Location(
+                "Kansas",
+                ["kansas", "ks"],
+                [
+                    Location("Wichita", ["wichita"]),
                     Location("Kansas City", ["kansas city"]),
+                    Location("Topeka", ["topeka"]),
+                ],
+            ),
+            Location(
+                "Louisiana",
+                ["louisiana", "la"],
+                [
+                    Location("New Orleans", ["new orleans"]),
+                    Location("Baton Rouge", ["baton rouge"]),
+                    Location("Shreveport", ["shreveport"]),
+                ],
+            ),
+            Location(
+                "Maine",
+                ["maine", "me"],
+                [
+                    Location("Portland", ["portland, me"]),
+                    Location("Augusta", ["augusta, me"]),
+                    Location("Bangor", ["bangor"]),
+                ],
+            ),
+            Location(
+                "Maryland",
+                ["maryland", "md"],
+                [
+                    Location("Baltimore", ["baltimore"]),
+                    Location("Annapolis", ["annapolis"]),
+                    Location("Silver Spring", ["silver spring"]),
+                ],
+            ),
+            Location(
+                "Minnesota",
+                ["minnesota", "mn"],
+                [
+                    Location("Minneapolis", ["minneapolis"]),
+                    Location("Saint Paul", ["saint paul", "st. paul"]),
+                    Location("Rochester", ["rochester mn"]),
+                ],
+            ),
+            Location(
+                "Mississippi",
+                ["mississippi", "ms"],
+                [
+                    Location("Jackson", ["jackson, ms"]),
+                    Location("Gulfport", ["gulfport"]),
+                    Location("Biloxi", ["biloxi"]),
+                ],
+            ),
+            Location(
+                "Montana",
+                ["montana", "mt"],
+                [
+                    Location("Billings", ["billings"]),
+                    Location("Missoula", ["missoula"]),
+                    Location("Bozeman", ["bozeman"]),
+                ],
+            ),
+            Location(
+                "Nebraska",
+                ["nebraska", "ne"],
+                [
+                    Location("Omaha", ["omaha"]),
+                    Location("Lincoln", ["lincoln, ne"]),
+                    Location("Grand Island", ["grand island"]),
+                ],
+            ),
+            Location(
+                "Nevada",
+                ["nevada", "nv"],
+                [
+                    Location("Las Vegas", ["las vegas", "vegas"]),
+                    Location("Reno", ["reno"]),
+                    Location("Henderson", ["henderson"]),
+                ],
+            ),
+            Location(
+                "New Hampshire",
+                ["new hampshire", "nh"],
+                [
+                    Location("Manchester", ["manchester, nh"]),
+                    Location("Nashua", ["nashua"]),
+                    Location("Concord", ["concord, nh"]),
+                ],
+            ),
+            Location(
+                "New Jersey",
+                ["new jersey", "nj"],
+                [
+                    Location("Newark", ["newark"]),
+                    Location("Jersey City", ["jersey city"]),
+                    Location("Trenton", ["trenton"]),
+                ],
+            ),
+            Location(
+                "New Mexico",
+                ["new mexico", "nm"],
+                [
+                    Location("Albuquerque", ["albuquerque"]),
+                    Location("Santa Fe", ["santa fe"]),
+                    Location("Las Cruces", ["las cruces"]),
+                ],
+            ),
+            Location(
+                "North Carolina",
+                ["north carolina", "nc"],
+                [
+                    Location("Charlotte", ["charlotte"]),
+                    Location("Raleigh", ["raleigh"]),
+                    Location("Greensboro", ["greensboro"]),
+                ],
+            ),
+            Location(
+                "North Dakota",
+                ["north dakota", "nd"],
+                [
+                    Location("Fargo", ["fargo"]),
+                    Location("Bismarck", ["bismarck"]),
+                    Location("Grand Forks", ["grand forks"]),
+                ],
+            ),
+            Location(
+                "Oklahoma",
+                ["oklahoma", "ok"],
+                [
+                    Location("Oklahoma City", ["oklahoma city"]),
+                    Location("Tulsa", ["tulsa"]),
+                    Location("Norman", ["norman"]),
+                ],
+            ),
+            Location(
+                "Oregon",
+                ["oregon", "or"],
+                [
+                    Location("Portland", ["portland, or"]),
+                    Location("Eugene", ["eugene"]),
+                    Location("Salem", ["salem, or"]),
+                ],
+            ),
+            Location(
+                "Rhode Island",
+                ["rhode island", "ri"],
+                [
+                    Location("Providence", ["providence"]),
+                    Location("Warwick", ["warwick"]),
+                    Location("Newport", ["newport, ri"]),
+                ],
+            ),
+            Location(
+                "South Carolina",
+                ["south carolina", "sc"],
+                [
+                    Location("Charleston", ["charleston, sc"]),
+                    Location("Columbia", ["columbia sc"]),
+                    Location("Greenville", ["greenville, sc"]),
+                ],
+            ),
+            Location(
+                "South Dakota",
+                ["south dakota", "sd"],
+                [
+                    Location("Sioux Falls", ["sioux falls"]),
+                    Location("Rapid City", ["rapid city"]),
+                    Location("Pierre", ["pierre"]),
+                ],
+            ),
+            Location(
+                "Utah",
+                ["utah", "ut"],
+                [
+                    Location("Salt Lake City", ["salt lake city"]),
+                    Location("Provo", ["provo"]),
+                    Location("Ogden", ["ogden"]),
+                ],
+            ),
+            Location(
+                "Vermont",
+                ["vermont", "vt"],
+                [
+                    Location("Burlington", ["burlington, vt"]),
+                    Location("Montpelier", ["montpelier"]),
+                    Location("Rutland", ["rutland"]),
+                ],
+            ),
+            Location(
+                "Virginia",
+                ["virginia", "va"],
+                [
+                    Location("Richmond", ["richmond, va"]),
+                    Location("Virginia Beach", ["virginia beach"]),
+                    Location("Norfolk", ["norfolk"]),
+                ],
+            ),
+            Location(
+                "West Virginia",
+                ["west virginia", "wv"],
+                [
+                    Location("Charleston", ["charleston, wv"]),
+                    Location("Morgantown", ["morgantown"]),
+                    Location("Huntington", ["huntington"]),
+                ],
+            ),
+            Location(
+                "Wisconsin",
+                ["wisconsin", "wi"],
+                [
+                    Location("Milwaukee", ["milwaukee"]),
+                    Location("Madison", ["madison"]),
+                    Location("Green Bay", ["green bay"]),
+                ],
+            ),
+            Location(
+                "Wyoming",
+                ["wyoming", "wy"],
+                [
+                    Location("Cheyenne", ["cheyenne"]),
+                    Location("Casper", ["casper"]),
+                    Location("Laramie", ["laramie"]),
                 ],
             ),
         ],
