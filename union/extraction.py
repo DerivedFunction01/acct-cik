@@ -1,10 +1,10 @@
-#%%
+# %%
 import re
 from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex
 from defs.union_regex import (
     UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
@@ -21,7 +21,12 @@ RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?o
 
 # Worker Count Pattern: Number + (optional gap) + Worker Term
 worker_term_pattern = build_alternation(WORKER_TERMS)
-WORKER_COUNT_REGEX = re.compile(rf"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}\b", re.IGNORECASE)
+WORKER_COUNT_REGEX = build_regex(
+    [
+        rf"(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}",
+        rf"{worker_term_pattern}\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
+    ]
+)
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 
 class MatchType(Enum):
@@ -220,7 +225,7 @@ class UnionExtractor:
         # 11. Extract Worker Counts (Specific Numbers)
         process_matches(
             WORKER_COUNT_REGEX, MatchType.WORKER_COUNT,
-            lambda m: float(m.group(1)),
+            lambda m: float(next(g for g in m.groups() if g is not None)),
             lambda m, val: analysis.worker_counts.append(val)
         )
 

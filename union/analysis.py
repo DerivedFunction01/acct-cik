@@ -514,8 +514,21 @@ class UnionAnalyzer:
                 if not CURRENT_REGEX.search(s):
                     is_historical = True
 
-            if ans.worker_counts and not is_historical:
-                global_max_workers = max(global_max_workers, max(ans.worker_counts))
+            # Determine counts (Explicit Worker Counts or Fallback to Numbers)
+            counts = ans.worker_counts
+            
+            if not counts and ans.numbers:
+                # Fallback: Use raw numbers if they look like worker counts (> 10)
+                # Years are protected in text, so we assume remaining large numbers are counts
+                potential_counts = [n for n in ans.numbers if n > 10]
+                if potential_counts:
+                    counts = potential_counts
+
+            if counts:
+                local_max = max(counts)
+                if not is_historical:
+                    if local_max > global_max_workers:
+                        global_max_workers = local_max
         return global_max_workers
 
     def _analyze_block(
