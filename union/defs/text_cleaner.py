@@ -136,10 +136,10 @@ class MinimalTextCleaner:
         r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
     )
     # Handle "none of" -> "0% of"
-    none_of_pattern = re.compile(r"\bnone\s+of\b", re.IGNORECASE)
+    none_of_pattern = re.compile(r"\bnone\s+(?:of|are|is|were)\b", re.IGNORECASE)
 
     # Handle "all of" -> "100% of"
-    all_of_pattern = re.compile(r"\ball\s+of\b", re.IGNORECASE)
+    all_of_pattern = re.compile(r"\ball\s+(?:of|are|is|were)\b", re.IGNORECASE)
 
     # Handle "no [worker]" -> "0 [worker]"
     _worker_pattern = build_alternation(WORKER_TERMS)
@@ -156,7 +156,6 @@ class MinimalTextCleaner:
 
     percent_pattern = re.compile(r"\bper\s?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
-
 
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
@@ -422,10 +421,11 @@ class MinimalTextCleaner:
         text: str,
         company_name: Optional[str] = None,
         reporting_year: Optional[int] = None,
+        min_length: Optional[int] = None,
     ) -> str:
         if not text:
             return ""
-        
+
         paragraphs = text.split("\n\n")
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
@@ -499,11 +499,11 @@ class MinimalTextCleaner:
 
             # Punctuation cleanup
             paragraph = clean_spaces_and_punctuation(paragraph)
-            
+
             # Long enough to be considered one, even if it is a single sentence
-            if paragraph and len(paragraph) > 12:
+            if paragraph and (min_length is None or len(paragraph) >= min_length):
                 texts.append(paragraph)
-            
+
         text = "\n\n".join(texts)
         return text
 
@@ -1007,7 +1007,7 @@ def create_test_cases() -> List[TestCase]:
         ),
         TestCase(
             name="Reference removal",
-            input_text="Exhibit 5, Statement No. 10, Figure 2, Item 1. 55",
+            input_text="Exhibit 5, Statement No. 10, Figure 2, Item 1. 55 employees",
             validations=[
                 (TestType.NOT_CONTAINS, "Exhibit 5", None),
                 (TestType.NOT_CONTAINS, "Statement No. 10", None),
@@ -1178,10 +1178,11 @@ def create_test_cases() -> List[TestCase]:
         # Test 25: None of -> 0% of
         TestCase(
             name="None of -> 0% of",
-            input_text="None of our employees are unionized. Second to none.",
+            input_text="None of our employees are unionized. Second to none. None are unionized.",
             validations=[
                 (TestType.CONTAINS, "0% of our employees", None),
                 (TestType.CONTAINS, "Second to none", None),
+                (TestType.CONTAINS, "0% of unionized", None),
             ],
         ),
         # Test 26: Pronoun Replacement

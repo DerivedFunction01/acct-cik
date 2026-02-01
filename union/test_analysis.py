@@ -16,111 +16,99 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 
 TEST_PARAGRAPH = """
 TechAdvance Manufacturing operates a diverse global workforce across 
-manufacturing, logistics, and technology divisions. As of December 31, 2023, 
-our total employee base stood at approximately 41,200 across all regions.
+manufacturing, logistics, and technology divisions. As of the end of 2023, 
+our total employee base reached approximately 124,800 across all regions.
 
-Compared to December 31, 2022, when the Company and its subsidiaries employed 
-approximately 79,300 workers worldwide, of which nearly 71% were represented by 
-various labor organizations. This figure reflects a meaningful reduction from 
-year-end 2021, when the Company employed roughly 92,800 workers. The workforce 
-decline was driven primarily by continued supply-chain constraints and component 
-shortages linked to the Russia–Ukraine conflict, which required the Company to 
-furlough approximately 7,400 production employees during the second half of 2023. 
-With improving availability of steel, semiconductors, and certain electronic 
-components, the Company now plans to recall roughly 2,300 assembly technicians 
-in the second quarter of 2024 and anticipates fewer permanent reductions among 
-engineering staff than earlier forecasts. Management continues to monitor global 
-supply and geopolitical developments closely and expects further workforce 
-adjustments should material shortages re-emerge.
+Compared to year-end 2022, the Company and its subsidiaries employed 
+approximately 138,200 workers worldwide, of which nearly 9% were represented 
+by various labor organizations. This modest representation reflects our 
+long-standing preference for direct employee engagement.
 
-In our United States operations, we own 15 automobile manufacturing facilities 
-which employ 17,200 auto workers, of which approximately 28% (4,816 employees) 
-are represented by labor unions. Our largest unionized segment comprises 2,400 
-production workers in our Ohio and Indiana facilities, organized under the United 
-Auto Workers (UAW) agreement that became effective in 2022. Additionally, our 
-West Coast logistics centers employ 1,720 workers represented by the International 
-Brotherhood of Teamsters, covering 100% of those facilities. We maintain a 
-mutually beneficial relationship with both the UAW and Teamsters.
+In our United States operations, we operate 18 automobile assembly plants 
+which employ 14,200 hourly production workers, of which approximately 
+82% (11,644 employees) are represented by labor unions under multiple 
+agreements with the United Auto Workers (UAW). Our primary UAW-covered 
+facility in Michigan employs 3,800 workers, 100% unionized.
 
-Our non-union domestic workforce of 12,900 employees consists primarily of 
-engineering, administrative, and management personnel. At our headquarters in 
-Dallas, Texas, 4,400 of 5,300 corporate staff operate outside union frameworks. 
-The remaining non-union workers are distributed across regional sales offices 
-and smaller manufacturing sites. We maintain a neutral stance toward unionization 
-efforts and do not actively oppose employee organizing activities.
+Additionally, our East Coast distribution centers employ 920 workers, all 
+of whom are represented by the International Brotherhood of Teamsters 
+(100% coverage).
 
-In Canada, we employ 2,600 workers across three locations: Toronto, Vancouver, 
-and Calgary. The Toronto facility (1,200 workers) is 70% unionized under Unifor 
-representation (840 workers), while Vancouver (900 workers) and Calgary (500 
-workers) remain entirely non-union. We anticipate limited organizing interest 
-in Vancouver during 2024 but expect no material change to current representation 
-levels.
+Our non-union domestic workforce totals 89,400 employees and consists 
+primarily of software engineers, data scientists, corporate staff, sales, 
+and salaried technical personnel across our campuses in California, 
+Washington, and Texas. None of these employees are represented by labor 
+unions or covered by collective bargaining agreements.
 
-Our European operations, which employed 9,400 workers at year-end 2023, present 
-a more complex labor environment. In Germany, we operate two manufacturing plants 
-employing 3,300 workers total: the Düsseldorf facility (1,900 workers) with 72% 
-IG Metall representation (1,368 workers), and the Stuttgart facility (1,400 
-workers) with no formal union representation but subject to German Works Council 
-requirements. France is home to our second-largest European facility with 2,500 
-employees in the Paris region; approximately 52% are represented by unions (CFDT, 
-CGT, and FO combined), equaling roughly 1,300 workers. The Netherlands facility 
-in Rotterdam employs 1,700 workers, of which 22% (374 workers) maintain union 
-membership under the FNV. Our smaller UK operations in Liverpool employ 900 
-workers with modest union presence at approximately 12% (108 workers) under 
-Unite the Union.
+In Europe, our German operations employ 4,100 workers total. The Hamburg 
+facility (2,600 workers) maintains 95% IG Metall representation 
+(2,470 workers), while our Munich administrative center (1,500 workers) 
+has no union representation but is subject to German Works Council rules.
 
-We maintain generally constructive relationships with our European union partners, 
-although relations with German works councils can involve technical complexity. 
-Our French operations have experienced no significant labor disputes in the past 
-three years.
+Our Asia-Pacific technology division, headquartered in Bangalore, India, 
+employs 68,500 software development and support personnel; none are 
+currently unionized. We monitor regional labor trends but anticipate no 
+material organizing activity in the foreseeable future.
 
-In Asia-Pacific, our footprint is expanding but remains predominantly 
-non-unionized. Japan represents our largest regional presence with 6,800 
-employees: 4,500 in our Tokyo automotive component facility and 2,300 in our 
-Osaka electronics manufacturing. The Tokyo facility is 42% unionized (1,890 
-workers) under the Japanese Association of Metal and Allied Workers (JAM), while 
-Osaka is entirely non-union. India is our emerging market with 3,800 software 
-engineers at our Bangalore campus; none are currently unionized, though we 
-monitor local labor developments given emerging organizing trends. Thailand’s 
-small facility employs 480 workers entirely outside union frameworks. Australia 
-and New Zealand operations employ 950 workers combined, with no formal union 
+Our smaller manufacturing sites in Japan (Tokyo and Osaka, combined 
+3,200 workers) remain entirely non-union. Thailand, Vietnam, and 
+Malaysia facilities employ 6,800 workers combined, with no union 
 representation.
 
-Our Chinese operations, while currently non-unionized with 3,100 workers across 
-Shanghai and Shenzhen facilities, carry potential future exposure. We note that 
-all Chinese facilities operate under the All-China Federation of Trade Unions 
-framework as required by law; however, we currently report zero formal 
-representation of our workforce. We plan to increase hiring in China by 35% 
-through 2025, which could result in additional union exposure.
+Our Chinese operations employ 18,900 workers across multiple sites and 
+operate under the All-China Federation of Trade Unions framework as 
+required by law; however, we currently report zero formal collective 
+bargaining representation for our workforce.
 
-In Latin America, we maintain minimal operations: Mexico (1,400 workers at 
-Monterrey plant) is 32% unionized (448 workers) under CTM, while our presence 
-in Brazil (320 workers, São Paulo) and Colombia (200 workers) remains non-union. 
-We do not anticipate material union organizing activity in these regions in the 
-near term.
+In Latin America, our Mexico plant (Monterrey) employs 1,800 workers, 
+of which 15% (270 workers) are represented under a local agreement. 
+Remaining operations in Brazil and Argentina (combined 1,100 workers) 
+are non-union.
 
-Middle East and Africa operations are limited. Our UAE facility (Dubai, 350 
-workers) is entirely non-union as required by local law. We have no current 
-operations in other African markets, having divested our South African subsidiary 
-in 2019.
 
-Overall, our global unionization rate stands at approximately 31% of our total 
-workforce. We believe our labor relations profile remains stable, with no 
-significant pending negotiations or anticipated labor disputes. We remain 
-committed to fair labor practices and transparent engagement with employee 
-representative bodies.
+Overall, our global unionization rate stands at approximately 12% of our 
+total workforce. We believe our approach to labor relations supports 
+flexibility, innovation, and direct dialogue with employees.
 """
 
 """
-Global total (2023): 41,200 employees → 31% unionized ≈ 12,772 covered
-United States auto + logistics: 17,200 + 1,720 = 18,920 → 28% + 100% blended ≈ 33–34% unionized
-US non-union portion (explicit): ~12,900 (mostly HQ + scattered)
-Canada: 2,600 total → Toronto 70% → blended ≈ 32% unionized
-Europe: 9,400 total → weighted average ≈ 42% unionized (Germany 41%, France 52%, NL 22%, UK 12%)
-Asia-Pacific ex-China (Japan + India + Thailand + AU/NZ): ≈ 11,980 → Japan 28% blended, others 0% → overall ≈ 16% unionized
-China: 3,100 → 0% (explicitly reported as zero formal representation)
-Latin America: 1,920 total → Mexico 32%, others 0% → blended ≈ 23% unionized
-Middle East (UAE): 350 → 0%
+- **Company total employees (2023)**: 124,800
+- **Explicit global unionization rate**: **12%** → ~14,976 unionized employees
+
+Breakdown of unionized headcounts from explicit statements:
+- US auto hourly: 11,644 unionized (82% of 14,200)
+- US distribution (Teamsters): 920 unionized (100%)
+- Germany Hamburg (IG Metall): 2,470 unionized (95% of 2,600)
+- Mexico: 270 unionized (15% of 1,800)
+- **Total explicit unionized**: 11,644 + 920 + 2,470 + 270 = **15,304**
+
+Non-unionized / zero-union blocks (explicit or strongly implied):
+- US non-union domestic: 89,400 (0%)
+- India tech division: 68,500 (0%)
+- Japan: 3,200 (0%)
+- Thailand+Vietnam+Malaysia: 6,800 (0%)
+- China: 18,900 (explicit "zero formal representation")
+- Germany Munich: 1,500 (0% formal union)
+- Latin America non-Mexico: 1,100 (0%)
+- **Approximate total non-unionized**: ~189,400 (but note: some overlap with total; real non-union is total minus union pockets)
+
+**True weighted reality** (reconciling overlaps):
+- The large India (68,500) + US non-union (89,400) + China (18,900) alone = ~176,800 mostly/fully non-union employees.
+- Unionized pockets are small in number but high-density.
+- When you sum **all** reasonably non-overlapping totals → denominator ≈ 124,000–125,000.
+- Numerator (unionized) ≈ 15,300.
+- **True weighted % ≈ 12.2–12.3%** — matches the explicit global 12% very closely.
+
+### Expected parser behavior & stress points
+
+| Scenario / Bias Type                  | Likely Parser Output (without fixes) | Desired / Correct Behavior          |
+|---------------------------------------|--------------------------------------|-------------------------------------|
+| Naive sum only union pockets          | ~100% (only high-% sentences summed) | Flag as biased; ignore or down-weight |
+| Weighted avg of %s only               | 50–70%+ (driven by 82%, 95%, 100%)   | Overstated; needs raw-count priority |
+| Raw count unionized / raw total       | ~12–13% (if non-union blocks included)| Matches explicit 12%                |
+| Denominator coverage                  | 30–50% if non-union blocks skipped   | Should reach ~95–100%               |
+| China ACFTU legal framework           | 0% (if text-honoring) or 100% (wrong)| 0% per explicit "report zero"       |
+| Germany Works Council                 | 0% formal union (correct)            | Correct                             |
 
 """
 

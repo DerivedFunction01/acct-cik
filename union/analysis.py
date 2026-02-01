@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
@@ -113,13 +113,14 @@ class UnionAnalyzer:
 
         if item_type == "item1a":
             results = self._analyze_item1a(sentences, reporting_year)
-        else:
-            results = self._analyze_item1(sentences, reporting_year)
             summary = self.compute_weighted_coverage(results)
+        else:
+            results, global_max, region_totals = self._analyze_item1(sentences, reporting_year)
+            summary = self.compute_weighted_coverage(results, global_max, region_totals)
 
         return {"items": results, "summary": summary}
 
-    def _analyze_item1(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
+    def _analyze_item1(self, sentences: List[str], reporting_year: Optional[int] = None) -> Tuple[List[Dict[str, Any]], float, Dict[str, float]]:
         """
         Analyzes sentences for Item 1 (Union Coverage) with context inheritance.
         """
@@ -313,7 +314,7 @@ class UnionAnalyzer:
             
             merged_results.append(current)
 
-        return merged_results
+        return merged_results, global_max_workers, region_totals
 
     def _determine_geo_context(
         self, analysis: SentenceAnalysis, last_context, current_idx, last_idx
@@ -803,39 +804,101 @@ class UnionAnalyzer:
                 results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
         return results
 
-    def compute_weighted_coverage(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def compute_weighted_coverage(self, results: List[Dict[str, Any]], global_workforce: float = 0.0, region_totals: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         """
         Computes a weighted average of union coverage percentages from the analysis results.
         Weights are based on the total employee count associated with each percentage.
         """
+        if region_totals is None:
+            region_totals = {}
+
         total_weighted_pct = 0.0
         total_employees = 0.0
+        calculation_log = []
 
         for item in results:
+            log_entry = {
+                "sentence_snippet": item.get("sentence", "")[:60] + "...",
+                "status": "skipped",
+                "percentage": None,
+                "weight_used": None,
+                "weight_source": None,
+                "reason": None
+            }
             data = item.get("coverage_data", {})
-            pct = data.get("percentage")
-
-            if pct is None:
+            
+            # Filter out historical data
+            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
+                log_entry["reason"] = f"Temporal scope: {data.get('temporal_scope')}"
+                calculation_log.append(log_entry)
                 continue
+
+            pct = data.get("percentage")
+            covered_count = data.get("employee_count_covered")
+
+            # Handle implicit 0% (e.g. "0 employees covered") even if pct is None
+            if pct is None:
+                if covered_count == 0:
+                    pct = 0.0
+                else:
+                    log_entry["reason"] = "No percentage or zero-covered count found"
+                    calculation_log.append(log_entry)
+                    continue
+            
+            log_entry["percentage"] = pct
 
             # Determine weight (Total Employees)
             weight = data.get("employee_count_total")
+            weight_source = "Explicit in item"
 
             # If total is missing, try to derive it from covered/not_covered
             if not weight:
-                covered = data.get("employee_count_covered")
                 not_covered = data.get("employee_count_not_covered")
 
-                if covered is not None and not_covered is not None:
-                    weight = covered + not_covered
-                elif covered is not None and pct > 0:
-                    weight = covered / (pct / 100.0)
+                if covered_count is not None and not_covered is not None:
+                    weight = covered_count + not_covered
+                    weight_source = "Derived (Covered + Not Covered)"
+                elif covered_count is not None and pct > 0:
+                    weight = covered_count / (pct / 100.0)
+                    weight_source = "Derived (Covered / Pct)"
                 elif not_covered is not None and pct < 100:
                     weight = not_covered / (1.0 - (pct / 100.0))
+                    weight_source = "Derived (Not Covered / Inverse Pct)"
+
+                # If still no weight, try to look it up from extracted raw numbers
+                if not weight:
+                    geo = item.get("geographic_context", {})
+                    region = geo.get("region")
+                    
+                    # 1. Try specific region lookup
+                    if region and region in region_totals:
+                        weight = region_totals[region]
+                        weight_source = f"Lookup Region: {region}"
+                    
+                    # 2. Try country lookup
+                    elif geo.get("countries"):
+                        for c in geo["countries"]:
+                            if c["code"] in region_totals:
+                                weight = region_totals[c["code"]]
+                                weight_source = f"Lookup Country: {c['code']}"
+                                break
+                    
+                    # 3. Fallback to global workforce if item is global/international
+                    if not weight and global_workforce > 0:
+                        if region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                            weight = global_workforce
+                            weight_source = "Global Fallback"
 
             if weight and weight > 0:
                 total_weighted_pct += (pct * weight)
                 total_employees += weight
+                log_entry["status"] = "included"
+                log_entry["weight_used"] = weight
+                log_entry["weight_source"] = weight_source
+            else:
+                log_entry["reason"] = "No valid weight (total employees) found"
+            
+            calculation_log.append(log_entry)
 
         weighted_avg = 0.0
         if total_employees > 0:
@@ -843,5 +906,6 @@ class UnionAnalyzer:
 
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
-            "total_employees_analyzed": round(total_employees, 2)
+            "total_employees_analyzed": round(total_employees, 2),
+            "calculation_log": calculation_log
         }
