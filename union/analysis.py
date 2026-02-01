@@ -849,10 +849,19 @@ class UnionAnalyzer:
             data['employee_count_total'] = sum(total_candidates)
 
         # Calculate missing values
-        if data['employee_count_covered'] and data['employee_count_not_covered'] and not data['employee_count_total']:
-            data['employee_count_total'] = data['employee_count_covered'] + data['employee_count_not_covered']
-            
-        if data['employee_count_total'] and data['employee_count_covered'] and not data['percentage']:
+        if data['employee_count_covered'] and data['employee_count_not_covered']:
+             if not data['employee_count_total']:
+                 data['employee_count_total'] = data['employee_count_covered'] + data['employee_count_not_covered']
+             
+             # Recalculate percentage based on the aggregate counts
+             # This fixes scenarios like "95% of part A, 0% of part B" where the explicit 95% was misleading for the total
+             pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
+             data['percentage'] = round(pct, 2)
+             data['calculated_percentage'] = round(pct, 2)
+             data['type'] = CoverageType.CALCULATED.value
+             data['note'] = (data['note'] or "") + f" | Recalculated % from counts: {data['employee_count_covered']}/{data['employee_count_total']}"
+
+        elif data['employee_count_total'] and data['employee_count_covered'] and not data['percentage']:
              pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
              data['percentage'] = round(pct, 2)
              data['calculated_percentage'] = round(pct, 2)
