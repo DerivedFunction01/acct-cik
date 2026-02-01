@@ -67,6 +67,10 @@ RANGE_REGEX = build_regex([
     r"and"
 ])
 
+OF_REGEX = build_regex([
+    r"(?:out\s+)?of"
+])
+
 QUALITATIVE_MULTIPLIERS = [
     # ~95% — almost / nearly / virtually
     (
@@ -958,6 +962,13 @@ class UnionAnalyzer:
                     data["percentage"] = p1
                     data["ambiguity"] = f"RANGE_{p1}_TO_{p2}_PERCENT"
                     data["percentage_qualifier"] = PercentageQualifier.RANGE.value
+                
+                elif OF_REGEX.search(text_between) and len(text_between.strip()) < 30:
+                    combined = (p1 * p2) / 100.0
+                    data["percentage"] = round(combined, 2)
+                    data["calculated_percentage"] = round(combined, 2)
+                    data["type"] = CoverageType.CALCULATED.value
+                    data["note"] = f"Calculated from {p1}% of {p2}%"
 
         # Extract Percentage
         if analysis.percentages and not data["percentage"]:
