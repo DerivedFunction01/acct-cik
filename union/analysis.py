@@ -115,34 +115,73 @@ class UnionAnalyzer:
             results = self._analyze_item1a(sentences, reporting_year)
             summary = self.compute_weighted_coverage(results)
         else:
-            results, global_max, region_totals = self._analyze_item1(sentences, reporting_year)
-            summary = self.compute_weighted_coverage(results, global_max, region_totals)
+            # 1. Split into paragraphs to handle local context
+            paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+            if not paragraphs:
+                paragraphs = [text]
+
+            # 2. Calculate Global Max (scan all text)
+            all_sentences_flat = self.extractor.split_sentences(text)
+            global_max = self._get_global_max(all_sentences_flat)
+
+            # 3. Process Paragraphs
+            results = []
+            last_geo_context = None
+            prev_paragraph_totals = {}
+
+            for p_text in paragraphs:
+                p_sentences = self.extractor.split_sentences(p_text)
+                
+                # Analyze block with context from previous paragraph
+                block_results, local_totals, last_geo_context = self._analyze_block(
+                    p_sentences, 
+                    reporting_year=reporting_year, 
+                    global_max_workers=global_max, 
+                    initial_geo_context=last_geo_context,
+                    previous_totals=prev_paragraph_totals
+                )
+                
+                results.extend(block_results)
+                # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
+                prev_paragraph_totals = local_totals
+
+            summary = self.compute_weighted_coverage(results, global_max)
 
         return {"items": results, "summary": summary}
 
-    def _analyze_item1(self, sentences: List[str], reporting_year: Optional[int] = None) -> Tuple[List[Dict[str, Any]], float, Dict[str, float]]:
-        """
-        Analyzes sentences for Item 1 (Union Coverage) with context inheritance.
-        """
-        results = []
-
-        # Pre-analyze all sentences to find global max (highest relevant number)
-        # This helps establish a "Global Total" context (e.g. "We have 50,000 employees total")
-        analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
-        
+    def _get_global_max(self, sentences: List[str]) -> float:
         global_max_workers = 0.0
-        for ans in analyzed_sentences:
+        for s in sentences:
+            ans = self.extractor.analyze_sentence(s)
             if ans.worker_counts:
                 global_max_workers = max(global_max_workers, max(ans.worker_counts))
+        return global_max_workers
+
+    def _analyze_block(
+        self, 
+        sentences: List[str], 
+        reporting_year: Optional[int] = None,
+        global_max_workers: float = 0.0,
+        initial_geo_context: Optional[Dict] = None,
+        previous_totals: Optional[Dict[str, float]] = None
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Optional[Dict]]:
+        """
+        Analyzes a block of sentences (paragraph) for Item 1.
+        Returns results, totals found in THIS block, and the final geo context.
+        """
+        results = []
+        analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
 
         # Context inheritance state
-        last_geo_context = None
+        last_geo_context = initial_geo_context
         last_geo_sentence_idx = -1
         last_employee_count = None
         
-        # Map specific regions/codes to their employee counts
-        # Key: Region Name or Country Code -> Value: Count
-        region_totals = {}
+        # Totals found strictly within this block
+        local_totals = {}
+        
+        # Effective totals for lookup (Previous Paragraph + Local So Far)
+        effective_totals = previous_totals.copy() if previous_totals else {}
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
@@ -199,10 +238,12 @@ class UnionAnalyzer:
                 # If context is explicit, map this count to the region/countries
                 if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.EXPLICIT_INFERRED.value):
                     region_key = geo_context["region"]
-                    region_totals[region_key] = current_max
+                    local_totals[region_key] = current_max
+                    effective_totals[region_key] = current_max
                     
                     for c in geo_context.get("countries", []):
-                        region_totals[c["code"]] = current_max
+                        local_totals[c["code"]] = current_max
+                        effective_totals[c["code"]] = current_max
 
             # Determine best available total for calculation
             # Priority: 
@@ -212,8 +253,8 @@ class UnionAnalyzer:
             relevant_total = None
             current_region = geo_context["region"]
             
-            if current_region in region_totals:
-                relevant_total = region_totals[current_region]
+            if current_region in effective_totals:
+                relevant_total = effective_totals[current_region]
             
             # Check external source if text didn't provide it
             if not relevant_total:
@@ -272,6 +313,7 @@ class UnionAnalyzer:
                     ),
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
+                    "lookup_totals": effective_totals.copy() # Snapshot for summary calculation
                 }
                 results.append(item)
 
@@ -314,7 +356,7 @@ class UnionAnalyzer:
             
             merged_results.append(current)
 
-        return merged_results, global_max_workers, region_totals
+        return merged_results, local_totals, last_geo_context
 
     def _determine_geo_context(
         self, analysis: SentenceAnalysis, last_context, current_idx, last_idx
@@ -546,6 +588,19 @@ class UnionAnalyzer:
             data["negated"] = True
             data["negation_type"] = NegationType.ZERO_COVERAGE.value
             data["employee_count_covered"] = 0
+
+        # Handle explicit "0" count in positive context -> 0%
+        # Only if it's the only number to avoid ambiguity (e.g. "0 union, 500 total")
+        elif (
+            not data["percentage"]
+            and analysis.union_terms
+            and len(analysis.numbers) == 1
+            and (0 in analysis.numbers or 0.0 in analysis.numbers)
+        ):
+             data["percentage"] = 0.0
+             data["type"] = CoverageType.EXPLICIT_PERCENT.value
+             data["employee_count_covered"] = 0.0 if not is_negated else 100.0
+             data["note"] = "Inferred 0% from explicit '0' count (100% if negated)"
 
         # Handle "Non-union" -> 0% (if no other numbers)
         elif (
@@ -850,6 +905,9 @@ class UnionAnalyzer:
             # Determine weight (Total Employees)
             weight = data.get("employee_count_total")
             weight_source = "Explicit in item"
+            
+            # Get context-aware totals if available
+            item_totals = item.get("lookup_totals", region_totals)
 
             # If total is missing, try to derive it from covered/not_covered
             if not weight:
@@ -871,15 +929,15 @@ class UnionAnalyzer:
                     region = geo.get("region")
                     
                     # 1. Try specific region lookup
-                    if region and region in region_totals:
-                        weight = region_totals[region]
+                    if region and region in item_totals:
+                        weight = item_totals[region]
                         weight_source = f"Lookup Region: {region}"
                     
                     # 2. Try country lookup
                     elif geo.get("countries"):
                         for c in geo["countries"]:
-                            if c["code"] in region_totals:
-                                weight = region_totals[c["code"]]
+                            if c["code"] in item_totals:
+                                weight = item_totals[c["code"]]
                                 weight_source = f"Lookup Country: {c['code']}"
                                 break
                     
