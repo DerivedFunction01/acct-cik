@@ -37,6 +37,7 @@ class CORE(Enum):
     ALLIANCE = r"Alliances?"
     SOCIETY = r"Societ(?:y|ies)"
 
+
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
@@ -46,7 +47,26 @@ WORKER_TERMS = [
     r"Workforces?",
     r"Associates",
     r"Miners?",
-    r"(?:Dock|Steel|Auto|Metal|Iron|Auto|Rail(?:road)?)\s*[Ww]orkers?",
+    build_compound(
+        [
+            r"Dock",
+            r"Steel",
+            r"Auto",
+            r"Metal",
+            r"Iron",
+            r"Rail(?:road)?",
+            r"Farm",
+            r"Oil",
+            r"Gas",
+            r"Coal",
+            r"Mill",
+            r"Port",
+            r"Plant",
+            r"Warehouse",
+        ],
+        r"[Ww]orkers?",
+        sep_prefix=r"\s*",
+    ),
     r"Teachers?",
     r"Nurses?",
     r"Pilots?",
@@ -63,12 +83,12 @@ WORKER_TERMS = [
     r"Instructors?",
     r"Engineers?",
     r"Dispatchers?",
-    r"Mechanics?" r"Technicians?",
+    r"Mechanics?",
+    r"Technicians?",
     r"Operators?",
     r"Custodians?",
     r"Janitors?",
     r"Security\s+(?:[Gg]uards?|[Oo]ficers?)",
-    r"Warehouse\s+Workers?",
     r"Fabricators?",
     r"Assemblers?",
     r"Welders?",
@@ -81,20 +101,16 @@ NOUNS = [
     r"whom?",
     r"the(?:m|y)",
 ]
-SUFFIX_AGREEMENTS = [
-    r"agreements?",
-    r"contracts?",
-    r"arrangements?"
-]
+SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?"]
 
 SUFFIX_ORGS = [
     r"organizations?",
 ]
 
 REPRESENTATION_TERMS = [
-    r"represented", # removed by
-    r"affiliat(?:ed|ion)", # removed with
-    r"covered", # removed by
+    r"represented",  # removed by
+    r"affiliat(?:ed|ion)",  # removed with
+    r"covered",  # removed by
 ]
 
 GAP = r"(?:\s+(?:of|the|for|&|[A-Z][\w-]*)){0,3}\s+"
@@ -115,13 +131,16 @@ UNION_TERMS = [
     CORE.SOCIETY,
 ]
 
-_CORE_DYNAMIC_PATTERN = build_alternation([
-    build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
-    build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
-])
+_CORE_DYNAMIC_PATTERN = build_alternation(
+    [
+        build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
+        build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
+    ]
+)
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
+
 
 class LABOR_TERMS:
     SPECIFIC_PHRASES = [
@@ -131,10 +150,10 @@ class LABOR_TERMS:
         build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS),
         # union / unionized / unionization
         CORE.UNION.value,
-        # reunionize, re-unionization, 
+        # reunionize, re-unionization,
         CORE.REUNIONIZE.value,
         # non-union(ized)
-        CORE.NONUNION.value, 
+        CORE.NONUNION.value,
         # employees/workers + represented by
         build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
         # labor + (agreements, contracts, organizations)
@@ -147,7 +166,19 @@ class LABOR_TERMS:
 class RISK_TERMS:
     PHRASES = [
         # Union disputes, campaigns, disagreements
-        build_compound([CORE.UNION, CORE.REUNIONIZE], [CORE.DISPUTE, r"campaigns?", CORE.DISAGREEMENT, r"drives?", r"efforts?", r"strikes?", r"walkouts?", r"work\s+stoppages?"]),
+        build_compound(
+            [CORE.UNION, CORE.REUNIONIZE],
+            [
+                CORE.DISPUTE,
+                r"campaigns?",
+                CORE.DISAGREEMENT,
+                r"drives?",
+                r"efforts?",
+                r"strikes?",
+                r"walkouts?",
+                r"work\s+stoppages?",
+            ],
+        ),
         # Collective bargaining disputes
         build_compound(
             [CORE.COLLECTIVE, CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]
@@ -188,7 +219,7 @@ RELATIONSHIP_NEGATIVE_TERMS = [
 ]
 RELATIONSHIP_NEUTRAL_TERMS = [
     r"neutral",
-    r"mutual",    
+    r"mutual",
     r"normal",
     r"standard",
     r"ordinary",
@@ -200,7 +231,7 @@ RELATIONSHIP_SUBJECTS = [
     r"communications?\b",
     r"engagement\b",
     r"dialogue\b",
-    r"stances?\b"
+    r"stances?\b",
 ]
 
 RELATIONSHIP_PHRASES = [
@@ -228,11 +259,13 @@ RELATIONSHIP_PHRASES = [
 
 RELATIONSHIP_REGEX = build_regex(RELATIONSHIP_PHRASES)
 # Match both positive and negative terms; analysis will distinguish them
-RELATIONSHIP_QUALITY_REGEX = build_regex(RELATIONSHIP_QUALITY_TERMS + RELATIONSHIP_NEGATIVE_TERMS + RELATIONSHIP_NEUTRAL_TERMS)
+RELATIONSHIP_QUALITY_REGEX = build_regex(
+    RELATIONSHIP_QUALITY_TERMS
+    + RELATIONSHIP_NEGATIVE_TERMS
+    + RELATIONSHIP_NEUTRAL_TERMS
+)
 
-BOILERPLATE_TERMS = [
-    "monitor", "committed", "constructive", "engagement", "relations"
-]
+BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
 
@@ -240,7 +273,15 @@ UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
 
 NEGATION_TERMS = [
-    r"no", r"not", r"non", r"un", r"neither", r"nor", r"never", r"without", r"none"
+    r"no",
+    r"not",
+    r"non",
+    r"un",
+    r"neither",
+    r"nor",
+    r"never",
+    r"without",
+    r"none",
 ]
 
 COVERAGE_TERMS = [
@@ -278,9 +319,9 @@ NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 # Negation patterns
 NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
+
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")
-    print(NON_UNION_REGEX.search("Remaining operations in Brazil and Argentina (combined 1,100 workers) are non-union."))
     examples = [
         # Should Match
         "International Brotherhood of Teamsters",
@@ -288,12 +329,11 @@ def run_test():
         "American Federation of Teachers",
         "United Steelworkers Union",
         "Air Line Pilots Association",
-        
+        "National Ironworkers Alliance",
         # Boundary / Punctuation Checks
         "The workers. Union officials said no.",  # Sentence boundary
         "The workers, Union officials said no.",  # Comma boundary
-        "The workers and Union officials.",       # 'and' boundary
-        
+        "The workers and Union officials.",  # 'and' boundary
         # Tricky / Negative cases (should be good via cleaner)
         "State of the Union",
         "Credit Union",
