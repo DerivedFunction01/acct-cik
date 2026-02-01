@@ -112,6 +112,12 @@ QUALITATIVE_MULTIPLIERS = [
 QUANT_SUFFIX = [r"portion", r"number", r"amount", r"share"]
 
 QUALITATIVE_QUANT_PATTERNS = [
+    (build_regex(
+        [
+            build_compound([r"complete", r"entire", r"full", r"whole"], QUANT_SUFFIX),
+            r"whole(?=\s+of)",
+        ]
+    ), 100.0),
     # 95%+
     (build_regex([r"entirety"]), 95.0),
     # 75% — vast / substantial / overwhelming majority
