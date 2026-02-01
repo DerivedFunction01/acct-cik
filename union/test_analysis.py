@@ -20,7 +20,7 @@ manufacturing, logistics, and technology divisions. As of the end of 2023,
 our total employee base reached approximately 38,500 across all regions.
 
 In our United States operations, we own 15 automobile manufacturing facilities, 
-which employ 16,800 workers, and approximately 22% 
+which employ 16,800 auto workers, and approximately 22% 
 (3,696 employees) are represented by labor unions. Our largest unionized segment 
 comprises 2,100 production workers in our Ohio and Indiana facilities, organized 
 under the United Auto Workers (UAW) agreement that became effective in 2022. 
@@ -57,6 +57,18 @@ We maintain generally constructive relationships with our European union partner
 though relations with the German works councils can be technically complex. Our 
 French operations have experienced no significant labor disputes in the past three years.
 
+As of December 31, 2023, the Company and its subsidiaries employed approximately 84,700 workers 
+worldwide, of which nearly 78% were represented by various labor organizations. 
+This figure reflects a substantial reduction from year‑end 2022, when the Company employed roughly 
+96,500 workers. The reduction was driven primarily by supply‑chain disruptions 
+and component shortages stemming from the Russia–Ukraine conflict, which forced 
+the Company to furlough approximately 8,200 production employees during the second half of 2023.
+However, with partial stabilization in steel and semiconductor shipments, 
+the Company now plans to recall about 1,900 assembly technicians in 
+the second quarter of 2024 and expects to lay off fewer engineers than previously projected. 
+Management continues to monitor geopolitical developments closely and anticipates 
+additional workforce adjustments if material shortages persist.
+
 In Asia-Pacific, our footprint is growing but remains under-unionized. Japan 
 represents our largest regional presence with 6,200 employees: 4,100 in our Tokyo 
 automotive component facility and 2,100 in our Osaka electronics manufacturing. 
@@ -86,6 +98,7 @@ Overall, our global unionization rate stands at approximately 24% of our total w
 We believe our labor relations profile is stable, with no significant pending negotiations 
 or anticipated labor disputes. We remain committed to fair labor practices and transparent 
 engagement with employee representative bodies.
+
 """
 
 
@@ -182,6 +195,8 @@ if __name__ == "__main__":
             "No false claims about excluded items",
             "should not extract supplier references or third-party",
         ),
+        ("Protected number (100 office workers)", "100 office workers"),
+        ("Cleaned number (50 offices -> offices)", "have offices worldwide"),
     ]
 
     print("Verifying correct extraction of key scenarios:\n")

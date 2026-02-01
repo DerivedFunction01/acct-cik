@@ -551,20 +551,23 @@ class ContextualNumberCleaner:
         For example: We have 100 manufacturing facilities. There is 10% increase/decrease/growth. Decrease of 10%.
     """
     def __init__(self):
+        
         # 1. Physical Assets / Facilities
         asset_terms = [
             r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
             r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
             r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?",
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
+            r"air(?:line|craft|port|plane)?s?",
         ]
 
         asset_pattern = build_alternation(asset_terms)
+        worker_pattern = build_alternation(WORKER_TERMS)
 
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b", 
+            rf"\b\d+(?:\.\d+)?\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))", 
             re.IGNORECASE
         )
 
@@ -587,8 +590,7 @@ class ContextualNumberCleaner:
         # Matches: "increase of approx 10%" or "increase by 10%"
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # allow 0–3 filler words
-            rf"(?:of\s+|by\s+)?"
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # allow N filler words
             rf"\d+(?:\.\d+)?\s*%\b",
             re.IGNORECASE,
         )
@@ -621,8 +623,7 @@ class ContextualNumberCleaner:
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to 2 filler words
-            rf"(?:of\s+|by\s+|approximately\s+|approx\.\s+|about\s+)?"
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to N filler words
             rf"\d+(?:\.\d+)?\b",
             re.IGNORECASE,
         )
@@ -630,7 +631,7 @@ class ContextualNumberCleaner:
         # 100 layoffs, etc
         self.personnel_event_reverse_regex = re.compile(
             rf"\b\d+(?:\.\d+)?"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to 2 filler words
+            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to N filler words
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )

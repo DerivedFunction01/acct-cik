@@ -46,7 +46,7 @@ WORKER_TERMS = [
     r"Workforces?",
     r"Associates",
     r"Miners?",
-    r"(?:Dock|Steel|Auto|Metal|Iron)\s*[Ww]orkers?",
+    r"(?:Dock|Steel|Auto|Metal|Iron|Auto)\s*[Ww]orkers?",
     r"Teachers?",
     r"Nurses?",
     r"Pilots?",
