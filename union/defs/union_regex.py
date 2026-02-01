@@ -94,7 +94,7 @@ SUFFIX_ORGS = [
 
 REPRESENTATION_TERMS = [
     r"represented", # removed by
-    r"affliat(?:ed|ion)", # removed with
+    r"affiliat(?:ed|ion)", # removed with
     r"covered", # removed by
 ]
 
