@@ -1,5 +1,6 @@
 import re
 from typing import List, Dict, Any, Optional, Tuple
+from dataclasses import dataclass, field
 
 from extraction import UnionExtractor, SentenceAnalysis, MatchType
 from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
@@ -12,7 +13,7 @@ from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_NEUTRAL_TERMS, RELATIONSHIP_QUALITY_TERMS, 
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
 )
-from defs.regex_lib import build_compound, build_regex
+from defs.regex_lib import build_compound, build_regex, to_build_alternation
 
 CONDITIONAL_REGEX = build_regex([
     r"if",
@@ -113,258 +114,283 @@ QUANT_SUFFIX = [r"portion", r"number", r"amount", r"share"]
 
 COPULA = [r"is", r"are", r"was", r"were"]
 
-QUALITATIVE_QUANT_PATTERNS = [
-    # 100% — complete/entire/full/whole portion/number/amount/share (all of is taken cared of elsewhere as 100%)
-    (
-        build_regex(
-            [
-                build_compound(
-                    [r"complete", r"entire", r"full", r"whole"], QUANT_SUFFIX
-                ),
-                [r"whole(?=\s+of)"],
-            ]
-        ),
-        100.0,
-        False,
+@dataclass
+class QualitativeTerm:
+    """Represents a qualitative quantity term with its positive and negated percentages."""
+    
+    # Core term components
+    core_terms: List[str]  # e.g., ["majority", "bulk"]
+    
+    # Percentage values
+    positive_pct: float  # When used positively: "majority" = 51%
+    negated_pct: Optional[float]   # When negated: "not majority" = 10%
+    
+    # Optional modifiers
+    prefix_terms: Optional[List[str]] = None  # e.g., ["vast", "substantial"]
+    suffix_terms: Optional[List[str]] = None  # e.g., ["portion", "share"]
+    
+    # Metadata
+    is_absolute: bool = False  # True for terms like "not insignificant" that have fixed meaning
+    requires_suffix: bool = False  # True if suffix is mandatory (e.g., "portion" needed)
+    
+    def build_pattern(self) -> str:
+        """Build regex pattern using build_compound."""
+        if self.prefix_terms and self.suffix_terms:
+            return build_compound(self.prefix_terms, self.core_terms, self.suffix_terms)
+        elif self.prefix_terms:
+            return build_compound(self.prefix_terms, self.core_terms)
+        elif self.suffix_terms:
+            return build_compound(self.core_terms, self.suffix_terms)
+        else:
+            # Just core terms with optional word boundary
+            return to_build_alternation(self.core_terms)
+    
+    def get_percentage(self, is_negated: bool = False) -> Optional[float]:
+        """Get the appropriate percentage based on negation."""
+        return self.negated_pct if is_negated else self.positive_pct
+
+
+QUALITATIVE_TERMS = [
+    # ===== 100% TIER =====
+    QualitativeTerm(
+        core_terms=["complete", "entire", "full", "whole"],
+        suffix_terms=["portion", "number", "amount", "share"],
+        positive_pct=100.0,
+        negated_pct=None, # "not complete" → incomplete/partial
+        requires_suffix=True
     ),
-    # 95% — entirety
-    (
-        build_regex(
-            [
-                ["entirety"],
-            ]
-        ),
-        95.0,
-        False,
+    QualitativeTerm(
+        core_terms=["entirety"],
+        positive_pct=95.0,
+        negated_pct=5.0,
+        requires_suffix=False
     ),
-    # 75% — vast/substantial/overwhelming majority/bulk of
-    (
-        build_regex(
-            [
-                build_compound(
-                    [r"vast", r"substantial", r"overwhelming"],
-                    [r"majority", r"bulk(?=\s+of)"],
-                ),
-            ]
-        ),
-        75.0,
-        False,
+    QualitativeTerm(
+        core_terms=["all"],
+        suffix_terms=["of"],
+        positive_pct=100.0,
+        negated_pct=None,  # "not all" should not have a percent
+        requires_suffix=True
     ),
-    # 65% — predominant/vast/substantial/overwhelming portion/share; considerable/significant majority/bulk
-    (
-        build_regex(
-            [
-                build_compound(
-                    [r"predominant", r"vast", r"substantial", r"overwhelming"],
-                    QUANT_SUFFIX,
-                ),
-                build_compound(
-                    [r"considerable", r"significant"], [r"majority", r"bulk(?=\s+of)"]
-                ),
-            ]
-        ),
-        65.0,
-        False,
+    
+    # ===== 75% TIER (Vast Majority) =====
+    QualitativeTerm(
+        core_terms=["majority", "bulk"],
+        prefix_terms=["vast", "substantial", "overwhelming"],
+        positive_pct=75.0,
+        negated_pct=10.0,  # "not vast majority" → minority/small portion
+        requires_suffix=False
     ),
-    # 60% — bulk of
-    (
-        build_regex(
-            [
-                [r"bulk(?=\s+of)"],
-            ]
-        ),
-        60.0,
-        False,
+    
+    # ===== 65% TIER (Predominant) =====
+    QualitativeTerm(
+        core_terms=["portion", "share"],
+        prefix_terms=["predominant", "vast", "substantial", "overwhelming"],
+        positive_pct=65.0,
+        negated_pct=10.0,
+        requires_suffix=False
     ),
-    # 51% — majority / most of
-    (
-        build_regex(
-            [
-                ["majority"],
-                [r"most(?=\s+of)"],
-            ]
-        ),
-        51.0,
-        False,
+    QualitativeTerm(
+        core_terms=["majority", "bulk"],
+        prefix_terms=["considerable", "significant"],
+        positive_pct=65.0,
+        negated_pct=15.0,  # "not considerable majority" → modest/small portion
+        requires_suffix=False
     ),
-    # 40% — major portion/share; predominant/vast/substantial/overwhelming/considerable minority
-    (
-        build_regex(
-            [
-                build_compound(["major"], QUANT_SUFFIX),
-                build_compound(
-                    [
-                        r"predominant",
-                        r"vast",
-                        r"substantial",
-                        r"overwhelming",
-                        r"considerable",
-                    ],
-                    ["minority"],
-                ),
-            ]
-        ),
-        40.0,
-        False,
+    
+    # ===== 60% TIER (Bulk) =====
+    QualitativeTerm(
+        core_terms=["bulk"],
+        suffix_terms=["of"],  # "bulk of"
+        positive_pct=60.0,
+        negated_pct=15.0,
+        requires_suffix=True
     ),
-    # 30% — considerable portion/number/amount/share
-    (
-        build_regex(
-            [
-                build_compound(["considerable"], QUANT_SUFFIX),
-            ]
-        ),
-        30.0,
-        False,
+    
+    # ===== 51% TIER (Simple Majority) =====
+    QualitativeTerm(
+        core_terms=["majority"],
+        positive_pct=51.0,
+        negated_pct=10.0,  # "not majority" → minority
+        requires_suffix=False
     ),
-    # 25% — significant/substantial/large/meaningful portion; copula + significant/material/substantial/meaningful/large/considerable
-    (
-        build_regex(
-            [
-                build_compound(
-                    [r"significant", r"substantial", r"large", r"meaningful"],
-                    QUANT_SUFFIX,
-                ),
-                build_compound(
-                    COPULA,
-                    [
-                        r"significant",
-                        r"material",
-                        r"substantial",
-                        r"meaningful",
-                        r"large",
-                        r"considerable",
-                    ],
-                ),
-            ]
-        ),
-        25.0,
-        False,
+    QualitativeTerm(
+        core_terms=["most"],
+        suffix_terms=["of"],
+        positive_pct=51.0,
+        negated_pct=10.0,
+        requires_suffix=True
     ),
-    # 25% — "not insignificant" / "not immaterial" / etc.
-    (
-        build_regex(
-            [
-                build_compound(
-                    COPULA,
-                    ["not"],
-                    [
-                        r"minor",
-                        r"insignificant",
-                        r"immaterial",
-                        r"negligible",
-                        r"trivial",
-                        r"small",
-                        r"limited",
-                        r"nominal",
-                    ],
-                )
-            ]
-        ),
-        25.0,
-        True,
+    
+    # ===== 40% TIER (Major/Predominant Minority) =====
+    QualitativeTerm(
+        core_terms=["portion", "share"],
+        prefix_terms=["major"],
+        positive_pct=40.0,
+        negated_pct=5.0,  # "not major portion" → minor/small portion
+        requires_suffix=False
     ),
-    # 20% — good portion/share
-    (
-        build_regex(
-            [
-                build_compound(["good"], QUANT_SUFFIX),
-            ]
-        ),
-        20.0,
-        False,
+    QualitativeTerm(
+        core_terms=["minority"],
+        prefix_terms=["predominant", "vast", "substantial", "overwhelming", "considerable"],
+        positive_pct=40.0,
+        negated_pct=1.0,  # "not considerable minority" → negligible
+        requires_suffix=False
     ),
-    # 15% — fair/modest portion/share
-    (
-        build_regex(
-            [
-                build_compound(["fair", "modest"], QUANT_SUFFIX),
-            ]
-        ),
-        15.0,
-        False,
+    
+    # ===== 30% TIER (Considerable) =====
+    QualitativeTerm(
+        core_terms=["portion", "number", "amount", "share"],
+        prefix_terms=["considerable"],
+        positive_pct=30.0,
+        negated_pct=5.0,  # "not considerable portion" → small/minor
+        requires_suffix=False
     ),
-    # 10% — minority; small/minor/little/fractional portion; copula small/minor; fraction of
-    (
-        build_regex(
-            [
-                ["minority"],
-                build_compound(
-                    [r"small", r"minor", r"little", r"fractional"], QUANT_SUFFIX
-                ),
-                build_compound(COPULA, [r"minor", r"small"]),
-                [r"fraction(?=\s+of)"],
-            ]
-        ),
-        10.0,
-        False,
+    
+    # ===== 25% TIER (Significant/Substantial) =====
+    QualitativeTerm(
+        core_terms=["portion"],
+        prefix_terms=["significant", "substantial", "large", "meaningful"],
+        positive_pct=25.0,
+        negated_pct=5.0,  # "not significant portion" → insignificant/small
+        requires_suffix=False
     ),
-    # 5% — handful of; few of; nominal/limited portion/share; copula nominal/limited
-    (
-        build_regex(
-            [
-                [r"handful(?=\s+of)"],
-                [r"few(?=\s+of)"],
-                build_compound(
-                    [r"nominal", r"limited"], list(set(QUANT_SUFFIX) - {"amount"})
-                ),
-                build_compound(COPULA, [r"nominal", r"limited"]),
-            ]
-        ),
-        5.0,
-        False,
+    # "is/are/was/were significant/material/etc."
+    QualitativeTerm(
+        core_terms=["significant", "material", "substantial", "meaningful", "large", "considerable"],
+        prefix_terms=["is", "are", "was", "were"],
+        positive_pct=25.0,
+        negated_pct=1.0,  # "is not significant" → is insignificant
+        requires_suffix=False
     ),
-    # 1% — insignificant/minimal/tiny/trivial/token portion; immaterial; negligible; not significant/material; copula insignificant/etc.; de minimis; nominal amount
-    (
-        build_regex(
-            [
-                build_compound(
-                    [r"insignificant", r"minimal", r"tiny", r"trivial", r"token"],
-                    QUANT_SUFFIX,
-                ),
-                ["immaterial"],
-                ["negligible"],
-                build_compound(["not"], [r"significant", r"material"]),
-                build_compound(
-                    COPULA,
-                    [
-                        r"insignificant",
-                        r"immaterial",
-                        r"negligible",
-                        r"trivial",
-                        r"de\s+minimis",
-                    ],
-                ),
-                [r"de\s+minimis"],
-                [r"nominal(?=\s+amount)"],
-            ]
-        ),
-        1.0,
-        False,
+    
+    # ===== DOUBLE NEGATIVES (Absolute meaning) =====
+    # "not insignificant" = significant (25%)
+    QualitativeTerm(
+        core_terms=["minor", "insignificant", "immaterial", "negligible", "trivial", "small", "limited", "nominal"],
+        prefix_terms=["is", "are", "was", "were"],
+        suffix_terms=["not"],  # This creates "is not insignificant"
+        positive_pct=25.0,
+        negated_pct=25.0,  # Absolute meaning, doesn't flip
+        is_absolute=True,
+        requires_suffix=False
     ),
-    # 1% — "not significant" / "not material" / etc. (none of is taken cared of elsewhere as 0%)
-    (
-        build_regex(
-            [
-                build_compound(
-                    COPULA,
-                    ["not"],
-                    [
-                        r"significant",
-                        r"material",
-                        r"substantial",
-                        r"meaningful",
-                        r"large",
-                        r"considerable",
-                    ],
-                )
-            ]
-        ),
-        1.0,
-        True,
+    
+    # ===== 20% TIER (Good) =====
+    QualitativeTerm(
+        core_terms=["portion", "share"],
+        prefix_terms=["good"],
+        positive_pct=20.0,
+        negated_pct=5.0,
+        requires_suffix=False
+    ),
+    
+    # ===== 15% TIER (Fair/Modest) =====
+    QualitativeTerm(
+        core_terms=["portion", "share"],
+        prefix_terms=["fair", "modest"],
+        positive_pct=15.0,
+        negated_pct=1.0,  # "not fair portion" → very small
+        requires_suffix=False
+    ),
+    
+    # ===== 10% TIER (Minority/Small) =====
+    QualitativeTerm(
+        core_terms=["minority"],
+        positive_pct=10.0,
+        negated_pct=51.0,  # "not minority" → majority
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["portion"],
+        prefix_terms=["small", "minor", "little", "fractional"],
+        positive_pct=10.0,
+        negated_pct=25.0,  # "not small portion" → significant portion
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["minor", "small"],
+        prefix_terms=["is", "are", "was", "were"],
+        positive_pct=10.0,
+        negated_pct=25.0,  # "is not small" → is significant
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["fraction"],
+        suffix_terms=["of"],
+        positive_pct=10.0,
+        negated_pct=51.0,  # "not fraction of" → majority of
+        requires_suffix=True
+    ),
+    
+    # ===== 5% TIER (Handful/Few/Nominal/Limited) =====
+    QualitativeTerm(
+        core_terms=["handful", "few"],
+        suffix_terms=["of"],
+        positive_pct=5.0,
+        negated_pct=30.0,  # "not handful" → considerable number
+        requires_suffix=True
+    ),
+    QualitativeTerm(
+        core_terms=["portion", "share", "number"],  # Excludes "amount"
+        prefix_terms=["nominal", "limited"],
+        positive_pct=5.0,
+        negated_pct=25.0,  # "not limited portion" → significant
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["nominal", "limited"],
+        prefix_terms=["is", "are", "was", "were"],
+        positive_pct=5.0,
+        negated_pct=25.0,
+        requires_suffix=False
+    ),
+    
+    # ===== 1% TIER (Insignificant/Negligible) =====
+    QualitativeTerm(
+        core_terms=["portion"],
+        prefix_terms=["insignificant", "minimal", "tiny", "trivial", "token"],
+        positive_pct=1.0,
+        negated_pct=25.0,  # "not insignificant portion" → significant portion
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["immaterial", "negligible"],
+        positive_pct=1.0,
+        negated_pct=25.0,
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["insignificant", "immaterial", "negligible", "trivial", "de minimis"],
+        prefix_terms=["is", "are", "was", "were"],
+        positive_pct=1.0,
+        negated_pct=25.0,
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["de minimis"],
+        positive_pct=1.0,
+        negated_pct=25.0,
+        requires_suffix=False
+    ),
+    QualitativeTerm(
+        core_terms=["nominal"],
+        suffix_terms=["amount"],
+        positive_pct=1.0,
+        negated_pct=25.0,
+        requires_suffix=True
     ),
 ]
 
+COMPILED_QUALITATIVE_PATTERNS = []
+for term in QUALITATIVE_TERMS:
+    pattern_str = term.build_pattern()
+    regex = build_regex([pattern_str])
+    COMPILED_QUALITATIVE_PATTERNS.append({
+        'regex': regex,
+        'term': term,
+        'pattern_str': pattern_str
+    })
 
 class UnionAnalyzer:
     def __init__(self):
@@ -400,6 +426,32 @@ class UnionAnalyzer:
             "conditional": is_conditional,
             "note": None
         }
+
+    def _check_local_negation(self, analysis: SentenceAnalysis, pattern_regex, text: str) -> bool:
+        """
+        Check if a negation term appears within ~5 words before the matched pattern.
+        More precise than using global is_negated flag.
+        """
+        # Find where the pattern matched
+        match = pattern_regex.search(text)
+        if not match:
+            return False
+        
+        pattern_start = match.start()
+        
+        # Look back window (approximately 5 words = ~40 chars)
+        lookback_window = text[max(0, pattern_start - 40):pattern_start]
+        
+        # Check for negation terms
+        negation_indicators = build_regex([
+            r"not",
+            r"no",
+            r"without",
+            r"neither",
+            r"never"
+        ])
+        
+        return bool(negation_indicators.search(lookback_window))
 
     def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> Dict[str, Any]:
         """
@@ -1042,21 +1094,32 @@ class UnionAnalyzer:
         # Qualitative Quants (Soft Percent)
         # Used if explicit or calculated percentage is missing
         if data["percentage"] is None:
-            for pattern, soft_val, is_absolute in QUALITATIVE_QUANT_PATTERNS:
-                if pattern.search(analysis.text):
-                    if is_absolute:
-                        # Predefined meaning (e.g. "not significant" -> 1%), do not flip
-                        data["percentage"] = soft_val
+            for item in COMPILED_QUALITATIVE_PATTERNS:
+                regex = item['regex']
+                term = item['term']
+                
+                if regex.search(analysis.text):
+                    # Check if negation applies to THIS specific term
+                    is_locally_negated = self._check_local_negation(analysis, regex, analysis.text)
+                    
+                    if term.is_absolute:
+                        # Absolute terms ignore negation context
+                        data["percentage"] = term.positive_pct
                         data["type"] = CoverageType.QUALITATIVE.value
-                        data["note"] = f"Soft inferred (absolute) from term: {pattern.pattern}"
-                    elif is_negated and negation_type == NegationType.NOT_COVERED.value:
-                        data["percentage"] = 100.0 - soft_val
+                        data["note"] = f"Absolute qualitative: '{item['pattern_str']}'"
+                    else:
+                        # Use appropriate percentage based on negation
+                        pct = term.get_percentage(is_negated=is_locally_negated)
+                        if pct is None:
+                            continue
+                            
+                        data["percentage"] = pct
                         data["type"] = CoverageType.QUALITATIVE.value
-                        data["note"] = f"Soft inferred (inverted) from term: {pattern.pattern}"
-                    elif not is_negated:
-                        data["percentage"] = soft_val
-                        data["type"] = CoverageType.QUALITATIVE.value
-                        data["note"] = f"Soft inferred from term: {pattern.pattern}"
+                        
+                        if is_locally_negated:
+                            data["note"] = f"Negated qualitative: 'not {item['pattern_str']}' → {pct}%"
+                        else:
+                            data["note"] = f"Qualitative: '{item['pattern_str']}' → {pct}%"
                     break
 
         # Calculate missing counts if we have percentage and total (e.g. USA: 18% of 45000)
