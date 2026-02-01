@@ -1114,12 +1114,17 @@ class UnionAnalyzer:
                             continue
                             
                         data["percentage"] = pct
-                        data["type"] = CoverageType.QUALITATIVE.value
                         
-                        if is_locally_negated:
-                            data["note"] = f"Negated qualitative: 'not {item['pattern_str']}' → {pct}%"
+                        # Treat non-negated 100% terms as explicit numerical values
+                        if pct == 100.0 and not is_locally_negated:
+                            data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                            data["note"] = f"Inferred 100% from term: '{item['pattern_str']}'"
                         else:
-                            data["note"] = f"Qualitative: '{item['pattern_str']}' → {pct}%"
+                            data["type"] = CoverageType.QUALITATIVE.value
+                            if is_locally_negated:
+                                data["note"] = f"Negated qualitative: 'not {item['pattern_str']}' → {pct}%"
+                            else:
+                                data["note"] = f"Qualitative: '{item['pattern_str']}' → {pct}%"
                     break
 
         # Calculate missing counts if we have percentage and total (e.g. USA: 18% of 45000)
