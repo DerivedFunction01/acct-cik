@@ -229,11 +229,22 @@ class UnionAnalyzer:
             ):
                 last_geo_context = geo_context
                 last_geo_sentence_idx = idx
-
+            
+            # Determine effective worker counts (explicit or inferred from raw numbers)
+            current_counts = analysis.worker_counts
+            if not current_counts and analysis.numbers:
+                # Fallback: Use raw numbers if they look like worker counts
+                # Years are protected in text, so we assume remaining large numbers are counts
+                potential_counts = []
+                for n in analysis.numbers:
+                    if n > 10:
+                        potential_counts.append(n)
+                if potential_counts:
+                    current_counts = potential_counts
             # Update Region Totals if this sentence has a worker count
             # We assume if a sentence has a count and a specific region, that count applies to that region
-            if analysis.worker_counts:
-                current_max = max(analysis.worker_counts)
+            if current_counts:
+                current_max = max(current_counts)
                 
                 # If context is explicit, map this count to the region/countries
                 if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.EXPLICIT_INFERRED.value):
