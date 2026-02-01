@@ -1,0 +1,244 @@
+import sqlite3
+import json
+import re
+import logging
+import multiprocessing
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
+from typing import List, Optional, Tuple, Any
+from tqdm import tqdm
+
+# Import definitions
+from analysis import UnionAnalyzer
+
+# =============================================================================
+# CONFIGURATION
+# =============================================================================
+SOURCE_DB = "filtered_union_data.db"
+TARGET_DB = "analyzed_union_data.db"
+BATCH_SIZE = 100
+NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()]
+)
+
+# =============================================================================
+# WORKER INITIALIZATION
+# =============================================================================
+
+# Global analyzer instance for workers
+ANALYZER = None
+
+def init_worker():
+    """Initializer for worker processes."""
+    global ANALYZER
+    ANALYZER = UnionAnalyzer()
+
+def process_batch(rows: List[Tuple]) -> List[Tuple]:
+    """
+    Process a batch of rows.
+    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year)
+    """
+    results = []
+    assert ANALYZER is not None
+
+    for row in rows:
+        accession, item1_json, item1a_json, period, company_name, report_year = row
+        
+        # Determine year
+        year = None
+        if report_year:
+            try:
+                year = int(report_year)
+            except (ValueError, TypeError):
+                pass
+        elif period:
+             # Try to extract year from period string
+            m = re.search(r'\d{4}', str(period))
+            if m:
+                year = int(m.group(0))
+        
+        # Process Item 1
+        item1_analysis = {}
+        if item1_json:
+            try:
+                item1_list = json.loads(item1_json)
+                if item1_list:
+                    # Rejoin text by double new lines
+                    item1_text = "\n\n".join(item1_list)
+                    item1_analysis = ANALYZER.analyze_paragraph(
+                        item1_text, 
+                        item_type="item1", 
+                        reporting_year=year
+                    )
+            except json.JSONDecodeError:
+                pass
+
+        # Process Item 1A
+        item1a_analysis = {}
+        
+        # For really old filings, Item 1A doesn't exist. So we use the Item 1.
+        if not item1a_json:
+            item1a_json = item1_json
+        try:
+            item1a_list = json.loads(item1a_json)
+            if item1a_list:
+                # Rejoin text by double new lines
+                item1a_text = "\n\n".join(item1a_list)
+                item1a_analysis = ANALYZER.analyze_paragraph(
+                    item1a_text, 
+                    item_type="item1a", 
+                    reporting_year=year
+                )
+        except json.JSONDecodeError:
+            pass
+        
+        # Only store if we have results
+        if item1_analysis or item1a_analysis:
+            results.append((
+                accession,
+                json.dumps(item1_analysis),
+                json.dumps(item1a_analysis),
+                period
+            ))
+            
+    return results
+
+def create_target_db():
+    conn = sqlite3.connect(TARGET_DB)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS analysis_result (
+            accession TEXT PRIMARY KEY,
+            item1_analysis TEXT,
+            item1a_analysis TEXT,
+            period_of_report TEXT
+        )
+    """)
+    c.execute("CREATE INDEX IF NOT EXISTS idx_accession ON analysis_result(accession)")
+    conn.commit()
+    conn.close()
+
+def copy_metadata_tables():
+    """Copies report_data and names tables from source to target DB."""
+    if not Path(SOURCE_DB).exists():
+        return
+
+    conn = sqlite3.connect(TARGET_DB)
+    c = conn.cursor()
+    
+    # Check if report_data already exists
+    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_data'")
+    if c.fetchone():
+        logging.info("report_data table already exists in target DB. Skipping copy.")
+        conn.close()
+        return
+
+    logging.info("Copying metadata tables (report_data, names) from source DB...")
+    
+    try:
+        # Attach source database
+        c.execute("ATTACH DATABASE ? AS src", (SOURCE_DB,))
+        
+        # Copy report_data
+        c.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_report_accession ON report_data(accession)")
+        c.execute("CREATE INDEX IF NOT EXISTS idx_report_url ON report_data(url)")
+        
+        # Copy names if exists
+        c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
+        if c.fetchone():
+            c.execute("CREATE TABLE names AS SELECT * FROM src.names")
+            c.execute("CREATE INDEX IF NOT EXISTS idx_names_cik ON names(cik)")
+            
+        conn.commit()
+        logging.info("Metadata tables copied successfully.")
+        
+    except sqlite3.Error as e:
+        logging.error(f"Error copying metadata: {e}")
+    finally:
+        try:
+            c.execute("DETACH DATABASE src")
+        except sqlite3.Error:
+            pass
+        conn.close()
+
+def main():
+    if not Path(SOURCE_DB).exists():
+        logging.error(f"Source database {SOURCE_DB} not found.")
+        return
+
+    create_target_db()
+    copy_metadata_tables()
+    
+    src_conn = sqlite3.connect(SOURCE_DB)
+    src_cursor = src_conn.cursor()
+    
+    # Get total count for progress bar
+    try:
+        src_cursor.execute("SELECT COUNT(*) FROM webpage_result")
+        total_rows = src_cursor.fetchone()[0]
+    except sqlite3.OperationalError:
+        logging.error("Could not query webpage_result table. Is the DB initialized?")
+        return
+
+    logging.info(f"Total rows to process: {total_rows}")
+    
+    # Query to fetch data
+    query = """
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year
+        FROM webpage_result w
+        LEFT JOIN report_data r ON w.accession = r.accession
+        LEFT JOIN names n ON r.cik = n.cik
+        GROUP BY w.accession
+    """
+    src_cursor.execute(query)
+    
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
+        batch_futures = {} # {future: batch_size}
+        
+        def write_results(res_list):
+            if not res_list:
+                return
+            tgt_conn = sqlite3.connect(TARGET_DB)
+            tgt_c = tgt_conn.cursor()
+            tgt_c.executemany(
+                "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report) VALUES (?, ?, ?, ?)",
+                res_list
+            )
+            tgt_conn.commit()
+            tgt_conn.close()
+
+        with tqdm(total=total_rows, unit="rows") as pbar:
+            while True:
+                rows = src_cursor.fetchmany(BATCH_SIZE)
+                if not rows:
+                    break
+                
+                future = executor.submit(process_batch, rows)
+                batch_futures[future] = len(rows)
+                
+                # Manage memory: if too many futures pending, wait for some to finish
+                if len(batch_futures) >= NUM_WORKERS * 2:
+                    done, _ = wait(batch_futures.keys(), return_when=FIRST_COMPLETED)
+                    for f in done:
+                        res = f.result()
+                        write_results(res)
+                        pbar.update(batch_futures[f])
+                        del batch_futures[f]
+            
+            # Process remaining futures
+            for f in list(batch_futures.keys()):
+                res = f.result()
+                write_results(res)
+                pbar.update(batch_futures[f])
+
+    src_conn.close()
+    logging.info(f"Analysis complete. Data saved to {TARGET_DB}")
+
+if __name__ == "__main__":
+    main()
