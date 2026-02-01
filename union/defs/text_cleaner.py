@@ -141,7 +141,7 @@ class MinimalTextCleaner:
         r"all(?=\s+(?:of|are|is|were|material)\b)",
         r"entirety", # the entirety, entirety of
         # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun
-        r"(?:complete|entire|full) portions?"
+        r"(?:complete|entire|full|whole) portions?"
     ]
     _hundred_alternation = build_alternation(_hundred)
 
