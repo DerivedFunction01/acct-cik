@@ -112,12 +112,17 @@ QUALITATIVE_MULTIPLIERS = [
 QUANT_SUFFIX = [r"portion", r"number", r"amount", r"share"]
 
 QUALITATIVE_QUANT_PATTERNS = [
-    (build_regex(
-        [
-            build_compound([r"complete", r"entire", r"full", r"whole"], QUANT_SUFFIX),
-            r"whole(?=\s+of)",
-        ]
-    ), 100.0),
+    (
+        build_regex(
+            [
+                build_compound(
+                    [r"complete", r"entire", r"full", r"whole"], QUANT_SUFFIX
+                ),
+                r"whole(?=\s+of)",
+            ]
+        ),
+        100.0,
+    ),
     # 95%+
     (build_regex([r"entirety"]), 95.0),
     # 75% — vast / substantial / overwhelming majority
@@ -227,7 +232,9 @@ QUALITATIVE_QUANT_PATTERNS = [
             [
                 r"handful(?=\s+of)",
                 r"few(?=\s+of)",
-                build_compound([r"nominal"], list(set(QUANT_SUFFIX) - {"amount"})),
+                build_compound(
+                    [r"nominal", r"limited"], list(set(QUANT_SUFFIX) - {"amount"})
+                ),
             ]
         ),
         5.0,
@@ -236,7 +243,9 @@ QUALITATIVE_QUANT_PATTERNS = [
     (
         build_regex(
             [
-                build_compound([r"insignificant", r"minimal", r"tiny"], QUANT_SUFFIX),
+                build_compound(
+                    [r"insignificant", r"minimal", r"tiny", r"trivial",], QUANT_SUFFIX
+                ),
                 r"immaterial",
                 r"negligible",
                 r"not material",
