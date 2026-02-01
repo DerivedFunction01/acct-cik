@@ -5,6 +5,7 @@ import logging
 import multiprocessing
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
+from typing import List, Optional, Set, Tuple, Any
 from tqdm import tqdm
 
 # Import definitions
@@ -42,7 +43,11 @@ TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNOREC
 # REGEX COMPILATION
 # =============================================================================
 
-def get_all_specific_terms():
+def strip_html_tags(text: str) -> str:
+    """Remove HTML tags from a string."""
+    return re.sub(r'<[^>]+>', ' ', text)
+
+def get_all_specific_terms() -> Set[str]:
     """Extracts all specific union names and translated keywords from defined regions."""
     regions = [
         NORTH_AMERICA,
@@ -65,7 +70,7 @@ def get_all_specific_terms():
                 
     return terms
 
-def compile_filtering_regex():
+def compile_filtering_regex() -> re.Pattern:
     """
     Combines the generic UNION_REGEX with specific union names from regions.
     """
@@ -107,7 +112,7 @@ def init_worker():
     CURRENCY_REMOVER = CurrencyRemover()
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
 
-def filter_content(content_list, company_name=None, year=None, allow_risk=False):
+def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> List[str]:
     """
     Filters a list of text blocks (paragraphs/tables).
     Cleans the text first, then checks for matches.
@@ -142,9 +147,9 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
                         paragraph = " ".join(sentences)
                         raw_blocks.append(paragraph)
                     else:
-                        raw_blocks.append(part.strip())
+                        raw_blocks.append(strip_html_tags(part.strip()))
                 except Exception:
-                    raw_blocks.append(part.strip())
+                    raw_blocks.append(strip_html_tags(part.strip()))
 
             else:
                 # Split text by double newlines
@@ -186,7 +191,7 @@ def filter_content(content_list, company_name=None, year=None, allow_risk=False)
 
     return filtered
 
-def process_batch(rows):
+def process_batch(rows: List[Tuple]) -> List[Tuple]:
     """
     Process a batch of rows.
     Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year)
