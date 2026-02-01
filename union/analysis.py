@@ -111,33 +111,46 @@ QUALITATIVE_MULTIPLIERS = [
 
 QUANT_SUFFIX = [r"portion", r"number", r"amount", r"share"]
 
+COPULA = [r"is", r"are", r"was", r"were"]
+
 QUALITATIVE_QUANT_PATTERNS = [
+    # 100% — complete/entire/full/whole portion/number/amount/share (all of is taken cared of elsewhere as 100%)
     (
         build_regex(
             [
                 build_compound(
                     [r"complete", r"entire", r"full", r"whole"], QUANT_SUFFIX
                 ),
-                r"whole(?=\s+of)",
+                [r"whole(?=\s+of)"],
             ]
         ),
         100.0,
+        False,
     ),
-    # 95%+
-    (build_regex([r"entirety"]), 95.0),
-    # 75% — vast / substantial / overwhelming majority
+    # 95% — entirety
+    (
+        build_regex(
+            [
+                ["entirety"],
+            ]
+        ),
+        95.0,
+        False,
+    ),
+    # 75% — vast/substantial/overwhelming majority/bulk of
     (
         build_regex(
             [
                 build_compound(
                     [r"vast", r"substantial", r"overwhelming"],
                     [r"majority", r"bulk(?=\s+of)"],
-                )
+                ),
             ]
         ),
         75.0,
+        False,
     ),
-    # 65% — predominant portion/share
+    # 65% — predominant/vast/substantial/overwhelming portion/share; considerable/significant majority/bulk
     (
         build_regex(
             [
@@ -151,22 +164,34 @@ QUALITATIVE_QUANT_PATTERNS = [
             ]
         ),
         65.0,
+        False,
     ),
     # 60% — bulk of
     (
-        build_regex([r"bulk(?=\s+of)"]),
+        build_regex(
+            [
+                [r"bulk(?=\s+of)"],
+            ]
+        ),
         60.0,
+        False,
     ),
     # 51% — majority / most of
     (
-        build_regex([r"majority", r"most(?=\s+of)"]),
+        build_regex(
+            [
+                ["majority"],
+                [r"most(?=\s+of)"],
+            ]
+        ),
         51.0,
+        False,
     ),
-    # 40% — major portion / major part
+    # 40% — major portion/share; predominant/vast/substantial/overwhelming/considerable minority
     (
         build_regex(
             [
-                build_compound([r"major"], QUANT_SUFFIX),
+                build_compound(["major"], QUANT_SUFFIX),
                 build_compound(
                     [
                         r"predominant",
@@ -175,85 +200,168 @@ QUALITATIVE_QUANT_PATTERNS = [
                         r"overwhelming",
                         r"considerable",
                     ],
-                    [r"minority"],
+                    ["minority"],
                 ),
             ]
         ),
         40.0,
+        False,
     ),
-    # 30% — considerable portion/number
+    # 30% — considerable portion/number/amount/share
     (
-        build_regex([build_compound([r"considerable"], QUANT_SUFFIX)]),
+        build_regex(
+            [
+                build_compound(["considerable"], QUANT_SUFFIX),
+            ]
+        ),
         30.0,
+        False,
     ),
-    # 25% — significant / substantial / large portion/number / meaningful
+    # 25% — significant/substantial/large/meaningful portion; copula + significant/material/substantial/meaningful/large/considerable
     (
         build_regex(
             [
                 build_compound(
                     [r"significant", r"substantial", r"large", r"meaningful"],
                     QUANT_SUFFIX,
+                ),
+                build_compound(
+                    COPULA,
+                    [
+                        r"significant",
+                        r"material",
+                        r"substantial",
+                        r"meaningful",
+                        r"large",
+                        r"considerable",
+                    ],
+                ),
+            ]
+        ),
+        25.0,
+        False,
+    ),
+    # 25% — "not insignificant" / "not immaterial" / etc.
+    (
+        build_regex(
+            [
+                build_compound(
+                    COPULA,
+                    ["not"],
+                    [
+                        r"minor",
+                        r"insignificant",
+                        r"immaterial",
+                        r"negligible",
+                        r"trivial",
+                        r"small",
+                        r"limited",
+                        r"nominal",
+                    ],
                 )
             ]
         ),
         25.0,
+        True,
     ),
-    # 20% — good portion / good part
-    (
-        build_regex([build_compound([r"good"], QUANT_SUFFIX)]),
-        20.0,
-    ),
-    # 15% — fair portion / fair share / modest
+    # 20% — good portion/share
     (
         build_regex(
             [
-                build_compound([r"fair", r"modest"], QUANT_SUFFIX),
+                build_compound(["good"], QUANT_SUFFIX),
+            ]
+        ),
+        20.0,
+        False,
+    ),
+    # 15% — fair/modest portion/share
+    (
+        build_regex(
+            [
+                build_compound(["fair", "modest"], QUANT_SUFFIX),
             ]
         ),
         15.0,
+        False,
     ),
-    # 10% — minority / small/minor/little portion/number / fraction of
+    # 10% — minority; small/minor/little/fractional portion; copula small/minor; fraction of
     (
         build_regex(
             [
-                r"minority",
+                ["minority"],
                 build_compound(
-                    [r"small", r"minor", r"little", r"fractional"],
-                    QUANT_SUFFIX,
+                    [r"small", r"minor", r"little", r"fractional"], QUANT_SUFFIX
                 ),
-                r"fraction(?=\s+of)",
+                build_compound(COPULA, [r"minor", r"small"]),
+                [r"fraction(?=\s+of)"],
             ]
         ),
         10.0,
+        False,
     ),
-    # 5% — handful of / nominal / few
+    # 5% — handful of; few of; nominal/limited portion/share; copula nominal/limited
     (
         build_regex(
             [
-                r"handful(?=\s+of)",
-                r"few(?=\s+of)",
+                [r"handful(?=\s+of)"],
+                [r"few(?=\s+of)"],
                 build_compound(
                     [r"nominal", r"limited"], list(set(QUANT_SUFFIX) - {"amount"})
                 ),
+                build_compound(COPULA, [r"nominal", r"limited"]),
             ]
         ),
         5.0,
+        False,
     ),
-    # 1% — insignificant / minimal / tiny portion / immaterial / negligible / de minimis
+    # 1% — insignificant/minimal/tiny/trivial/token portion; immaterial; negligible; not significant/material; copula insignificant/etc.; de minimis; nominal amount
     (
         build_regex(
             [
                 build_compound(
-                    [r"insignificant", r"minimal", r"tiny", r"trivial",], QUANT_SUFFIX
+                    [r"insignificant", r"minimal", r"tiny", r"trivial", r"token"],
+                    QUANT_SUFFIX,
                 ),
-                r"immaterial",
-                r"negligible",
-                r"not material",
-                r"de\s+minimis",
-                r"nominal(?=\s+amount)",
+                ["immaterial"],
+                ["negligible"],
+                build_compound(["not"], [r"significant", r"material"]),
+                build_compound(
+                    COPULA,
+                    [
+                        r"insignificant",
+                        r"immaterial",
+                        r"negligible",
+                        r"trivial",
+                        r"de\s+minimis",
+                    ],
+                ),
+                [r"de\s+minimis"],
+                [r"nominal(?=\s+amount)"],
             ]
         ),
         1.0,
+        False,
+    ),
+    # 1% — "not significant" / "not material" / etc. (none of is taken cared of elsewhere as 0%)
+    (
+        build_regex(
+            [
+                build_compound(
+                    COPULA,
+                    ["not"],
+                    [
+                        r"significant",
+                        r"material",
+                        r"substantial",
+                        r"meaningful",
+                        r"large",
+                        r"considerable",
+                    ],
+                )
+            ]
+        ),
+        1.0,
+        True,
     ),
 ]
 
@@ -934,9 +1042,14 @@ class UnionAnalyzer:
         # Qualitative Quants (Soft Percent)
         # Used if explicit or calculated percentage is missing
         if data["percentage"] is None:
-            for pattern, soft_val in QUALITATIVE_QUANT_PATTERNS:
+            for pattern, soft_val, is_absolute in QUALITATIVE_QUANT_PATTERNS:
                 if pattern.search(analysis.text):
-                    if is_negated and negation_type == NegationType.NOT_COVERED.value:
+                    if is_absolute:
+                        # Predefined meaning (e.g. "not significant" -> 1%), do not flip
+                        data["percentage"] = soft_val
+                        data["type"] = CoverageType.QUALITATIVE.value
+                        data["note"] = f"Soft inferred (absolute) from term: {pattern.pattern}"
+                    elif is_negated and negation_type == NegationType.NOT_COVERED.value:
                         data["percentage"] = 100.0 - soft_val
                         data["type"] = CoverageType.QUALITATIVE.value
                         data["note"] = f"Soft inferred (inverted) from term: {pattern.pattern}"
