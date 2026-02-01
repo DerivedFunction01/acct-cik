@@ -102,17 +102,22 @@ class UnionAnalyzer:
             "note": None
         }
 
-    def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
+    def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> Dict[str, Any]:
         """
         Process a paragraph of text, splitting it into sentences and 
         extracting details based on item_type (item1 or item1a).
         """
         sentences = self.extractor.split_sentences(text)
+        results = []
+        summary = {}
 
         if item_type == "item1a":
-            return self._analyze_item1a(sentences, reporting_year)
+            results = self._analyze_item1a(sentences, reporting_year)
+        else:
+            results = self._analyze_item1(sentences, reporting_year)
+            summary = self.compute_weighted_coverage(results)
 
-        return self._analyze_item1(sentences, reporting_year)
+        return {"items": results, "summary": summary}
 
     def _analyze_item1(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -797,3 +802,46 @@ class UnionAnalyzer:
             if analysis.risk_terms:
                 results.append(self._create_risk_item(sent, analysis, is_historical=is_historical))
         return results
+
+    def compute_weighted_coverage(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Computes a weighted average of union coverage percentages from the analysis results.
+        Weights are based on the total employee count associated with each percentage.
+        """
+        total_weighted_pct = 0.0
+        total_employees = 0.0
+
+        for item in results:
+            data = item.get("coverage_data", {})
+            pct = data.get("percentage")
+
+            if pct is None:
+                continue
+
+            # Determine weight (Total Employees)
+            weight = data.get("employee_count_total")
+
+            # If total is missing, try to derive it from covered/not_covered
+            if not weight:
+                covered = data.get("employee_count_covered")
+                not_covered = data.get("employee_count_not_covered")
+
+                if covered is not None and not_covered is not None:
+                    weight = covered + not_covered
+                elif covered is not None and pct > 0:
+                    weight = covered / (pct / 100.0)
+                elif not_covered is not None and pct < 100:
+                    weight = not_covered / (1.0 - (pct / 100.0))
+
+            if weight and weight > 0:
+                total_weighted_pct += (pct * weight)
+                total_employees += weight
+
+        weighted_avg = 0.0
+        if total_employees > 0:
+            weighted_avg = total_weighted_pct / total_employees
+
+        return {
+            "weighted_average_percentage": round(weighted_avg, 2),
+            "total_employees_analyzed": round(total_employees, 2)
+        }

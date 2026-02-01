@@ -558,7 +558,7 @@ class ContextualNumberCleaner:
             r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
             r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?",
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
-            r"air(?:line|craft|port|plane)?s?",
+            r"air(?:line|craft|port|plane)?s?", r"customers", r"suppliers?", r"units?", r"products"
         ]
 
         asset_pattern = build_alternation(asset_terms)
@@ -576,7 +576,8 @@ class ContextualNumberCleaner:
         change_terms = [
             r"increase(?:s|d)?", r"decreases(?:s|d)?", r"growth", r"decline(?:s|d)?", r"reductions?",
             r"gains?", r"loss(?:es)?", r"appreciation", r"depreciation", r"offsets?",
-            r"higher", r"lower", r"changes?", r"improvements?", r"drops?", r"rise(?:s|d|n)?"
+            r"higher", r"lower", r"changes?", r"improvements?", r"drops?", r"rise(?:s|d|n)?",
+            r"transitions?",
         ]
 
         change_pattern = build_alternation(change_terms)

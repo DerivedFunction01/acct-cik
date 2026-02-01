@@ -16,88 +16,111 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 
 TEST_PARAGRAPH = """
 TechAdvance Manufacturing operates a diverse global workforce across 
-manufacturing, logistics, and technology divisions. As of the end of 2023, 
-our total employee base reached approximately 38,500 across all regions.
+manufacturing, logistics, and technology divisions. As of December 31, 2023, 
+our total employee base stood at approximately 41,200 across all regions.
 
-In our United States operations, we own 15 automobile manufacturing facilities, 
-which employ 16,800 auto workers, and approximately 22% 
-(3,696 employees) are represented by labor unions. Our largest unionized segment 
-comprises 2,100 production workers in our Ohio and Indiana facilities, organized 
-under the United Auto Workers (UAW) agreement that became effective in 2022. 
-Additionally, our West Coast logistics centers employ 1,596 workers represented 
-by the International Brotherhood of Teamsters, covering 100% of those facilities.
-We have a mutually beneficial relationship with UAW and Teamsters.
+Compared to December 31, 2022, when the Company and its subsidiaries employed 
+approximately 79,300 workers worldwide, of which nearly 71% were represented by 
+various labor organizations. This figure reflects a meaningful reduction from 
+year-end 2021, when the Company employed roughly 92,800 workers. The workforce 
+decline was driven primarily by continued supply-chain constraints and component 
+shortages linked to the Russia–Ukraine conflict, which required the Company to 
+furlough approximately 7,400 production employees during the second half of 2023. 
+With improving availability of steel, semiconductors, and certain electronic 
+components, the Company now plans to recall roughly 2,300 assembly technicians 
+in the second quarter of 2024 and anticipates fewer permanent reductions among 
+engineering staff than earlier forecasts. Management continues to monitor global 
+supply and geopolitical developments closely and expects further workforce 
+adjustments should material shortages re-emerge.
 
-Our non-union domestic workforce of 13,104 employees consists primarily of 
-engineering, administrative, and management personnel at our headquarters in 
-Dallas, Texas, where 4,200 of 5,100 corporate staff operate outside union 
-frameworks. The remaining non-union workers are distributed across regional 
-sales offices and smaller manufacturing sites. We maintain a neutral stance 
-toward unionization efforts and do not actively oppose employee organizing.
+In our United States operations, we own 15 automobile manufacturing facilities 
+which employ 17,200 auto workers, of which approximately 28% (4,816 employees) 
+are represented by labor unions. Our largest unionized segment comprises 2,400 
+production workers in our Ohio and Indiana facilities, organized under the United 
+Auto Workers (UAW) agreement that became effective in 2022. Additionally, our 
+West Coast logistics centers employ 1,720 workers represented by the International 
+Brotherhood of Teamsters, covering 100% of those facilities. We maintain a 
+mutually beneficial relationship with both the UAW and Teamsters.
 
-In Canada, we employ 2,400 workers across three locations: Toronto, Vancouver, 
-and Calgary. The Toronto facility (1,100 workers) is 65% unionized under Unifor 
-representation (715 workers), while Vancouver (800 workers) and Calgary (500 workers) 
-remain entirely non-union. We anticipate potential organizing activity in Vancouver 
-during 2024 but expect no material change to current representation levels.
+Our non-union domestic workforce of 12,900 employees consists primarily of 
+engineering, administrative, and management personnel. At our headquarters in 
+Dallas, Texas, 4,400 of 5,300 corporate staff operate outside union frameworks. 
+The remaining non-union workers are distributed across regional sales offices 
+and smaller manufacturing sites. We maintain a neutral stance toward unionization 
+efforts and do not actively oppose employee organizing activities.
 
-Our European operations, which employed 8,900 workers at year-end 2023, present 
-a more complex landscape. In Germany, we operated two manufacturing plants employing 
-3,100 workers total: the Düsseldorf facility (1,800 workers) with 68% IG Metall 
-representation (1,224 workers), and the Stuttgart facility (1,300 workers) with 
-no formal union representation but subject to German Works Council requirements. 
-France is home to our second-largest European facility with 2,400 employees in 
-the Paris region; approximately 45% are represented by unions (CFDT, CGT, and FO 
-combined), equaling roughly 1,080 workers. The Netherlands facility in Rotterdam 
-employs 1,600 workers, of which only 15% (240 workers) maintain union membership 
-under the FNV. Our smaller UK operations in Liverpool employ 800 workers with 
-minimal union presence at approximately 8% (64 workers) under Unite the Union.
+In Canada, we employ 2,600 workers across three locations: Toronto, Vancouver, 
+and Calgary. The Toronto facility (1,200 workers) is 70% unionized under Unifor 
+representation (840 workers), while Vancouver (900 workers) and Calgary (500 
+workers) remain entirely non-union. We anticipate limited organizing interest 
+in Vancouver during 2024 but expect no material change to current representation 
+levels.
+
+Our European operations, which employed 9,400 workers at year-end 2023, present 
+a more complex labor environment. In Germany, we operate two manufacturing plants 
+employing 3,300 workers total: the Düsseldorf facility (1,900 workers) with 72% 
+IG Metall representation (1,368 workers), and the Stuttgart facility (1,400 
+workers) with no formal union representation but subject to German Works Council 
+requirements. France is home to our second-largest European facility with 2,500 
+employees in the Paris region; approximately 52% are represented by unions (CFDT, 
+CGT, and FO combined), equaling roughly 1,300 workers. The Netherlands facility 
+in Rotterdam employs 1,700 workers, of which 22% (374 workers) maintain union 
+membership under the FNV. Our smaller UK operations in Liverpool employ 900 
+workers with modest union presence at approximately 12% (108 workers) under 
+Unite the Union.
 
 We maintain generally constructive relationships with our European union partners, 
-though relations with the German works councils can be technically complex. Our 
-French operations have experienced no significant labor disputes in the past three years.
+although relations with German works councils can involve technical complexity. 
+Our French operations have experienced no significant labor disputes in the past 
+three years.
 
-As of December 31, 2023, the Company and its subsidiaries employed approximately 84,700 workers 
-worldwide, of which nearly 78% were represented by various labor organizations. 
-This figure reflects a substantial reduction from year‑end 2022, when the Company employed roughly 
-96,500 workers. The reduction was driven primarily by supply‑chain disruptions 
-and component shortages stemming from the Russia–Ukraine conflict, which forced 
-the Company to furlough approximately 8,200 production employees during the second half of 2023.
-However, with partial stabilization in steel and semiconductor shipments, 
-the Company now plans to recall about 1,900 assembly technicians in 
-the second quarter of 2024 and expects to lay off fewer engineers than previously projected. 
-Management continues to monitor geopolitical developments closely and anticipates 
-additional workforce adjustments if material shortages persist.
+In Asia-Pacific, our footprint is expanding but remains predominantly 
+non-unionized. Japan represents our largest regional presence with 6,800 
+employees: 4,500 in our Tokyo automotive component facility and 2,300 in our 
+Osaka electronics manufacturing. The Tokyo facility is 42% unionized (1,890 
+workers) under the Japanese Association of Metal and Allied Workers (JAM), while 
+Osaka is entirely non-union. India is our emerging market with 3,800 software 
+engineers at our Bangalore campus; none are currently unionized, though we 
+monitor local labor developments given emerging organizing trends. Thailand’s 
+small facility employs 480 workers entirely outside union frameworks. Australia 
+and New Zealand operations employ 950 workers combined, with no formal union 
+representation.
 
-In Asia-Pacific, our footprint is growing but remains under-unionized. Japan 
-represents our largest regional presence with 6,200 employees: 4,100 in our Tokyo 
-automotive component facility and 2,100 in our Osaka electronics manufacturing. 
-The Tokyo facility is 35% unionized (1,435 workers) under the Japanese Association 
-of Metal and Allied Workers (JAM), while Osaka is entirely non-union. India is our 
-emerging market with 3,400 software engineers at our Bangalore campus; none are 
-currently unionized, though we monitor labor developments given local organizing trends. 
-Thailand's small facility employs 420 workers entirely outside union frameworks. Australia 
-and New Zealand operations employ 850 workers combined, with no formal union representation.
+Our Chinese operations, while currently non-unionized with 3,100 workers across 
+Shanghai and Shenzhen facilities, carry potential future exposure. We note that 
+all Chinese facilities operate under the All-China Federation of Trade Unions 
+framework as required by law; however, we currently report zero formal 
+representation of our workforce. We plan to increase hiring in China by 35% 
+through 2025, which could result in additional union exposure.
 
-Our Chinese operations, while currently non-unionized with 2,800 workers across Shanghai 
-and Shenzhen facilities, present potential future exposure. We note that all Chinese facilities 
-operate under the all-China Federation of Trade Unions framework as required by law; however, 
-we currently report zero formal representation of our workforce. We plan to increase hiring 
-in China by 40% through 2025, which could result in additional union exposure.
+In Latin America, we maintain minimal operations: Mexico (1,400 workers at 
+Monterrey plant) is 32% unionized (448 workers) under CTM, while our presence 
+in Brazil (320 workers, São Paulo) and Colombia (200 workers) remains non-union. 
+We do not anticipate material union organizing activity in these regions in the 
+near term.
 
-In Latin America, we maintain minimal operations: Mexico (1,200 workers at Monterrey plant) 
-is 25% unionized (300 workers) under CTM, while our presence in Brazil (280 workers, 
-São Paulo) and Colombia (180 workers) remains non-union. We do not anticipate union 
-organizing activity in these regions in the near term.
+Middle East and Africa operations are limited. Our UAE facility (Dubai, 350 
+workers) is entirely non-union as required by local law. We have no current 
+operations in other African markets, having divested our South African subsidiary 
+in 2019.
 
-Middle East and Africa operations are limited. Our UAE facility (Dubai, 320 workers) is 
-entirely non-union as required by local law. We have no current operations in other 
-African markets, having divested our South African subsidiary in 2019.
+Overall, our global unionization rate stands at approximately 31% of our total 
+workforce. We believe our labor relations profile remains stable, with no 
+significant pending negotiations or anticipated labor disputes. We remain 
+committed to fair labor practices and transparent engagement with employee 
+representative bodies.
+"""
 
-Overall, our global unionization rate stands at approximately 24% of our total workforce. 
-We believe our labor relations profile is stable, with no significant pending negotiations 
-or anticipated labor disputes. We remain committed to fair labor practices and transparent 
-engagement with employee representative bodies.
+"""
+Global total (2023): 41,200 employees → 31% unionized ≈ 12,772 covered
+United States auto + logistics: 17,200 + 1,720 = 18,920 → 28% + 100% blended ≈ 33–34% unionized
+US non-union portion (explicit): ~12,900 (mostly HQ + scattered)
+Canada: 2,600 total → Toronto 70% → blended ≈ 32% unionized
+Europe: 9,400 total → weighted average ≈ 42% unionized (Germany 41%, France 52%, NL 22%, UK 12%)
+Asia-Pacific ex-China (Japan + India + Thailand + AU/NZ): ≈ 11,980 → Japan 28% blended, others 0% → overall ≈ 16% unionized
+China: 3,100 → 0% (explicitly reported as zero formal representation)
+Latin America: 1,920 total → Mexico 32%, others 0% → blended ≈ 23% unionized
+Middle East (UAE): 350 → 0%
 
 """
 
@@ -127,13 +150,20 @@ if __name__ == "__main__":
     print("\n" + "=" * 80)
 
     # Analyze with context
-    results = analyzer.analyze_paragraph(
+    analysis_output = analyzer.analyze_paragraph(
         cleaned_text, item_type="item1", reporting_year=reporting_year
     )
+
+    results = analysis_output.get("items", [])
+    summary = analysis_output.get("summary", {})
 
     # Pretty print results
     print(f"Total Sentences Extracted: {len(results)}\n")
     print(json.dumps(results, indent=2))
+
+    print("\n" + "=" * 80)
+    print("\nCALCULATED SUMMARY:\n")
+    print(json.dumps(summary, indent=2))
 
     # Summary statistics
     print("\n" + "=" * 80)
@@ -160,49 +190,5 @@ if __name__ == "__main__":
     print(f"Sentences with employee counts: {total_with_counts}")
     print(f"Negated coverage statements: {negated_items}")
     print(f"Inherited geographic context: {inherited_geo}")
-
-    # Test key scenarios
-    print("\n" + "=" * 80)
-    print("\nKEY TEST SCENARIOS:\n")
-
-    scenarios = [
-        ("Simple percentage (USA 22%)", "approximately 22%"),
-        ("Specific union (UAW Ohio/Indiana)", "United Auto Workers (UAW)"),
-        ("100% union coverage (Teamsters)", "100% of those facilities"),
-        ("Percentage with non-covered complement", "65% unionized"),
-        (
-            "Future temporal marker (Vancouver 2024)",
-            "anticipate potential organizing activity in Vancouver during 2024",
-        ),
-        ("Germany facility split", "Düsseldorf facility (1,800 workers) with 68%"),
-        ("Relationship quality (constructive)", "constructive relationships"),
-        (
-            "Relationship quality (technically complex)",
-            "relations with the German works councils can be technically complex",
-        ),
-        (
-            "Divested operation (South Africa 2019)",
-            "divested our South African subsidiary in 2019",
-        ),
-        ("Non-unionized by law (UAE)", "entirely non-union as required by local law"),
-        (
-            "Chinese legal framework mention",
-            "all-China Federation of Trade Unions framework",
-        ),
-        ("Future growth (China 40%)", "increase hiring in China by 40% through 2025"),
-        ("Global rate summary", "global unionization rate stands at approximately 24%"),
-        (
-            "No false claims about excluded items",
-            "should not extract supplier references or third-party",
-        ),
-        ("Protected number (100 office workers)", "100 office workers"),
-        ("Cleaned number (50 offices -> offices)", "have offices worldwide"),
-    ]
-
-    print("Verifying correct extraction of key scenarios:\n")
-    for desc, snippet in scenarios:
-        found = any(snippet.lower() in r.get("sentence", "").lower() for r in results)
-        status = "✓ FOUND" if found else "✗ NOT FOUND (or intentionally excluded)"
-        print(f"  {status:20} | {desc}")
 
 # %%
