@@ -28,7 +28,7 @@ In our United States operations, we operate 18 automobile assembly plants
 which employ 14,200 hourly production workers, of which approximately 
 82% (11,644 employees) are represented by labor unions under multiple 
 agreements with the United Auto Workers (UAW). Our primary UAW-covered 
-facility in Michigan employs 3,800 workers, 100% unionized.
+facility in Michigan employs 3,800 workers, whom are all unionized.
 
 Additionally, our East Coast distribution centers employ 920 workers, all 
 of whom are represented by the International Brotherhood of Teamsters 

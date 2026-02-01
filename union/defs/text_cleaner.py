@@ -139,10 +139,9 @@ class MinimalTextCleaner:
 
     # Qualitative financial terms to numeric conversion map
     _hundred = [
-        r"all", # all in all is rare to see in a financial filing
-        r"entire",
+        r"(?<!not\s)all(?=\s+(?:of|are|were))",  # all in all is rare to see in a financial filing
         # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun/adj, not adverb
-        r"(?:complete|full|whole) portions?",
+        r"(?:complete|full|whole|entire) portions?",
     ]
     _hundred_alternation = build_alternation(_hundred)
 
@@ -152,8 +151,9 @@ class MinimalTextCleaner:
         (
             build_regex(
                 [
-                    r"none(?=\s+(?:of|are|is|were)\b)",
-                    r"(?<=\b(?:are|were|is)\s)none",
+                    r"none(?=\s+(?:of|are|is|were|was))",
+                    r"(?<=(?:\sare|were|\swas)\s)none",
+                    r"(?<=is\s)none",
                 ]
             ),
             "0%",
@@ -161,7 +161,7 @@ class MinimalTextCleaner:
         # "all of/entire" -> "100%"
         (build_regex([_hundred_alternation]), "100%"),
         # entirety -> 95%
-        (build_regex([r"entirety"]), "95%")
+        (build_regex([r"entirety(?=\s+(?:of|are|were))"]), "95%"),
     ]
 
     # Handle "no [worker]" -> "0 [worker]"
@@ -581,7 +581,8 @@ class ContextualNumberCleaner:
             r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
             r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?",
             r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
-            r"air(?:line|craft|port|plane)?s?", r"customers", r"suppliers?", r"units?", r"products"
+            r"air(?:line|craft|port|plane)?s?", r"customers", r"suppliers?", r"units?", r"products",
+            r"disputes?",
         ]
 
         asset_pattern = build_alternation(asset_terms)
@@ -1198,14 +1199,15 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "i.e.", None),
             ],
         ),
-        # Test 25: None of -> 0% of
+        # Test 25: None of -> 0% of, All are -> 100%
         TestCase(
             name="None of -> 0% of",
-            input_text="None of our employees are unionized. Second to none. None are unionized.",
+            input_text="None of our employees are unionized. Second to none. All are unionized. Not all of them.",
             validations=[
                 (TestType.CONTAINS, "0% of our employees", None),
                 (TestType.CONTAINS, "Second to none", None),
-                (TestType.CONTAINS, "0% of unionized", None),
+                (TestType.CONTAINS, "100% are unionized", None),
+                (TestType.CONTAINS, "Not all", None),
             ],
         ),
         # Test 26: Pronoun Replacement

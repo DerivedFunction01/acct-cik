@@ -971,10 +971,6 @@ class UnionAnalyzer:
                 if note:
                     data["note"] = note
 
-            if is_negated and (abs(raw_pct - 100.0) < 0.1 or abs(raw_pct - 95.0) < 0.1):
-                data["percentage"] = None
-                data["type"] = CoverageType.QUALITATIVE.value
-                data["note"] = f"Ignored negated {raw_pct}% (likely 'not all'/'not entire')"
             else:
                 data["percentage"] = raw_pct
                 if is_negated:
