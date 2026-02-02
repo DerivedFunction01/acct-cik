@@ -41,6 +41,35 @@ def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
             counts.append(n)
     return counts
 
+def check_is_total_context(
+    analysis: SentenceAnalysis, match_span: Optional[Tuple[int, int]] = None
+) -> bool:
+    """
+    Checks if 'total', 'global', 'worldwide', etc. are present near the match.
+    """
+    if not analysis.total_modifiers:
+        return False
+    if not match_span:
+        return True
+
+    total_matches = [
+        m for m in analysis._matches if m["type"] == MatchType.TOTAL_MODIFIER
+    ]
+    start, end = match_span
+
+    for tm in total_matches:
+        t_start, t_end = tm["span"]
+        # Check distance (approx 60 chars covers "total of approximately [number]")
+        dist = 0
+        if t_end < start:
+            dist = start - t_end
+        elif end < t_start:
+            dist = t_start - end
+
+        if dist < 60:
+            return True
+    return False
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -49,6 +78,234 @@ class SimpleCoverageAnalyzer:
     - No conflicting Union vs Non-Union terms (mixed signals)
     - No Ratios
     """
+
+    def _handle_one_percent_one_count(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str],
+    ):
+        """Handles cases with exactly one percentage and one count."""
+        pct = analysis.percentages[0]
+        count = effective_counts[0]
+
+        data["percentage"] = pct
+        data["type"] = CoverageType.EXPLICIT_PERCENT.value
+        notes.append(f"Explicit percentage: {pct}%")
+
+        is_percent_of_total = False
+        pct_match = next(
+            (
+                m
+                for m in analysis._matches
+                if m["type"] == MatchType.PERCENT and m["val"] == pct
+            ),
+            None,
+        )
+        count_match = next(
+            (
+                m
+                for m in analysis._matches
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                and m["val"] == count
+            ),
+            None,
+        )
+
+        if pct_match and count_match:
+            if pct_match["span"][1] <= count_match["span"][0]:
+                start, end = pct_match["span"][1], count_match["span"][0]
+            else:
+                start, end = count_match["span"][1], pct_match["span"][0]
+            between = analysis.text[start:end]
+
+            if OF_REGEX.search(between):
+                is_percent_of_total = True
+
+        if is_percent_of_total:
+            data["employee_count_total"] = count
+            ratio = round((pct / 100.0) * count)
+            other = count - ratio
+            data["employee_count_not_covered"] = (
+                ratio if analysis.negation_terms else other
+            )
+            data["employee_count_covered"] = (
+                ratio if not analysis.negation_terms else other
+            )
+            data["negated"] = bool(analysis.negation_terms)
+            notes.append(
+                f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
+            )
+        else:
+            is_count_total = False
+            if count_match and pct_match and count_match["span"][1] < pct_match["span"][0]:
+                union_matches = [
+                    m
+                    for m in analysis._matches
+                    if m["type"]
+                    in (
+                        MatchType.UNION_TERM,
+                        MatchType.COVERAGE_TERM,
+                        MatchType.SPECIFIC_UNION,
+                        MatchType.UNION_NAME,
+                    )
+                ]
+
+                if union_matches:
+                    dist_to_pct = min(
+                        (
+                            min(
+                                abs(m["span"][0] - pct_match["span"][1]),
+                                abs(m["span"][1] - pct_match["span"][0]),
+                            )
+                            for m in union_matches
+                        ),
+                        default=float("inf"),
+                    )
+                    dist_to_count = min(
+                        (
+                            min(
+                                abs(m["span"][0] - count_match["span"][1]),
+                                abs(m["span"][1] - count_match["span"][0]),
+                            )
+                            for m in union_matches
+                        ),
+                        default=float("inf"),
+                    )
+
+                    if dist_to_pct < dist_to_count:
+                        is_count_total = True
+
+                if check_is_total_context(analysis, count_match["span"]):
+                    is_count_total = True
+
+            if is_count_total:
+                data["employee_count_total"] = count
+                ratio = round((pct / 100.0) * count)
+                other = count - ratio
+                data["employee_count_not_covered"] = (
+                    ratio if analysis.negation_terms else other
+                )
+                data["employee_count_covered"] = (
+                    ratio if not analysis.negation_terms else other
+                )
+                data["negated"] = bool(analysis.negation_terms)
+                notes.append(
+                    f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
+                )
+            else:
+                total = round(count / (pct / 100.0)) if pct > 0 else None
+                other = count - total if total else None
+                data["employee_count_total"] = total
+                data["employee_count_not_covered"] = (
+                    count if analysis.negation_terms else other
+                )
+                data["employee_count_covered"] = (
+                    count if not analysis.negation_terms else other
+                )
+                data["negated"] = bool(analysis.negation_terms)
+                data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(
+                    f"Count (covered): {count}, inferred total: {data['employee_count_total']}"
+                )
+
+    def _handle_two_counts(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str],
+    ):
+        """Handles cases with exactly two counts and no percentages."""
+        c1, c2 = effective_counts[0], effective_counts[1]
+
+        m1 = next(
+            (m for m in analysis._matches if m["type"] == MatchType.WORKER_COUNT and m["val"] == c1)
+            or (m for m in analysis._matches if m["type"] == MatchType.NUMBER and m["val"] == c1),
+            None,
+        )
+        m2 = next(
+            (m for m in analysis._matches if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == c2 and m is not m1),
+            None,
+        )
+
+        is_subset = True
+        if m1 and m2:
+            if m1["span"][0] > m2["span"][0]:
+                m1, m2 = m2, m1
+            text_between = analysis.text[m1["span"][1] : m2["span"][0]]
+            text_before = analysis.text[max(0, m1["span"][0] - 25) : m1["span"][0]]
+
+            if OF_REGEX.search(text_between) or OF_REGEX.search(text_before):
+                is_subset = True
+            elif re.search(r"\band\b", text_between, re.IGNORECASE):
+                is_subset = False
+
+        if is_subset:
+            total, part = max(c1, c2), min(c1, c2)
+            other = total - part
+            data["employee_count_covered"] = part if not analysis.negation_terms else other
+            data["employee_count_not_covered"] = part if analysis.negation_terms else other
+            data["employee_count_total"] = total
+            if analysis.negation_terms:
+                data.update({
+                    "negated": True,
+                    "negation_type": NegationType.NOT_COVERED.value,
+                })
+                notes.append(f"Count (not covered): {part} of {total}")
+            else:
+                notes.append(f"Count (covered): {part} of {total}")
+        else:
+            total = c1 + c2
+            data["employee_count_total"] = total
+            if analysis.negation_terms:
+                data.update({"employee_count_not_covered": total, "negated": True, "negation_type": NegationType.NOT_COVERED.value})
+                notes.append(f"Count (not covered): {c1} + {c2} = {total}")
+            else:
+                data["employee_count_covered"] = total
+                notes.append(f"Count (covered): {c1} + {c2} = {total}")
+
+        if data.get("employee_count_total", 0) > 0:
+            covered = data.get("employee_count_covered", 0)
+            pct = (covered / data["employee_count_total"]) * 100.0
+            data["percentage"] = round(pct, 2)
+            data["type"] = CoverageType.CALCULATED.value
+            notes.append(f"Calculated percentage: {data['percentage']}%")
+
+    def _handle_single_value(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str],
+    ):
+        """Handles cases with one percentage OR one count."""
+        if analysis.percentages:
+            data["percentage"] = analysis.percentages[0]
+            data["type"] = CoverageType.EXPLICIT_PERCENT.value
+            notes.append(f"Explicit percentage: {data['percentage']}%")
+
+        if effective_counts:
+            count = effective_counts[0]
+            if analysis.negation_terms:
+                data.update({"employee_count_not_covered": count, "negated": True, "negation_type": NegationType.NOT_COVERED.value})
+                notes.append(f"Count (not covered): {count}")
+            else:
+                data["employee_count_covered"] = count
+                notes.append(f"Count (covered): {count}")
+
+    def _handle_qualitative_zero(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str],
+    ):
+        """Handles cases like 'None are represented'."""
+        if not analysis.percentages and not effective_counts and analysis.negation_terms:
+            data.update({"percentage": 0.0, "negated": True, "negation_type": NegationType.ZERO_COVERAGE.value, "type": CoverageType.EXPLICIT_PERCENT.value})
+            notes.append("Qualitative zero coverage detected")
 
     def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         data = {
@@ -63,7 +320,6 @@ class SimpleCoverageAnalyzer:
         }
 
         notes = []
-        # Check for union context
         has_union_context = (
             bool(analysis.union_terms)
             or bool(analysis.coverage_terms)
@@ -76,187 +332,19 @@ class SimpleCoverageAnalyzer:
         if not has_union_context:
             data["type"] = None
             return data
+
         effective_counts = get_effective_counts(analysis)
-        # 0. Handle 1 Percentage + 1 Count (Combined)
+
         if len(analysis.percentages) == 1 and len(effective_counts) == 1:
-            pct = analysis.percentages[0]
-            count = effective_counts[0]
-
-            data["percentage"] = pct
-            data["type"] = CoverageType.EXPLICIT_PERCENT.value
-            notes.append(f"Explicit percentage: {pct}%")
-
-            # Determine if count is Total or Covered based on "of"
-            # e.g. "10% of 100 employees" -> Total=100
-            # e.g. "100 employees (10%)" -> Covered=100
-
-            is_percent_of_total = False
-            # Find matches to check text between
-            pct_match = next(
-                (
-                    m
-                    for m in analysis._matches
-                    if m["type"] == MatchType.PERCENT and m["val"] == pct
-                ),
-                None,
-            )
-            count_match = next(
-                (
-                    m
-                    for m in analysis._matches
-                        if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == count
-                ),
-                None,
-            )
-
-            if pct_match and count_match:
-                if pct_match["span"][1] <= count_match["span"][0]:
-                    start = pct_match["span"][1]
-                    end = count_match["span"][0]
-                else:
-                    start = count_match["span"][1]
-                    end = pct_match["span"][0]
-                between = analysis.text[start:end]
-
-                if OF_REGEX.search(between):
-                    is_percent_of_total = True
-                elif len(between) < 20 and "," not in between:
-                    is_percent_of_total = True
-
-            if is_percent_of_total:
-                data["employee_count_total"] = count
-                ratio = round((pct / 100.0) * count)
-                other = count - ratio
-                data["employee_count_not_covered"] = ratio if analysis.negation_terms else other
-                data["employee_count_covered"] = ratio if not analysis.negation_terms else other
-                data["negated"] = True if analysis.negation_terms else False
-                notes.append(
-                    f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
-                )
-            else:
-                total =  round(count / (pct / 100.0)) if pct > 0 else None
-                other = count - total if total else None
-                data["employee_count_total"] = total 
-                # Default: Count is Covered (or Not Covered)
-                data["employee_count_not_covered"] = count if analysis.negation_terms else other
-                data["employee_count_covered"] = count if not analysis.negation_terms else other
-                data["negated"] = True if analysis.negation_terms else False
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Count (covered): {count}, inferred total: {data['employee_count_total']}")
-
-        # 0.5 Handle 2 Counts (Total vs Part)
+            self._handle_one_percent_one_count(analysis, effective_counts, data, notes)
         elif not analysis.percentages and len(effective_counts) == 2:
-            c1 = effective_counts[0]
-            c2 = effective_counts[1]
-
-            # Find matches to check text between
-            m1 = next(
-                (
-                    m
-                    for m in analysis._matches
-                    if m["type"] == MatchType.WORKER_COUNT and m["val"] == c1
-                ) or (m for m in analysis._matches if m["type"] == MatchType.NUMBER and m["val"] == c1),
-                None,
-            )
-            # Find m2 (handle duplicate values)
-            m2 = next(
-                (
-                    m
-                    for m in analysis._matches
-                    if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
-                    and m["val"] == c2
-                    and m is not m1
-                ),
-                None,
-            )
-
-            is_subset = True # Default to subset (Max is Total)
-            if m1 and m2:
-                # Ensure order
-                if m1["span"][0] > m2["span"][0]:
-                    m1, m2 = m2, m1
-
-                text_between = analysis.text[m1["span"][1]:m2["span"][0]]
-
-                # Check text before first number for "Of" (e.g. "Of our 100 employees, 20...")
-                text_before = analysis.text[max(0, m1["span"][0] - 25):m1["span"][0]]
-
-                # "of" -> Subset (e.g. "50 of 100" OR "Of 100... 50")
-                if OF_REGEX.search(text_between) or OF_REGEX.search(text_before):
-                    is_subset = True
-                # "and" -> Addition (e.g. "50 UAW and 50 Teamsters")
-                elif re.search(r'\band\b', text_between, re.IGNORECASE):
-                    is_subset = False
-
-            if is_subset:
-                # Assume larger is total
-                total = max(c1, c2)
-                part = min(c1, c2)
-
-                data["employee_count_total"] = total
-
-                if analysis.negation_terms:
-                    data["employee_count_not_covered"] = part
-                    data["negated"] = True
-                    data["negation_type"] = NegationType.NOT_COVERED.value
-                    data["employee_count_covered"] = total - part
-                    notes.append(f"Count (not covered): {part} of {total}")
-                else:
-                    data["employee_count_covered"] = part
-                    notes.append(f"Count (covered): {part} of {total}")
-            else:
-                # Addition (Part + Part = Total)
-                total = c1 + c2
-                data["employee_count_total"] = total
-
-                if analysis.negation_terms:
-                    data["employee_count_not_covered"] = total
-                    data["negated"] = True
-                    data["negation_type"] = NegationType.NOT_COVERED.value
-                    notes.append(f"Count (not covered): {c1} + {c2} = {total}")
-                else:
-                    data["employee_count_covered"] = total
-                    notes.append(f"Count (covered): {c1} + {c2} = {total}")
-
-            if data["employee_count_total"] and data["employee_count_total"] > 0:
-                covered = data["employee_count_covered"] if data["employee_count_covered"] is not None else 0
-                pct = (covered / data["employee_count_total"]) * 100.0
-                data["percentage"] = round(pct, 2)
-                data["type"] = CoverageType.CALCULATED.value
-                notes.append(f"Calculated percentage: {data['percentage']}%")
-
+            self._handle_two_counts(analysis, effective_counts, data, notes)
         else:
-            # 1. Explicit Percentage
-            if analysis.percentages:
-                pct = analysis.percentages[0]
-                data["percentage"] = pct
-                data["type"] = CoverageType.EXPLICIT_PERCENT.value
-                notes.append(f"Explicit percentage: {pct}%")
+            self._handle_single_value(analysis, effective_counts, data, notes)
 
-            # 2. Explicit Count
-            if effective_counts:
-                count = effective_counts[0]
-                if analysis.negation_terms:
-                    data["employee_count_not_covered"] = count
-                    data["negated"] = True
-                    data["negation_type"] = NegationType.NOT_COVERED.value
-                    notes.append(f"Count (not covered): {count}")
-                else:
-                    data["employee_count_covered"] = count
-                    notes.append(f"Count (covered): {count}")
-
-        # 3. Qualitative Zero ("None are represented")
-        if (
-            not analysis.percentages
-            and not effective_counts
-            and analysis.negation_terms
-        ):
-            if any(analysis.negation_terms):
-                data["percentage"] = 0.0
-                data["negated"] = True
-                data["negation_type"] = NegationType.ZERO_COVERAGE.value
-                data["type"] = CoverageType.EXPLICIT_PERCENT.value
-                notes.append("Qualitative zero coverage detected")
+        # Fallback to qualitative zero if no other data was found
+        if (data.get("percentage") is None and data.get("employee_count_covered") is None and data.get("employee_count_not_covered") is None):
+            self._handle_qualitative_zero(analysis, effective_counts, data, notes)
 
         data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
         return data
@@ -1005,36 +1093,6 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
         )
 
     return status.value if status != RelationshipStatus.UNKNOWN else None
-
-
-def check_is_total_context(
-    analysis: SentenceAnalysis, match_span: Optional[Tuple[int, int]] = None
-) -> bool:
-    """
-    Checks if 'total', 'global', 'worldwide', etc. are present near the match.
-    """
-    if not analysis.total_modifiers:
-        return False
-    if not match_span:
-        return True
-
-    total_matches = [
-        m for m in analysis._matches if m["type"] == MatchType.TOTAL_MODIFIER
-    ]
-    start, end = match_span
-
-    for tm in total_matches:
-        t_start, t_end = tm["span"]
-        # Check distance (approx 60 chars covers "total of approximately [number]")
-        dist = 0
-        if t_end < start:
-            dist = start - t_end
-        elif end < t_start:
-            dist = t_start - end
-
-        if dist < 60:
-            return True
-    return False
 
 
 class Tracker:

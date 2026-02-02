@@ -52,7 +52,6 @@ class MinimalTextCleaner:
         r"corporation",
         r"l\.?l\.?c\.?",
         r"ltd\.?",
-        r"limited",
         r"p\.?l\.?c\.?",
         r"s\.?a\.?",
     ]
@@ -879,6 +878,7 @@ class ConcisenessCleaner:
                 r"an?",
                 r"the",
                 r"approx(?:imate(?:ly)?|\.)?",
+                r"around",
                 r"about",
                 r"exactly",
                 r"rough(?:ly)?",
@@ -894,6 +894,7 @@ class ConcisenessCleaner:
                 r"places?",
                 r"locations?",
                 r"distributions?",
+                r"subsidiar(?:y|ies)",
                 r"manufacturing",
                 r"propert(?:y|ies)",
                 r"stores?",
