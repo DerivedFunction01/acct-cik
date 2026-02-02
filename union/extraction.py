@@ -196,7 +196,7 @@ QUALITATIVE_MEMBERSHIP = [
     # ===== 100% TIER (All/Entire/Full) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["all", "entire", "fully", "completely"],
+        prefix_terms=["all", "entire", "fully", "completely", "wholly", "every", "each"],
         positive_pct=100.0,
         negated_pct=0.0,
         requires_suffix=False,
@@ -276,6 +276,14 @@ QUALITATIVE_MEMBERSHIP = [
 ]
 
 QUALITATIVE_TERMS = [
+    # ===== 100% TIER (... all of is already implied 100%, these are terms that may refer to 100%) =====
+    QualitativeTerm(
+        core_terms=["entire", "whole", "total", "full", "complete"],
+        prefix_terms=["the"],
+        positive_pct=100.0,
+        negated_pct=None, 
+        requires_suffix=False,
+    ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
         core_terms=["majority", "bulk"],
@@ -502,7 +510,7 @@ QUALITATIVE_TERMS = [
             "negligible",
             "trivial",
             "de minimis",
-            "minimal"
+            "minimal",
         ],
         prefix_terms=["is", "are", "was", "were"],
         positive_pct=1.0,

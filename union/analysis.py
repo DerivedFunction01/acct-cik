@@ -406,6 +406,13 @@ class SimpleCoverageAnalyzer:
 
             if qual_match:
                 data["employee_count_total"] = count
+                
+                # Validation: Check proximity to the count or union context to avoid false associations
+                # e.g. "We have 100 employees. <long gap> ... significant number of products..."
+                dist_to_count = float("inf")
+                if count_match:
+                    dist_to_count = get_min_distance_to_matches(qual_match["span"], [count_match], [MatchType.WORKER_COUNT, MatchType.NUMBER])
+                
                 term = qual_match.get("term_obj")
                 if term:
                     assert isinstance(term, QualitativeTerm)
@@ -413,7 +420,11 @@ class SimpleCoverageAnalyzer:
                         qual_match["span"], analysis.text, backward=40
                     )
                     pct = term.get_percentage(is_negated=is_term_negated)
-                    if pct is not None:
+                    
+                    # Only apply percentage if it's reasonably close to the count (e.g. within 100 chars)
+                    # or if the term itself implies membership (e.g. "all employees")
+                    is_membership_term = qual_match["type"] == MatchType.QUALITATIVE_MEMBERSHIP
+                    if pct is not None and (dist_to_count < 100 or is_membership_term):
                         data["percentage"] = pct
                         data["type"] = CoverageType.QUALITATIVE.value
 
@@ -432,6 +443,9 @@ class SimpleCoverageAnalyzer:
                         else:
                             data["employee_count_covered"] = ratio
                             data["note"] = f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} covered"
+                    elif pct is not None:
+                        # Percentage exists but term is too far from count
+                        notes.append(f"Count (total): {count}. Ignored qualitative '{qual_match['text']}' (distance {dist_to_count:.0f} > 100).")
                     else:
                         notes.append(f"Count (total): {count}. Ambiguous qualitative term '{qual_match['text']}' detected.")
                 else:
