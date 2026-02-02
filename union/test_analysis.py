@@ -14,55 +14,84 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 
 
 ITEM_1 = """
+MIXED DATA TEST CASE: TechAdvance Manufacturing Corp (Reporting Year 2023)
+=========================================================================
+
+This test document deliberately contains:
+- Some sentences with COMPLETE coverage information (explicit counts + totals)
+- Some sentences with PARTIAL information (only counts, no totals; or percentages without counts)
+- Some sentences with AMBIGUOUS language (qualitative only, no numbers)
+- Some sentences referencing EXTERNAL PARTIES (suppliers, customers) - should be excluded
+- Some sentences with FUTURE/CONDITIONAL language (expected changes, risks)
+
+Goal: Test that system returns NULL for coverage data when information is insufficient,
+rather than inferring or guessing.
+
+---
+
 ITEM 1. BUSINESS
 
-TechAdvance Manufacturing Corp and its subsidiaries operate a global manufacturing, logistics, and 
-technology services business. As of December 31, 2023, we employ approximately 100,000 employees 
-worldwide across North America, Europe, Latin America, and Asia-Pacific regions.
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 100,000 employees worldwide.
 
-Employees and Labor Relations
+UNITED STATES OPERATIONS
 
-We maintain a diverse workforce across multiple operational divisions. As of year-end 2023, our total 
-global employee base consisted of approximately 100,000 personnel.
+Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
 
-United States Operations. Our domestic operations employ 57,520 workers across 15 manufacturing 
-facilities and 30 distribution hubs. Of our 14,200 hourly production workers, 11,644 are represented 
-by the United Auto Workers (UAW) under collective bargaining agreements. Additionally, 920 logistics 
-personnel in our East Coast distribution centers are fully represented by the International Brotherhood 
-of Teamsters. 
+In our automobile manufacturing division, we employ 14,200 hourly production workers. Of these, 11,644 are represented by the United Auto Workers (UAW) under collective bargaining agreements. This represents 82% unionization in this division.
 
-Our flight operations employ 500 pilots, all of whom are unionized under the Air Line Pilots Association (ALPA).
-We employ 200 senior managers who are not subject to collective bargaining agreements. The remaining 44,256 
-U.S. employees, consisting primarily of technical, administrative, and sales personnel, are non-union. 
-In 2023, we reduced U.S. headcount by 1,500 positions through operational efficiency initiatives, 
-which contributed to a 3% decline in overall union density within the United States.
+Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
 
-European Operations. We employ 7,100 workers across Europe. In France, we operate facilities with 3,000 
-employees who are substantially all covered by industry-wide collective bargaining agreements and represented 
-through the Comité Social et Économique, a mandatory French employee representation structure. In Germany, 
-we employ 4,100 workers across two principal locations. Our Hamburg manufacturing facility employs 2,600 workers, 
-of whom 95%, or approximately 2,470 employees, maintain membership in IG Metall. Our Munich administrative center
-employs 1,500 workers and operates under German Works Council (Betriebsrat) provisions, which provide for 
-employee consultation and co-determination rights, though we maintain no formal union contract at this location.
+We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
 
-Latin American Operations. We employ 2,900 workers in Latin America. In Mexico, our manufacturing operations 
-in Monterrey employ 1,800 workers. Approximately 270 employees, or 15% of our Mexican workforce, are 
-represented under a collective bargaining agreement with the Sindicato de Trabajadores Mineros Unidos. 
-In Brazil, our operations employ 1,100 workers. While subject to annual industry-wide union negotiations 
-and wage setting mechanisms, formal union membership among our Brazilian workforce remains limited.
+Our corporate headquarters employs administrative, sales, and technical staff. A portion of these 50,000 corporate employees remain unionized, though the exact number is not material to our risk profile.
 
-Asia-Pacific Operations. We employ 33,200 workers across Asia-Pacific. In Japan, we employ 3,200 workers 
-who participate in the annual Shunto wage negotiation process; however, these employees remain entirely
-non-union. In China, we employ 10,000 workers across multiple manufacturing sites. Our Chinese operations 
-operate within the All-China Federation of Trade Unions (ACFTU) framework as required by applicable law. 
-However, we report zero formal collective bargaining representation for our Chinese workforce. 
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
 
-In India, our technology hub in Bangalore employs 20,000 software engineers and technical support 
-personnel, none of whom are currently unionized.
+EUROPEAN OPERATIONS
 
-Summary. Worldwide, as of December 31, 2023, our unionized workforce totaled approximately 
-18,800 employees, representing approximately 19% of our total global workforce. This represented a 
-modest decline from prior year due to operational changes and divestitures.
+We maintain operations across Europe, employing approximately 6,000 workers.
+
+In France, we operate a manufacturing facility. French labor law requires substantial employee representation through works councils and collective agreements. We employ approximately 2,500 workers at this location, substantially all of whom participate in mandatory industry-wide bargaining.
+
+In Germany, we operate two principal locations employing 3,500 workers total. Our Hamburg plant employs 2,000 workers with IG Metall membership. Our Munich office employs 1,500 workers subject to German codetermination requirements.
+
+We maintain operations in the United Kingdom. A portion of our U.K. workforce is represented by trade unions, though specific unionization rates are not disclosed.
+
+LATIN AMERICAN OPERATIONS
+
+We employ approximately 3,000 workers across Latin America.
+
+In Mexico, we operate manufacturing facilities. We do not publicly disclose the unionization status of these operations due to local business practices.
+
+In Brazil, we employ approximately 1,200 workers. Our Brazilian operations are subject to annual industry-wide union negotiations, but exact unionization rates remain proprietary.
+
+ASIA-PACIFIC OPERATIONS
+
+We employ approximately 85,000 workers across Asia-Pacific, primarily in technology and manufacturing.
+
+In India, our Bangalore technology hub employs 45,000 software engineers and support staff. We do not currently have union representation at this facility.
+
+In China, we employ 20,000 workers across multiple manufacturing sites. These operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
+
+In Japan, we employ 12,000 workers. These employees participate in annual Shunto wage negotiations but remain entirely non-unionized in formal terms.
+
+In Southeast Asia (Thailand, Vietnam, Malaysia), we employ approximately 8,000 workers across manufacturing and logistics hubs. Union representation in this region is minimal to non-existent, though we continue to monitor labor developments.
+
+GLOBAL SUMMARY
+
+We do not provide a precise global unionization rate, as certain regional operations do not disclose specific metrics for competitive or operational reasons. We believe our diversified geographic footprint and largely non-unionized workforce provide flexibility for operational efficiency.
+
+---
+
+ITEM 1A. RISK FACTORS
+
+LABOR RELATIONS RISKS
+
+We face potential labor relations risks in certain jurisdictions. Union organizing efforts in our U.S. distribution centers could increase labor costs if successful. We are aware of informal labor organizing activity in some Latin American facilities, though no formal campaigns are currently underway. In Europe, changes to German labor law or IG Metall contract terms could impact our cost structure. We monitor labor developments globally but do not anticipate material unionization risk in Asia-Pacific in the near term.
+
+THIRD-PARTY LABOR RISKS
+
+Some of our suppliers and logistics partners employ unionized workforces. We do not control these labor relations directly and cannot ensure compliance with our labor standards across all third-party operations.
 """
 
 ITEM_1A = """

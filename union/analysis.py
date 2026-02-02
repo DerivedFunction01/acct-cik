@@ -180,7 +180,7 @@ class SimpleCoverageAnalyzer:
         is_percent_of_total = False
         # Ensure matches are found
         if not analysis._matches:
-             return
+            return
 
         pct_match = next(
             (
@@ -214,13 +214,13 @@ class SimpleCoverageAnalyzer:
             data["employee_count_total"] = count
             ratio = round((pct / 100.0) * count)
             other = count - ratio
-            
+
             # Check for local negation to decide if we assume the opposite
             is_negated = False
             if analysis.negation_terms:
                 if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
                     is_negated = True
-            
+
             if is_negated:
                 data["employee_count_not_covered"] = ratio
                 data["employee_count_covered"] = other
@@ -234,11 +234,11 @@ class SimpleCoverageAnalyzer:
         else:
             # Determine if count is Total or Covered based on proximity to union terms
             is_count_total = True # Default to Total if ambiguous
-            
+
             if pct_match and count_match:
                 dist_to_pct = get_min_distance_to_matches(pct_match["span"], analysis._matches, UNION_MATCH_TYPES)
                 dist_to_count = get_min_distance_to_matches(count_match["span"], analysis._matches, UNION_MATCH_TYPES)
-                
+
                 # If both are far, ignore (likely unrelated numbers)
                 if dist_to_pct > 100 and dist_to_count > 100:
                     notes.append("Ignored: Percentage and Count too far from union terms")
@@ -261,12 +261,12 @@ class SimpleCoverageAnalyzer:
                 data["employee_count_total"] = count
                 ratio = round((pct / 100.0) * count)
                 other = count - ratio
-                
+
                 is_negated = False
                 if analysis.negation_terms:
                     if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
                         is_negated = True
-                
+
                 if is_negated:
                     data["employee_count_not_covered"] = ratio
                     data["employee_count_covered"] = other
@@ -280,12 +280,12 @@ class SimpleCoverageAnalyzer:
                 total = round(count / (pct / 100.0)) if pct > 0 else None
                 other = total - count if total else None
                 data["employee_count_total"] = total
-                
+
                 is_negated = False
                 if analysis.negation_terms:
                     if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
                         is_negated = True
-                
+
                 if is_negated:
                     data["employee_count_not_covered"] = count
                     data["employee_count_covered"] = other
@@ -390,13 +390,13 @@ class SimpleCoverageAnalyzer:
         if effective_counts:
             count = effective_counts[0]
             count_match = next((m for m in analysis._matches if m["val"] == count and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)), None)
-            
+
             is_associated = False
             if count_match:
                 dist = get_min_distance_to_matches(count_match["span"], analysis._matches, UNION_MATCH_TYPES)
                 if dist < 100:
                     is_associated = True
-            
+
             # Check for qualitative terms (e.g. "majority", "most")
             # If present, we assume the count is the Total, and the term describes the subset.
             qual_match = next(
@@ -442,6 +442,7 @@ class SimpleCoverageAnalyzer:
                 else:
                     data["employee_count_covered"] = count
                     notes.append(f"Count (covered): {count}")
+                data["employee_count_total"] = count
             else:
                 data["employee_count_total"] = count
                 notes.append(f"Count (total): {count} (no union association)")
@@ -455,7 +456,7 @@ class SimpleCoverageAnalyzer:
     ):
         """Handles cases like 'None are represented'."""
         if not analysis.percentages and not effective_counts and analysis.negation_terms:
-            data.update({"percentage": 0.0, "negated": True, "negation_type": NegationType.ZERO_COVERAGE.value, "type": CoverageType.EXPLICIT_PERCENT.value})
+            data.update({"percentage": 0.0, "negated": True, "negation_type": NegationType.ZERO_COVERAGE.value, "type": CoverageType.value})
             notes.append("Qualitative zero coverage detected")
 
     def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
@@ -498,6 +499,7 @@ class SimpleCoverageAnalyzer:
             self._handle_qualitative_zero(analysis, effective_counts, data, notes)
 
         data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
+        data["employee_count_total"]
         return data
 
 
@@ -2119,7 +2121,7 @@ class UnionAnalyzer:
 
             # Exclude "monitoring" statements with no data (Statement Only)
             # e.g. "We are committed to constructive engagement..."
-            if should_include and not has_data and BOILERPLATE_REGEX.search(sent):
+            if should_include and (not has_data or analysis.relationship_terms) and BOILERPLATE_REGEX.search(sent):
                 should_include = False
 
             # Exclude personnel events (layoffs, hiring) if no union keywords are present
@@ -2131,8 +2133,8 @@ class UnionAnalyzer:
             ):
                 should_include = False
 
-            # Filter out Risk Items embedded in Item 1
-            if analysis.risk_terms and not has_data:
+            # Filter out Risk Items embedded in Item 1 (Use boilerplate block)
+            if (analysis.risk_terms and not has_data) or BOILERPLATE_REGEX.search(sent):
                 risk_item = create_risk_item(
                     sent, analysis, is_historical=is_historical
                 )
