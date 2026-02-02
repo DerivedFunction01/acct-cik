@@ -530,14 +530,6 @@ QUALITATIVE_TERMS_AMB = [
         requires_suffix=True,
     ),
     QualitativeTerm(
-        core_terms=["parts", "portions", "segments", "fractions", "percentages", "proportions", "shares"],
-        prefix_terms=["multiple", "various", "numerous", "certain"],
-        suffix_terms=["of"],
-        positive_pct=None,
-        negated_pct=None,
-        requires_suffix=True,
-    ),
-    QualitativeTerm(
         core_terms=["certain"],
         suffix_terms=["of", "number", "amount", "fraction"],
         positive_pct=None,
