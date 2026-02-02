@@ -4,6 +4,7 @@ import re
 
 from extraction import (
     NEGATION_REGEX,
+    QualitativeTerm,
     UnionExtractor,
     SentenceAnalysis,
     MatchType,
@@ -396,7 +397,32 @@ class SimpleCoverageAnalyzer:
                 if dist < 100:
                     is_associated = True
             
-            if is_associated:
+            # Check for qualitative terms (e.g. "majority", "most")
+            # If present, we assume the count is the Total, and the term describes the subset.
+            qual_match = next(
+                (m for m in analysis._matches if m["type"] == MatchType.QUALITATIVE_TERM),
+                None,
+            )
+
+            if qual_match:
+                data["employee_count_total"] = count
+                term = qual_match.get("term_obj")
+                if term:
+                    is_term_negated = check_local_negation(
+                        qual_match["span"], analysis.text, backward=40
+                    )
+                    pct = term.get_percentage(is_negated=is_term_negated)
+                    if pct is not None:
+                        data["percentage"] = pct
+                        data["type"] = CoverageType.QUALITATIVE.value
+                        data["employee_count_covered"] = round((pct / 100.0) * count)
+                        data["note"] = (
+                            f"Qualitative '{qual_match['text']}' of {count} total -> {data['employee_count_covered']} covered"
+                        )
+                else:
+                    notes.append(f"Count (total): {count} (qualitative term present)")
+
+            elif is_associated:
                 if analysis.negation_terms:
                     data.update({"employee_count_not_covered": count, "negated": True, "negation_type": NegationType.NOT_COVERED.value})
                     notes.append(f"Count (not covered): {count}")
@@ -1222,6 +1248,10 @@ class Tracker:
         self.region_rates: Dict[str, float] = {}
         self.country_rates: Dict[str, float] = {}
         
+        self.global_rate_qualitative: bool = False
+        self.region_rates_qualitative: Dict[str, bool] = {}
+        self.country_rates_qualitative: Dict[str, bool] = {}
+        
         self.global_covered: float = 0.0
         self.region_covered: Dict[str, float] = {}
         self.region_aggregates: Dict[str, float] = {} # For "Germany and France" type aggregates
@@ -1344,7 +1374,7 @@ class Tracker:
         # 3. If found, promote to region_totals (e.g. "Rest of World")
         pass
 
-    def record_coverage(self, percentage: Optional[float], covered_count: Optional[float], geo_context: Dict[str, Any], scope_total: Optional[float] = None, not_covered_count: Optional[float] = None):
+    def record_coverage(self, percentage: Optional[float], covered_count: Optional[float], geo_context: Dict[str, Any], scope_total: Optional[float] = None, not_covered_count: Optional[float] = None, is_qualitative: bool = False):
         """
         Records coverage data (rate or count) for a specific geographic scope.
         """
@@ -1421,11 +1451,14 @@ class Tracker:
         if percentage is not None:
             if scope == "global":
                 self.global_rate = percentage
+                self.global_rate_qualitative = is_qualitative
             elif scope == "region" and region and not countries:
                 # Only trust region rate if it's NOT tied to specific countries
                 self.region_rates[region] = percentage
+                self.region_rates_qualitative[region] = is_qualitative
             elif scope == "country" and target_code:
                 self.country_rates[target_code] = percentage
+                self.country_rates_qualitative[target_code] = is_qualitative
             elif scope == "aggregate":
                 # Calculate implied count for this specific group and add to region_covered
                 # Do NOT set region_rates (which would override everything else)
@@ -1474,27 +1507,31 @@ class Tracker:
             rate = 0.0
             source_desc = ""
             
-            # Priority 1: Explicit Region Rate (Don't overwrite given rates)
-            if region in self.region_rates:
+            # Priority 1: Explicit Region Rate (Non-Qualitative)
+            if region in self.region_rates and not self.region_rates_qualitative.get(region, False):
                 rate = self.region_rates[region]
                 covered = (rate / 100.0) * total
                 source_desc = f"Explicit Rate {rate}%"
+            # Priority 2: Explicit Region Count (If marked Complete)
+            elif self.region_completeness.get(region):
+                covered = self.region_covered.get(region, 0.0)
+                source_desc = f"Explicit Count {covered} (Complete)"
+            # Priority 3: Qualitative Rate
+            elif region in self.region_rates and self.region_rates_qualitative.get(region, False):
+                rate = self.region_rates[region]
+                covered = (rate / 100.0) * total
+                source_desc = f"Qualitative Rate {rate}%"
             else:
-                # Priority 2: Explicit Region Count (If marked Complete)
-                if self.region_completeness.get(region):
-                    covered = self.region_covered.get(region, 0.0)
-                    source_desc = f"Explicit Count {covered} (Complete)"
-                else:
-                    # Priority 3: Best available partial data (Max of Aggregate vs Sum of Countries)
-                    # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
-                    children_sum = 0.0
-                    children_details = []
-                    if region in self.region_country_map:
-                        for code in self.region_country_map[region]:
-                            c_cov = self.country_covered.get(code, 0.0)
-                            children_sum += c_cov
-                            if c_cov > 0:
-                                children_details.append(f"{code}:{c_cov:.0f}")
+                # Priority 4: Best available partial data (Max of Aggregate vs Sum of Countries)
+                # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
+                children_sum = 0.0
+                children_details = []
+                if region in self.region_country_map:
+                    for code in self.region_country_map[region]:
+                        c_cov = self.country_covered.get(code, 0.0)
+                        children_sum += c_cov
+                        if c_cov > 0:
+                            children_details.append(f"{code}:{c_cov:.0f}")
                     
                     aggregate_val = self.region_aggregates.get(region, 0.0)
                     
@@ -1511,15 +1548,21 @@ class Tracker:
             self.resolution_log.append(f"Region {region}: Total {total} -> Covered {covered:.1f} ({rate:.1f}%) via {source_desc}")
             
         # 3. Resolve Global
-        if self.global_rate is not None:
+        regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
+        
+        if self.global_rate is not None and not self.global_rate_qualitative:
             global_rate = self.global_rate
             self.resolution_log.append(f"Global: Explicit Rate {global_rate}%")
+        elif self.global_covered >= regions_sum:
+            final_global_covered = self.global_covered
+            global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
+            self.resolution_log.append(f"Global: Explicit Count {final_global_covered} (>= Regions Sum {regions_sum:.1f})")
+        elif self.global_rate is not None and self.global_rate_qualitative:
+            global_rate = self.global_rate
+            self.resolution_log.append(f"Global: Qualitative Rate {global_rate}%")
         else:
-            regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
-            final_global_covered = max(self.global_covered, regions_sum)
-            
-            source_desc = "Explicit Global Count" if self.global_covered >= regions_sum else "Sum of Regions"
-            
+            final_global_covered = regions_sum
+            source_desc = "Sum of Regions"
             global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
             self.resolution_log.append(f"Global: Total {self.global_total} -> Covered {final_global_covered:.1f} ({global_rate:.1f}%) via {source_desc}")
             
@@ -2101,6 +2144,7 @@ class UnionAnalyzer:
                 pattern_str = match.get('pattern_str', '')
 
                 if term:
+                    assert isinstance(term, QualitativeTerm)
                     is_locally_negated = check_local_negation(match['span'], analysis.text)
                     if term.is_absolute:
                         data["percentage"] = term.positive_pct
@@ -2173,16 +2217,16 @@ class UnionAnalyzer:
         for item in results:
             data = item.get("coverage_data", {})
             geo = item.get("geographic_context", {})
-            
+
             # Skip non-current
             if data.get("temporal_scope") != TemporalScope.CURRENT.value:
                 continue
-                
+
             pct = data.get("percentage")
             covered = data.get("employee_count_covered")
             not_covered = data.get("employee_count_not_covered")
             total = data.get("employee_count_total")
-            
+
             # Try to resolve not_covered to covered
             if covered is None and not_covered is not None:
                 if total and total >= not_covered:
@@ -2192,7 +2236,7 @@ class UnionAnalyzer:
                     scope_total = None
                     region = geo.get("region")
                     countries = geo.get("countries", [])
-                    
+
                     if len(countries) == 1:
                         code = countries[0]["code"]
                         scope_total = tracker.country_totals.get(code)
@@ -2200,16 +2244,18 @@ class UnionAnalyzer:
                         scope_total = tracker.region_totals.get(region)
                     elif region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
                         scope_total = tracker.global_total
-                    
+
                     if scope_total and scope_total >= not_covered:
                         covered = scope_total - not_covered
-            
-            tracker.record_coverage(pct, covered, geo, scope_total=total, not_covered_count=not_covered)
-            
+
+            is_qual = (data.get("type") == CoverageType.QUALITATIVE.value)
+
+            tracker.record_coverage(pct, covered, geo, scope_total=total, not_covered_count=not_covered, is_qualitative=is_qual)
+
         # Calculate Metrics
         metrics = tracker.calculate_metrics()
         region_stats = metrics.get("region_stats", {})
-        
+
         return {
             "weighted_average_percentage": metrics["global_rate"],
             "likely_percentage": metrics["global_rate"],

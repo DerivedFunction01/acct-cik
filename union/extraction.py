@@ -392,6 +392,7 @@ QUALITATIVE_TERMS = [
             "negligible",
             "trivial",
             "de minimis",
+            "minimal"
         ],
         prefix_terms=["is", "are", "was", "were"],
         positive_pct=1.0,
@@ -405,7 +406,7 @@ QUALITATIVE_TERMS = [
         requires_suffix=False,
     ),
     QualitativeTerm(
-        core_terms=["nominal"],
+        core_terms=["nominal", "token"],
         suffix_terms=["amount"],
         positive_pct=1.0,
         negated_pct=None,  # "not nominal amount" is vague
