@@ -591,6 +591,7 @@ NPNS_KEYWORDS = [
     r"NPNS",
     r"own[- ]use\s+exemption",
     r"physical\s+(?:forward|delivery)\s+(?:contracts?|agreements?)",
+    r"physical\s+settlements?"
 ]
 
 # contract, instrument, arrangement, agreement, commitment, obligation
@@ -953,7 +954,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
         _COMMODITY_BASE_PATTERN,
         _FREIGHT_PATTERN,
         _GEN_PATTERN,
-        r"power purchase agreements?",  # raw string for regex
         r"forward\s+freight\s+agreements?",
         r"(?:fixed|open)[- ]price\s+swaps?",  # Only swaps, the rest
         r"fixed[- ]price purchase instruments?", # Missing one
@@ -961,7 +961,8 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # make commodity contracts, fixed price purchase commitments soft
     _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
         r"(?:fixed[- ])?commodity(?:(?:\sfixed)?[- ]price)?\s+contracts?",
-        r"fixed[- ]price purchase (?:commitments?|agreements?)", # additional
+        r"fixed[- ]price purchase (?:commitments?|agreements?)",  # additional
+        r"power purchase agreements?",  # raw string for regex
         _FIXED_PRICE_PATTERN,
     ]
 
