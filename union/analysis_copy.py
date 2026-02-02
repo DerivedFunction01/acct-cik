@@ -16,60 +16,166 @@ from defs.union_regex import (
     RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
 )
 
-class UnionAnalyzer:
-    def __init__(self):
-        self.extractor = UnionExtractor()
-
-    def _get_external_worker_count(self, region: str, countries: List[Dict[str, str]]) -> Optional[float]:
-        """
-        Placeholder: Connect to external DB to get worker counts for a region/country.
-        """
-        return None
-
-    def _create_risk_item(self, sentence: str, analysis: SentenceAnalysis, is_historical: bool = False) -> Dict[str, Any]:
-        """
-        Creates a risk item dictionary if relevant terms are found.
-        """
-        is_conditional = analysis.has_conditional
-        is_future = analysis.has_future
-        
-        temporal_scope = TemporalScope.CURRENT.value
-        if is_historical:
-            temporal_scope = TemporalScope.HISTORICAL.value
-        elif is_future:
-            temporal_scope = TemporalScope.FUTURE.value
-        elif is_conditional:
-            temporal_scope = TemporalScope.CONDITIONAL.value
-
-        # Return something if there is something to return (Union terms OR Risk terms)
-        if not (analysis.union_terms or analysis.risk_terms):
-            return {}
-
-        return {
-            "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
-            "sentence": sentence,
-            "labor_keywords": analysis.union_terms,
-            "risk_keywords": analysis.risk_terms,
-            "third_party": analysis.supplier_terms,
-            "specific_to_unions": bool(analysis.union_terms),
-            "union_mention": analysis.union_terms,
-            "temporal_scope": temporal_scope,
-            "conditional": is_conditional,
+class SimpleCoverageAnalyzer:
+    """
+    Handles straightforward sentences where coverage is explicit and singular.
+    Criteria:
+    - Max 1 Percentage OR Max 1 Worker Count
+    - No conflicting Union vs Non-Union terms (mixed signals)
+    - No Ratios
+    """
+    def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
+        data = {
+            "percentage": None,
+            "employee_count_covered": None,
+            "employee_count_not_covered": None,
+            "employee_count_total": None,
+            "negated": False,
+            "negation_type": None,
+            "type": CoverageType.QUALITATIVE.value,
             "note": None
         }
 
-    def _check_local_negation(self, analysis: SentenceAnalysis, match_span: Tuple[int, int], text: str) -> bool:
-        """
-        Check if a negation term appears within ~5 words before the matched pattern.
-        """
-        if not match_span:
-            return False
+        notes = []
 
-        start_idx = match_span[0]
-        # Look back window (approx 5 words ~ 40 chars)
-        window = text[max(0, start_idx - 40):start_idx]
+        # 1. Explicit Percentage
+        if analysis.percentages:
+            pct = analysis.percentages[0]
+            data["percentage"] = pct
+            data["type"] = CoverageType.EXPLICIT_PERCENT.value
+            notes.append(f"Explicit percentage: {pct}%")
+
+        # 2. Explicit Count
+        if analysis.worker_counts:
+            count = analysis.worker_counts[0]
+            if analysis.negation_terms:
+                data["employee_count_not_covered"] = count
+                data["negated"] = True
+                data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Count (not covered): {count}")
+            else:
+                data["employee_count_covered"] = count
+                notes.append(f"Count (covered): {count}")
+
+        # 3. Qualitative Zero ("None are represented")
+        if not analysis.percentages and not analysis.worker_counts and analysis.negation_terms:
+             if any(NEGATION_REGEX.search(t) for t in analysis.negation_terms):
+                 data["percentage"] = 0.0
+                 data["negated"] = True
+                 data["negation_type"] = NegationType.ZERO_COVERAGE.value
+                 data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                 notes.append("Qualitative zero coverage detected")
+
+        data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
+        return data
+
+
+def get_external_worker_count(region: str, countries: List[Dict[str, str]]) -> Optional[float]:
+    """
+    Placeholder: Connect to external DB to get worker counts for a region/country.
+    """
+    return None
+
+def create_risk_item(sentence: str, analysis: SentenceAnalysis, is_historical: bool = False) -> Dict[str, Any]:
+    """
+    Creates a risk item dictionary if relevant terms are found.
+    """
+    is_conditional = analysis.has_conditional
+    is_future = analysis.has_future
+    
+    temporal_scope = TemporalScope.CURRENT.value
+    if is_historical:
+        temporal_scope = TemporalScope.HISTORICAL.value
+    elif is_future:
+        temporal_scope = TemporalScope.FUTURE.value
+    elif is_conditional:
+        temporal_scope = TemporalScope.CONDITIONAL.value
+
+    # Return something if there is something to return (Union terms OR Risk terms)
+    if not (analysis.union_terms or analysis.risk_terms):
+        return {}
+
+    return {
+        "type": RiskType.UNION_RISK.value if analysis.union_terms else RiskType.LABOR_RISK.value,
+        "sentence": sentence,
+        "labor_keywords": analysis.union_terms,
+        "risk_keywords": analysis.risk_terms,
+        "third_party": analysis.supplier_terms,
+        "specific_to_unions": bool(analysis.union_terms),
+        "union_mention": analysis.union_terms,
+        "temporal_scope": temporal_scope,
+        "conditional": is_conditional,
+        "note": None
+    }
+
+def check_local_negation(match_span: Tuple[int, int], text: str) -> bool:
+    """
+    Check if a negation term appears within ~5 words before the matched pattern.
+    """
+    if not match_span:
+        return False
+
+    start_idx = match_span[0]
+    # Look back window (approx 5 words ~ 40 chars)
+    window = text[max(0, start_idx - 40):start_idx]
+    
+    return bool(NEGATION_REGEX.search(window))
+
+def apply_qualitative_multipliers(raw_pct: float, span: Tuple[int, int], text: str, apply: bool = False) -> Tuple[float, Optional[str]]:
+    """
+    Applies qualitative multipliers (e.g. "almost", "nearly") to a percentage.
+    """
+    if not apply:
+        return raw_pct, None
+
+    start_idx = span[0]
+    # Look back window (e.g. "almost 20%")
+    window = text[max(0, start_idx - 30):start_idx]
+    
+    for pattern, mult in QUALITATIVE_MULTIPLIERS:
+        if pattern.search(window):
+            new_pct = raw_pct * mult
+            # Cap at 100% if original was <= 100
+            if new_pct > 100.0 and raw_pct <= 100.0:
+                new_pct = 100.0
+            return round(new_pct, 2), f"Adjusted from {raw_pct}% (x{mult}) via term matching '{pattern.pattern}'"
+    
+    return raw_pct, None
+
+def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
+    """
+    Determines if the sentence is simple enough for the SimpleCoverageAnalyzer.
+    """
+    # 1. No mixed signals (Union AND Non-Union/Negation)
+    has_union = bool(analysis.union_terms or analysis.coverage_terms)
+    has_negation = bool(analysis.negation_terms)
+    if has_union and has_negation: 
+        return False
+    
+    # 2. No Ratios (implies calculation)
+    if analysis.ratios: 
+        return False
+    
+    # 3. Max 1 Percentage, Max 1 Count (avoid ambiguity)
+    if len(analysis.percentages) > 1: 
+        return False
+    if len(analysis.worker_counts) > 1: 
+        return False
         
-        return bool(NEGATION_REGEX.search(window))
+    return True
+
+def determine_geo_context(analysis: SentenceAnalysis, last_context, current_idx, last_idx) -> Dict[str, Any]:
+    """
+    Resolves geographic context based on explicit matches, union names,
+    language inference, or inheritance.
+    """
+    return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
+
+
+class UnionAnalyzer:
+    def __init__(self):
+        self.extractor = UnionExtractor()
+        self.simple_analyzer = SimpleCoverageAnalyzer()
 
     def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> Dict[str, Any]:
         """
@@ -163,45 +269,145 @@ class UnionAnalyzer:
         Analyzes a block of sentences (paragraph) for Item 1.
         Returns results, totals found in THIS block, and the final geo context.
         """
-        return [], {}, None
+        results = []
+        analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
 
-    def _determine_geo_context(
-        self, analysis: SentenceAnalysis, last_context, current_idx, last_idx
-    ) -> Dict[str, Any]:
-        """
-        Resolves geographic context based on explicit matches, union names,
-        language inference, or inheritance.
-        """
-        return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
-
-    def _apply_qualitative_multipliers(self, raw_pct: float, span: Tuple[int, int], text: str, apply: bool = False) -> Tuple[float, Optional[str]]:
-        """
-        Applies qualitative multipliers (e.g. "almost", "nearly") to a percentage.
-        """
-        if not apply:
-            return raw_pct, None
-
-        start_idx = span[0]
-        # Look back window (e.g. "almost 20%")
-        window = text[max(0, start_idx - 30):start_idx]
+        # Context inheritance state
+        last_geo_context = initial_geo_context
+        last_geo_sentence_idx = -1
+        last_employee_count = None
         
-        for pattern, mult in QUALITATIVE_MULTIPLIERS:
-            if pattern.search(window):
-                new_pct = raw_pct * mult
-                # Cap at 100% if original was <= 100
-                if new_pct > 100.0 and raw_pct <= 100.0:
-                    new_pct = 100.0
-                return round(new_pct, 2), f"Adjusted from {raw_pct}% (x{mult}) via term matching '{pattern.pattern}'"
-        
-        return raw_pct, None
+        # Totals found strictly within this block
+        local_totals = {}
+        # Effective totals for lookup (Previous Paragraph + Local So Far)
+        effective_totals = previous_totals.copy() if previous_totals else {}
+
+        for idx, analysis in enumerate(analyzed_sentences):
+            sent = sentences[idx]
+
+            # 1. Historical Check
+            is_historical = False
+            years_indicate_past = False
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years):
+                    years_indicate_past = True
+            
+            if (years_indicate_past or analysis.has_historical) and not analysis.has_current:
+                is_historical = True
+
+            # 2. Update Context (Worker Counts)
+            if analysis.worker_counts and not is_historical:
+                last_employee_count = max(analysis.worker_counts)
+
+            # 3. Relevance Check
+            has_coverage = bool(analysis.percentages or analysis.negation_terms)
+            has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
+            is_relevant = (
+                bool(analysis.union_terms or analysis.geo_matches or analysis.negation_terms) or
+                (has_coverage and has_worker_context) or
+                bool(analysis.worker_counts)
+            )
+
+            if not is_relevant:
+                continue
+
+            # 4. Determine Geographic Context
+            geo_context = determine_geo_context(
+                analysis, last_geo_context, idx, last_geo_sentence_idx
+            )
+
+            if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INFERRED_UNION.value):
+                last_geo_context = geo_context
+                last_geo_sentence_idx = idx
+
+            # 5. Update Region Totals
+            if analysis.worker_counts:
+                current_max = max(analysis.worker_counts)
+                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INHERITED.value):
+                    region_key = geo_context["region"]
+                    if current_max > local_totals.get(region_key, 0):
+                        local_totals[region_key] = current_max
+                        effective_totals[region_key] = current_max
+
+            # 6. Determine Relevant Total for Calculation
+            relevant_total = None
+            current_region = geo_context["region"]
+            if current_region in effective_totals:
+                relevant_total = effective_totals[current_region]
+            elif current_region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value) and global_max_workers > 0:
+                relevant_total = global_max_workers
+            elif last_employee_count:
+                relevant_total = last_employee_count
+
+            # 7. Determine Coverage Data (Dispatch)
+            coverage_data = self._determine_coverage_data(
+                analysis, relevant_total, reporting_year, is_historical=is_historical
+            )
+
+            # 8. Construct Result
+            should_include = False
+            has_data = (
+                coverage_data.get("percentage") is not None 
+                or coverage_data.get("employee_count_covered") is not None
+                or coverage_data.get("negated")
+            )
+
+            if analysis.union_terms:
+                should_include = True
+            elif has_data and geo_context["specificity"] != Specificity.IMPLICIT.value:
+                should_include = True
+
+            # Filter out Risk Items embedded in Item 1
+            if analysis.risk_terms and not has_data:
+                risk_item = create_risk_item(sent, analysis, is_historical=is_historical)
+                if risk_item:
+                    results.append(risk_item)
+                should_include = False
+
+            if should_include:
+                item = {
+                    "sentence": sent,
+                    "keyword_matched": analysis.union_terms or None,
+                    "geographic_context": geo_context,
+                    "coverage_data": coverage_data,
+                    "lookup_totals": effective_totals.copy(),
+                    "sentence_index": idx
+                }
+                results.append(item)
+
+        return results, local_totals, last_geo_context
 
     def _determine_coverage_data(
         self, analysis: SentenceAnalysis, inherited_total_count: Optional[float] = None, reporting_year: Optional[int] = None, is_historical: bool = False
     ) -> Dict[str, Any]:
         """
-        Extracts percentage, negation, and count data.
+        Dispatcher: Delegates to Simple or Complex analyzer based on sentence complexity.
         """
-        return {}
+        data = {}
+        
+        if is_simple_scenario(analysis):
+            data = self.simple_analyzer.analyze(analysis)
+        else:
+            data = self._analyze_complex_coverage(analysis, inherited_total_count)
+
+        # Common Post-Processing (Temporal Scope, etc.)
+        data.setdefault("temporal_scope", TemporalScope.CURRENT.value)
+        if is_historical:
+            data["temporal_scope"] = TemporalScope.HISTORICAL.value
+        
+        return data
+
+    def _analyze_complex_coverage(self, analysis: SentenceAnalysis, total_count: Optional[float]) -> Dict[str, Any]:
+        """
+        Handles complex scenarios: mixed coverage, ratios, inferred totals, etc.
+        (Placeholder for the complex logic to be re-added/refined)
+        """
+        data = {
+            "type": CoverageType.QUALITATIVE.value,
+            "note": "Complex Analysis (Placeholder)"
+        }
+        # TODO: Re-implement the complex logic (ratios, mixed resolution, proximity checks) here
+        return data
 
     def _resolve_mixed_coverage(self, analysis: SentenceAnalysis, data: Dict[str, Any]):
         """
@@ -232,7 +438,7 @@ class UnionAnalyzer:
             # Item 1A logic: Look for risk terms, union terms, supplier terms, or relationship terms
             if (analysis.risk_terms or analysis.union_terms or analysis.supplier_terms or 
                 analysis.relationship_quality_terms or analysis.relationship_terms):
-                result = self._create_risk_item(sent, analysis, is_historical=is_historical)
+                result = create_risk_item(sent, analysis, is_historical=is_historical)
                 if result:
                     results.append(result)
         return results
