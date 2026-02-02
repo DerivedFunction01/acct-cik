@@ -217,47 +217,148 @@ def determine_geo_context(analysis: SentenceAnalysis, last_context: Optional[Dic
     Resolves geographic context based on explicit matches, union names,
     language inference, or inheritance.
     """
+    explicit_matches = [
+        m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
+    ]
+    union_matches = [
+        m
+        for m in analysis.geo_matches
+        if m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
+    ]
+
     # 1. Explicit Geography (Highest Priority)
-    explicit_matches = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
     if explicit_matches:
         countries = []
+        regions_list = []
+        found_regions_map = {} # code -> (region_dict, region_enum)
+        seen_codes = set()
         regions = set()
-        
+        locations_by_country = {}  # code -> set of locations
+
+        unusual_combo = False
+        conflict_notes = []
+
         for m in explicit_matches:
-            if m.country:
-                countries.append({"name": m.country, "code": m.geo_code})
-            if m.region:
-                regions.add(m.region.value)
-        
-        # Resolve Region
-        if len(regions) == 1:
-            region_val = list(regions)[0]
-        elif len(regions) > 1:
-            region_val = Region.INTERNATIONAL.value
-        else:
-            region_val = Region.UNKNOWN.value
+            if m.city:
+                if m.geo_code not in locations_by_country:
+                    locations_by_country[m.geo_code] = set()
+                locations_by_country[m.geo_code].add(m.city)
+            if m.country and m.geo_code not in seen_codes:
+                seen_codes.add(m.geo_code)
+
+                if m.geo_code in REGION_CODES:
+                    # It is a region entity
+                    r_obj = {
+                        "name": m.country,
+                        "code": m.geo_code,
+                        "countries": []
+                    }
+                    regions_list.append(r_obj)
+                    found_regions_map[m.geo_code] = (r_obj, m.region)
+                else:
+                    # It is a country
+                    countries.append({
+                        "name": m.country,
+                        "code": m.geo_code,
+                        "region_enum": m.region # Temporary for mapping
+                    })
+            regions.add(m.region)
+
+        # Check for conflicts between Explicit Regions and Union Name Regions
+        if union_matches:
+            for um in union_matches:
+                # If the union implies a specific region (e.g. UAW -> North America)
+                # and that region is NOT in the explicit regions list (e.g. Europe)
+                if um.region and um.region not in regions:
+                    # Ignore if explicit is "International" (too broad to conflict)
+                    if Region.INTERNATIONAL not in regions:
+                        unusual_combo = True
+                        conflict_notes.append(f"Union '{um.text}' ({um.region.value}) mismatches explicit region ({', '.join(r.value for r in regions)})")
+
+        # Map countries to regions
+        for c in countries:
+            c_enum = c.get("region_enum")
+            # Attach locations
+            if c["code"] in locations_by_country:
+                c["locations"] = sorted(list(locations_by_country[c["code"]]))
+            else:
+                c["locations"] = []
+
+            for r_code, (r_obj, r_enum) in found_regions_map.items():
+                # Map if in same broad region
+                if c_enum == r_enum:
+                    r_obj["countries"].append(
+                        {
+                            "name": c["name"],
+                            "code": c["code"],
+                            "locations": c["locations"],
+                        }
+                    )
+                # Special handling for Domestic -> US
+                elif r_code == "DOMESTIC" and c["code"] == "US":
+                    r_obj["countries"].append(
+                        {
+                            "name": c["name"],
+                            "code": c["code"],
+                            "locations": c["locations"],
+                        }
+                    )
+
+            # Remove temporary field
+            c.pop("region_enum", None)
+
+        region_val = (
+            Region.INTERNATIONAL.value
+            if len(regions) > 1
+            else (list(regions)[0].value if regions else Region.UNKNOWN.value)
+        )
 
         return {
             "region": region_val,
             "countries": countries,
-            "specificity": Specificity.EXPLICIT.value,
-            "explicit_countries": [c["name"] for c in countries]
+            "regions": regions_list,
+            "specificity": (
+                Specificity.EXPLICIT.value if not union_matches else Specificity.EXPLICIT_INFERRED.value
+            ),
+            "explicit_countries": (
+                [c["name"] for c in countries] if union_matches else None
+            ),
+            "unusual_union_region_combo": unusual_combo,
+            "union_names_mentioned": (
+                [m.text for m in union_matches] if union_matches else None
+            ),
+            "note": "; ".join(conflict_notes) if conflict_notes else None
         }
 
     # 2. Inferred from Union Name (Medium Priority)
-    union_matches = [m for m in analysis.geo_matches if m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)]
     if union_matches:
-        # Use the first specific union found
-        m = union_matches[0]
-        return {
-            "region": m.region.value if m.region else Region.UNKNOWN.value,
-            "countries": [{"name": m.country, "code": m.geo_code}] if m.country else [],
-            "specificity": Specificity.INFERRED_UNION.value,
-            "union_name_indicator": m.text,
-        }
+        # Check for specific union inference
+        specific_unions = [m for m in union_matches if m.country]
+        if specific_unions:
+            # Use the first specific union found
+            m = specific_unions[0]
+            return {
+                "region": m.region.value,
+                "countries": [{"name": m.country, "code": m.geo_code}],
+                "specificity": Specificity.INFERRED_UNION.value,
+                "union_name_indicator": m.text,
+            }
+
+        # Check for language-based inference (INT_ES, INT_PT, etc.)
+        lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
+        if lang_matches:
+            m = lang_matches[0]
+            return {
+                "region": Region.INTERNATIONAL.value,  # Broad region
+                "countries": [],  # No specific country known
+                "specificity": Specificity.INFERRED_LANG.value,
+                "union_name_indicator": m.text,
+                "note": f"Inferred from language term '{m.text}' ({m.geo_code})",
+            }
 
     # 3. Inheritance (Lowest Priority)
     if last_context:
+        # Create a copy of the last context but mark as inherited
         ctx = last_context.copy()
         ctx["specificity"] = Specificity.INHERITED.value
         ctx["inherited_from_sentence_index"] = last_idx
@@ -267,11 +368,7 @@ def determine_geo_context(analysis: SentenceAnalysis, last_context: Optional[Dic
         return ctx
 
     # 4. Fallback
-    return {
-        "region": Region.UNKNOWN.value, 
-        "countries": [], 
-        "specificity": Specificity.IMPLICIT.value
-    }
+    return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
 
 class UnionAnalyzer:
@@ -785,9 +882,41 @@ class UnionAnalyzer:
                         grouped_items[key] = []
                     grouped_items[key].append(pct)
 
-        # Calculate Weighted Average
-        for (weight, _), pcts in grouped_items.items():
+        # --- LOGIC TO PREVENT DOUBLE COUNTING (Global vs Regional) ---
+        global_candidates = []
+        regional_candidates = []
+
+        for (weight, region_key), pcts in grouped_items.items():
             avg_pct = sum(pcts) / len(pcts)
+            
+            # Check if this group represents the Global workforce
+            is_global = False
+            region_name = region_key[0]
+            
+            # 1. Explicit Global Region
+            if region_name in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                if global_workforce > 0:
+                    # If we know global max, require this to be significant (e.g. > 70%)
+                    if weight >= 0.7 * global_workforce:
+                        is_global = True
+                else:
+                    # If no global max known, assume International is global
+                    is_global = True
+            
+            # 2. Weight matches Global Max (regardless of region label)
+            if global_workforce > 0 and weight >= 0.95 * global_workforce:
+                is_global = True
+
+            if is_global:
+                global_candidates.append((weight, avg_pct))
+            else:
+                regional_candidates.append((weight, avg_pct))
+
+        # Decision: Use Global if available (most accurate), otherwise sum regions
+        items_to_use = global_candidates if global_candidates else regional_candidates
+
+        # Calculate Weighted Average
+        for weight, avg_pct in items_to_use:
             total_weighted_pct += avg_pct * weight
             total_employees += weight
 
