@@ -918,7 +918,6 @@ INTERNATIONAL = {
         [],
         [],
         [
-            "Sindicato",
             "Trabajo",
             "Huelga",
             "Gremios",
@@ -945,7 +944,6 @@ INTERNATIONAL = {
         [],
         [],
         [
-            "Sindicato",
             "Trabalho",
             "Greve",
             "Mineração",

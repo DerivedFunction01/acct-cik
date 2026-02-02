@@ -193,28 +193,12 @@ class QualitativeTerm:
 
 from defs.union_regex import MEMBERSHIP_PHRASES
 QUALITATIVE_MEMBERSHIP = [
-    # ===== 100% TIER (All/Entire/Full) =====
+    # ===== 85% TIER (Substantial/Heavy) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["all", "entire", "fully", "completely", "wholly", "every", "each"],
-        positive_pct=100.0,
-        negated_pct=0.0,
-        requires_suffix=False,
-    ),
-    # ===== 85% TIER (Substantially/Heavily) =====
-    QualitativeTerm(
-        core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["substantially", "heavily", "largely", "predominantly"],
+        prefix_terms=["substantial", "heavy", "predominant"],
         positive_pct=85.0,
         negated_pct=10.0,  # "not substantially" = minority (~10%)
-        requires_suffix=False,
-    ),
-    # ===== 75% TIER (Vast Majority) =====
-    QualitativeTerm(
-        core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["vast majority", "overwhelming majority"],
-        positive_pct=75.0,
-        negated_pct=15.0,  # "not vast majority" = modest minority
         requires_suffix=False,
     ),
     # ===== 65% TIER (Significant/Major) =====
@@ -228,7 +212,7 @@ QUALITATIVE_MEMBERSHIP = [
     # ===== 51% TIER (Majority/Most) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["majority", "most"],
+        prefix_terms=["mostly"],
         positive_pct=51.0,
         negated_pct=10.0,  # "not majority" = minority
         requires_suffix=False,
@@ -236,7 +220,7 @@ QUALITATIVE_MEMBERSHIP = [
     # ===== 40% TIER (Substantial Minority) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["substantial", "notable", "fair"],
+        prefix_terms=["substantial", "fair"],
         positive_pct=40.0,
         negated_pct=None,
         requires_suffix=False,
@@ -249,19 +233,22 @@ QUALITATIVE_MEMBERSHIP = [
         negated_pct=5.0,  # "not meaningful" = minimal
         requires_suffix=False,
     ),
-    # ===== 10% TIER (Small/Minor) =====
+    # ===== 5% TIER (Small/Minor) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["small", "minor", "limited"],
-        positive_pct=10.0,
+        prefix_terms=[
+            "small",
+            "minor",
+        ],
+        positive_pct=5.0,
         negated_pct=None,
         requires_suffix=False,
     ),
-    # ===== 5% TIER (Minimal/Negligible) =====
+    # ===== 3% TIER (Minimal/Negligible) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
-        prefix_terms=["minimal", "negligible", "token", "handful"],
-        positive_pct=5.0,
+        prefix_terms=["minimal", "negligible", "token", "handful", "limited"],
+        positive_pct=3.0,
         negated_pct=None,
         requires_suffix=False,
     ),
@@ -276,14 +263,6 @@ QUALITATIVE_MEMBERSHIP = [
 ]
 
 QUALITATIVE_TERMS = [
-    # ===== 100% TIER (... all of is already implied 100%, these are terms that may refer to 100%) =====
-    QualitativeTerm(
-        core_terms=["entire", "whole", "total", "full", "complete"],
-        prefix_terms=["the"],
-        positive_pct=100.0,
-        negated_pct=None, 
-        requires_suffix=False,
-    ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
         core_terms=["majority", "bulk"],
