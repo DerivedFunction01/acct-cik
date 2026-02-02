@@ -36,6 +36,7 @@ class CORE(Enum):
     ASSOCIATION = r"Associations?"
     ALLIANCE = r"Alli(?:ances?|ed)"
     SOCIETY = r"Societ(?:y|ies)"
+    UNITED = r"United"
 
 
 WORKER_TERMS = [
@@ -129,6 +130,7 @@ UNION_TERMS = [
     CORE.ASSOCIATION,
     CORE.ALLIANCE,
     CORE.SOCIETY,
+    CORE.UNITED,
 ]
 
 _CORE_DYNAMIC_PATTERN = build_alternation(
@@ -294,6 +296,7 @@ COVERAGE_TERMS = [
     r"union(?:ized)?",
     r"subject\s+to",
     r"(?:are|were)\s+under",
+    r"members?\s+of",
 ] + SUFFIX_AGREEMENTS
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 

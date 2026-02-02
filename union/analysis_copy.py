@@ -1227,6 +1227,7 @@ class Tracker:
         self.region_aggregates: Dict[str, float] = {} # For "Germany and France" type aggregates
         self.region_completeness: Dict[str, bool] = {} # True if explicit region-wide statement found
         self.country_covered: Dict[str, float] = {}
+        self.resolution_log: List[str] = []
 
     def update(
         self, count: float, geo_context: Dict[str, Any], is_explicit_total: bool = False
@@ -1451,12 +1452,17 @@ class Tracker:
         Performs top-down calculation of coverage rates with priority logic.
         Priority: Explicit Rate > Explicit Count > Sum of Children.
         """
+        self.resolution_log = []
+
         # 1. Resolve Countries (Rate -> Count)
         for code in self.country_totals:
             total = self.country_totals[code]
             if code in self.country_rates:
                 # Explicit rate overrides count
                 self.country_covered[code] = (self.country_rates[code] / 100.0) * total
+                self.resolution_log.append(f"Country {code}: Explicit Rate {self.country_rates[code]}% on Total {total} -> Covered {self.country_covered[code]:.1f}")
+            elif code in self.country_covered:
+                self.resolution_log.append(f"Country {code}: Explicit Count {self.country_covered[code]} on Total {total}")
         
         # 2. Resolve Regions
         final_region_stats = {}
@@ -1466,39 +1472,58 @@ class Tracker:
             
             covered = 0.0
             rate = 0.0
+            source_desc = ""
             
             # Priority 1: Explicit Region Rate (Don't overwrite given rates)
             if region in self.region_rates:
                 rate = self.region_rates[region]
                 covered = (rate / 100.0) * total
+                source_desc = f"Explicit Rate {rate}%"
             else:
                 # Priority 2: Explicit Region Count (If marked Complete)
                 if self.region_completeness.get(region):
                     covered = self.region_covered.get(region, 0.0)
+                    source_desc = f"Explicit Count {covered} (Complete)"
                 else:
                     # Priority 3: Best available partial data (Max of Aggregate vs Sum of Countries)
                     # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
                     children_sum = 0.0
+                    children_details = []
                     if region in self.region_country_map:
                         for code in self.region_country_map[region]:
-                            children_sum += self.country_covered.get(code, 0.0)
+                            c_cov = self.country_covered.get(code, 0.0)
+                            children_sum += c_cov
+                            if c_cov > 0:
+                                children_details.append(f"{code}:{c_cov:.0f}")
                     
                     aggregate_val = self.region_aggregates.get(region, 0.0)
-                    covered = max(aggregate_val, children_sum)
+                    
+                    if aggregate_val > children_sum:
+                        covered = aggregate_val
+                        source_desc = f"Aggregate Partial {aggregate_val} (vs Children Sum {children_sum})"
+                    else:
+                        covered = children_sum
+                        source_desc = f"Sum of Children {children_sum} ({', '.join(children_details)})"
 
                 rate = (covered / total) * 100.0 if total > 0 else 0.0
             
             final_region_stats[region] = {"covered": covered, "total": total, "rate": rate}
+            self.resolution_log.append(f"Region {region}: Total {total} -> Covered {covered:.1f} ({rate:.1f}%) via {source_desc}")
             
         # 3. Resolve Global
         if self.global_rate is not None:
             global_rate = self.global_rate
+            self.resolution_log.append(f"Global: Explicit Rate {global_rate}%")
         else:
             regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
             final_global_covered = max(self.global_covered, regions_sum)
-            global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
             
-        return {"global_rate": round(global_rate, 2), "region_stats": final_region_stats}
+            source_desc = "Explicit Global Count" if self.global_covered >= regions_sum else "Sum of Regions"
+            
+            global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
+            self.resolution_log.append(f"Global: Total {self.global_total} -> Covered {final_global_covered:.1f} ({global_rate:.1f}%) via {source_desc}")
+            
+        return {"global_rate": round(global_rate, 2), "region_stats": final_region_stats, "log": self.resolution_log}
 
 
 class UnionAnalyzer:
@@ -2183,14 +2208,21 @@ class UnionAnalyzer:
             
         # Calculate Metrics
         metrics = tracker.calculate_metrics()
+        region_stats = metrics.get("region_stats", {})
         
         return {
             "weighted_average_percentage": metrics["global_rate"],
             "likely_percentage": metrics["global_rate"],
-            "derived_regional_coverage": {r: m["rate"] for r, m in metrics["region_stats"].items()},
+            "derived_regional_coverage": {r: m["rate"] for r, m in region_stats.items()},
+            "derived_regional_covered_counts": {r: m["covered"] for r, m in region_stats.items()},
+            "derived_regional_not_covered_counts": {
+                r: m["total"] - m["covered"] for r, m in region_stats.items()
+            },
+            "derived_regional_total_counts": {r: m["total"] for r, m in region_stats.items()},
             "census_global_total": tracker.global_total,
             "census_region_totals": tracker.region_totals,
             "census_country_totals": tracker.country_totals,
+            "resolution_log": metrics.get("log", []),
         }
 
     def compute_weighted_coverage_legacy(
