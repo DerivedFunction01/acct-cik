@@ -250,8 +250,11 @@ class SimpleCoverageAnalyzer:
                 elif dist_to_count < dist_to_pct:
                     is_count_total = False
 
-                if check_is_total_context(count_match["span"], analysis.text):
-                    is_count_total = True
+                # Only override to Total if we don't have a strong signal that it is Covered
+                is_strongly_covered = (dist_to_count < dist_to_pct) and (dist_to_count < 50)
+                if not is_strongly_covered:
+                    if check_is_total_context(count_match["span"], analysis.text):
+                        is_count_total = True
 
             if is_count_total:
                 data["employee_count_total"] = count

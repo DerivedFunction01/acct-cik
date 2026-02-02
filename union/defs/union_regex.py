@@ -101,7 +101,7 @@ NOUNS = [
     r"whom?",
     r"the(?:m|y)",
 ]
-SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?"]
+SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?", r"memberships?"]
 
 SUFFIX_ORGS = [
     r"organizations?",
