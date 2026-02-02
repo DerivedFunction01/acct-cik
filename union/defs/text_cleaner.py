@@ -74,6 +74,7 @@ class MinimalTextCleaner:
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
+        (re.compile(r"not\s+all", re.IGNORECASE), "some"),
     ]
 
     # Bullet and Dashed Patterns
@@ -241,10 +242,10 @@ class MinimalTextCleaner:
         (build_regex([r"entirety(?=\s+(?:of|are|were))"]), "95%"),
     ]
 
-    # Handle "no [worker]" -> "0 [worker]"
+    # Handle "no [worker]", "none whom" -> "0 [worker]"
     _worker_pattern = build_alternation(WORKER_TERMS + NOUNS)
     no_worker_pattern = re.compile(
-        rf"\bno\s+((?:[\w-]+\s+){{0,2}}{_worker_pattern})\b", re.IGNORECASE
+        rf"\bno(?:ne)?\s+((?:[\w-]+\s+){{0,2}}{_worker_pattern})\b", re.IGNORECASE
     )
 
     # Handle "all [worker]" -> "100% of [worker]"

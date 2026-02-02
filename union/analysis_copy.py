@@ -110,35 +110,39 @@ class SimpleCoverageAnalyzer:
             )
 
             if pct_match and count_match:
-                p_end = pct_match["span"][1]
-                c_start = count_match["span"][0]
-                if p_end < c_start:
-                    between = analysis.text[p_end:c_start]
-                    if OF_REGEX.search(between):
-                        is_percent_of_total = True
+                if pct_match["span"][1] <= count_match["span"][0]:
+                    start = pct_match["span"][1]
+                    end = count_match["span"][0]
+                else:
+                    start = count_match["span"][1]
+                    end = pct_match["span"][0]
+                between = analysis.text[start:end]
+
+                if OF_REGEX.search(between):
+                    is_percent_of_total = True
+                elif len(between) < 20 and "," not in between:
+                    is_percent_of_total = True
 
             if is_percent_of_total:
                 data["employee_count_total"] = count
-                data["employee_count_covered"] = round((pct / 100.0) * count)
+                ratio = round((pct / 100.0) * count)
+                other = count - ratio
+                data["employee_count_not_covered"] = ratio if analysis.negation_terms else other
+                data["employee_count_covered"] = ratio if not analysis.negation_terms else other
+                data["negated"] = True if analysis.negation_terms else False
                 notes.append(
                     f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
                 )
             else:
+                total =  round(count / (pct / 100.0)) if pct > 0 else None
+                other = count - total if total else None
+                data["employee_count_total"] = total 
                 # Default: Count is Covered (or Not Covered)
-                if analysis.negation_terms:
-                    data["employee_count_not_covered"] = count
-                    data["negated"] = True
-                    data["negation_type"] = NegationType.NOT_COVERED.value
-                    notes.append(f"Count (not covered): {count}")
-                    # Calculate total if possible
-                    if pct > 0:
-                        data["employee_count_total"] = round(count / (pct / 100.0))
-                else:
-                    data["employee_count_covered"] = count
-                    notes.append(f"Count (covered): {count}")
-                    # Calculate total if possible
-                    if pct > 0:
-                        data["employee_count_total"] = round(count / (pct / 100.0))
+                data["employee_count_not_covered"] = count if analysis.negation_terms else other
+                data["employee_count_covered"] = count if not analysis.negation_terms else other
+                data["negated"] = True if analysis.negation_terms else False
+                data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Count (covered): {count}, inferred total: {data['employee_count_total']}")
 
         # 0.5 Handle 2 Counts (Total vs Part)
         elif not analysis.percentages and len(effective_counts) == 2:
