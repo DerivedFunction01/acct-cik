@@ -25,6 +25,7 @@ from defs.output_enums import (
 
 from defs.union_regex import (
     NON_COVERAGE_REGEX,
+    NON_UNION_REGEX,
     RELATIONSHIP_NEUTRAL_TERMS,
     RELATIONSHIP_QUALITY_TERMS,
     RELATIONSHIP_NEGATIVE_TERMS,

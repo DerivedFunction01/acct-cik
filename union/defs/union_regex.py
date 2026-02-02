@@ -288,15 +288,13 @@ NEGATION_TERMS = [
 ]
 
 COVERAGE_TERMS = [
-    r"represented",
+    r"represent(?:ed|tion)",
     r"covered",
     r"affiliat(?:ed|ion)",
     r"union(?:ized)?",
-    r"agreements?",
-    r"contracts?",
-    r"arrangements?",
     r"subject\s+to",
-]
+    r"(?:are|were)\s+under",
+] + SUFFIX_AGREEMENTS
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 
 SUPPLIER_TERMS = [
