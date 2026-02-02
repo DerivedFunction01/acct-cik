@@ -1485,8 +1485,13 @@ class Tracker:
             sum_others = sum(counts[1:])
 
             # If we have multiple counts, check if they sum up to the max
-            if len(counts) > 1 and max_val > 0 and sum_others > 0 and abs(max_val - sum_others) / max_val < 0.05:
-                self.region_totals[region] = max_val
+            # Allow 10% relative difference OR <= 5 absolute difference (for small numbers)
+            diff = abs(max_val - sum_others)
+            if len(counts) > 1 and max_val > 0 and sum_others > 0:
+                if diff / max_val < 0.10 or diff <= 5:
+                    self.region_totals[region] = max_val
+                else:
+                    self.region_totals[region] = sum(counts)
             else:
                 self.region_totals[region] = sum(counts)
 
@@ -1654,7 +1659,8 @@ class Tracker:
         is_whole_entity = False
         if census_total > 0 and effective_total:
             # 25% tolerance or if effective is larger (new info)
-            if abs(effective_total - census_total) / census_total < 0.25 or effective_total > census_total:
+            diff = abs(effective_total - census_total)
+            if (diff / census_total < 0.25) or (diff <= 5) or (effective_total > census_total):
                 is_whole_entity = True
         elif census_total == 0:
             # No census data, assume this is the whole entity
