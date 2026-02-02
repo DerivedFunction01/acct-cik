@@ -24,7 +24,7 @@ def process_row(row):
     """
     Parses the JSON analysis results and extracts flat metrics.
     """
-    accession, item1_json, item1a_json, period, cik, year = row
+    accession, item1_json, item1a_json, period, cik, year, item1_percents, item1a_percents = row
     
     # Initialize result dictionary with default None/False values
     res = {
@@ -42,7 +42,15 @@ def process_row(row):
         "pct_latam": None,
         "pct_mea": None,
         "pct_intl": None,
+        "raw_percents": None,
     }
+
+    # Combine raw percentages from both sections
+    p1 = json.loads(item1_percents) if item1_percents else []
+    p1a = json.loads(item1a_percents) if item1a_percents else []
+    all_raw = sorted(list(set(p1 + p1a)))
+    if all_raw:
+        res["raw_percents"] = json.dumps(all_raw)
 
     # --- Process Item 1 (Business Description) ---
     if item1_json:
@@ -112,7 +120,8 @@ def main():
             pct_asia REAL,
             pct_latam REAL,
             pct_mea REAL,
-            pct_intl REAL
+            pct_intl REAL,
+            raw_percents TEXT
         )
     """)
     
@@ -120,7 +129,7 @@ def main():
     logging.info("Reading analysis results...")
     try:
         c.execute("""
-            SELECT a.accession, a.item1_analysis, a.item1a_analysis, a.period_of_report, r.cik, r.year 
+            SELECT a.accession, a.item1_analysis, a.item1a_analysis, a.period_of_report, r.cik, r.year, a.item1_percents, a.item1a_percents
             FROM analysis_result a
             LEFT JOIN report_data r ON a.accession = r.accession
         """)
@@ -151,13 +160,14 @@ def main():
             res["pct_asia"],
             res["pct_latam"],
             res["pct_mea"],
-            res["pct_intl"]
+            res["pct_intl"],
+            res["raw_percents"]
         ))
         
         if len(batch) >= 1000:
             c.executemany(f"""
                 INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, batch)
             count = len(batch)
@@ -167,7 +177,7 @@ def main():
     if batch:
         c.executemany(f"""
             INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
         """, batch)
         count = len(batch)

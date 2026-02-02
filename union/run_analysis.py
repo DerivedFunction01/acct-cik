@@ -41,13 +41,13 @@ def init_worker():
 def process_batch(rows: List[Tuple]) -> List[Tuple]:
     """
     Process a batch of rows.
-    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year)
+    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year, item1_percents, item1a_percents)
     """
     results = []
     assert ANALYZER is not None
 
     for row in rows:
-        accession, item1_json, item1a_json, period, company_name, report_year = row
+        accession, item1_json, item1a_json, period, company_name, report_year, item1_percents, item1a_percents = row
         
         # Determine year
         year = None
@@ -102,7 +102,9 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
             accession,
             json.dumps(item1_analysis),
             json.dumps(item1a_analysis),
-            period
+            period,
+            item1_percents,
+            item1a_percents
         ))
             
     return results
@@ -110,12 +112,15 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
 def create_target_db():
     conn = sqlite3.connect(TARGET_DB)
     c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS analysis_result")
     c.execute("""
         CREATE TABLE IF NOT EXISTS analysis_result (
             accession TEXT PRIMARY KEY,
             item1_analysis TEXT,
             item1a_analysis TEXT,
-            period_of_report TEXT
+            period_of_report TEXT,
+            item1_percents TEXT,
+            item1a_percents TEXT
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_accession ON analysis_result(accession)")
@@ -189,7 +194,7 @@ def main():
     
     # Query to fetch data
     query = """
-        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year, w.item1_percents, w.item1a_percents
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik
@@ -206,7 +211,7 @@ def main():
             tgt_conn = sqlite3.connect(TARGET_DB)
             tgt_c = tgt_conn.cursor()
             tgt_c.executemany(
-                "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
                 res_list
             )
             tgt_conn.commit()
