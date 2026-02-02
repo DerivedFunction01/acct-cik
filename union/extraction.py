@@ -17,6 +17,7 @@ PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
+RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
 
 # --- Temporal Regexes ---
 CONDITIONAL_REGEX = build_regex([
@@ -98,6 +99,7 @@ class MatchType(Enum):
     COVERAGE_TERM = "COVERAGE_TERM"
     QUALITATIVE_TERM = "QUALITATIVE_TERM"
     TOTAL_MODIFIER = "TOTAL_MODIFIER"
+    RESPECTIVELY = "RESPECTIVELY"
 
 @dataclass
 class GeoMatch:
@@ -133,6 +135,7 @@ class SentenceAnalysis:
     has_current: bool = False
     has_historical: bool = False
     has_future: bool = False
+    has_respectively: bool = False
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -433,6 +436,7 @@ class UnionExtractor:
         analysis.has_current = bool(CURRENT_REGEX.search(text))
         analysis.has_historical = bool(HISTORICAL_REGEX.search(text))
         analysis.has_future = bool(FUTURE_REGEX.search(text))
+        analysis.has_respectively = bool(RESPECTIVELY_REGEX.search(text))
         
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
             nonlocal working_text
@@ -638,6 +642,13 @@ class UnionExtractor:
             TOTAL_MODIFIER_REGEX, MatchType.TOTAL_MODIFIER,
             lambda m: m.group(0),
             lambda m, val: analysis.total_modifiers.append(val)
+        )
+
+        # 20. Extract Respectively
+        process_matches(
+            RESPECTIVELY_REGEX, MatchType.RESPECTIVELY,
+            lambda m: m.group(0),
+            None
         )
         print(analysis)
         return analysis
