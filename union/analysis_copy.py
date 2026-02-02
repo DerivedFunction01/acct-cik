@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 import statistics
 import re
 
@@ -10,6 +10,7 @@ from extraction import (
     REMAIN_REGEX,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
+    TOTAL_MODIFIER_REGEX,
 )
 from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
 from defs.output_enums import (
@@ -30,6 +31,7 @@ from defs.union_regex import (
     RELATIONSHIP_NEGATIVE_TERMS,
     BOILERPLATE_REGEX,
     PERSONNEL_EVENT_REGEX,
+    UNION_REGEX,
 )
 
 
@@ -41,34 +43,87 @@ def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
             counts.append(n)
     return counts
 
+
+def construct_window(
+    match_span: Tuple[int, int],
+    text: str,
+    backward: int = 0,
+    forward: int = 0,
+) -> str:
+
+    start_idx = match_span[0]
+    window1 = ""
+    window2 = ""
+    # Look back window
+    if backward:
+        window1 = text[max(0, start_idx - backward) : start_idx]
+    if forward:
+        window2 = text[start_idx : start_idx + forward]
+
+    window = window1 + " " + window2
+    return window
+
+def check_local_regex(
+    match_span: Tuple[int, int],
+    text: str,
+    regex_patterns: Union[re.Pattern, List[re.Pattern]],
+    backward: int = 40,
+    forward: int = 40,
+) -> bool:
+    """
+    Check if a regex pattern matches within distance of the match_span.
+    """
+    if not match_span:
+        return False
+    if not isinstance(regex_patterns, list):
+        regex_patterns = [regex_patterns]
+    window = construct_window(match_span, text, backward, forward)
+    for pattern in regex_patterns:
+        if bool(pattern.search(window)):
+            return True
+    return False
+
+def check_local_negation(
+    match_span: Tuple[int, int],
+    text: str,
+    backward: int = 40,
+    forward: int = 0,
+) -> bool:
+    """
+    Check if a negation term appears within distance before the matched pattern.
+    """
+    return check_local_regex(match_span, text, NEGATION_REGEX, backward, forward)
+
+
+def check_local_union(
+    match_span: Tuple[int, int],
+    text: str,
+    backward: int = 60,
+    forward: int = 60,
+    allow_non_union: bool = True,
+) -> bool:
+    """
+    Check if a union term appears within distance before the matched pattern.
+    """
+    if not match_span:
+        return False
+    
+    regexes = [UNION_REGEX]
+    if allow_non_union:
+       regexes.append(NON_UNION_REGEX)
+    return check_local_regex(match_span, text, regexes, backward, forward)
+
+
 def check_is_total_context(
-    analysis: SentenceAnalysis, match_span: Optional[Tuple[int, int]] = None
+    match_span: Tuple[int, int],
+    text: str,
+    backward: int = 60,
+    forward: int = 60,
 ) -> bool:
     """
     Checks if 'total', 'global', 'worldwide', etc. are present near the match.
     """
-    if not analysis.total_modifiers:
-        return False
-    if not match_span:
-        return True
-
-    total_matches = [
-        m for m in analysis._matches if m["type"] == MatchType.TOTAL_MODIFIER
-    ]
-    start, end = match_span
-
-    for tm in total_matches:
-        t_start, t_end = tm["span"]
-        # Check distance (approx 60 chars covers "total of approximately [number]")
-        dist = 0
-        if t_end < start:
-            dist = start - t_end
-        elif end < t_start:
-            dist = t_start - end
-
-        if dist < 60:
-            return True
-    return False
+    return check_local_regex(match_span, text, TOTAL_MODIFIER_REGEX, backward, forward)
 
 class SimpleCoverageAnalyzer:
     """
@@ -127,16 +182,23 @@ class SimpleCoverageAnalyzer:
             data["employee_count_total"] = count
             ratio = round((pct / 100.0) * count)
             other = count - ratio
-            data["employee_count_not_covered"] = (
-                ratio if analysis.negation_terms else other
-            )
-            data["employee_count_covered"] = (
-                ratio if not analysis.negation_terms else other
-            )
-            data["negated"] = bool(analysis.negation_terms)
-            notes.append(
-                f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
-            )
+            
+            # Check for local negation to decide if we assume the opposite
+            is_negated = False
+            if analysis.negation_terms:
+                if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
+                    is_negated = True
+            
+            if is_negated:
+                data["employee_count_not_covered"] = ratio
+                data["employee_count_covered"] = other
+                data["negated"] = True
+                notes.append(f"Count (total): {count}. {ratio} not covered (negated). Inferred {other} covered.")
+            else:
+                data["employee_count_covered"] = ratio
+                data["employee_count_not_covered"] = other
+                notes.append(f"Count (total): {count}. {ratio} covered. Inferred {other} not covered.")
+
         else:
             is_count_total = False
             if count_match and pct_match and count_match["span"][1] < pct_match["span"][0]:
@@ -177,38 +239,48 @@ class SimpleCoverageAnalyzer:
                     if dist_to_pct < dist_to_count:
                         is_count_total = True
 
-                if check_is_total_context(analysis, count_match["span"]):
+                if check_is_total_context(count_match["span"], analysis.text):
                     is_count_total = True
 
             if is_count_total:
                 data["employee_count_total"] = count
                 ratio = round((pct / 100.0) * count)
                 other = count - ratio
-                data["employee_count_not_covered"] = (
-                    ratio if analysis.negation_terms else other
-                )
-                data["employee_count_covered"] = (
-                    ratio if not analysis.negation_terms else other
-                )
-                data["negated"] = bool(analysis.negation_terms)
-                notes.append(
-                    f"Count (total): {count} (inferred covered: {data['employee_count_covered']})"
-                )
+                
+                is_negated = False
+                if analysis.negation_terms:
+                    if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
+                        is_negated = True
+                
+                if is_negated:
+                    data["employee_count_not_covered"] = ratio
+                    data["employee_count_covered"] = other
+                    data["negated"] = True
+                    notes.append(f"Count (total): {count}. {ratio} not covered (negated). Inferred {other} covered.")
+                else:
+                    data["employee_count_covered"] = ratio
+                    data["employee_count_not_covered"] = other
+                    notes.append(f"Count (total): {count}. {ratio} covered. Inferred {other} not covered.")
             else:
                 total = round(count / (pct / 100.0)) if pct > 0 else None
-                other = count - total if total else None
+                other = total - count if total else None
                 data["employee_count_total"] = total
-                data["employee_count_not_covered"] = (
-                    count if analysis.negation_terms else other
-                )
-                data["employee_count_covered"] = (
-                    count if not analysis.negation_terms else other
-                )
-                data["negated"] = bool(analysis.negation_terms)
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(
-                    f"Count (covered): {count}, inferred total: {data['employee_count_total']}"
-                )
+                
+                is_negated = False
+                if analysis.negation_terms:
+                    if pct_match and check_local_negation(pct_match["span"], analysis.text, backward=50, forward=50):
+                        is_negated = True
+                
+                if is_negated:
+                    data["employee_count_not_covered"] = count
+                    data["employee_count_covered"] = other
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                    notes.append(f"Count (not covered): {count}, inferred total: {total}. Inferred {other} covered.")
+                else:
+                    data["employee_count_covered"] = count
+                    data["employee_count_not_covered"] = other
+                    notes.append(f"Count (covered): {count}, inferred total: {total}. Inferred {other} not covered.")
 
     def _handle_two_counts(
         self,
@@ -235,27 +307,35 @@ class SimpleCoverageAnalyzer:
             if m1["span"][0] > m2["span"][0]:
                 m1, m2 = m2, m1
             text_between = analysis.text[m1["span"][1] : m2["span"][0]]
-            text_before = analysis.text[max(0, m1["span"][0] - 25) : m1["span"][0]]
 
-            if OF_REGEX.search(text_between) or OF_REGEX.search(text_before):
+            if OF_REGEX.search(text_between) or check_local_regex(m1["span"], analysis.text, OF_REGEX, backward=25, forward=0):
                 is_subset = True
             elif re.search(r"\band\b", text_between, re.IGNORECASE):
                 is_subset = False
 
         if is_subset:
             total, part = max(c1, c2), min(c1, c2)
-            other = total - part
-            data["employee_count_covered"] = part if not analysis.negation_terms else other
-            data["employee_count_not_covered"] = part if analysis.negation_terms else other
             data["employee_count_total"] = total
+            other = total - part
+            assert m1 and m2
+            is_negated = False
             if analysis.negation_terms:
-                data.update({
-                    "negated": True,
-                    "negation_type": NegationType.NOT_COVERED.value,
-                })
-                notes.append(f"Count (not covered): {part} of {total}")
+                # Check if the 'part' count is locally negated
+                # We use m1 or m2 depending on which one corresponds to 'part'
+                part_match = m1 if m1["val"] == part else m2
+                if part_match and check_local_negation(part_match["span"], analysis.text, backward=50, forward=50):
+                    is_negated = True
+
+            if is_negated:
+                data["employee_count_not_covered"] = part
+                data["employee_count_covered"] = other
+                data["negated"] = True
+                data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Count (not covered): {part} of {total}. Inferred {other} covered.")
             else:
-                notes.append(f"Count (covered): {part} of {total}")
+                data["employee_count_covered"] = part
+                data["employee_count_not_covered"] = other
+                notes.append(f"Count (covered): {part} of {total}. Inferred {other} not covered.")
         else:
             total = c1 + c2
             data["employee_count_total"] = total
@@ -398,20 +478,6 @@ def create_risk_item(
     }
 
 
-def check_local_negation(match_span: Tuple[int, int], text: str) -> bool:
-    """
-    Check if a negation term appears within ~5 words before the matched pattern.
-    """
-    if not match_span:
-        return False
-
-    start_idx = match_span[0]
-    # Look back window (approx 5 words ~ 40 chars)
-    window = text[max(0, start_idx - 40) : start_idx]
-
-    return bool(NEGATION_REGEX.search(window))
-
-
 def apply_qualitative_multipliers(
     raw_pct: float, span: Tuple[int, int], text: str, apply: bool = False
 ) -> Tuple[float, Optional[str]]:
@@ -421,9 +487,8 @@ def apply_qualitative_multipliers(
     if not apply:
         return raw_pct, None
 
-    start_idx = span[0]
     # Look back window (e.g. "almost 20%")
-    window = text[max(0, start_idx - 30) : start_idx]
+    window = construct_window(span, text, backward=30)
 
     for pattern, mult in QUALITATIVE_MULTIPLIERS:
         if pattern.search(window):
@@ -463,7 +528,7 @@ def is_range_context(text: str, span1: Tuple[int, int], span2: Tuple[int, int]) 
 
     # Case 2: "between 10 and 20"
     if _RANGE_AND.search(text_between):
-        pre_text = text[max(0, span1[0] - 15) : span1[0]]
+        pre_text = construct_window(span1, text, backward=15)
         if _RANGE_BETWEEN.search(pre_text):
             return True
 
@@ -1051,26 +1116,12 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
     quality_term = analysis.relationship_quality_terms[0].lower()
 
     # Check for local negation of the quality term (e.g. "not good")
-    is_quality_negated = False
     q_match = next(
         (m for m in analysis._matches if m["type"] == MatchType.RELATIONSHIP_QUALITY),
         None,
     )
-
-    if q_match:
-        q_start = q_match["span"][0]
-        # Look for negation terms ending just before q_start
-        negation_matches = [
-            m
-            for m in analysis._matches
-            if m["type"] in (MatchType.NEGATION, MatchType.NON_COVERAGE)
-        ]
-        for n_match in negation_matches:
-            n_end = n_match["span"][1]
-            # Check distance (approx 25 chars covers "are not", "is not")
-            if 0 < (q_start - n_end) < 25:
-                is_quality_negated = True
-                break
+    
+    is_quality_negated = check_local_negation(q_match["span"], analysis.text, backward=25) if q_match else False
 
     status = RelationshipStatus.UNKNOWN
     if quality_term in RELATIONSHIP_NEUTRAL_TERMS:
@@ -1539,7 +1590,7 @@ class UnionAnalyzer:
                     None,
                 )
                 span = count_match["span"] if count_match else None
-                is_explicit = check_is_total_context(analysis, span)
+                is_explicit = check_is_total_context(span, analysis.text) if span else False
 
                 range_avg = self._detect_count_range(analysis, effective_counts)
                 final_count = range_avg if range_avg else max_count
