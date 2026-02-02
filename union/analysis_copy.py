@@ -1078,28 +1078,43 @@ class Tracker:
         if len(countries) == 1:
             scope = "country"
             target_code = countries[0]["code"]
+        elif len(countries) > 1:
+            # If multiple countries are listed (e.g. "Germany and France"), 
+            # this is an aggregate count, not a region-wide rate.
+            scope = "aggregate"
             
         # 1. Handle Rates (Percentages)
         if percentage is not None:
             if scope == "global":
                 self.global_rate = percentage
-            elif scope == "region":
+            elif scope == "region" and region and not countries:
+                # Only trust region rate if it's NOT tied to specific countries
                 self.region_rates[region] = percentage
             elif scope == "country" and target_code:
                 self.country_rates[target_code] = percentage
+            elif scope == "aggregate":
+                # Calculate implied count for this specific group and add to region_covered
+                # Do NOT set region_rates (which would override everything else)
+                if covered_count is None and percentage is not None:
+                    # We need a base to apply the % to. 
+                    # If covered_count was passed, we use it below. 
+                    # If not, we can't easily apply % without a specific total for this aggregate.
+                    pass
                 
         # 2. Handle Counts
         if covered_count is not None:
             if scope == "global":
                 self.global_covered = max(self.global_covered, covered_count)
-            elif scope == "region":
+            elif scope in ("region", "aggregate") and region:
+                # For aggregates, we treat it as a known "covered count" for the region
                 self.region_covered[region] = max(self.region_covered.get(region, 0), covered_count)
             elif scope == "country" and target_code:
                 self.country_covered[target_code] = max(self.country_covered.get(target_code, 0), covered_count)
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
-        Performs top-down calculation of coverage rates.
+        Performs top-down calculation of coverage rates with priority logic.
+        Priority: Explicit Rate > Explicit Count > Sum of Children.
         """
         # 1. Resolve Countries (Rate -> Count)
         for code in self.country_totals:
@@ -1117,12 +1132,12 @@ class Tracker:
             covered = 0.0
             rate = 0.0
             
-            # Priority 1: Explicit Region Rate
+            # Priority 1: Explicit Region Rate (Don't overwrite given rates)
             if region in self.region_rates:
                 rate = self.region_rates[region]
                 covered = (rate / 100.0) * total
             else:
-                # Priority 2: Sum of Children vs Explicit Region Count
+                # Priority 2: Trust Raw Counts (Explicit Region Count OR Sum of Children)
                 children_sum = 0.0
                 if region in self.region_country_map:
                     for code in self.region_country_map[region]:
@@ -1782,49 +1797,49 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        # Populate Tracker with Coverage Data from Results
+        """
+        Computes weighted average coverage and derived regional stats using Tracker data.
+        """
+        # 1. Calculate Weighted Average using legacy logic
+        # Use tracker totals if available
+        global_workforce = tracker.global_total
+        r_totals = region_totals if region_totals else tracker.region_totals
+        
+        summary = self.compute_weighted_coverage_legacy(results, global_workforce, r_totals)
+
+        # 2. Calculate Derived Regional Coverage
+        # (Rate = Sum of Implied Covered / Region Total)
+        derived_regional = {}
+        
+        # Group items by region to sum covered counts
+        region_covered_sums = {}
+        
         for item in results:
             data = item.get("coverage_data", {})
             geo = item.get("geographic_context", {})
+            region = geo.get("region")
             
-            # Skip non-current
-            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
-                continue
-                
+            # Calculate implied covered count for this item
             pct = data.get("percentage")
-            covered = data.get("employee_count_covered")
-            not_covered = data.get("employee_count_not_covered")
+            total = data.get("employee_count_total")
             
-            # Try to resolve not_covered to covered using Tracker's totals
-            if covered is None and not_covered is not None:
-                scope_total = None
-                region = geo.get("region")
-                countries = geo.get("countries", [])
-                
-                if len(countries) == 1:
-                    code = countries[0]["code"]
-                    scope_total = tracker.country_totals.get(code)
-                elif region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-                    scope_total = tracker.region_totals.get(region)
-                elif region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-                    scope_total = tracker.global_total
-                
-                if scope_total and scope_total >= not_covered:
-                    covered = scope_total - not_covered
-            
-            tracker.record_coverage(pct, covered, geo)
-            
-        # Calculate Metrics
-        metrics = tracker.calculate_metrics()
-        
-        return {
-            "weighted_average_percentage": metrics["global_rate"],
-            "likely_percentage": metrics["global_rate"],
-            "derived_regional_coverage": {r: m["rate"] for r, m in metrics["region_stats"].items()},
+            if region and region in r_totals and pct is not None and total:
+                implied_covered = (pct / 100.0) * total
+                region_covered_sums[region] = region_covered_sums.get(region, 0.0) + implied_covered
+
+        # Compute rates
+        for reg, covered_sum in region_covered_sums.items():
+            total = r_totals.get(reg, 0)
+            if total > 0:
+                derived_regional[reg] = round((covered_sum / total) * 100.0, 2)
+
+        summary.update({
+            "derived_regional_coverage": derived_regional,
             "census_global_total": tracker.global_total,
             "census_region_totals": tracker.region_totals,
             "census_country_totals": tracker.country_totals,
-        }
+        })
+        return summary
 
     def compute_weighted_coverage_legacy(
         self,
