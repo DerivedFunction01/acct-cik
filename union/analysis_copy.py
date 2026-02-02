@@ -444,6 +444,7 @@ class Tracker:
         self.global_total: float = 0.0
         self.region_totals: Dict[str, float] = {}
         self.country_totals: Dict[str, float] = {}
+        self.region_country_map: Dict[str, set] = {}
 
     def update(self, count: float, geo_context: Dict[str, Any]):
         region = geo_context.get("region")
@@ -459,12 +460,49 @@ class Tracker:
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
             if count > self.region_totals.get(region, 0):
                 self.region_totals[region] = count
+            
+            # Track hierarchy for resolution
+            if region not in self.region_country_map:
+                self.region_country_map[region] = set()
+            for c in countries:
+                self.region_country_map[region].add(c["code"])
                 
         # 3. Country Update
         for c in countries:
             code = c["code"]
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
+
+    def resolve(self):
+        """
+        Enforces hierarchy constraints using a greedy algorithm.
+        Constraint: Sum of children (countries) cannot exceed parent (region).
+        If violated, we assume double-counting and prioritize larger entities until full.
+        """
+        for region, countries in self.region_country_map.items():
+            region_total = self.region_totals.get(region, 0)
+            if region_total <= 0:
+                continue
+
+            # Filter to known countries and sort by size (Greedy approach)
+            known_countries = [c for c in countries if c in self.country_totals]
+            sorted_countries = sorted(
+                known_countries, 
+                key=lambda x: self.country_totals[x], 
+                reverse=True
+            )
+
+            running_sum = 0.0
+            accepted_countries = set()
+
+            for c in sorted_countries:
+                val = self.country_totals[c]
+                if running_sum + val <= region_total:
+                    running_sum += val
+                    accepted_countries.add(c)
+            
+            # Update the map to only include the 'accepted' disjoint children
+            self.region_country_map[region] = accepted_countries
 
 class UnionAnalyzer:
     def __init__(self):
@@ -498,6 +536,7 @@ class UnionAnalyzer:
             tracker = Tracker()
             all_sentences = self.extractor.split_sentences(text)
             self._populate_tracker(all_sentences, tracker, reporting_year)
+            tracker.resolve()
 
             # 3. Pass 2: Coverage Analysis (Process Paragraphs)
             results = []
