@@ -1517,7 +1517,7 @@ class Tracker:
             if total <= 0: continue
             
             covered = 0.0
-            rate = 0.0
+            rate = None
             source_desc = ""
             
             # Priority 1: Explicit Region Rate (Non-Qualitative)
@@ -1529,6 +1529,7 @@ class Tracker:
             elif self.region_completeness.get(region):
                 covered = self.region_covered.get(region, 0.0)
                 source_desc = f"Explicit Count {covered} (Complete)"
+                rate = (covered / total) * 100.0
             # Priority 3: Qualitative Rate
             elif region in self.region_rates and self.region_rates_qualitative.get(region, False):
                 rate = self.region_rates[region]
@@ -1538,33 +1539,48 @@ class Tracker:
                 # Priority 4: Best available partial data (Max of Aggregate vs Sum of Countries)
                 # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
                 children_sum = 0.0
+                children_total_sum = 0.0
                 children_details = []
                 if region in self.region_country_map:
                     for code in self.region_country_map[region]:
                         c_cov = self.country_covered.get(code, 0.0)
+                        c_tot = self.country_totals.get(code, 0.0)
                         children_sum += c_cov
+                        children_total_sum += c_tot
                         if c_cov > 0:
                             children_details.append(f"{code}:{c_cov:.0f}")
                     
-                    aggregate_val = self.region_aggregates.get(region, 0.0)
-                    
-                    if aggregate_val > children_sum:
-                        covered = aggregate_val
-                        source_desc = f"Aggregate Partial {aggregate_val} (vs Children Sum {children_sum})"
-                    else:
-                        covered = children_sum
-                        source_desc = f"Sum of Children {children_sum} ({', '.join(children_details)})"
+                aggregate_val = self.region_aggregates.get(region, 0.0)
+                
+                # Check completeness: Do known children account for enough of the region?
+                completeness = (children_total_sum / total) if total > 0 else 0.0
 
-                rate = (covered / total) * 100.0 if total > 0 else 0.0
+                if aggregate_val > children_sum:
+                    covered = aggregate_val
+                    rate = (covered / total) * 100.0
+                    source_desc = f"Aggregate Partial {aggregate_val} (vs Children Sum {children_sum})"
+                elif completeness >= 0.5:
+                    covered = children_sum
+                    rate = (covered / total) * 100.0
+                    source_desc = f"Sum of Children {children_sum} ({', '.join(children_details)})"
+                else:
+                    # Abort rate calculation due to missing data, but keep covered count for global sum
+                    covered = children_sum
+                    rate = None
+                    source_desc = f"Aborted (Low Completeness {completeness:.1%})"
             
             final_region_stats[region] = {"covered": covered, "total": total, "rate": rate}
-            self.resolution_log.append(f"Region {region}: Total {total} -> Covered {covered:.1f} ({rate:.1f}%) via {source_desc}")
+            self.resolution_log.append(f"Region {region}: Total {total} -> Covered {covered:.1f} ({f'{rate:.1f}%' if rate is not None else 'N/A'}) via {source_desc}")
             
         # 3. Resolve Global
         regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
-        sum_of_regions_rate = (regions_sum / self.global_total * 100.0) if self.global_total > 0 else 0.0
+        sum_of_regions_rate = (regions_sum / self.global_total * 100.0) if self.global_total > 0 else None
         
-        if self.global_rate is not None and not self.global_rate_qualitative:
+        global_rate = None
+        
+        if self.global_total <= 0:
+            self.resolution_log.append("Global: Aborted. No global employee total found.")
+        elif self.global_rate is not None and not self.global_rate_qualitative:
             global_rate = self.global_rate
             self.resolution_log.append(f"Global: Explicit Rate {global_rate}%")
         elif self.global_covered >= regions_sum:
@@ -1575,12 +1591,28 @@ class Tracker:
             global_rate = self.global_rate
             self.resolution_log.append(f"Global: Qualitative Rate {global_rate}%")
         else:
-            final_global_covered = regions_sum
-            source_desc = "Sum of Regions"
-            global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
-            self.resolution_log.append(f"Global: Total {self.global_total} -> Covered {final_global_covered:.1f} ({global_rate:.1f}%) via {source_desc}")
+            # Fallback: Sum of Regions
+            # Use weighted average of regions that have valid rates (complete data)
+            valid_stats = [s for s in final_region_stats.values() if s["rate"] is not None]
+            valid_regions_total = sum(s["total"] for s in valid_stats)
+            valid_regions_covered = sum(s["covered"] for s in valid_stats)
             
-        return {"global_rate": round(global_rate, 2), "sum_of_regions_rate": round(sum_of_regions_rate, 2), "region_stats": final_region_stats, "log": self.resolution_log}
+            completeness_ratio = (valid_regions_total / self.global_total) if self.global_total > 0 else 0.0
+            
+            if completeness_ratio < 0.5:
+                self.resolution_log.append(f"Global: Aborted. Low data completeness ({completeness_ratio:.1%} of {self.global_total}).")
+                global_rate = None
+            else:
+                global_rate = (valid_regions_covered / valid_regions_total * 100.0) if valid_regions_total > 0 else 0.0
+                source_desc = f"Weighted Avg of Valid Regions ({valid_regions_covered:.0f}/{valid_regions_total:.0f})"
+                self.resolution_log.append(f"Global: Total {self.global_total} -> Rate {global_rate:.1f}% via {source_desc} (Completeness {completeness_ratio:.1%})")
+            
+        return {
+            "global_rate": round(global_rate, 2) if global_rate is not None else None, 
+            "sum_of_regions_rate": round(sum_of_regions_rate, 2) if sum_of_regions_rate is not None else None, 
+            "region_stats": final_region_stats, 
+            "log": self.resolution_log
+        }
 
 
 class UnionAnalyzer:
