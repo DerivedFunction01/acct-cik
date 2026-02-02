@@ -346,3 +346,55 @@ def run_test():
         print(f"Input:  {ex}")
         print(f"Match:  {matches}")
         print("-" * 20)
+
+# 3. Personnel Events (Hiring, Firing, Furlough)
+PERSONNEL_EVENT_TERMS = [
+    r"furlough(?:s|ed|ing)?",
+    r"recall(?:s|ed|ing)?",
+    r"hir(?:es?|ed|ing)",
+    r"fir(?:es?|ed|ing)",
+    r"layoffs?",
+    r"lay(?:ing)?\s+off",
+    r"laid\s+off",
+    r"terminat(?:es?|ed|ing|ions?)",
+    r"recruit(?:s|ed|ing|ment)?",
+    r"redundanc(?:y|ies)",
+    r"severance",
+    r"retention",
+    r"turnover",
+    r"attritions?",
+    r"headcount\s+reductions?",
+    r"job\s+cuts?",
+    r"eliminat(?:es?|ed|ing|ions?)",
+    r"downsiz(?:es?|ed|ing)",
+    r"separat(?:es?|ed|ing|ions?)",
+    r"reduc(?:es?|ed|ing|tions?)",
+]
+
+CHANGE_TERMS = [
+    # Increase / Growth
+    r"increase(?:s|d|ing)?",
+    r"growth",  # noun only
+    r"grow(?:s|n|ing)?",
+    r"rise(?:s|r|n|ing|d)?",
+    r"gain(?:s|ed|ing)?",
+    r"improv(?:es?|ed|ing|ements?)",
+    # Decrease / Decline
+    r"decrease(?:s|d|ing)?",
+    r"declin(?:e|es|ed|ing)?",
+    r"drop(?:s|ped|ping)?",
+    r"loss(?:es)?",
+    r"reduc(?:es?|ed|ing|tions?)",
+    # Appreciation / Depreciation
+    r"appreciat(?:es?|ed|ing|ions?)",
+    r"depreciat(?:es?|ed|ing|ions?)",
+    # Offset
+    r"offset(?:s|ted|ting)?",
+    # Higher / Lower (comparatives)
+    r"higher",
+    r"lower",
+    # Change (generic)
+    r"chang(?:es?|ed|ing)",
+    # Transition
+    r"transition(?:s|ed|ing)?",
+]

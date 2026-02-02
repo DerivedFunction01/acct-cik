@@ -3,7 +3,7 @@ from typing import Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
 from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
-from defs.union_regex import NOUNS, WORKER_TERMS
+from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
@@ -639,37 +639,8 @@ class ContextualNumberCleaner:
             re.IGNORECASE
         )
 
-        # 2. Growth/Decline/Change (Percentages)
 
-        change_terms = [
-            # Increase / Growth
-            r"increase(?:s|d|ing)?",
-            r"growth",  # noun only
-            r"grow(?:s|n|ing)?",
-            r"rise(?:s|r|n|ing|d)?",
-            r"gain(?:s|ed|ing)?",
-            r"improv(?:es?|ed|ing|ements?)",
-            # Decrease / Decline
-            r"decrease(?:s|d|ing)?",
-            r"declin(?:e|es|ed|ing)?",
-            r"drop(?:s|ped|ping)?",
-            r"loss(?:es)?",
-            r"reduc(?:es?|ed|ing|tions?)",
-            # Appreciation / Depreciation
-            r"appreciat(?:es?|ed|ing|ions?)",
-            r"depreciat(?:es?|ed|ing|ions?)",
-            # Offset
-            r"offset(?:s|ted|ting)?",
-            # Higher / Lower (comparatives)
-            r"higher",
-            r"lower",
-            # Change (generic)
-            r"chang(?:es?|ed|ing)",
-            # Transition
-            r"transition(?:s|ed|ing)?",
-        ]
-
-        change_pattern = build_alternation(change_terms)
+        change_pattern = build_alternation(CHANGE_TERMS)
 
         # Matches: "10% increase"
         self.change_pre_regex = re.compile(
@@ -685,30 +656,8 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
-        # 3. Personnel Events (Hiring, Firing, Furlough)
-        personnel_event_terms = [
-            r"furlough(?:s|ed|ing)?",
-            r"recall(?:s|ed|ing)?",
-            r"hir(?:es?|ed|ing)",
-            r"fir(?:es?|ed|ing)",
-            r"layoffs?",
-            r"lay(?:ing)?\s+off",
-            r"laid\s+off",
-            r"terminat(?:es?|ed|ing|ions?)",
-            r"recruit(?:s|ed|ing|ment)?",
-            r"redundanc(?:y|ies)",
-            r"severance",
-            r"retention",
-            r"turnover",
-            r"attritions?",
-            r"headcount\s+reductions?",
-            r"job\s+cuts?",
-            r"eliminat(?:es?|ed|ing|ions?)",
-            r"downsiz(?:es?|ed|ing)",
-            r"separat(?:es?|ed|ing|ions?)",
-            r"reduc(?:es?|ed|ing|tions?)",
-        ]
-        personnel_event_pattern = build_alternation(personnel_event_terms)
+
+        personnel_event_pattern = build_alternation(PERSONNEL_EVENT_TERMS)
 
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(

@@ -198,6 +198,7 @@ class UnionAnalyzer:
             results = []
             last_geo_context = None
             prev_paragraph_totals = {}
+            all_region_totals = {}
 
             for p_text in paragraphs:
                 p_sentences = self.extractor.split_sentences(p_text)
@@ -211,11 +212,16 @@ class UnionAnalyzer:
                     previous_totals=prev_paragraph_totals
                 )
                 
+                # Update all_region_totals with max found across all blocks
+                for reg, count in local_totals.items():
+                    if count > all_region_totals.get(reg, 0):
+                        all_region_totals[reg] = count
+
                 results.extend(block_results)
                 # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
                 prev_paragraph_totals = local_totals
 
-            summary = self.compute_weighted_coverage(results, global_max)
+            summary = self.compute_weighted_coverage(results, global_max, all_region_totals)
 
         return {"items": results, "summary": summary}
 
@@ -308,10 +314,13 @@ class UnionAnalyzer:
             # 1. Union Terms: Always relevant.
             # 2. Geo Matches: Relevant for context updates.
             # 3. Coverage Data: Relevant ONLY if accompanied by Worker Context (to avoid "no debt" -> 0% coverage).
+            # 4. Worker Counts: Relevant for capturing region totals (denominators).
             is_relevant = False
             if analysis.union_terms or analysis.geo_matches or analysis.negation_terms:
                 is_relevant = True
             elif has_coverage and has_worker_context:
+                is_relevant = True
+            elif analysis.worker_counts:
                 is_relevant = True
 
             if not is_relevant:
@@ -347,25 +356,48 @@ class UnionAnalyzer:
             if current_counts:
                 current_max = max(current_counts)
                 
-                # If context is explicit, map this count to the region/countries
-                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.EXPLICIT_INFERRED.value):
+                # If context is explicit OR inherited, map this count to the region/countries
+                if geo_context["specificity"] in (
+                    Specificity.EXPLICIT.value, 
+                    Specificity.EXPLICIT_INFERRED.value,
+                    Specificity.INHERITED.value
+                ):
                     region_key = geo_context["region"]
-                    local_totals[region_key] = current_max
-                    effective_totals[region_key] = current_max
+                    # Use max to ensure we capture the largest count (Total) seen for this region in this block
+                    # preventing a smaller subset count (e.g. country specific) from overwriting a region total
+                    if current_max > local_totals.get(region_key, 0):
+                        local_totals[region_key] = current_max
+                        effective_totals[region_key] = current_max
                     
                     for c in geo_context.get("countries", []):
-                        local_totals[c["code"]] = current_max
-                        effective_totals[c["code"]] = current_max
+                        c_code = c["code"]
+                        if current_max > local_totals.get(c_code, 0):
+                            local_totals[c_code] = current_max
+                            effective_totals[c_code] = current_max
 
             # Determine best available total for calculation
             # Priority: 
-            # 1. Region-specific total (if we are in that region)
-            # 2. Global total (if we are in Global/Unknown/International region)
-            # 3. Sequential fallback
+            # 1. Country-specific total (if available and applicable)
+            # 2. Region-specific total (if we are in that region)
+            # 3. Global total (if we are in Global/Unknown/International region)
+            # 4. Sequential fallback
             relevant_total = None
             current_region = geo_context["region"]
             
-            if current_region in effective_totals:
+            # 1. Check specific countries first
+            if geo_context.get("countries"):
+                c_codes = [c["code"] for c in geo_context["countries"] if c["code"] in effective_totals]
+                if c_codes:
+                    vals = [effective_totals[c] for c in c_codes]
+                    # Heuristic: If multiple countries have the EXACT same count, assume it's a shared total
+                    # e.g. "In X and Y, we have 500 employees" -> X=500, Y=500. Total is 500, not 1000.
+                    if len(vals) > 1 and len(set(vals)) == 1:
+                        relevant_total = vals[0]
+                    else:
+                        relevant_total = sum(vals)
+
+            # 2. Fallback to region-specific total
+            if not relevant_total and current_region in effective_totals:
                 relevant_total = effective_totals[current_region]
             
             # Check external source if text didn't provide it
@@ -380,7 +412,14 @@ class UnionAnalyzer:
                 ) and global_max_workers > 0:
                     relevant_total = global_max_workers
                 else:
-                    relevant_total = last_employee_count or global_max_workers
+                    # For specific regions (Europe, Asia, LatAm), ONLY use last_employee_count
+                    # if it is clearly a subset (significantly smaller than global).
+                    # If last_count ~= global_max, it's likely the global number carrying over contextually
+                    # into a specific paragraph, which we want to avoid.
+                    if last_employee_count and (global_max_workers == 0 or last_employee_count < global_max_workers * 0.95):
+                        relevant_total = last_employee_count
+                    else:
+                        relevant_total = None
 
             # 2. Determine Coverage Data
             coverage_data = self._determine_coverage_data(analysis, relevant_total, reporting_year, is_historical=is_historical)
@@ -1260,8 +1299,20 @@ class UnionAnalyzer:
                             weight_source = "Global Fallback"
             
             if not weight and item.get("last_seen_count"):
-                weight = item.get("last_seen_count")
-                weight_source = "Fallback: Last Seen Count"
+                lsc = item.get("last_seen_count", 0)
+                
+                # Safety Check: Don't use fallback if it looks like Global Total applied to Specific Region
+                geo = item.get("geographic_context", {})
+                region = geo.get("region")
+                
+                # Define specific regions (excluding broad ones where global fallback is acceptable)
+                broad_regions = (Region.INTERNATIONAL.value, Region.UNKNOWN.value, Region.NORTH_AMERICA.value)
+                is_specific_region = region not in broad_regions
+                is_global_count = (global_workforce > 0 and lsc >= global_workforce * 0.95)
+                
+                if not (is_specific_region and is_global_count):
+                    weight = lsc
+                    weight_source = "Fallback: Last Seen Count"
 
             if pct is None:
                 if covered_count is not None:
@@ -1305,13 +1356,12 @@ class UnionAnalyzer:
             else:
                 log_entry["reason"] = "No valid weight (total employees) found"
 
+        global_items = []
+        all_items = []
+
         # Process grouped items
         for (weight, region_sig), entries in grouped_items.items():
             avg_pct = sum(e["pct"] for e in entries) / len(entries)
-            
-            weighted_points.append((avg_pct, weight))
-            total_weighted_pct += (avg_pct * weight)
-            total_employees += weight
             
             region_name = region_sig[0]
             if region_name not in region_stats:
@@ -1319,6 +1369,16 @@ class UnionAnalyzer:
             region_stats[region_name]["weighted_sum"] += (avg_pct * weight)
             region_stats[region_name]["total_employees"] += weight
             
+            # Identify Global Candidates (Weight > 70% of global workforce)
+            is_global = False
+            if global_workforce > 0 and weight >= 0.7 * global_workforce:
+                is_global = True
+            
+            point = (avg_pct, weight)
+            all_items.append(point)
+            if is_global:
+                global_items.append(point)
+
             for e in entries:
                 e["log"]["status"] = "included"
                 e["log"]["weight_used"] = weight
@@ -1334,17 +1394,70 @@ class UnionAnalyzer:
                         f"Included. Contribution: {avg_pct:.2f}% * {weight} employees"
                     )
 
+        # DECISION: Global Average Calculation
+        # If we have items that look like "Global Totals", use them exclusively for the top-line number.
+        # This prevents double-counting regional subsets (e.g. Global 100k + Europe 10k).
+        if global_items:
+            weighted_points = global_items
+        else:
+            weighted_points = all_items
+
+        total_weighted_pct = sum(p * w for p, w in weighted_points)
+        total_employees = sum(w for _, w in weighted_points)
+
         weighted_avg = 0.0
         if total_employees > 0:
             weighted_avg = total_weighted_pct / total_employees
             
-        region_percentages = {}
-        for r, stats in region_stats.items():
-            if stats["total_employees"] > 0:
-                region_percentages[r] = round(stats["weighted_sum"] / stats["total_employees"], 2)
 
-        # Outlier detection
-        adjusted_weighted_avg = weighted_avg
+         # ===== NEW: Count-Based Regional Derivation =====
+        # Calculates rate as (Sum of Known Covered) / (Max Total Count Found in Text)
+        # This fixes cases where we have a large total count (denominator) but only 
+        # specific small subsets have explicit coverage data.
+        
+        derived_regional_coverage = {}
+        
+        # 1. Calculate Numerators (Covered Counts) from Grouped Items
+        region_numerators = {} # Region -> List of (TotalCount, CoveredCount) tuples
+        
+        for (weight, region_sig), entries in grouped_items.items():
+            avg_pct = sum(e["pct"] for e in entries) / len(entries)
+            implied_covered = (avg_pct / 100.0) * weight
+            
+            region_name = region_sig[0]
+            if region_name not in region_numerators:
+                region_numerators[region_name] = []
+            region_numerators[region_name].append((weight, implied_covered))
+
+        # 2. Calculate Rates per Region
+        for reg, max_total in region_totals.items():
+            if max_total <= 0:
+                continue
+                
+            groups = region_numerators.get(reg, [])
+            if not groups:
+                continue
+                
+            # Heuristic: Avoid double counting Numerator (Total vs Parts)
+            # If one group accounts for > 90% of the Max Total, assume it IS the total 
+            # and use its covered count exclusively.
+            # Otherwise, sum the parts (assuming disjoint subsets).
+            
+            dominant_group = next((g for g in groups if g[0] >= max_total * 0.90), None)
+            
+            if dominant_group:
+                total_covered = dominant_group[1]
+            else:
+                total_covered = sum(g[1] for g in groups)
+            
+            # Clamp to Max Total to prevent > 100% due to data inconsistencies
+            if total_covered > max_total:
+                total_covered = max_total
+                
+            derived_rate = (total_covered / max_total) * 100.0
+            derived_regional_coverage[reg] = round(derived_rate, 2)
+
+
         outlier_debug = {"applied": False}
         if len(weighted_points) >= 4:
             pcts = [p[0] for p in weighted_points]
@@ -1392,18 +1505,6 @@ class UnionAnalyzer:
             median_pct          # Text: median of all %
         ]
 
-        # Add regional percentages (text from calculations, but based on extracted data)
-        international_pct = region_percentages.get("International")
-        if international_pct is not None:
-            candidates.append(international_pct)
-
-        domestic_keys = ["United States", "US", "USA", "Domestic", "North America", "US and Canada"]
-        for k in domestic_keys:
-            if k in region_percentages:
-                domestic_pct = region_percentages[k]
-                if len(region_percentages) == 1:
-                    candidates.append(domestic_pct)
-                break
 
         # ===== CANDIDATE SELECTION =====
         # Pick the TEXT candidate closest to the calculated weighted average
@@ -1457,8 +1558,7 @@ class UnionAnalyzer:
         
         return {
             "weighted_average_percentage": round(weighted_avg, 2),
-            "region_percentages": region_percentages,
-            "global_percentage": international_pct,
+            "derived_regional_coverage": derived_regional_coverage,
             "first_coverage_percentage": first_pct,
             "last_coverage_percentage": last_pct,
             "closest_to_weighted_percentage": closest_pct,
