@@ -432,7 +432,11 @@ class SimpleCoverageAnalyzer:
                         else:
                             data["employee_count_covered"] = ratio
                             data["note"] = f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} covered"
+                    else:
+                        notes.append(f"Count (total): {count}. Ambiguous qualitative term '{qual_match['text']}' detected.")
                 else:
+                    # Store the total, but leave it ambiguous
+                    data["employee_count_total"] = count
                     notes.append(f"Count (total): {count} (qualitative term present)")
 
             elif is_associated:
@@ -456,7 +460,7 @@ class SimpleCoverageAnalyzer:
     ):
         """Handles cases like 'None are represented'."""
         if not analysis.percentages and not effective_counts and analysis.negation_terms:
-            data.update({"percentage": 0.0, "negated": True, "negation_type": NegationType.ZERO_COVERAGE.value, "type": CoverageType.value})
+            data.update({"percentage": 0.0, "negated": True, "negation_type": NegationType.ZERO_COVERAGE.value, "type": CoverageType.QUALITATIVE.value})
             notes.append("Qualitative zero coverage detected")
 
     def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:

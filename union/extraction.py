@@ -6,7 +6,7 @@ from enum import Enum
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN2, build_alternation, build_regex, build_compound, to_build_alternation
 from defs.union_regex import (
-    UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
+    GAP, UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
     , SUPPLIER_REGEX, COVERAGE_REGEX
 )
@@ -157,7 +157,7 @@ class QualitativeTerm:
     core_terms: List[str]  # e.g., ["majority", "bulk"]
 
     # Percentage values
-    positive_pct: float  # When used positively: "majority" = 51%
+    positive_pct: Optional[float]  # When used positively: "majority" = 51%
     negated_pct: Optional[float]  # When negated: "not majority" = 10%
 
     # Optional modifiers
@@ -171,6 +171,9 @@ class QualitativeTerm:
     requires_suffix: bool = (
         False  # True if suffix is mandatory (e.g., "portion" needed)
     )
+
+    prefix_gap: Optional[str] = "[- ]"
+    suffix_gap: Optional[str] = "[- ]"
 
     def build_pattern(self) -> str:
         """Build regex pattern using build_compound."""
@@ -350,7 +353,7 @@ QUALITATIVE_TERMS = [
     # ===== 25% TIER (Significant/Substantial) =====
     QualitativeTerm(
         core_terms=["portion", "share", "number", "amount"],
-        prefix_terms=["significant", "substantial", "large", "meaningful"],
+        prefix_terms=["significant", "substantial", "large", "meaningful", "extensive"],
         positive_pct=25.0,
         negated_pct=None,  # Could be modest, small, or insignificant
         requires_suffix=False,
@@ -397,6 +400,21 @@ QUALITATIVE_TERMS = [
         positive_pct=20.0,
         negated_pct=None,  # "not good" is vague
         requires_suffix=False,
+    ),
+    QualitativeTerm(
+        core_terms=["many"],
+        suffix_terms=["of"],
+        positive_pct=20.0,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+    QualitativeTerm(
+        core_terms=["numerous", "many"],
+        suffix_terms=WORKER_TERMS,
+        positive_pct=20.0,
+        negated_pct=None,
+        requires_suffix=True,
+        suffix_gap=GAP,
     ),
     # ===== 15% TIER (Fair/Modest) =====
     QualitativeTerm(
@@ -506,8 +524,59 @@ QUALITATIVE_TERMS = [
     ),
 ]
 
+QUALITATIVE_TERMS_AMB = [
+    QualitativeTerm(
+        core_terms=[
+            "some",
+            "part",
+            "portion",
+            "segment",
+            "fraction",
+            "percentage",
+            "proportion",
+            "remainder",
+            "balance",
+        ],
+        suffix_terms=["of"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+    QualitativeTerm(
+        core_terms=["parts", "portions", "segments", "fractions", "percentages", "proportions", "shares"],
+        prefix_terms=["multiple", "various", "numerous", "certain"],
+        suffix_terms=["of"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+    QualitativeTerm(
+        core_terms=["certain"],
+        suffix_terms=["of", "number", "amount"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+    QualitativeTerm(
+        core_terms=["certain", "several", "some", "few", "multiple", "various"],
+        suffix_terms=WORKER_TERMS, # certain employees, several employees
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+        suffix_gap=GAP # Gap
+    ),
+    QualitativeTerm(
+        core_terms=["number", "quantity"],
+        prefix_terms=["a"],
+        suffix_terms=["of"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
+]
+
 COMPILED_QUALITATIVE_PATTERNS = []
-for term in QUALITATIVE_TERMS:
+for term in QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
     pattern_str = term.build_pattern()
     regex = build_regex([pattern_str])
     COMPILED_QUALITATIVE_PATTERNS.append(
