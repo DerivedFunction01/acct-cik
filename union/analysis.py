@@ -554,7 +554,7 @@ class SimpleCoverageAnalyzer:
                     "percentage": 0.0,
                     "negated": True,
                     "negation_type": NegationType.ZERO_COVERAGE.value,
-                    "type": CoverageType.value,
+                    "type": CoverageType.QUALITATIVE.value,
                 }
             )
             notes.append("Qualitative zero coverage detected")
