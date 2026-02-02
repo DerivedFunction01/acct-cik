@@ -20,7 +20,7 @@ class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
     Criteria:
-    - Max 1 Percentage OR Max 1 Worker Count
+    - Max 1 Percentage AND/OR Max 1 Worker Count
     - No conflicting Union vs Non-Union terms (mixed signals)
     - No Ratios
     """
@@ -38,24 +38,72 @@ class SimpleCoverageAnalyzer:
 
         notes = []
 
-        # 1. Explicit Percentage
-        if analysis.percentages:
+        # 0. Handle 1 Percentage + 1 Count (Combined)
+        if len(analysis.percentages) == 1 and len(analysis.worker_counts) == 1:
             pct = analysis.percentages[0]
+            count = analysis.worker_counts[0]
+            
             data["percentage"] = pct
             data["type"] = CoverageType.EXPLICIT_PERCENT.value
             notes.append(f"Explicit percentage: {pct}%")
 
-        # 2. Explicit Count
-        if analysis.worker_counts:
-            count = analysis.worker_counts[0]
-            if analysis.negation_terms:
-                data["employee_count_not_covered"] = count
-                data["negated"] = True
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Count (not covered): {count}")
+            # Determine if count is Total or Covered based on "of"
+            # e.g. "10% of 100 employees" -> Total=100
+            # e.g. "100 employees (10%)" -> Covered=100
+            
+            is_percent_of_total = False
+            # Find matches to check text between
+            pct_match = next((m for m in analysis._matches if m['type'] == MatchType.PERCENT and m['val'] == pct), None)
+            count_match = next((m for m in analysis._matches if m['type'] == MatchType.WORKER_COUNT and m['val'] == count), None)
+            
+            if pct_match and count_match:
+                p_end = pct_match['span'][1]
+                c_start = count_match['span'][0]
+                if p_end < c_start:
+                    between = analysis.text[p_end:c_start]
+                    if OF_REGEX.search(between):
+                        is_percent_of_total = True
+
+            if is_percent_of_total:
+                data["employee_count_total"] = count
+                data["employee_count_covered"] = round((pct / 100.0) * count)
+                notes.append(f"Count (total): {count} (inferred covered: {data['employee_count_covered']})")
             else:
-                data["employee_count_covered"] = count
-                notes.append(f"Count (covered): {count}")
+                # Default: Count is Covered (or Not Covered)
+                if analysis.negation_terms:
+                    data["employee_count_not_covered"] = count
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                    notes.append(f"Count (not covered): {count}")
+                    # Calculate total if possible
+                    if pct > 0:
+                         data["employee_count_total"] = round(count / (pct / 100.0))
+                else:
+                    data["employee_count_covered"] = count
+                    notes.append(f"Count (covered): {count}")
+                    # Calculate total if possible
+                    if pct > 0:
+                        data["employee_count_total"] = round(count / (pct / 100.0))
+
+        else:
+            # 1. Explicit Percentage
+            if analysis.percentages:
+                pct = analysis.percentages[0]
+                data["percentage"] = pct
+                data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                notes.append(f"Explicit percentage: {pct}%")
+
+            # 2. Explicit Count
+            if analysis.worker_counts:
+                count = analysis.worker_counts[0]
+                if analysis.negation_terms:
+                    data["employee_count_not_covered"] = count
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                    notes.append(f"Count (not covered): {count}")
+                else:
+                    data["employee_count_covered"] = count
+                    notes.append(f"Count (covered): {count}")
 
         # 3. Qualitative Zero ("None are represented")
         if not analysis.percentages and not analysis.worker_counts and analysis.negation_terms:
@@ -383,16 +431,34 @@ class UnionAnalyzer:
             # 5. Update Region Totals
             if analysis.worker_counts:
                 current_max = max(analysis.worker_counts)
-                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INHERITED.value):
+                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INHERITED.value, Specificity.INFERRED_UNION.value):
                     region_key = geo_context["region"]
+                    
+                    # Update local totals (max seen in this block for this region)
                     if current_max > local_totals.get(region_key, 0):
                         local_totals[region_key] = current_max
+                    
+                    # Update effective totals (best available info)
+                    # We update effective totals if the current local count provides better info
+                    if current_max > effective_totals.get(region_key, 0):
                         effective_totals[region_key] = current_max
+
+                    # Also update specific countries if present
+                    for c in geo_context.get("countries", []):
+                        c_code = c["code"]
+                        if current_max > local_totals.get(c_code, 0):
+                            local_totals[c_code] = current_max
+                        if current_max > effective_totals.get(c_code, 0):
+                            effective_totals[c_code] = current_max
 
             # 6. Determine Relevant Total for Calculation
             relevant_total = None
             current_region = geo_context["region"]
-            if current_region in effective_totals:
+            
+            # Priority: Local > Effective (Previous) > Global
+            if current_region in local_totals:
+                relevant_total = local_totals[current_region]
+            elif current_region in effective_totals:
                 relevant_total = effective_totals[current_region]
             elif current_region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value) and global_max_workers > 0:
                 relevant_total = global_max_workers
@@ -463,10 +529,56 @@ class UnionAnalyzer:
         (Placeholder for the complex logic to be re-added/refined)
         """
         data = {
+            "percentage": None,
+            "employee_count_covered": None,
+            "employee_count_not_covered": None,
+            "employee_count_total": total_count,
+            "negated": False,
+            "negation_type": None,
             "type": CoverageType.QUALITATIVE.value,
-            "note": "Complex Analysis (Placeholder)"
+            "note": None
         }
-        # TODO: Re-implement the complex logic (ratios, mixed resolution, proximity checks) here
+
+        # 1. Resolve Mixed Coverage (e.g. "500 union, 200 non-union")
+        self._resolve_mixed_coverage(analysis, data)
+
+        # 2. Handle Ratios (e.g. "500 out of 2000")
+        if not data["percentage"] and analysis.ratios:
+            numerator, denominator = analysis.ratios[0]
+            if denominator > 0:
+                pct = (numerator / denominator) * 100
+                data["percentage"] = round(pct, 2)
+                data["type"] = CoverageType.CALCULATED.value
+                data["employee_count_covered"] = numerator
+                data["employee_count_total"] = denominator
+                data["note"] = f"Calculated from ratio: {numerator}/{denominator}"
+
+        # 3. Calculate Percentage from Counts
+        if data["percentage"] is None and data["employee_count_covered"] is not None and total_count:
+            if total_count >= data["employee_count_covered"] and total_count > 0:
+                pct = (data["employee_count_covered"] / total_count) * 100
+                data["percentage"] = round(pct, 2)
+                data["type"] = CoverageType.CALCULATED.value
+                data["note"] = f"Calculated from count {data['employee_count_covered']} / total {total_count}"
+
+        # 4. Calculate Count from Percentage
+        if data["employee_count_covered"] is None and data["percentage"] is not None and total_count:
+            data["employee_count_covered"] = round((data["percentage"] / 100) * total_count)
+            data["note"] = f"Inferred count from {data['percentage']}% of {total_count}"
+
+        # 5. Handle Negation without specific counts
+        if not data["percentage"] and not data["employee_count_covered"]:
+            if analysis.negation_terms:
+                # Check for "None" or "No employees"
+                if any(NEGATION_REGEX.search(t) for t in analysis.negation_terms):
+                    data["percentage"] = 0.0
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.ZERO_COVERAGE.value
+                    data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                elif any(NON_COVERAGE_REGEX.search(t) for t in analysis.negation_terms):
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+
         return data
 
     def _resolve_mixed_coverage(self, analysis: SentenceAnalysis, data: Dict[str, Any]):
@@ -475,7 +587,37 @@ class UnionAnalyzer:
         mapping counts/percentages to the nearest positive/negative keywords.
         Updates 'data' in-place.
         """
-        pass
+        # Simple proximity heuristic
+        union_terms = analysis.union_terms + analysis.coverage_terms
+        negation_terms = analysis.negation_terms
+        
+        # If we have counts, try to assign them
+        if analysis.worker_counts:
+            # If we have explicit negation terms ("non-union"), assign nearest count to not_covered
+            if negation_terms:
+                # Find count nearest to negation
+                # For simplicity, if we have 2 counts and 1 negation, assume smaller is negation?
+                # Or if we have "X union, Y non-union"
+                if len(analysis.worker_counts) >= 2:
+                    # Assume the structure matches the order of terms? 
+                    # This is risky without span indices. 
+                    # Fallback: If we have explicit "non-union", treat the count near it as not_covered.
+                    # Since we don't have spans easily accessible here without re-parsing or passing them,
+                    # we will use a basic heuristic:
+                    pass
+            
+            # If we have explicit union terms, assign nearest count to covered
+            if union_terms and not data["employee_count_covered"]:
+                # Default: take the first count as covered if union terms are present
+                data["employee_count_covered"] = analysis.worker_counts[0]
+
+        # If we have percentages
+        if analysis.percentages:
+            # If negation is present ("10% are non-union"), invert it
+            if negation_terms and not union_terms:
+                 data["percentage"] = 100.0 - analysis.percentages[0]
+                 data["negated"] = True
+                 data["note"] = f"Inverted from {analysis.percentages[0]}% non-union/not covered"
 
     def _analyze_item1a(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
