@@ -44,12 +44,9 @@ NEGATION_REGEX = build_regex([
 ])
 
 REMAIN_REGEX = build_regex([
-    r"remaining", r"rest", r"balance", r"other"
+    r"remaining", r"rest", r"other"
 ])
 
-RANGE_REGEX = build_regex([
-    r"to", r"-", r"through", r"and"
-])
 
 OF_REGEX = build_regex([
     r"(?:out\s+)?of"
@@ -100,6 +97,7 @@ class MatchType(Enum):
     QUALITATIVE_TERM = "QUALITATIVE_TERM"
     TOTAL_MODIFIER = "TOTAL_MODIFIER"
     RESPECTIVELY = "RESPECTIVELY"
+    REMAINING_OTHER = "REMAINING_OTHER"
 
 @dataclass
 class GeoMatch:
@@ -136,6 +134,7 @@ class SentenceAnalysis:
     has_historical: bool = False
     has_future: bool = False
     has_respectively: bool = False
+    has_remaining_other: bool = False
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -437,7 +436,8 @@ class UnionExtractor:
         analysis.has_historical = bool(HISTORICAL_REGEX.search(text))
         analysis.has_future = bool(FUTURE_REGEX.search(text))
         analysis.has_respectively = bool(RESPECTIVELY_REGEX.search(text))
-        
+        analysis.has_remaining_other = bool(REMAIN_REGEX.search(text))
+
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
             nonlocal working_text
             current_iter_matches = list(pattern.finditer(working_text))

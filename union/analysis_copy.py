@@ -1272,6 +1272,115 @@ class UnionAnalyzer:
 
         return mapped_counts, sentence_total
 
+    def _apply_remaining_logic(
+        self,
+        analysis: SentenceAnalysis,
+        coverage_data: Dict[str, Any],
+        results: List[Dict[str, Any]],
+    ):
+        """
+        Handles 'Remaining/Rest/Other' logic linking to previous sentence.
+        e.g. '80% are unionized. The remaining employees are not.' -> 20%
+        """
+        if (
+            analysis.has_remaining_other
+            and coverage_data["percentage"] is None
+            and coverage_data["employee_count_covered"] is None
+            and coverage_data["employee_count_not_covered"] is None
+            and results
+        ):
+            prev_item = results[-1]
+            if "coverage_data" in prev_item:
+                prev_data = prev_item["coverage_data"]
+
+                # Case 1: Previous had percentage
+                if prev_data.get("percentage") is not None:
+                    prev_pct = prev_data["percentage"]
+                    remaining_pct = max(0.0, 100.0 - prev_pct)
+
+                    coverage_data["percentage"] = round(remaining_pct, 2)
+                    coverage_data["type"] = CoverageType.CALCULATED.value
+                    coverage_data["note"] = f"Calculated from remaining of {prev_pct}%"
+
+                    # Infer negation status if not explicit
+                    if not coverage_data.get("negated") and not analysis.union_terms:
+                        # Flip previous status
+                        if not prev_data.get("negated"):
+                            coverage_data["negated"] = True
+                            coverage_data["negation_type"] = NegationType.NOT_COVERED.value
+                        else:
+                            coverage_data["negated"] = False
+
+                # Case 2: Previous had counts
+                elif prev_data.get("employee_count_total"):
+                    total = prev_data["employee_count_total"]
+                    prev_val = (
+                        prev_data.get("employee_count_covered")
+                        if prev_data.get("employee_count_covered") is not None
+                        else prev_data.get("employee_count_not_covered")
+                    )
+
+                    if prev_val is not None:
+                        remaining_count = max(0, total - prev_val)
+                        coverage_data["employee_count_total"] = total
+                        coverage_data["note"] = f"Calculated remaining count (Total {total} - Prev {prev_val})"
+
+                        if coverage_data.get("negated") or (analysis.negation_terms and not analysis.union_terms):
+                            coverage_data["employee_count_not_covered"] = remaining_count
+                            coverage_data["negated"] = True
+                            coverage_data["negation_type"] = NegationType.NOT_COVERED.value
+                        else:
+                            coverage_data["employee_count_covered"] = remaining_count
+
+    def _merge_continuation_items(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Post-processing: Merge continuation items (Fix for split sentences)
+        e.g. "In Germany we have X employees." -> "They are covered by Y."
+        """
+        merged_results = []
+        skip_indices = set()
+
+        for i in range(len(results)):
+            if i in skip_indices or "geographic_context" not in results[i]:
+                continue
+            current = results[i]
+
+            if i + 1 < len(results):
+                next_item = results[i+1]
+                if "geographic_context" not in next_item:
+                    continue
+
+                # Criteria: Next item inherits from Current, and Current has data
+                c_pct = current["coverage_data"].get("percentage")
+                is_saturated = (c_pct == 100.0)
+                is_empty = (c_pct == 0.0)
+
+                if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
+                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index") and
+                    not is_saturated and not is_empty):
+
+                    c_data = current["coverage_data"]
+                    n_data = next_item["coverage_data"]
+
+                    # Merge Percentage
+                    if c_data["percentage"] is None and n_data["percentage"] is not None:
+                        c_data["percentage"] = n_data["percentage"]
+                        c_data["negated"] = n_data["negated"]
+                        c_data["negation_type"] = n_data["negation_type"]
+                        c_data["type"] = n_data["type"]
+                        c_data["note"] = (c_data["note"] or "") + " | " + (n_data["note"] or "")
+
+                    # Merge Counts
+                    if not c_data["employee_count_covered"] and n_data["employee_count_covered"]:
+                        c_data["employee_count_covered"] = n_data["employee_count_covered"]
+                    if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
+                        c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
+
+                    skip_indices.add(i+1)
+
+            merged_results.append(current)
+        return merged_results
+
     def _analyze_block(
         self,
         sentences: List[str],
@@ -1423,6 +1532,8 @@ class UnionAnalyzer:
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
 
+            self._apply_remaining_logic(analysis, coverage_data, results)
+
             # 8. Construct Result
             should_include = False
             has_data = (
@@ -1470,50 +1581,7 @@ class UnionAnalyzer:
                 }
                 results.append(item)
 
-        # Post-processing: Merge continuation items (Fix for split sentences)
-        # e.g. "In Germany we have X employees." -> "They are covered by Y."
-        merged_results = []
-        skip_indices = set()
-
-        for i in range(len(results)):
-            if i in skip_indices or "geographic_context" not in results[i]:
-                continue
-            current = results[i]
-
-            if i + 1 < len(results):
-                next_item = results[i+1]
-                if "geographic_context" not in next_item:
-                    continue
-
-                # Criteria: Next item inherits from Current, and Current has data
-                c_pct = current["coverage_data"].get("percentage")
-                is_saturated = (c_pct == 100.0)
-                is_empty = (c_pct == 0.0)
-
-                if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
-                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index") and
-                    not is_saturated and not is_empty):
-
-                    c_data = current["coverage_data"]
-                    n_data = next_item["coverage_data"]
-
-                    # Merge Percentage
-                    if c_data["percentage"] is None and n_data["percentage"] is not None:
-                        c_data["percentage"] = n_data["percentage"]
-                        c_data["negated"] = n_data["negated"]
-                        c_data["negation_type"] = n_data["negation_type"]
-                        c_data["type"] = n_data["type"]
-                        c_data["note"] = (c_data["note"] or "") + " | " + (n_data["note"] or "")
-
-                    # Merge Counts
-                    if not c_data["employee_count_covered"] and n_data["employee_count_covered"]:
-                        c_data["employee_count_covered"] = n_data["employee_count_covered"]
-                    if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
-                        c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
-
-                    skip_indices.add(i+1)
-
-            merged_results.append(current)
+        merged_results = self._merge_continuation_items(results)
 
         return merged_results, local_totals, last_geo_context
 
