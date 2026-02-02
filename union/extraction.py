@@ -323,7 +323,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 40% TIER (Major/Predominant Minority) =====
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["major"],
         positive_pct=40.0,
         negated_pct=None,  # "not major" could be modest, small, or minor
@@ -344,7 +344,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 30% TIER (Considerable) =====
     QualitativeTerm(
-        core_terms=["portion", "number", "amount", "share"],
+        core_terms=["portion", "number", "amount", "share", "fraction"],
         prefix_terms=["considerable"],
         positive_pct=30.0,
         negated_pct=None,  # Could be modest or small
@@ -352,7 +352,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 25% TIER (Significant/Substantial) =====
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["significant", "substantial", "large", "meaningful", "extensive"],
         positive_pct=25.0,
         negated_pct=None,  # Could be modest, small, or insignificant
@@ -395,7 +395,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 20% TIER (Good) =====
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["good"],
         positive_pct=20.0,
         negated_pct=None,  # "not good" is vague
@@ -418,7 +418,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 15% TIER (Fair/Modest) =====
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["fair", "modest"],
         positive_pct=15.0,
         negated_pct=None,  # Could be large or small
@@ -432,7 +432,7 @@ QUALITATIVE_TERMS = [
         requires_suffix=False,
     ),
     QualitativeTerm(
-        core_terms=["portion", "share", "amount"],
+        core_terms=["portion", "share", "amount", "fraction"],
         prefix_terms=["small", "minor", "little", "fractional"],
         positive_pct=10.0,
         negated_pct=None,  # "not small" could be modest, significant, or large
@@ -468,7 +468,7 @@ QUALITATIVE_TERMS = [
         requires_suffix=False,
     ),
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["nominal", "limited"],
         positive_pct=5.0,
         negated_pct=None,  # Could be modest or significant
@@ -483,7 +483,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 1% TIER (Insignificant/Negligible) =====
     QualitativeTerm(
-        core_terms=["portion", "share", "number", "amount"],
+        core_terms=["portion", "share", "number", "amount", "fraction"],
         prefix_terms=["insignificant", "minimal", "tiny", "trivial", "token"],
         positive_pct=1.0,
         negated_pct=None,  # Could be modest, significant, or substantial
@@ -552,7 +552,7 @@ QUALITATIVE_TERMS_AMB = [
     ),
     QualitativeTerm(
         core_terms=["certain"],
-        suffix_terms=["of", "number", "amount"],
+        suffix_terms=["of", "number", "amount", "fraction", "employees", "workers", "members", "personnel", "staff"],
         positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
