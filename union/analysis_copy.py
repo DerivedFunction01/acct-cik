@@ -245,6 +245,37 @@ def apply_qualitative_multipliers(
 
     return raw_pct, None
 
+# Pre‑compiled regexes
+_RANGE_TO_THROUGH = re.compile(r"\b(to|through)(?:\s+\S+){0,2}$", re.IGNORECASE)
+_RANGE_AND = re.compile(r"\band\b", re.IGNORECASE)
+_RANGE_BETWEEN = re.compile(r"\bbetween\b", re.IGNORECASE)
+
+def is_range_context(text: str, span1: Tuple[int, int], span2: Tuple[int, int]) -> bool:
+    """
+    Checks if the text between two spans indicates a range (e.g. "10 to 20",
+    "between 10 and 20").
+    """
+    # Overlapping or reversed spans → not a range
+    if span1[1] >= span2[0]:
+        return False
+
+    text_between = text[span1[1] : span2[0]].strip()
+
+    # Case 1: "10 to 20", "10 through 20"
+    if _RANGE_TO_THROUGH.search(text_between):
+        return True
+
+    if len(text_between) > 20:
+        return False
+
+    # Case 2: "between 10 and 20"
+    if _RANGE_AND.search(text_between):
+        pre_text = text[max(0, span1[0] - 15) : span1[0]]
+        if _RANGE_BETWEEN.search(pre_text):
+            return True
+
+    return False
+
 
 class ComplexCoverageAnalyzer:
     """
@@ -271,6 +302,10 @@ class ComplexCoverageAnalyzer:
         }
 
     def analyze(self) -> Dict[str, Any]:
+        # 0. Ranges (High priority)
+        if self._handle_ranges():
+            return self.data
+
         # 1. Percent of Percent (High priority)
         if self._handle_percent_of_percent():
             return self.data
@@ -292,6 +327,47 @@ class ComplexCoverageAnalyzer:
         self._handle_negation()
 
         return self.data
+
+    def _handle_ranges(self) -> bool:
+        """
+        Detects ranges like "20% to 25%" or "500 to 600 employees".
+        Averages them and treats as explicit.
+        """
+        # 1. Percentage Ranges
+        if len(self.analysis.percentages) == 2:
+            matches = [m for m in self.analysis._matches if m['type'] == MatchType.PERCENT]
+            if len(matches) == 2:
+                matches.sort(key=lambda x: x['span'][0])
+                if is_range_context(self.analysis.text, matches[0]['span'], matches[1]['span']):
+                    p1 = matches[0]['val']
+                    p2 = matches[1]['val']
+                    avg = (p1 + p2) / 2
+                    self.data["percentage"] = round(avg, 2)
+                    self.data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                    self.data["percentage_qualifier"] = PercentageQualifier.RANGE.value
+                    self.data["note"] = f"Averaged from range {p1}% to {p2}%"
+                    return True
+
+        # 2. Count Ranges
+        if not self.data["percentage"] and len(self.analysis.worker_counts) == 2:
+            matches = [m for m in self.analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+            if len(matches) == 2:
+                matches.sort(key=lambda x: x['span'][0])
+                if is_range_context(self.analysis.text, matches[0]['span'], matches[1]['span']):
+                    c1 = matches[0]['val']
+                    c2 = matches[1]['val']
+                    avg = (c1 + c2) / 2
+                    if self.analysis.negation_terms:
+                        self.data["employee_count_not_covered"] = round(avg)
+                        self.data["negated"] = True
+                        self.data["negation_type"] = NegationType.NOT_COVERED.value
+                        self.data["note"] = f"Averaged from range {c1} to {c2} (not covered)"
+                    else:
+                        self.data["employee_count_covered"] = round(avg)
+                        self.data["note"] = f"Averaged from range {c1} to {c2} (covered)"
+                    return True
+
+        return False
 
     def _handle_percent_of_percent(self) -> bool:
         """Handles '15% of the remaining 80%' logic."""
@@ -985,6 +1061,26 @@ class UnionAnalyzer:
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
 
+    def _detect_count_range(self, analysis: SentenceAnalysis) -> Optional[float]:
+        """
+        Detects if worker_counts form a range (e.g. 100 to 200).
+        Returns average if range found, else None.
+        """
+        if len(analysis.worker_counts) != 2:
+            return None
+            
+        matches = [m for m in analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+        if len(matches) != 2:
+            return None
+            
+        matches.sort(key=lambda x: x['span'][0])
+        m1, m2 = matches[0], matches[1]
+        
+        if is_range_context(analysis.text, m1['span'], m2['span']):
+            return (m1['val'] + m2['val']) / 2
+                
+        return None
+
     def _determine_geo_context(
         self, analysis: SentenceAnalysis, last_context, current_idx, last_idx
     ) -> Dict[str, Any]:
@@ -1104,7 +1200,10 @@ class UnionAnalyzer:
                 span = count_match["span"] if count_match else None
                 is_explicit = check_is_total_context(analysis, span)
 
-                tracker.update(max_count, geo_context, is_explicit_total=is_explicit)
+                range_avg = self._detect_count_range(analysis)
+                final_count = range_avg if range_avg else max_count
+
+                tracker.update(final_count, geo_context, is_explicit_total=is_explicit)
 
     def _resolve_counts_to_geography(
         self, analysis: SentenceAnalysis
@@ -1262,9 +1361,16 @@ class UnionAnalyzer:
 
             # 5. Update Region Totals
             if analysis.worker_counts:
-                # Try intelligent mapping first
-                mapped_counts, sent_total = self._resolve_counts_to_geography(analysis)
-                current_max = max(analysis.worker_counts)
+                # Check for range first
+                range_avg = self._detect_count_range(analysis)
+                
+                if range_avg:
+                    current_val = range_avg
+                    mapped_counts = {}
+                else:
+                    # Try intelligent mapping first
+                    mapped_counts, sent_total = self._resolve_counts_to_geography(analysis)
+                    current_val = max(analysis.worker_counts)
 
                 if mapped_counts:
                     # Use specific mappings
@@ -1274,7 +1380,7 @@ class UnionAnalyzer:
                         if count > effective_totals.get(code, 0):
                             effective_totals[code] = count
                 else:
-                    # Fallback to applying max count to context
+                    # Fallback to applying max count (or range avg) to context
                     if geo_context["specificity"] in (
                         Specificity.EXPLICIT.value,
                         Specificity.INHERITED.value,
@@ -1282,19 +1388,19 @@ class UnionAnalyzer:
                     ):
                         region_key = geo_context["region"]
 
-                        if current_max > local_totals.get(region_key, 0):
-                            local_totals[region_key] = current_max
+                        if current_val > local_totals.get(region_key, 0):
+                            local_totals[region_key] = current_val
 
-                        if current_max > effective_totals.get(region_key, 0):
-                            effective_totals[region_key] = current_max
+                        if current_val > effective_totals.get(region_key, 0):
+                            effective_totals[region_key] = current_val
 
                         for c in geo_context.get("countries", []):
                             c_code = c["code"]
                             # Only update if we didn't map it specifically above (though mapped_counts check covers this)
-                            if current_max > local_totals.get(c_code, 0):
-                                local_totals[c_code] = current_max
-                            if current_max > effective_totals.get(c_code, 0):
-                                effective_totals[c_code] = current_max
+                            if current_val > local_totals.get(c_code, 0):
+                                local_totals[c_code] = current_val
+                            if current_val > effective_totals.get(c_code, 0):
+                                effective_totals[c_code] = current_val
 
             # 6. Determine Relevant Total for Calculation
             relevant_total = None

@@ -1,5 +1,5 @@
 import re
-from typing import Optional, List, Tuple, Dict
+from typing import Any, Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
 from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
@@ -12,6 +12,7 @@ SPACE_PATTERN = re.compile(r"\s+")
 PUNCT_SPACE_PATTERN = re.compile(r"\s+([,.;:!?])")
 DOUBLE_PUNCT_PATTERN = re.compile(r"([,.;:!?])\1+")
 
+
 def clean_spaces_and_punctuation(text: str) -> str:
     """
     Normalizes whitespace and cleans up punctuation.
@@ -23,18 +24,37 @@ def clean_spaces_and_punctuation(text: str) -> str:
     text = DOUBLE_PUNCT_PATTERN.sub(r"\1", text)
     return text
 
+
 class MinimalTextCleaner:
     # Suffixes to strip from the passed company name
     name_suffixes = [
-        r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?", r"co\.?",
-        r"company", r"ltd\.?", r"limited", r"p\.?l\.?c\.?", r"s\.?a\.?",
-        r"group", r"holdings?", r"trust", r"assoc\.?", r"association",
+        r"inc\.?",
+        r"corp\.?",
+        r"corporation",
+        r"l\.?l\.?c\.?",
+        r"co\.?",
+        r"company",
+        r"ltd\.?",
+        r"limited",
+        r"p\.?l\.?c\.?",
+        r"s\.?a\.?",
+        r"group",
+        r"holdings?",
+        r"trust",
+        r"assoc\.?",
+        r"association",
     ]
 
     # Suffixes to remove from the text generally (safer subset)
     text_suffixes = [
-        r"inc\.?", r"corp\.?", r"corporation", r"l\.?l\.?c\.?",
-        r"ltd\.?", r"limited", r"p\.?l\.?c\.?", r"s\.?a\.?",
+        r"inc\.?",
+        r"corp\.?",
+        r"corporation",
+        r"l\.?l\.?c\.?",
+        r"ltd\.?",
+        r"limited",
+        r"p\.?l\.?c\.?",
+        r"s\.?a\.?",
     ]
 
     # Regex to strip suffixes from the end of the company name
@@ -76,9 +96,30 @@ class MinimalTextCleaner:
 
     # Date and Year Patterns
     months = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-        "Jan", "Feb", "Mar", "Apr", "Jun", "Jul", "Aug", "Sep", "Sept", "Oct", "Nov", "Dec",
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Sept",
+        "Oct",
+        "Nov",
+        "Dec",
     ]
     months_pattern_str = build_alternation(months) + r"[a-z]*\.?"
 
@@ -92,39 +133,74 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
-    month_only_pattern = re.compile(
-        rf"\b(?:{months_pattern_str})\b"
-    )
+    month_only_pattern = re.compile(rf"\b(?:{months_pattern_str})\b")
 
     year_pattern = YEAR_REGEX
 
     # Word to number mappings
     num_words = {
-        "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
-        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
-        "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13,
-        "fourteen": 14, "fifteen": 15, "sixteen": 16, "seventeen": 17,
-        "eighteen": 18, "nineteen": 19, "twenty": 20, "thirty": 30,
-        "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70,
-        "eighty": 80, "ninety": 90,
+        "zero": 0,
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "eleven": 11,
+        "twelve": 12,
+        "thirteen": 13,
+        "fourteen": 14,
+        "fifteen": 15,
+        "sixteen": 16,
+        "seventeen": 17,
+        "eighteen": 18,
+        "nineteen": 19,
+        "twenty": 20,
+        "thirty": 30,
+        "forty": 40,
+        "fifty": 50,
+        "sixty": 60,
+        "seventy": 70,
+        "eighty": 80,
+        "ninety": 90,
     }
     multipliers = {
-        "hundred": 100, "thousand": 1_000, "million": 1_000_000,
-        "billion": 1_000_000_000, "trillion": 1_000_000_000_000,
+        "hundred": 100,
+        "thousand": 1_000,
+        "million": 1_000_000,
+        "billion": 1_000_000_000,
+        "trillion": 1_000_000_000_000,
     }
     fractions = {
-        "half": 0.5, "halves": 0.5, "quarter": 0.25, "quarters": 0.25,
-        "third": 1 / 3, "thirds": 1 / 3, "fourth": 0.25, "fourths": 0.25,
-        "fifth": 0.2, "fifths": 0.2, "sixth": 1 / 6, "sixths": 1 / 6,
-        "seventh": 1 / 7, "sevenths": 1 / 7, "eighth": 1 / 8, "eighths": 1 / 8,
-        "ninth": 1 / 9, "ninths": 1 / 9, "tenth": 0.1, "tenths": 0.1,
+        "half": 0.5,
+        "halves": 0.5,
+        "quarter": 0.25,
+        "quarters": 0.25,
+        "third": 1 / 3,
+        "thirds": 1 / 3,
+        "fourth": 0.25,
+        "fourths": 0.25,
+        "fifth": 0.2,
+        "fifths": 0.2,
+        "sixth": 1 / 6,
+        "sixths": 1 / 6,
+        "seventh": 1 / 7,
+        "sevenths": 1 / 7,
+        "eighth": 1 / 8,
+        "eighths": 1 / 8,
+        "ninth": 1 / 9,
+        "ninths": 1 / 9,
+        "tenth": 0.1,
+        "tenths": 0.1,
     }
 
     # Build regex for number phrases
     _all_words = (
-        list(num_words.keys())
-        + list(multipliers.keys())
-        + list(fractions.keys())
+        list(num_words.keys()) + list(multipliers.keys()) + list(fractions.keys())
     )
     _word_pattern = build_alternation([re.escape(w) for w in _all_words])
     number_phrase_pattern = re.compile(
@@ -134,7 +210,8 @@ class MinimalTextCleaner:
     # Handle "a hundred", "a thousand" etc.
     # Also handle "a quarter of", "a third of", "a fifth of"
     a_multiplier_pattern = re.compile(
-        r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)", re.IGNORECASE
+        r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)",
+        re.IGNORECASE,
     )
 
     # Qualitative financial terms to numeric conversion map
@@ -178,7 +255,8 @@ class MinimalTextCleaner:
 
     # Handle "[worker] ... were/are all" -> "[worker] ... were/are 100%"
     worker_all_pattern = re.compile(
-        rf"\b({_worker_pattern}(?:\s+[\w-]+){{0,3}}\s+(?:were|are)?)\s+all\b", re.IGNORECASE
+        rf"\b({_worker_pattern}(?:\s+[\w-]+){{0,3}}\s+(?:were|are)?)\s+all\b",
+        re.IGNORECASE,
     )
 
     # Fix capitalization of "the" at start of sentences
@@ -190,6 +268,9 @@ class MinimalTextCleaner:
 
     percent_pattern = re.compile(r"\bper[- ]?cent\b", re.IGNORECASE)
     percent_space_pattern = re.compile(r"(\d)\s+%", re.IGNORECASE)
+    percent_range_pattern = re.compile(
+        r"\b(\d+(?:\.\d+)?)\s*%?\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*%", re.IGNORECASE
+    )
 
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
@@ -216,20 +297,56 @@ class MinimalTextCleaner:
         rf"\b({_num_words_str})-({_fraction_words}s?)\b", re.IGNORECASE
     )
     fraction_qualifiers = {
-        "approx", "approx.", "approximately", "roughly", "nearly", "about", "around", "almost"
+        "approx",
+        "approx.",
+        "approximately",
+        "roughly",
+        "nearly",
+        "about",
+        "around",
+        "almost",
     }
 
     # False Fraction Protection
     # Terms that are fractions but often used in dates/periods: quarter, half, third, fourth...
     # We want to protect them when they are used as time periods or ordinals.
     _ordinals_and_time = [
-        "fiscal", "first", "second", "third", "fourth", "fifth", "sixth",
-        "next", "last", "previous", "current", "past", r"th(?:is|ese)",
-        "following", r"report(?:ing|ed)?", "subsequent", "the", "remaining",
-        r"\d+(?:st|nd|rd|th)", "interim", "annual", "daily", "monthly",
-        "weekly", "prior", "ealier", "upcoming", "ensuing", "preceding",
-        "ending", "ended", "comparative", "consecutive", "cumulative",
-        "rolling", "trailing",
+        "fiscal",
+        "first",
+        "second",
+        "third",
+        "fourth",
+        "fifth",
+        "sixth",
+        "next",
+        "last",
+        "previous",
+        "current",
+        "past",
+        r"th(?:is|ese)",
+        "following",
+        r"report(?:ing|ed)?",
+        "subsequent",
+        "the",
+        "remaining",
+        r"\d+(?:st|nd|rd|th)",
+        "interim",
+        "annual",
+        "daily",
+        "monthly",
+        "weekly",
+        "prior",
+        "ealier",
+        "upcoming",
+        "ensuing",
+        "preceding",
+        "ending",
+        "ended",
+        "comparative",
+        "consecutive",
+        "cumulative",
+        "rolling",
+        "trailing",
     ]
     _ordinals_pattern = build_alternation(_ordinals_and_time)
 
@@ -237,13 +354,23 @@ class MinimalTextCleaner:
     _fraction_terms_pattern = build_alternation(_fraction_terms)
 
     # Terms that indicate a time period following a fraction
-    _time = build_alternation([
-        r"years?", r"quarters?", r"months?", r"weeks?", r"days?",
-        r"hours?", r"minutes?", r"seconds?", r"periods?", r"half",
-    ])
+    _time = build_alternation(
+        [
+            r"years?",
+            r"quarters?",
+            r"months?",
+            r"weeks?",
+            r"days?",
+            r"hours?",
+            r"minutes?",
+            r"seconds?",
+            r"periods?",
+            r"half",
+        ]
+    )
     _period_terms = [
         rf"(?:full\s+|fiscal\s+|report(?:ing|ed)\s+)?{_time}",
-        r"centur(?:y|ies)"
+        r"centur(?:y|ies)",
     ]
     _period_pattern = build_alternation(_period_terms)
 
@@ -436,7 +563,7 @@ class MinimalTextCleaner:
                     fraction_value += current_chunk * self.fractions[word]
                     current_chunk = 0
                     is_fraction = True
-                elif  word in ["half"]: # has_qualifier
+                elif word in ["half"]:  # has_qualifier
                     # Allow qualifiers like "approx half", "roughly third"
                     fraction_value += self.fractions[word]
                     is_fraction = True
@@ -455,25 +582,26 @@ class MinimalTextCleaner:
 
     def normalize_acronyms(self, text: str) -> str:
         """
-        Normalizes acronyms (e.g. U.S. -> US) by removing dots, 
+        Normalizes acronyms (e.g. U.S. -> US) by removing dots,
         unless the dot acts as a sentence terminator (followed by uppercase).
         """
+
         def replace_func(match):
             original = match.group(0)
             normalized = original.replace(".", "")
-            
+
             end_idx = match.end()
             full_text = match.string
-            
+
             # Scan forward past whitespace
             i = end_idx
             while i < len(full_text) and full_text[i].isspace():
                 i += 1
-            
+
             # If we hit end of string or found an uppercase letter, treat as sentence end
             if i >= len(full_text) or full_text[i].isupper():
                 return f"{normalized}."
-            
+
             return normalized
 
         return self.acronym_pattern.sub(replace_func, text)
@@ -507,7 +635,9 @@ class MinimalTextCleaner:
                 core_name = self.normalize_company_name(company_name)
                 if len(core_name) > 2:
                     escaped_name = re.escape(core_name)
-                    suffix_regex = r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
+                    suffix_regex = (
+                        r"(?:\s+(?:" + "|".join(self.name_suffixes) + r")\.?)*"
+                    )
                     company_regex = re.compile(
                         rf"\b{escaped_name}{suffix_regex}(?:\b|(?<=\.))", re.IGNORECASE
                     )
@@ -517,7 +647,9 @@ class MinimalTextCleaner:
             paragraph = self.pronoun_pattern.sub(COMPANY_TOKEN, paragraph)
 
             # Fix capitalization of "the" (e.g. "the Company" at start of sentence)
-            paragraph = self.fix_the_capitalization_pattern.sub(lambda m: m.group(1) + "The", paragraph)
+            paragraph = self.fix_the_capitalization_pattern.sub(
+                lambda m: m.group(1) + "The", paragraph
+            )
 
             # 4. General Suffix Removal
             paragraph = self.text_suffix_pattern.sub("", paragraph)
@@ -534,10 +666,12 @@ class MinimalTextCleaner:
 
             # NEW: Protect False Fractions
             protected_map = {}
+
             def protect_match(m):
                 key = f"__FF_PROTECT_{len(protected_map)}__"
                 protected_map[key] = m.group(0)
                 return key
+
             paragraph = self.false_fraction_pattern.sub(protect_match, paragraph)
 
             # 5. Numbers
@@ -552,7 +686,9 @@ class MinimalTextCleaner:
             paragraph = self.all_worker_pattern.sub(r"100% of \1", paragraph)
             paragraph = self.worker_all_pattern.sub(r"\1 100%", paragraph)
             paragraph = self.no_worker_pattern.sub(r"0 \1", paragraph)
-            paragraph = self.number_phrase_pattern.sub(self._parse_number_phrase, paragraph)
+            paragraph = self.number_phrase_pattern.sub(
+                self._parse_number_phrase, paragraph
+            )
             paragraph = self.comma_pattern.sub("", paragraph)
             paragraph = self.scale_pattern.sub(self._scale_replacer, paragraph)
 
@@ -562,6 +698,7 @@ class MinimalTextCleaner:
 
             # Percent normalization
             paragraph = self.percent_pattern.sub("%", paragraph)
+            paragraph = self.percent_range_pattern.sub(r"\1% to \2%", paragraph)
             paragraph = self.percent_space_pattern.sub(r"\1%", paragraph)
 
             # Punctuation cleanup
@@ -574,11 +711,13 @@ class MinimalTextCleaner:
         text = "\n\n".join(texts)
         return text
 
+
 class CurrencyRemover:
     """
     Removes currency amounts from text.
     Designed to run AFTER MinimalTextCleaner has normalized numbers (removed commas).
     """
+
     def __init__(self):
         symbols = set()
         suffixes = set(["cent", "cents"])
@@ -596,7 +735,7 @@ class CurrencyRemover:
         self.currency_pattern = re.compile(
             rf"(?:(?:{symbol_pattern})\s*\(?\s*\d+(?:\.\d+)?\s*\)?)|"
             rf"(?:\b\d+(?:\.\d+)?\s+(?:{suffix_pattern})\b)",
-            re.IGNORECASE
+            re.IGNORECASE,
         )
 
     def clean(self, text: str) -> str:
@@ -615,17 +754,41 @@ class CurrencyRemover:
 
 class ContextualNumberCleaner:
     """Remove non-employee numbers from Item 1 union/labor paragraphs.
-        For example: We have 100 manufacturing facilities. There is 10% increase/decrease/growth. Decrease of 10%.
+    For example: We have 100 manufacturing facilities. There is 10% increase/decrease/growth. Decrease of 10%.
     """
+
     def __init__(self):
 
         # 1. Physical Assets / Facilities
         asset_terms = [
-            r"facilit(?:y|ies)", r"plants?", r"offices?", r"locations?", r"propert(?:y|ies)",
-            r"stores?", r"branch(?:es)?", r"warehouses?", r"square", r"sq\.?", r"restuarants?",
-            r"acres?", r"leases?", r"patents?", r"trademarks?", r"vehicles?", r"trucks?", r"auto(?:mobiles|s)?",
-            r"distributions?", r"laborator(?:y|ies)", r"labs?", r"centers?", r"mines?", # coal mines
-            r"air(?:line|craft|port|plane)?s?", r"customers", r"suppliers?", r"units?", r"products",
+            r"facilit(?:y|ies)",
+            r"plants?",
+            r"offices?",
+            r"locations?",
+            r"propert(?:y|ies)",
+            r"stores?",
+            r"branch(?:es)?",
+            r"warehouses?",
+            r"square",
+            r"sq\.?",
+            r"restuarants?",
+            r"acres?",
+            r"leases?",
+            r"patents?",
+            r"trademarks?",
+            r"vehicles?",
+            r"trucks?",
+            r"auto(?:mobiles|s)?",
+            r"distributions?",
+            r"laborator(?:y|ies)",
+            r"labs?",
+            r"centers?",
+            r"mines?",  # coal mines
+            r"air(?:line|craft|port|plane)?s?",
+            r"customers",
+            r"suppliers?",
+            r"units?",
+            r"products",
             r"disputes?",
         ]
 
@@ -634,38 +797,37 @@ class ContextualNumberCleaner:
 
         # Define number and range patterns
         num = r"\d+(?:\.\d+)?"
-        sep = r"\s*(?:-|to)\s*"
-        
+        sep = r"\s*(?:-|to|–|—)\s*"
+
         # Captures: 10, 10-20, 10 to 20
         number_range = rf"{num}(?:{sep}{num})?"
-        
+
         # Captures: 10%, 10-20%, 10 to 20%, 10%-20%
         percent_range = rf"{num}(?:\s*%?{sep}{num})?\s*%"
 
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
-            rf"\b{number_range}\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))", 
-            re.IGNORECASE
+            rf"\b{number_range}\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))",
+            re.IGNORECASE,
         )
-
 
         change_pattern = build_alternation(CHANGE_TERMS)
 
         # Matches: "10% increase"
         self.change_pre_regex = re.compile(
-            rf"\b{percent_range}\s+({change_pattern})\b", 
-            re.IGNORECASE
+            rf"\b{percent_range}\s+({change_pattern})\b", re.IGNORECASE
         )
 
-        # Matches: "increase of approx 10%" or "increase by 10%"
+        # Matches: "increase of approx 10%" or "increase by 10% to 30%"
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
             rf"(?:\s+[\w-]+){{0,5}}\s+"  # allow N filler words
+            rf"((?:{percent_range}|{number_range}\b)\s+"
+            rf"(?:[\w-]+\s+){{0,4}})?"
             rf"(?:{percent_range}|{number_range}\b)",
             re.IGNORECASE,
         )
-
 
         personnel_event_pattern = build_alternation(PERSONNEL_EVENT_TERMS)
 
@@ -709,15 +871,23 @@ class ConcisenessCleaner:
     Removes unnecessary words (articles, estimations) and simplifies verbose phrasing.
     Runs after other cleaners to prepare text for extraction.
     """
+
     def __init__(self):
-        # Words to remove completely
-        self.removals = [
-            r"\b(?:a|an|the)\b",
-            r"\b(?:approximately|approx\.?|roughly|estimated|est\.?)\b",
-            r"\b(?:herein|thereof|therein|hereby|whereby)\b",
-        ]
-        self.removal_regex = re.compile(
-            "|".join(self.removals), re.IGNORECASE
+        self.removal_regex = build_regex(
+            [
+                r"an?",
+                r"the",
+                r"approx(?:imate(?:ly)?|\.)?",
+                r"about",
+                r"exactly",
+                r"rough(?:ly)?",
+                r"est(?:imated?|\.?)",
+                r"herein",
+                r"thereof",
+                r"therein",
+                r"hereby",
+                r"whereby",
+            ]
         )
 
         # Replacements (Long -> Short)
@@ -728,22 +898,22 @@ class ConcisenessCleaner:
             (re.compile(r"\bupon\b", re.IGNORECASE), "on"),
             (re.compile(r"\bregarding\b", re.IGNORECASE), "about"),
         ]
-        
+
         self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
 
     def clean(self, text: str) -> str:
         if not text:
             return ""
-        
+
         # Apply removals
         text = self.removal_regex.sub(" ", text)
-        
+
         # Apply replacements
         for pattern, replacement in self.replacements:
             text = pattern.sub(replacement, text)
-            
+
         # Split into paragraphs to preserve structure and apply space cleaning per paragraph
-        paragraphs = text.split('\n\n')
+        paragraphs = text.split("\n\n")
         processed = []
         for p in paragraphs:
             p = clean_spaces_and_punctuation(p)
@@ -753,7 +923,7 @@ class ConcisenessCleaner:
                 p = p[0].upper() + p[1:]
             p = self.recap_pattern.sub(lambda m: m.group(1) + m.group(2).upper(), p)
             processed.append(p)
-            
+
         return "\n\n".join(processed)
 
 
@@ -761,27 +931,30 @@ class ConcisenessCleaner:
 # AUTOMATED TEST FRAMEWORK
 # ============================================================================
 
+
 class TestType(Enum):
     """Types of validation tests."""
-    CONTAINS = "contains"              # Result must contain string
-    NOT_CONTAINS = "not_contains"      # Result must not contain string
-    EXACT = "exact"                    # Result must be exact match
-    REGEX = "regex"                    # Result must match regex
-    LENGTH_LESS = "length_less"        # Result length < expected
+
+    CONTAINS = "contains"  # Result must contain string
+    NOT_CONTAINS = "not_contains"  # Result must not contain string
+    EXACT = "exact"  # Result must be exact match
+    REGEX = "regex"  # Result must match regex
+    LENGTH_LESS = "length_less"  # Result length < expected
     LENGTH_GREATER = "length_greater"  # Result length > expected
-    COUNT = "count"                    # Count of pattern occurrences
-    PROPERTY = "property"              # Custom property validation
+    COUNT = "count"  # Count of pattern occurrences
+    PROPERTY = "property"  # Custom property validation
 
 
 @dataclass
 class TestCase:
     """Represents a single test case."""
+
     name: str
     input_text: str
     company_name: Optional[str] = None
     reporting_year: Optional[int] = None
-    validations: Optional[List[Tuple[TestType, str, any]]] = None # type: ignore
-    
+    validations: Optional[List[Tuple[TestType, str, any]]] = None  # type: ignore
+
     def __post_init__(self):
         if self.validations is None:
             self.validations = []
@@ -789,21 +962,26 @@ class TestCase:
 
 class TestValidator:
     """Validates cleaned text against expected transformations."""
-    
+
     def __init__(self):
         self.cleaner = MinimalTextCleaner()
         self.results = []
         self.passed = 0
         self.failed = 0
-    
-    def add_validation(self, test_case: TestCase, test_type: TestType, 
-                      pattern: str, expected_value: Optional[any] = None) -> TestCase: # type: ignore
+
+    def add_validation(
+        self,
+        test_case: TestCase,
+        test_type: TestType,
+        pattern: str,
+        expected_value: Optional[Any] = None,
+    ) -> TestCase:  # type: ignore
         """Fluent API to add validation to a test case."""
         if test_case.validations is None:
             test_case.validations = []
         test_case.validations.append((test_type, pattern, expected_value))
         return test_case
-    
+
     def run_test(self, test_case: TestCase) -> Dict:
         """Run a single test case and return results."""
         result = {
@@ -812,97 +990,108 @@ class TestValidator:
             "company_name": test_case.company_name,
             "output": None,
             "passed": True,
-            "validations": []
+            "validations": [],
         }
-        
+
         # Clean the text
         output = self.cleaner.clean(
-            test_case.input_text,
-            test_case.company_name,
-            test_case.reporting_year
+            test_case.input_text, test_case.company_name, test_case.reporting_year
         )
         result["output"] = output
-        
+
         assert test_case.validations is not None
         # Run all validations
         for test_type, pattern, expected_value in test_case.validations:
-            validation_result = self._validate(output, test_type, pattern, expected_value)
+            validation_result = self._validate(
+                output, test_type, pattern, expected_value
+            )
             result["validations"].append(validation_result)
-            
+
             if not validation_result["passed"]:
                 result["passed"] = False
-        
+
         return result
-    
-    def _validate(self, text: str, test_type: TestType, pattern: str, 
-                  expected_value: any) -> Dict: # type: ignore
+
+    def _validate(
+        self, text: str, test_type: TestType, pattern: str, expected_value: Any
+    ) -> Dict:  # type: ignore
         """Execute a single validation."""
         validation = {
             "type": test_type.value,
             "pattern": pattern,
             "passed": False,
-            "message": ""
+            "message": "",
         }
-        
+
         try:
             if test_type == TestType.CONTAINS:
                 passed = pattern in text
                 validation["passed"] = passed
                 validation["message"] = f"{'✓' if passed else '✗'} Contains '{pattern}'"
-            
+
             elif test_type == TestType.NOT_CONTAINS:
                 passed = pattern not in text
                 validation["passed"] = passed
-                validation["message"] = f"{'✓' if passed else '✗'} Does not contain '{pattern}'"
-            
+                validation["message"] = (
+                    f"{'✓' if passed else '✗'} Does not contain '{pattern}'"
+                )
+
             elif test_type == TestType.EXACT:
                 passed = text == pattern
                 validation["passed"] = passed
                 validation["message"] = f"{'✓' if passed else '✗'} Exact match"
                 if not passed:
                     validation["message"] += f"\nExpected: {pattern}\nGot: {text}"
-            
+
             elif test_type == TestType.REGEX:
                 passed = bool(re.search(pattern, text))
                 validation["passed"] = passed
-                validation["message"] = f"{'✓' if passed else '✗'} Matches regex '{pattern}'"
-            
+                validation["message"] = (
+                    f"{'✓' if passed else '✗'} Matches regex '{pattern}'"
+                )
+
             elif test_type == TestType.LENGTH_LESS:
                 passed = len(text) < expected_value
                 validation["passed"] = passed
-                validation["message"] = f"{'✓' if passed else '✗'} Length {len(text)} < {expected_value}"
-            
+                validation["message"] = (
+                    f"{'✓' if passed else '✗'} Length {len(text)} < {expected_value}"
+                )
+
             elif test_type == TestType.LENGTH_GREATER:
                 passed = len(text) > expected_value
                 validation["passed"] = passed
-                validation["message"] = f"{'✓' if passed else '✗'} Length {len(text)} > {expected_value}"
-            
+                validation["message"] = (
+                    f"{'✓' if passed else '✗'} Length {len(text)} > {expected_value}"
+                )
+
             elif test_type == TestType.COUNT:
                 count = len(re.findall(pattern, text, re.IGNORECASE))
                 passed = count == expected_value
                 validation["passed"] = passed
-                validation["message"] = f"{'✓' if passed else '✗'} Pattern count: {count} (expected {expected_value})"
-            
+                validation["message"] = (
+                    f"{'✓' if passed else '✗'} Pattern count: {count} (expected {expected_value})"
+                )
+
         except Exception as e:
             validation["passed"] = False
             validation["message"] = f"✗ Error: {str(e)}"
-        
+
         return validation
-    
+
     def run_all_tests(self, test_cases: List[TestCase], debug: bool = False) -> bool:
         """Run all test cases and print results."""
         self.results = []
         self.passed = 0
         self.failed = 0
-        
-        print("\n" + "="*80)
+
+        print("\n" + "=" * 80)
         print("AUTOMATED TEXT CLEANER TEST SUITE")
-        print("="*80 + "\n")
-        
+        print("=" * 80 + "\n")
+
         for test_case in test_cases:
             result = self.run_test(test_case)
             self.results.append(result)
-            
+
             # Count pass/fail
             if result["passed"]:
                 self.passed += 1
@@ -910,34 +1099,45 @@ class TestValidator:
             else:
                 self.failed += 1
                 status = "✗ FAILED"
-            
+
             # Print input/output
             if not result["passed"] or debug:
                 # Print test header
                 print(f"{status} | {result['name']}")
                 print("-" * 80)
-                print(f"Input: {result['input'][:100]}..." if len(result['input']) > 100 else f"Input: {result['input']}")
-                print(f"Output: {result['output'][:100]}..." if len(result['output']) > 100 else f"Output: {result['output']}")
-            
+                print(
+                    f"Input: {result['input'][:100]}..."
+                    if len(result["input"]) > 100
+                    else f"Input: {result['input']}"
+                )
+                print(
+                    f"Output: {result['output'][:100]}..."
+                    if len(result["output"]) > 100
+                    else f"Output: {result['output']}"
+                )
+
                 # Print validation details
-                if result['validations']:
+                if result["validations"]:
                     print("\nValidations:")
-                    for v in result['validations']:
+                    for v in result["validations"]:
                         print(f"  {v['message']}")
-            
+
                 print()
-        
+
         # Summary
-        print("="*80)
-        print(f"SUMMARY: {self.passed} passed, {self.failed} failed out of {len(test_cases)} tests")
-        print("="*80 + "\n")
-        
+        print("=" * 80)
+        print(
+            f"SUMMARY: {self.passed} passed, {self.failed} failed out of {len(test_cases)} tests"
+        )
+        print("=" * 80 + "\n")
+
         return self.failed == 0
 
 
 # ============================================================================
 # TEST CASES
 # ============================================================================
+
 
 def create_test_cases() -> List[TestCase]:
     """Create comprehensive test cases."""
@@ -1337,5 +1537,5 @@ def run_tests():
     test_cases = create_test_cases()
     validator = TestValidator()
     all_passed = validator.run_all_tests(test_cases, debug=False)
-    
+
     return 0 if all_passed else 1
