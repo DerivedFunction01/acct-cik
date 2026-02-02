@@ -744,6 +744,10 @@ class ComplexCoverageAnalyzer:
         if self._handle_ranges(counts=counts):
             return self.data
 
+        # 1. Ratio Match (1 pct, 2 counts)
+        if self._handle_ratio_match(counts=counts):
+            return self.data
+
         # 1. Percent of Percent (High priority)
         if self._handle_percent_of_percent():
             return self.data
@@ -848,6 +852,88 @@ class ComplexCoverageAnalyzer:
                     return True
 
         return False
+
+    def _handle_ratio_match(self, counts: List[float]) -> bool:
+        """
+        Checks if we have exactly 1 percentage and 2 counts, and if they mathematically align.
+        """
+        if len(self.analysis.percentages) != 1 or len(counts) != 2:
+            return False
+
+        pct = self.analysis.percentages[0]
+        c1, c2 = counts[0], counts[1]
+
+        # Sort counts
+        s_counts = sorted([c1, c2])
+        small, large = s_counts[0], s_counts[1]
+        total_sum = small + large
+
+        # Ratios
+        ratio_subset_total = (small / large) * 100.0 if large > 0 else 0.0
+        ratio_part_sum = (small / total_sum) * 100.0 if total_sum > 0 else 0.0
+        ratio_large_sum = (large / total_sum) * 100.0 if total_sum > 0 else 0.0
+
+        matched = False
+        notes = []
+
+        # Helper to check negation
+        is_negated = False
+        pct_match = next((m for m in self.analysis._matches if m["type"] == MatchType.PERCENT and m["val"] == pct), None)
+        if pct_match and self.analysis.negation_terms:
+             if check_local_negation(pct_match["span"], self.analysis.text, backward=50, forward=50):
+                 is_negated = True
+
+        # Check 1: small / large ~= pct
+        if abs(ratio_subset_total - pct) < 2.0:
+            self.data["employee_count_total"] = large
+            if is_negated:
+                self.data["employee_count_not_covered"] = small
+                self.data["employee_count_covered"] = large - small
+                self.data["negated"] = True
+                self.data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Match: {small}/{large} ~= {pct}% (Negated). Total {large}.")
+            else:
+                self.data["employee_count_covered"] = small
+                self.data["employee_count_not_covered"] = large - small
+                notes.append(f"Match: {small}/{large} ~= {pct}%. Total {large}.")
+            matched = True
+
+        # Check 2: small / (small+large) ~= pct
+        elif abs(ratio_part_sum - pct) < 2.0:
+            self.data["employee_count_total"] = total_sum
+            if is_negated:
+                self.data["employee_count_not_covered"] = small
+                self.data["employee_count_covered"] = large
+                self.data["negated"] = True
+                self.data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Match: {small}/({small}+{large}) ~= {pct}% (Negated). Total {total_sum}.")
+            else:
+                self.data["employee_count_covered"] = small
+                self.data["employee_count_not_covered"] = large
+                notes.append(f"Match: {small}/({small}+{large}) ~= {pct}%. Total {total_sum}.")
+            matched = True
+
+        # Check 3: large / (small+large) ~= pct
+        elif abs(ratio_large_sum - pct) < 2.0:
+            self.data["employee_count_total"] = total_sum
+            if is_negated:
+                self.data["employee_count_not_covered"] = large
+                self.data["employee_count_covered"] = small
+                self.data["negated"] = True
+                self.data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Match: {large}/({small}+{large}) ~= {pct}% (Negated). Total {total_sum}.")
+            else:
+                self.data["employee_count_covered"] = large
+                self.data["employee_count_not_covered"] = small
+                notes.append(f"Match: {large}/({small}+{large}) ~= {pct}%. Total {total_sum}.")
+            matched = True
+
+        if matched:
+            self.data["percentage"] = pct
+            self.data["type"] = CoverageType.EXPLICIT_PERCENT.value
+            self.data["note"] = " | ".join(notes)
+
+        return matched
 
     def _handle_percent_of_percent(self) -> bool:
         """Handles '15% of the remaining 80%' logic."""
@@ -1540,14 +1626,40 @@ class Tracker:
 
     def _fill_region_gap(self, gap: float):
         """
-        Greedy approach to 'fill' in a region using unassigned numbers.
-        Skeleton implementation.
+        Greedy approach to 'fill' in a region using unassigned numbers
+        that match the gap between Global Total and Sum(Known Regions).
         """
-        # Strategy:
-        # 1. Iterate through self.candidates to find a count close to 'gap'
-        # 2. Verify candidate is not already used in region_totals
-        # 3. If found, promote to region_totals (e.g. "Rest of World")
-        pass
+        best_match = None
+        min_diff = float('inf')
+
+        for cand in self.candidates:
+            count = cand["count"]
+            context = cand["context"]
+            region = context.get("region")
+
+            # Ignore if no region, or if region is International/Unknown
+            if not region or region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                continue
+            
+            # Ignore if region is already tracked
+            if region in self.region_totals:
+                continue
+
+            # Check fit
+            diff = abs(count - gap)
+            
+            # Criteria: Relative error < 10% OR Absolute error <= 5
+            if (diff / gap < 0.10) or (diff <= 5):
+                if diff < min_diff:
+                    min_diff = diff
+                    best_match = (region, count)
+
+        if best_match:
+            region, count = best_match
+            self.region_totals[region] = count
+            self.resolution_log.append(
+                f"Inferred Region {region}: {count} based on Global Gap {gap:.1f}"
+            )
 
     def record_coverage(
         self,
@@ -1797,7 +1909,8 @@ class Tracker:
         Performs top-down calculation of coverage rates with priority logic.
         Priority: Explicit Rate > Explicit Count > Sum of Children.
         """
-        self.resolution_log = []
+        # Keep existing logs (e.g. from _fill_region_gap)
+        # self.resolution_log = []
 
         # 1. Resolve Countries (Rate -> Count)
         for code in self.country_totals:
@@ -1886,6 +1999,43 @@ class Tracker:
             self.resolution_log.append(
                 f"Region {region}: Total {total} -> Covered {covered:.1f} ({f'{rate:.1f}%' if rate is not None else 'N/A'}) via {source_desc}"
             )
+
+        # Gap Filling: If Global Union Count is known, infer missing regions
+        effective_global_covered = self.global_covered
+        if effective_global_covered <= 0:
+             g_rate, _ = self._resolve_rate(self.global_rate_candidates)
+             if g_rate is not None and self.global_total > 0:
+                 effective_global_covered = (g_rate / 100.0) * self.global_total
+        
+        if effective_global_covered > 0:
+            known_covered = 0.0
+            missing_regions = []
+            missing_workforce = 0.0
+            
+            for r, stats in final_region_stats.items():
+                if stats["rate"] is not None:
+                    known_covered += stats["covered"]
+                else:
+                    missing_regions.append(r)
+                    missing_workforce += stats["total"]
+            
+            if missing_regions and missing_workforce > 0:
+                residual = effective_global_covered - known_covered
+                # Tolerance for rounding (e.g. 1% of global)
+                if residual < 0 and abs(residual) < (effective_global_covered * 0.01):
+                    residual = 0.0
+                
+                if residual >= 0:
+                    implied_rate = (residual / missing_workforce) * 100.0
+                    # Sanity check: Rate <= 100% (with tolerance)
+                    if implied_rate <= 105.0:
+                        for r in missing_regions:
+                            stats = final_region_stats[r]
+                            stats["rate"] = implied_rate
+                            stats["covered"] = (implied_rate / 100.0) * stats["total"]
+                            self.resolution_log.append(
+                                f"Region {r}: Inferred Rate {implied_rate:.1f}% via Global Residual ({residual:.0f}/{missing_workforce:.0f})"
+                            )
 
         # 3. Resolve Global
         regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
