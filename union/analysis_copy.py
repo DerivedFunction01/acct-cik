@@ -435,6 +435,37 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
     
     return status.value if status != RelationshipStatus.UNKNOWN else None
 
+class Tracker:
+    """
+    Tracks the 'Whole Pie' (Total Employee Counts) across different geographic scopes.
+    Used to provide the correct denominator for coverage calculations.
+    """
+    def __init__(self):
+        self.global_total: float = 0.0
+        self.region_totals: Dict[str, float] = {}
+        self.country_totals: Dict[str, float] = {}
+
+    def update(self, count: float, geo_context: Dict[str, Any]):
+        region = geo_context.get("region")
+        countries = geo_context.get("countries", [])
+        
+        # 1. Global Update
+        # Update if region is International/Unknown OR if explicit "Total" context implies global
+        if region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value) and not countries:
+             if count > self.global_total:
+                 self.global_total = count
+        
+        # 2. Regional Update
+        if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+            if count > self.region_totals.get(region, 0):
+                self.region_totals[region] = count
+                
+        # 3. Country Update
+        for c in countries:
+            code = c["code"]
+            if count > self.country_totals.get(code, 0):
+                self.country_totals[code] = count
+
 class UnionAnalyzer:
     def __init__(self):
         self.extractor = UnionExtractor()
@@ -463,15 +494,18 @@ class UnionAnalyzer:
             if not paragraphs:
                 paragraphs = [text]
 
-            # 2. Calculate Global Max (scan all text)
-            all_sentences_flat = self.extractor.split_sentences(text)
-            global_max = self._get_global_max(all_sentences_flat, reporting_year)
+            # 2. Pass 1: Census (Populate Tracker with Totals)
+            tracker = Tracker()
+            all_sentences = self.extractor.split_sentences(text)
+            self._populate_tracker(all_sentences, tracker, reporting_year)
 
-            # 3. Process Paragraphs
+            # 3. Pass 2: Coverage Analysis (Process Paragraphs)
             results = []
             last_geo_context = None
             prev_paragraph_totals = {}
             all_region_totals = {}
+            
+            # Note: We can use tracker.global_total instead of recalculating global_max
 
             for p_text in paragraphs:
                 p_sentences = self.extractor.split_sentences(p_text)
@@ -480,7 +514,7 @@ class UnionAnalyzer:
                 block_results, local_totals, last_geo_context = self._analyze_block(
                     p_sentences, 
                     reporting_year=reporting_year, 
-                    global_max_workers=global_max, 
+                    global_max_workers=tracker.global_total, 
                     initial_geo_context=last_geo_context,
                     previous_totals=prev_paragraph_totals
                 )
@@ -494,53 +528,38 @@ class UnionAnalyzer:
                 # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
                 prev_paragraph_totals = local_totals
 
-            summary = self.compute_weighted_coverage(results, global_max, all_region_totals)
+            summary = self.compute_weighted_coverage(results, tracker, all_region_totals)
 
         return {"items": results, "summary": summary}
 
-    def _get_global_max(self, sentences: List[str], reporting_year: Optional[int] = None) -> float:
+    def _populate_tracker(self, sentences: List[str], tracker: Tracker, reporting_year: Optional[int] = None):
         """
-        Scans all sentences to find the maximum worker count mentioned, 
-        serving as a potential global denominator.
+        Pass 1: Scans text specifically to find population totals (denominators)
+        and populate the Tracker.
         """
-        global_max_workers = 0.0
-        explicit_global_max = 0.0
-
-        for s in sentences:
-            ans = self.extractor.analyze_sentence(s)
-
-            # Check for historical context
+        last_geo_context = None
+        last_geo_sentence_idx = -1
+        
+        for idx, s in enumerate(sentences):
+            analysis = self.extractor.analyze_sentence(s)
+            
+            # Skip historical counts
             is_historical = False
-            years_indicate_past = False
-            if reporting_year and ans.years:
-                if all(y < reporting_year for y in ans.years):
-                    years_indicate_past = True
-
-            if (years_indicate_past or ans.has_historical) and not ans.has_current:
-                is_historical = True
-
-            # Determine counts (Explicit Worker Counts or Fallback to Numbers)
-            counts = ans.worker_counts or [n for n in ans.numbers if n > 10]
-
-            if counts:
-                local_max = max(counts)
-                if not is_historical and local_max > global_max_workers:
-                    global_max_workers = local_max
-
-                    # Check for explicit "Total" context without specific regional limitation
-                    if check_is_total_context(ans):
-                        # Check if restricted to a region (e.g. "Total US employees")
-                        is_regional = False
-                        for m in ans.geo_matches:
-                            if m.source_type == GeoSource.EXPLICIT and m.region not in (Region.INTERNATIONAL, Region.UNKNOWN):
-                                is_regional = True
-                                break
-                        
-                        if not is_regional:
-                            if local_max > explicit_global_max:
-                                explicit_global_max = local_max
-
-        return explicit_global_max if explicit_global_max > 0 else global_max_workers
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years):
+                    is_historical = True
+            if (is_historical or analysis.has_historical) and not analysis.has_current:
+                continue
+            
+            if analysis.worker_counts:
+                # Determine context (reusing logic to ensure consistency with Pass 2)
+                geo_context = self._determine_geo_context(analysis, last_geo_context, idx, last_geo_sentence_idx)
+                
+                if geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INFERRED_UNION.value):
+                    last_geo_context = geo_context
+                    last_geo_sentence_idx = idx
+                    
+                tracker.update(max(analysis.worker_counts), geo_context)
 
     def _analyze_block(
         self, 
@@ -912,7 +931,17 @@ class UnionAnalyzer:
                     results.append(result)
         return results
 
-    def compute_weighted_coverage(self, results: List[Dict[str, Any]], global_workforce: float = 0.0, region_totals: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+    def compute_weighted_coverage(self, results: List[Dict[str, Any]], tracker: Tracker, region_totals: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
+        """
+        New summary function that currently just returns the Tracker's census data.
+        """
+        return {
+            "census_global_total": tracker.global_total,
+            "census_region_totals": tracker.region_totals,
+            "census_country_totals": tracker.country_totals
+        }
+
+    def compute_weighted_coverage_legacy(self, results: List[Dict[str, Any]], global_workforce: float = 0.0, region_totals: Optional[Dict[str, float]] = None) -> Dict[str, Any]:
         """
         Computes a weighted average of union coverage percentages from analysis results.
         Then selects the BEST TEXT CANDIDATE that matches the calculation.
