@@ -141,27 +141,30 @@ DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
+UNION_PHRASES = [
+    # collective + bargain
+    build_compound([CORE.COLLECTIVE], [CORE.BARGAIN, CORE.LABOR], sep_prefix=r"[\s-]+"),
+    # bargaining + (agreement, contracts)
+    build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"),
+    # union / unionized / unionization
+    CORE.UNION.value,
+    # reunionize, re-unionization,
+    CORE.REUNIONIZE.value,
+    # employees/workers + represented by
+    build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
+    # labor + (agreements, contracts, organizations)
+    build_compound(
+        [CORE.LABOR],
+        SUFFIX_AGREEMENTS + SUFFIX_ORGS + [CORE.UNION],
+        sep_prefix=r"[\s-]+",
+    ),
+    # organized labor
+    build_compound([CORE.ORGANIZED], [CORE.LABOR], sep_prefix=r"[\s-]+"),
+]
+
 
 class LABOR_TERMS:
-    SPECIFIC_PHRASES = [
-        # collective + bargain
-        build_compound([CORE.COLLECTIVE], [CORE.BARGAIN], sep_prefix=r"[\s-]+"),
-        # bargaining + (agreement, contracts)
-        build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"),
-        # union / unionized / unionization
-        CORE.UNION.value,
-        # reunionize, re-unionization,
-        CORE.REUNIONIZE.value,
-        # non-union(ized)
-        CORE.NONUNION.value,
-        # employees/workers + represented by
-        build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
-        # labor + (agreements, contracts, organizations)
-        build_compound([CORE.LABOR], SUFFIX_AGREEMENTS + SUFFIX_ORGS + [CORE.UNION], sep_prefix=r"[\s-]+"),
-        # organized labor
-        build_compound([CORE.ORGANIZED], [CORE.LABOR], sep_prefix=r"[\s-]+"),
-    ]
-
+    SPECIFIC_PHRASES = UNION_PHRASES + [CORE.NONUNION.value]
 
 class RISK_TERMS:
     PHRASES = [
@@ -289,10 +292,10 @@ COVERAGE_TERMS = [
     r"covered",
     r"affiliat(?:ed|ion)",
     r"union(?:ized)?",
-    r"collective\s+bargaining",
     r"agreements?",
     r"contracts?",
     r"arrangements?",
+    r"subject\s+to",
 ]
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 
@@ -313,8 +316,10 @@ NON_COVERAGE_PHRASES = [
     r"at[- ]will",
     r"operate(?:s|d)?\s+outside",
     r"decertif(?:ied|y|ications?)",
-    r"not\s+subject\s+to",
-    build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP),
+    r"not\s+under",
+    build_compound(
+        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + UNION_PHRASES, sep_prefix=GAP
+    ),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
