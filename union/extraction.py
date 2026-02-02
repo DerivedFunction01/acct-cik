@@ -539,7 +539,7 @@ QUALITATIVE_TERMS_AMB = [
     ),
     QualitativeTerm(
         core_terms=["certain"],
-        suffix_terms=["of", "number", "amount", "fraction", "employees", "workers", "members", "personnel", "staff"],
+        suffix_terms=["of", "number", "amount", "fraction"],
         positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
