@@ -38,6 +38,7 @@ logging.basicConfig(
 )
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
+RAW_PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 
 # =============================================================================
 # REGEX COMPILATION
@@ -114,14 +115,14 @@ def init_worker():
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
     CONCISENESS_CLEANER = ConcisenessCleaner()
 
-def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> List[str]:
+def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
     Cleans the text first, then checks for matches.
-    Returns a list of CLEANED blocks that match the regex.
+    Returns a tuple: (list of CLEANED blocks, list of raw percentages found in matched blocks).
     """
     if not content_list:
-        return []
+        return [], []
 
     assert FILTER_REGEX is not None
     assert CLEANER is not None
@@ -162,6 +163,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                         raw_blocks.append(line.strip())
 
     filtered = []
+    extracted_percents = []
     for block in raw_blocks:
 
         # Clean the text to remove false positives (e.g. "Credit Union")
@@ -194,8 +196,15 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
         if is_match:
             filtered.append(cleaned_block)
+            # Extract raw percents from the original block (before number normalization)
+            matches = RAW_PERCENT_REGEX.findall(block)
+            for m in matches:
+                try:
+                    extracted_percents.append(float(m))
+                except ValueError:
+                    pass
 
-    return filtered
+    return filtered, extracted_percents
 
 def process_batch(rows: List[Tuple]) -> List[Tuple]:
     """
@@ -222,8 +231,8 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
         except json.JSONDecodeError:
             continue
             
-        filtered_item1 = filter_content(item1_list, company_name, year, allow_risk=False)
-        filtered_item1a = filter_content(item1a_list, company_name, year, allow_risk=True)
+        filtered_item1, percents_item1 = filter_content(item1_list, company_name, year, allow_risk=False)
+        filtered_item1a, percents_item1a = filter_content(item1a_list, company_name, year, allow_risk=True)
         
         # Only keep row if we have relevant content in either section
         if filtered_item1 or filtered_item1a:
@@ -231,7 +240,9 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
                 accession,
                 json.dumps(filtered_item1),
                 json.dumps(filtered_item1a),
-                period
+                period,
+                json.dumps(percents_item1),
+                json.dumps(percents_item1a)
             ))
             
     return results
@@ -239,13 +250,16 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
 def create_target_db():
     conn = sqlite3.connect(TARGET_DB)
     c = conn.cursor()
+    c.execute("DROP TABLE IF EXISTS webpage_result")
     # Replicate schema from webpage.py
     c.execute("""
         CREATE TABLE IF NOT EXISTS webpage_result (
             accession TEXT PRIMARY KEY,
             item1 TEXT,
             item1a TEXT,
-            period_of_report TEXT
+            period_of_report TEXT,
+            item1_percents TEXT,
+            item1a_percents TEXT
         )
     """)
     c.execute("CREATE INDEX IF NOT EXISTS idx_accession ON webpage_result(accession)")
@@ -337,7 +351,7 @@ def main():
             tgt_conn = sqlite3.connect(TARGET_DB)
             tgt_c = tgt_conn.cursor()
             tgt_c.executemany(
-                "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
                 res_list
             )
             tgt_conn.commit()
