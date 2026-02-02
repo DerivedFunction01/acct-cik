@@ -8,7 +8,6 @@ from extraction import (
     MatchType,
     NEGATION_REGEX,
     REMAIN_REGEX,
-    RANGE_REGEX,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
 )
@@ -1471,7 +1470,52 @@ class UnionAnalyzer:
                 }
                 results.append(item)
 
-        return results, local_totals, last_geo_context
+        # Post-processing: Merge continuation items (Fix for split sentences)
+        # e.g. "In Germany we have X employees." -> "They are covered by Y."
+        merged_results = []
+        skip_indices = set()
+
+        for i in range(len(results)):
+            if i in skip_indices or "geographic_context" not in results[i]:
+                continue
+            current = results[i]
+
+            if i + 1 < len(results):
+                next_item = results[i+1]
+                if "geographic_context" not in next_item:
+                    continue
+
+                # Criteria: Next item inherits from Current, and Current has data
+                c_pct = current["coverage_data"].get("percentage")
+                is_saturated = (c_pct == 100.0)
+                is_empty = (c_pct == 0.0)
+
+                if (next_item["geographic_context"]["specificity"] == Specificity.INHERITED.value and
+                    next_item["geographic_context"].get("inherited_from_sentence_index") == current.get("sentence_index") and
+                    not is_saturated and not is_empty):
+
+                    c_data = current["coverage_data"]
+                    n_data = next_item["coverage_data"]
+
+                    # Merge Percentage
+                    if c_data["percentage"] is None and n_data["percentage"] is not None:
+                        c_data["percentage"] = n_data["percentage"]
+                        c_data["negated"] = n_data["negated"]
+                        c_data["negation_type"] = n_data["negation_type"]
+                        c_data["type"] = n_data["type"]
+                        c_data["note"] = (c_data["note"] or "") + " | " + (n_data["note"] or "")
+
+                    # Merge Counts
+                    if not c_data["employee_count_covered"] and n_data["employee_count_covered"]:
+                        c_data["employee_count_covered"] = n_data["employee_count_covered"]
+                    if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
+                        c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
+
+                    skip_indices.add(i+1)
+
+            merged_results.append(current)
+
+        return merged_results, local_totals, last_geo_context
 
     def _determine_coverage_data(
         self,
@@ -1499,6 +1543,27 @@ class UnionAnalyzer:
         rel_status = determine_relationship_status(analysis)
         if rel_status:
             data["relationship_status"] = rel_status
+
+        # Qualitative Quants (Soft Percent) - Fallback if no explicit data found
+        if data["percentage"] is None:
+            qual_matches = [m for m in analysis._matches if m['type'] == MatchType.QUALITATIVE_TERM]
+            if qual_matches:
+                match = qual_matches[0]
+                term = match.get('term_obj')
+                pattern_str = match.get('pattern_str', '')
+
+                if term:
+                    is_locally_negated = check_local_negation(match['span'], analysis.text)
+                    if term.is_absolute:
+                        data["percentage"] = term.positive_pct
+                        data["type"] = CoverageType.QUALITATIVE.value
+                        data["note"] = f"Absolute qualitative: '{pattern_str}'"
+                    else:
+                        pct = term.get_percentage(is_negated=is_locally_negated)
+                        if pct is not None:
+                            data["percentage"] = pct
+                            data["type"] = CoverageType.QUALITATIVE.value
+                            data["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
 
         return data
 
