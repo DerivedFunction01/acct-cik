@@ -19,6 +19,7 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 
 class CORE(Enum):
     UNION = r"Union(?:i(?:z|s)ed|i(?:z|s)ation|s)?"
+    UNIONIZE = r"Unioni(?:z|s)(?:ation|ed)"
     NONUNION = r"(?:non|un|not)[- ]?union(?:i(?:z|s)ed|s)?"
     REUNIONIZE = r"Re[- ]?unioni(?:z|s)(?:ations?|ed?)"
     COLLECTIVE = r"Collectives?"
@@ -143,11 +144,13 @@ DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
-UNION_PHRASES = [
-    # collective + bargain
+COLLECTIVE_BARGAIN = build_alternation([
     build_compound([CORE.COLLECTIVE], [CORE.BARGAIN, CORE.LABOR], sep_prefix=r"[\s-]+"),
-    # bargaining + (agreement, contracts)
-    build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"),
+    build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+")]
+)
+UNION_PHRASES = [
+    # collective + bargain + agreement
+    COLLECTIVE_BARGAIN,
     # union / unionized / unionization
     CORE.UNION.value,
     # reunionize, re-unionization,
@@ -162,6 +165,14 @@ UNION_PHRASES = [
     ),
     # organized labor
     build_compound([CORE.ORGANIZED], [CORE.LABOR], sep_prefix=r"[\s-]+"),
+]
+
+MEMBERSHIP_PHRASES = [
+    CORE.UNIONIZE,
+    COLLECTIVE_BARGAIN,
+    r"representation",
+    r"(?:union\s+)?memberships?",
+    r"affiliation",
 ]
 
 

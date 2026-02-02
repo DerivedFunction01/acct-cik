@@ -95,6 +95,7 @@ class MatchType(Enum):
     SUPPLIER_TERM = "SUPPLIER_TERM"
     COVERAGE_TERM = "COVERAGE_TERM"
     QUALITATIVE_TERM = "QUALITATIVE_TERM"
+    QUALITATIVE_MEMBERSHIP = "QUALITATIVE_MEMBERSHIP"
     TOTAL_MODIFIER = "TOTAL_MODIFIER"
     RESPECTIVELY = "RESPECTIVELY"
     REMAINING_OTHER = "REMAINING_OTHER"
@@ -125,6 +126,7 @@ class SentenceAnalysis:
     supplier_terms: List[str] = field(default_factory=list)
     coverage_terms: List[str] = field(default_factory=list)
     qualitative_terms: List[str] = field(default_factory=list)
+    qualitative_membership_terms: List[str] = field(default_factory=list)
     total_modifiers: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     
@@ -186,6 +188,89 @@ class QualitativeTerm:
         """Get the appropriate percentage based on negation."""
         return self.negated_pct if is_negated else self.positive_pct
 
+from defs.union_regex import MEMBERSHIP_PHRASES
+QUALITATIVE_MEMBERSHIP = [
+    # ===== 100% TIER (All/Entire/Full) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["all", "entire", "fully", "completely"],
+        positive_pct=100.0,
+        negated_pct=0.0,
+        requires_suffix=False,
+    ),
+    # ===== 85% TIER (Substantially/Heavily) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["substantially", "heavily", "largely", "predominantly"],
+        positive_pct=85.0,
+        negated_pct=10.0,  # "not substantially" = minority (~10%)
+        requires_suffix=False,
+    ),
+    # ===== 75% TIER (Vast Majority) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["vast majority", "overwhelming majority"],
+        positive_pct=75.0,
+        negated_pct=15.0,  # "not vast majority" = modest minority
+        requires_suffix=False,
+    ),
+    # ===== 65% TIER (Significant/Major) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["significant", "major", "considerable"],
+        positive_pct=65.0,
+        negated_pct=20.0,  # "not significant" = minor/small
+        requires_suffix=False,
+    ),
+    # ===== 51% TIER (Majority/Most) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["majority", "most"],
+        positive_pct=51.0,
+        negated_pct=10.0,  # "not majority" = minority
+        requires_suffix=False,
+    ),
+    # ===== 40% TIER (Substantial Minority) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["substantial", "notable", "fair"],
+        positive_pct=40.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+    # ===== 25% TIER (Meaningful/Notable) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["meaningful", "notable", "modest"],
+        positive_pct=25.0,
+        negated_pct=5.0,  # "not meaningful" = minimal
+        requires_suffix=False,
+    ),
+    # ===== 10% TIER (Small/Minor) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["small", "minor", "limited"],
+        positive_pct=10.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+    # ===== 5% TIER (Minimal/Negligible) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["minimal", "negligible", "token", "handful"],
+        positive_pct=5.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+    # ===== 1% TIER (De Minimis/Immaterial) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["immaterial", "de minimis", "insignificant"],
+        positive_pct=1.0,
+        negated_pct=20.0,  # "not immaterial" = material/significant
+        requires_suffix=False,
+    ),
+]
 
 QUALITATIVE_TERMS = [
     # ===== 75% TIER (Vast Majority) =====
@@ -198,7 +283,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 65% TIER (Predominant) =====
     QualitativeTerm(
-        core_terms=["portion", "share"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["predominant", "vast", "substantial", "overwhelming"],
         positive_pct=65.0,
         negated_pct=None,  # Downgrade is unclear
@@ -235,7 +320,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 40% TIER (Major/Predominant Minority) =====
     QualitativeTerm(
-        core_terms=["portion", "share"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["major"],
         positive_pct=40.0,
         negated_pct=None,  # "not major" could be modest, small, or minor
@@ -264,7 +349,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 25% TIER (Significant/Substantial) =====
     QualitativeTerm(
-        core_terms=["portion"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["significant", "substantial", "large", "meaningful"],
         positive_pct=25.0,
         negated_pct=None,  # Could be modest, small, or insignificant
@@ -307,7 +392,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 20% TIER (Good) =====
     QualitativeTerm(
-        core_terms=["portion", "share"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["good"],
         positive_pct=20.0,
         negated_pct=None,  # "not good" is vague
@@ -315,7 +400,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 15% TIER (Fair/Modest) =====
     QualitativeTerm(
-        core_terms=["portion", "share"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["fair", "modest"],
         positive_pct=15.0,
         negated_pct=None,  # Could be large or small
@@ -329,7 +414,7 @@ QUALITATIVE_TERMS = [
         requires_suffix=False,
     ),
     QualitativeTerm(
-        core_terms=["portion"],
+        core_terms=["portion", "share", "amount"],
         prefix_terms=["small", "minor", "little", "fractional"],
         positive_pct=10.0,
         negated_pct=None,  # "not small" could be modest, significant, or large
@@ -358,7 +443,14 @@ QUALITATIVE_TERMS = [
         requires_suffix=True,
     ),
     QualitativeTerm(
-        core_terms=["portion", "share", "number"],
+        core_terms=["number"],
+        prefix_terms=["small", "minor"],
+        positive_pct=5.0,
+        negated_pct=None,
+        requires_suffix=False,
+    ),
+    QualitativeTerm(
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["nominal", "limited"],
         positive_pct=5.0,
         negated_pct=None,  # Could be modest or significant
@@ -373,7 +465,7 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 1% TIER (Insignificant/Negligible) =====
     QualitativeTerm(
-        core_terms=["portion"],
+        core_terms=["portion", "share", "number", "amount"],
         prefix_terms=["insignificant", "minimal", "tiny", "trivial", "token"],
         positive_pct=1.0,
         negated_pct=None,  # Could be modest, significant, or substantial
@@ -419,6 +511,14 @@ for term in QUALITATIVE_TERMS:
     pattern_str = term.build_pattern()
     regex = build_regex([pattern_str])
     COMPILED_QUALITATIVE_PATTERNS.append(
+        {"regex": regex, "term": term, "pattern_str": pattern_str}
+    )
+
+COMPILED_QUALITATIVE_MEMBERSHIP_PATTERNS = []
+for term in QUALITATIVE_MEMBERSHIP:
+    pattern_str = term.build_pattern()
+    regex = build_regex([pattern_str])
+    COMPILED_QUALITATIVE_MEMBERSHIP_PATTERNS.append(
         {"regex": regex, "term": term, "pattern_str": pattern_str}
     )
 
@@ -636,6 +736,20 @@ class UnionExtractor:
                 item['regex'], MatchType.QUALITATIVE_TERM,
                 lambda m: m.group(0),
                 qual_side_effect
+            )
+
+        # 18b. Extract Qualitative Membership Terms
+        for item in COMPILED_QUALITATIVE_MEMBERSHIP_PATTERNS:
+            def qual_mem_side_effect(m, val):
+                analysis.qualitative_membership_terms.append(val)
+                if analysis._matches:
+                    analysis._matches[-1]['term_obj'] = item['term']
+                    analysis._matches[-1]['pattern_str'] = item['pattern_str']
+
+            process_matches(
+                item['regex'], MatchType.QUALITATIVE_MEMBERSHIP,
+                lambda m: m.group(0),
+                qual_mem_side_effect
             )
 
         # 19. Extract Total Modifiers
