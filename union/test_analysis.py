@@ -9,8 +9,7 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 """
 
 import json
-from extraction import UnionExtractor
-from analysis_copy import UnionAnalyzer
+from analysis import UnionAnalyzer
 from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
@@ -18,56 +17,52 @@ ITEM_1 = """
 ITEM 1. BUSINESS
 
 TechAdvance Manufacturing Corp and its subsidiaries operate a global manufacturing, logistics, and 
-technology services business. As of December 31, 2023, we employ approximately 118,400 employees 
+technology services business. As of December 31, 2023, we employ approximately 100,000 employees 
 worldwide across North America, Europe, Latin America, and Asia-Pacific regions.
 
 Employees and Labor Relations
 
 We maintain a diverse workforce across multiple operational divisions. As of year-end 2023, our total 
-global employee base consisted of approximately 118,400 personnel.
+global employee base consisted of approximately 100,000 personnel.
 
-United States Operations. Our domestic operations employ 66,120 workers across 16 manufacturing 
-facilities and 31 distribution hubs. Of our 16,800 hourly production workers, 13,260 are represented 
-by the United Auto Workers (UAW) under collective bargaining agreements. Among our 1,520 logistics 
-personnel in East Coast distribution centers, 1,180 are represented by the International Brotherhood 
-of Teamsters.
+United States Operations. Our domestic operations employ 57,520 workers across 15 manufacturing 
+facilities and 30 distribution hubs. Of our 14,200 hourly production workers, 11,644 are represented 
+by the United Auto Workers (UAW) under collective bargaining agreements. Additionally, 920 logistics 
+personnel in our East Coast distribution centers are fully represented by the International Brotherhood 
+of Teamsters. 
 
-Our flight operations employ 540 pilots, of whom 510 are represented under the Air Line Pilots 
-Association (ALPA). We employ 260 senior managers who are not subject to collective bargaining 
-agreements. The remaining 54,070 U.S. employees, consisting primarily of technical, administrative, 
-and sales personnel, include 4,900 workers covered by various professional associations that engage 
-in limited bargaining activities but do not constitute formal union representation. In 2023, we 
-reduced U.S. headcount by 1,640 positions through operational efficiency initiatives, contributing 
-to a 1.5% decline in overall union density within the United States.
+Our flight operations employ 500 pilots, all of whom are unionized under the Air Line Pilots Association (ALPA).
+We employ 200 senior managers who are not subject to collective bargaining agreements. The remaining 44,256 
+U.S. employees, consisting primarily of technical, administrative, and sales personnel, are non-union. 
+In 2023, we reduced U.S. headcount by 1,500 positions through operational efficiency initiatives, 
+which contributed to a 3% decline in overall union density within the United States.
 
-European Operations. We employ 8,420 workers across Europe. In France, we operate facilities with 
-3,380 employees, of whom 2,940 are covered by industry-wide collective bargaining agreements and 
-represented through the Comité Social et Économique. In Germany, we employ 4,240 workers across two 
-principal locations. Our Hamburg manufacturing facility employs 2,720 workers, with 2,510 maintaining 
-membership in IG Metall. Our Munich administrative center employs 1,520 workers, where 430 employees 
-participate in Works Council (Betriebsrat) structures that provide consultation rights but do not 
-constitute formal union representation.
+European Operations. We employ 7,100 workers across Europe. In France, we operate facilities with 3,000 
+employees who are substantially all covered by industry-wide collective bargaining agreements and represented 
+through the Comité Social et Économique, a mandatory French employee representation structure. In Germany, 
+we employ 4,100 workers across two principal locations. Our Hamburg manufacturing facility employs 2,600 workers, 
+of whom 95%, or approximately 2,470 employees, maintain membership in IG Metall. Our Munich administrative center
+employs 1,500 workers and operates under German Works Council (Betriebsrat) provisions, which provide for 
+employee consultation and co-determination rights, though we maintain no formal union contract at this location.
 
-Latin American Operations. We employ 3,620 workers in Latin America. In Mexico, our manufacturing 
-operations in Monterrey employ 2,240 workers, of whom 420, or approximately 19%, are represented under 
-a collective bargaining agreement with the Sindicato de Trabajadores Mineros Unidos. In Brazil, our 
-operations employ 1,380 workers, with 310 employees maintaining membership in sectoral unions that 
-participate in annual wage-setting negotiations.
+Latin American Operations. We employ 2,900 workers in Latin America. In Mexico, our manufacturing operations 
+in Monterrey employ 1,800 workers. Approximately 270 employees, or 15% of our Mexican workforce, are 
+represented under a collective bargaining agreement with the Sindicato de Trabajadores Mineros Unidos. 
+In Brazil, our operations employ 1,100 workers. While subject to annual industry-wide union negotiations 
+and wage setting mechanisms, formal union membership among our Brazilian workforce remains limited.
 
-Asia-Pacific Operations. We employ 40,240 workers across Asia-Pacific. In Japan, we employ 3,620 
-workers, with 1,040 participating in enterprise-level employee associations that negotiate certain 
-working conditions but are not classified as formal unions. In China, we employ 11,480 workers across 
-multiple manufacturing sites. Within the ACFTU framework, 4,260 employees participate in workplace 
-representation committees with limited bargaining authority. 
+Asia-Pacific Operations. We employ 33,200 workers across Asia-Pacific. In Japan, we employ 3,200 workers 
+who participate in the annual Shunto wage negotiation process; however, these employees remain entirely
+non-union. In China, we employ 10,000 workers across multiple manufacturing sites. Our Chinese operations 
+operate within the All-China Federation of Trade Unions (ACFTU) framework as required by applicable law. 
+However, we report zero formal collective bargaining representation for our Chinese workforce. 
 
-In India, our technology hub in Bangalore employs 25,140 software engineers and technical support 
-personnel, of whom 2,180 participate in professional guilds that coordinate training and workplace 
-advocacy but do not engage in collective bargaining.
+In India, our technology hub in Bangalore employs 20,000 software engineers and technical support 
+personnel, none of whom are currently unionized.
 
 Summary. Worldwide, as of December 31, 2023, our unionized workforce totaled approximately 
-23,360 employees, representing roughly 20% of our total global workforce. An additional 8,550 
-employees participate in non-union representation structures with limited or advisory authority.
-
+18,800 employees, representing approximately 19% of our total global workforce. This represented a 
+modest decline from prior year due to operational changes and divestitures.
 """
 
 ITEM_1A = """
@@ -130,69 +125,36 @@ attract talent and maintain customer relationships, particularly among customers
 
 """
 
-Global totals
-Global employees: 118,400
+## Breakdown of True Unionization Rate
 
-Unionized employees: 23,360
+**Covered (Unionized) Employees:**
+- UAW (U.S. manufacturing): 11,644
+- Teamsters (U.S. logistics): 920
+- ALPA (U.S. pilots): 500
+- France (Comité Social): 3,000
+- Germany/IG Metall (Hamburg): 2,470
+- Mexico (Sindicato): 270
+- **Total covered: 18,804**
 
-Non‑union representation (associations, works councils, guilds): 8,550
+**Not Covered (Non-Union) Employees:**
+- U.S. non-union: 44,256
+- U.S. senior managers: 200
+- Germany/Works Council only (Munich): 1,500
+- Japan (Shunto, non-union): 3,200
+- China (ACFTU, zero formal bargaining): 10,000
+- India (non-unionized): 20,000
+- Brazil (low formal membership): 1,100
+- **Total not covered: 80,256**
 
-Union density: ~20%
+**Global Workforce Total: 99,060**
 
-United States
-Total US employees: 66,120
+**Global Unionization Rate: 18,804 ÷ 99,060 = 18.98% ≈ 19%**
 
-UAW: 13,260
-
-Teamsters: 1,180
-
-ALPA: 510
-
-Professional associations (non‑union): 4,900
-
-US union total: 13,260 + 1,180 + 510 = 14,950
-
-Europe
-Total Europe employees: 8,420
-
-France CSE (union‑covered): 2,940
-
-Germany IG Metall: 2,510
-
-Germany Works Council (non‑union representation): 430
-
-Europe union total: 2,940 + 2,510 = 5,450
-
-Latin America
-Total Latin America employees: 3,620
-
-Mexico union: 420
-
-Brazil union: 310
-
-Latin America union total: 420 + 310 = 730
-
-Asia-Pacific
-Total APAC employees: 40,240
-
-Japan associations (non‑union): 1,040
-
-China ACFTU committees (limited representation): 4,260
-
-India guilds (non‑union): 2,180
-
-APAC union total: 0 (but with 4,260 quasi‑representative ACFTU participants)
-
-Unionized workforce total
-US: 14,950
-
-Europe: 5,450
-
-Latin America: 730
-
-APAC: 0
-
-Global union total: 23,130 (rounds to 23,360 in narrative to simulate reporting imprecision)
+**By Region:**
+- **U.S.**: 13,064 / 57,520 = 22.7%
+- **Europe**: 5,470 / 7,100 = 77.0%
+- **Latin America**: 270 / 2,900 = 9.3%
+- **Asia-Pacific**: 0 / 33,200 = 0.0%
 """
 
 
