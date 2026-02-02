@@ -934,7 +934,7 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     # Allow fix price contracts to
     _SOFT_PRICE = [
         r"fixed[- ]price purchase",
-        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ]{modifier_alternation})?",
+        rf"(?:fixed[- ])?{commodity_alternation}(?:[- ]{modifier_alternation})",
     ]
 
     _SOFT_PRICE_CONTRACT_CONFIG = DERIVATIVES(
