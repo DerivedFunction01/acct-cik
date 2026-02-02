@@ -164,18 +164,78 @@ def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
         
     return True
 
-def determine_geo_context(analysis: SentenceAnalysis, last_context, current_idx, last_idx) -> Dict[str, Any]:
+def determine_geo_context(analysis: SentenceAnalysis, last_context: Optional[Dict[str, Any]], current_idx: int, last_idx: int) -> Dict[str, Any]:
     """
     Resolves geographic context based on explicit matches, union names,
     language inference, or inheritance.
     """
-    return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
+    # 1. Explicit Geography (Highest Priority)
+    explicit_matches = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
+    if explicit_matches:
+        countries = []
+        regions = set()
+        
+        for m in explicit_matches:
+            if m.country:
+                countries.append({"name": m.country, "code": m.geo_code})
+            if m.region:
+                regions.add(m.region.value)
+        
+        # Resolve Region
+        if len(regions) == 1:
+            region_val = list(regions)[0]
+        elif len(regions) > 1:
+            region_val = Region.INTERNATIONAL.value
+        else:
+            region_val = Region.UNKNOWN.value
+
+        return {
+            "region": region_val,
+            "countries": countries,
+            "specificity": Specificity.EXPLICIT.value,
+            "explicit_countries": [c["name"] for c in countries]
+        }
+
+    # 2. Inferred from Union Name (Medium Priority)
+    union_matches = [m for m in analysis.geo_matches if m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)]
+    if union_matches:
+        # Use the first specific union found
+        m = union_matches[0]
+        return {
+            "region": m.region.value if m.region else Region.UNKNOWN.value,
+            "countries": [{"name": m.country, "code": m.geo_code}] if m.country else [],
+            "specificity": Specificity.INFERRED_UNION.value,
+            "union_name_indicator": m.text,
+        }
+
+    # 3. Inheritance (Lowest Priority)
+    if last_context:
+        ctx = last_context.copy()
+        ctx["specificity"] = Specificity.INHERITED.value
+        ctx["inherited_from_sentence_index"] = last_idx
+        # Remove source-specific metadata
+        ctx.pop("union_name_indicator", None)
+        ctx.pop("explicit_countries", None)
+        return ctx
+
+    # 4. Fallback
+    return {
+        "region": Region.UNKNOWN.value, 
+        "countries": [], 
+        "specificity": Specificity.IMPLICIT.value
+    }
 
 
 class UnionAnalyzer:
     def __init__(self):
         self.extractor = UnionExtractor()
         self.simple_analyzer = SimpleCoverageAnalyzer()
+
+    def _determine_geo_context(self, analysis: SentenceAnalysis, last_context, current_idx, last_idx) -> Dict[str, Any]:
+        """
+        Local wrapper for geographic context determination.
+        """
+        return determine_geo_context(analysis, last_context, current_idx, last_idx)
 
     def analyze_paragraph(self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None) -> Dict[str, Any]:
         """
@@ -312,7 +372,7 @@ class UnionAnalyzer:
                 continue
 
             # 4. Determine Geographic Context
-            geo_context = determine_geo_context(
+            geo_context = self._determine_geo_context(
                 analysis, last_geo_context, idx, last_geo_sentence_idx
             )
 
