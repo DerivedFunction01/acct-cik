@@ -230,18 +230,18 @@ if __name__ == "__main__":
     cleaned_text = currency_remover.clean(cleaned_text)
     cleaned_text = contextual_cleaner.clean(cleaned_text)
 
-    print("="* 80)
-    print("Cleaned Text (Item 1A):\n")
-    print(cleaned_text)
-    print("\n" + "=" * 80)
+    # print("="* 80)
+    # print("Cleaned Text (Item 1A):\n")
+    # print(cleaned_text)
+    # print("\n" + "=" * 80)
 
-    analysis_output_1a = analyzer.analyze_paragraph(
-        cleaned_text, item_type="item1a", reporting_year=reporting_year
-    )
+    # analysis_output_1a = analyzer.analyze_paragraph(
+    #     cleaned_text, item_type="item1a", reporting_year=reporting_year
+    # )
 
-    results_1a = analysis_output_1a.get("items", [])
+    # results_1a = analysis_output_1a.get("items", [])
 
-    print(f"Total Risk Factors Extracted: {len(results_1a)}\n")
-    print(json.dumps(results_1a, indent=2))
+    # print(f"Total Risk Factors Extracted: {len(results_1a)}\n")
+    # print(json.dumps(results_1a, indent=2))
 
 # %%

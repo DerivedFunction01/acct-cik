@@ -18,6 +18,49 @@ NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
 
+# --- Temporal Regexes ---
+CONDITIONAL_REGEX = build_regex([
+    r"if", r"could", r"may", r"might", r"potential", r"possible", r"can"
+])
+
+CURRENT_REGEX = build_regex([
+    r"current(?:ly)?", r"present", r"now", r"today",
+    r"this\s+(?:fiscal|reporting)\s+(?:year|period)"
+])
+
+HISTORICAL_REGEX = build_regex([
+    r"historical(?:ly)?", r"previously", r"prior\s+to",
+    r"(?:last|prior|past|previous|preceding)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
+])
+
+FUTURE_REGEX = build_regex([
+    r"in\s+the\s+future",
+    r"(?:future|next|upcoming)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
+])
+
+NEGATION_REGEX = build_regex([
+    r"no", r"not", r"nor", r"without", r"neither", r"none", r"never"
+])
+
+REMAIN_REGEX = build_regex([
+    r"remaining", r"rest", r"balance", r"other"
+])
+
+RANGE_REGEX = build_regex([
+    r"to", r"-", r"through", r"and"
+])
+
+OF_REGEX = build_regex([
+    r"(?:out\s+)?of"
+])
+
+QUALITATIVE_MULTIPLIERS = [
+    (build_regex([r"almost", r"nearly", r"virtually"]), 0.95),
+    (build_regex([r"(?:slightly|just)\s+(?:under|below)", r"less\s+than"]), 0.90),
+    (build_regex([r"materially\s+less\s+than"]), 0.80),
+    (build_regex([r"(?:slightly|just)\s+(?:over|above)", r"more\s+than"]), 1.10),
+]
+
 # Worker Count Pattern: Number + (optional gap) + Worker Term
 worker_term_pattern = build_alternation(WORKER_TERMS)
 WORKER_COUNT_REGEX = build_regex(
@@ -77,6 +120,12 @@ class SentenceAnalysis:
     coverage_terms: List[str] = field(default_factory=list)
     qualitative_terms: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
+    
+    # Temporal / Conditional flags
+    has_conditional: bool = False
+    has_current: bool = False
+    has_historical: bool = False
+    has_future: bool = False
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -372,6 +421,12 @@ class UnionExtractor:
         analysis = SentenceAnalysis(text=text)
         working_text = text  # Mutable text for masking
         
+        # Pre-compute temporal flags
+        analysis.has_conditional = bool(CONDITIONAL_REGEX.search(text))
+        analysis.has_current = bool(CURRENT_REGEX.search(text))
+        analysis.has_historical = bool(HISTORICAL_REGEX.search(text))
+        analysis.has_future = bool(FUTURE_REGEX.search(text))
+        
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
             nonlocal working_text
             current_iter_matches = list(pattern.finditer(working_text))
@@ -570,7 +625,7 @@ class UnionExtractor:
                 lambda m: m.group(0),
                 qual_side_effect
             )
-
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
