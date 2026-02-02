@@ -1179,13 +1179,29 @@ def determine_geo_context(
         # Check for specific union inference
         specific_unions = [m for m in union_matches if m.country]
         if specific_unions:
-            # Use the first specific union found
-            m = specific_unions[0]
+            # Aggregate all inferred countries
+            countries_map = {}
+            regions_found = set()
+            union_names_set = set()
+            union_names = []
+            
+            for m in specific_unions:
+                if m.geo_code not in countries_map:
+                    countries_map[m.geo_code] = {"name": m.country, "code": m.geo_code}
+                regions_found.add(m.region)
+                if m.text not in union_names_set:
+                    union_names.append(m.text)
+                    union_names_set.add(m.text)
+            
+            countries = list(countries_map.values())
+            region_val = list(regions_found)[0].value if len(regions_found) == 1 else Region.INTERNATIONAL.value
+
             return {
-                "region": m.region.value,
-                "countries": [{"name": m.country, "code": m.geo_code}],
+                "region": region_val,
+                "countries": countries,
                 "specificity": Specificity.INFERRED_UNION.value,
-                "union_name_indicator": m.text,
+                "union_name_indicator": ", ".join(union_names),
+                "union_names_mentioned": union_names,
             }
 
         # Check for language-based inference (INT_ES, INT_PT, etc.)
@@ -1284,6 +1300,7 @@ class Tracker:
         self.global_rate_qualitative: bool = False
         self.region_rates_qualitative: Dict[str, bool] = {}
         self.country_rates_qualitative: Dict[str, bool] = {}
+        self.region_rates_weights: Dict[str, float] = {} # Stores scope_total of the rate to prioritize larger groups
         
         self.global_covered: float = 0.0
         self.region_covered: Dict[str, float] = {}
@@ -1300,6 +1317,7 @@ class Tracker:
         )
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
+        specificity = geo_context.get("specificity")
 
         # 1. Global Update
         if (
@@ -1318,10 +1336,15 @@ class Tracker:
         # 2. Regional Update
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
             current = self.region_totals.get(region, 0)
+            
+            # Filter: If specificity indicates a union-derived context (subset), 
+            # and it's not explicitly a total, do NOT treat as a region total candidate.
+            is_union_context = specificity in (Specificity.INFERRED_UNION.value, Specificity.EXPLICIT_INFERRED.value)
+            
             if is_explicit_total:
                 self.region_totals[region] = max(current, count)
                 self.explicit_regions.add(region)
-            elif region not in self.explicit_regions:
+            elif region not in self.explicit_regions and not is_union_context:
                 # Only update implicit if region is not locked by explicit total
                 if count > current:
                     self.region_totals[region] = count
@@ -1332,14 +1355,14 @@ class Tracker:
             for c in countries:
                 self.region_country_map[region].add(c["code"])
 
-        # 3. Country Update
-        # Only update specific country totals if the count is associated with a SINGLE country.
-        # If multiple countries are listed (e.g. "5000 in X, Y, and Z"), the count is an aggregate.
-        if len(countries) == 1:
-            c = countries[0]
-            code = c["code"]
-            if count > self.country_totals.get(code, 0):
-                self.country_totals[code] = count
+            # 3. Country Update
+            # Only update specific country totals if the count is associated with a SINGLE country.
+            # If multiple countries are listed (e.g. "5000 in X, Y, and Z"), the count is an aggregate.
+            if len(countries) == 1 and not is_union_context:
+                c = countries[0]
+                code = c["code"]
+                if count > self.country_totals.get(code, 0):
+                    self.country_totals[code] = count
 
         self.reconcile()
 
@@ -1349,6 +1372,28 @@ class Tracker:
         Constraint: Sum of children (countries) cannot exceed parent (region).
         If violated, we assume double-counting and prioritize larger entities until full.
         """
+        # 0. Backfill totals from Union Subsets (Summation Logic)
+        # If a region has NO total (or 0), try to sum up disjoint union counts found in candidates.
+        for region in self.region_country_map.keys():
+            if self.region_totals.get(region, 0) == 0:
+                # Find candidates for this region that were skipped in update() due to union context
+                union_candidates = []
+                for cand in self.candidates:
+                    c_ctx = cand["context"]
+                    if c_ctx.get("region") == region:
+                        spec = c_ctx.get("specificity")
+                        if spec in (Specificity.INFERRED_UNION.value, Specificity.EXPLICIT_INFERRED.value):
+                            union_candidates.append(cand)
+                
+                # Simple Summation: Assume different union mentions are disjoint subsets
+                # (e.g. "1000 UAW" + "500 Teamsters" -> 1500 Total)
+                # We deduplicate by exact count and context to avoid double counting the exact same sentence match
+                unique_candidates = {(c["count"], str(c["context"].get("union_names_mentioned"))) for c in union_candidates}
+                implied_total = sum(c[0] for c in unique_candidates)
+                
+                if implied_total > 0:
+                    self.region_totals[region] = implied_total
+
         for region, countries in self.region_country_map.items():
             region_total = self.region_totals.get(region, 0)
             if region_total <= 0:
@@ -1368,6 +1413,11 @@ class Tracker:
                 if running_sum + val <= region_total:
                     running_sum += val
                     accepted_countries.add(c)
+
+            # Ensure region total is at least the sum of its accepted children
+            children_sum_total = sum(self.country_totals.get(c, 0) for c in accepted_countries)
+            if children_sum_total > self.region_totals.get(region, 0):
+                self.region_totals[region] = children_sum_total
 
             # Update the map to only include the 'accepted' disjoint children
             self.region_country_map[region] = accepted_countries
@@ -1413,6 +1463,7 @@ class Tracker:
         """
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
+        specificity = geo_context.get("specificity")
         
         # Determine scope
         scope = "global"
@@ -1428,6 +1479,17 @@ class Tracker:
             # If multiple countries are listed (e.g. "Germany and France"), 
             # this is an aggregate count, not a region-wide rate.
             scope = "aggregate"
+            
+        # Determine if this is a partial subset of the region (e.g. "10 pilots" in a region of 5000)
+        is_subset = False
+        if scope == "region" and region and scope_total is not None:
+            region_total = self.region_totals.get(region, 0)
+            if region_total > 0 and scope_total < (region_total * 0.5):
+                is_subset = True
+        
+        # Inferred unions (e.g. "UAW members") are inherently subsets/segments, even if large
+        if scope == "region" and specificity == Specificity.INFERRED_UNION.value:
+            is_subset = True
             
         # --- 2-of-3 Derivation and Validation ---
         # Determine the effective total to use for validation/calculation
@@ -1467,7 +1529,8 @@ class Tracker:
                 pass
 
         # Track Completeness: Explicit region mention implies complete coverage info for that region
-        if scope == "region" and region:
+        has_data = (percentage is not None) or (covered_count is not None)
+        if scope == "region" and region and specificity != Specificity.INFERRED_UNION.value and has_data and not is_subset:
             self.region_completeness[region] = True
 
         # Check if sum of covered + not_covered matches the region total (approximate)
@@ -1486,12 +1549,21 @@ class Tracker:
                 self.global_rate = percentage
                 self.global_rate_qualitative = is_qualitative
             elif scope == "region" and region and not countries:
-                # Only trust region rate if it's NOT tied to specific countries
-                self.region_rates[region] = percentage
-                self.region_rates_qualitative[region] = is_qualitative
+                # Only trust region rate if it's NOT tied to specific countries, NOT inferred from union name,
+                # and NOT a small subset of the region
+                if specificity != Specificity.INFERRED_UNION.value and not is_subset:
+                    # Weight logic: Prefer General (None/Inf) > Large Count > Small Count
+                    new_weight = scope_total if scope_total is not None else float('inf')
+                    current_weight = self.region_rates_weights.get(region, -1.0)
+                    
+                    if new_weight >= current_weight:
+                        self.region_rates[region] = percentage
+                        self.region_rates_qualitative[region] = is_qualitative
+                        self.region_rates_weights[region] = new_weight
             elif scope == "country" and target_code:
-                self.country_rates[target_code] = percentage
-                self.country_rates_qualitative[target_code] = is_qualitative
+                if specificity != Specificity.INFERRED_UNION.value:
+                    self.country_rates[target_code] = percentage
+                    self.country_rates_qualitative[target_code] = is_qualitative
             elif scope == "aggregate":
                 # Calculate implied count for this specific group and add to region_covered
                 # Do NOT set region_rates (which would override everything else)
@@ -1506,7 +1578,11 @@ class Tracker:
             if scope == "global":
                 self.global_covered = max(self.global_covered, covered_count)
             elif scope == "region" and region:
-                self.region_covered[region] = max(self.region_covered.get(region, 0), covered_count)
+                if is_subset:
+                    # If it's a subset, treat as aggregate to avoid implying full region coverage
+                    self.region_aggregates[region] = max(self.region_aggregates.get(region, 0), covered_count)
+                else:
+                    self.region_covered[region] = max(self.region_covered.get(region, 0), covered_count)
             elif scope == "aggregate" and region:
                 # Store aggregates separately so they don't override complete region counts
                 self.region_aggregates[region] = max(self.region_aggregates.get(region, 0), covered_count)
