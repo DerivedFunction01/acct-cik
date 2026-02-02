@@ -314,7 +314,7 @@ NON_COVERAGE_PHRASES = [
     r"operate(?:s|d)?\s+outside",
     r"decertif(?:ied|y|ications?)",
     r"not\s+subject\s+to",
-    build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=r"[- ]?"),
+    build_compound(NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
@@ -347,7 +347,7 @@ def run_test():
         print(f"Match:  {matches}")
         print("-" * 20)
 
-# 3. Personnel Events (Hiring, Firing, Furlough)
+    # 3. Personnel Events (Hiring, Firing, Furlough)
 PERSONNEL_EVENT_TERMS = [
     r"furlough(?:s|ed|ing)?",
     r"recall(?:s|ed|ing)?",

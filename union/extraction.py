@@ -22,6 +22,7 @@ RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?o
 worker_term_pattern = build_alternation(WORKER_TERMS)
 WORKER_COUNT_REGEX = build_regex(
     [
+        rf"employ(?:ed|s)?\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
         rf"(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}",
         rf"{worker_term_pattern}\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
     ]

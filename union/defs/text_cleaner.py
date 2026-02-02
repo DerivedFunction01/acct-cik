@@ -632,10 +632,20 @@ class ContextualNumberCleaner:
         asset_pattern = build_alternation(asset_terms)
         worker_pattern = build_alternation(WORKER_TERMS)
 
+        # Define number and range patterns
+        num = r"\d+(?:\.\d+)?"
+        sep = r"\s*(?:-|to)\s*"
+        
+        # Captures: 10, 10-20, 10 to 20
+        number_range = rf"{num}(?:{sep}{num})?"
+        
+        # Captures: 10%, 10-20%, 10 to 20%, 10%-20%
+        percent_range = rf"{num}(?:\s*%?{sep}{num})?\s*%"
+
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))", 
+            rf"\b{number_range}\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))", 
             re.IGNORECASE
         )
 
@@ -644,7 +654,7 @@ class ContextualNumberCleaner:
 
         # Matches: "10% increase"
         self.change_pre_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?\s*%\s+({change_pattern})\b", 
+            rf"\b{percent_range}\s+({change_pattern})\b", 
             re.IGNORECASE
         )
 
@@ -652,7 +662,7 @@ class ContextualNumberCleaner:
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
             rf"(?:\s+[\w-]+){{0,5}}\s+"  # allow N filler words
-            rf"\d+(?:\.\d+)?\s*%?\b",
+            rf"(?:{percent_range}|{number_range}\b)",
             re.IGNORECASE,
         )
 
@@ -662,15 +672,15 @@ class ContextualNumberCleaner:
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to N filler words
-            rf"\d+(?:\.\d+)?\b",
+            rf"(?:\s+[\w-]+){{0,5}}\s+"  # up to N filler words
+            rf"{number_range}\b",
             re.IGNORECASE,
         )
 
         # 100 layoffs, etc
         self.personnel_event_reverse_regex = re.compile(
-            rf"\b\d+(?:\.\d+)?"
-            rf"(?:\s+[\w-]+){{0,3}}\s+"  # up to N filler words
+            rf"\b{number_range}"
+            rf"(?:\s+[\w-]+){{0,5}}\s+"  # up to N filler words
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
