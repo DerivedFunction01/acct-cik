@@ -936,6 +936,15 @@ class Tracker:
         self.candidates: List[Dict[str, Any]] = []
         self.explicit_global = False
         self.explicit_regions = set()
+        
+        # Coverage Tracking
+        self.global_rate: Optional[float] = None
+        self.region_rates: Dict[str, float] = {}
+        self.country_rates: Dict[str, float] = {}
+        
+        self.global_covered: float = 0.0
+        self.region_covered: Dict[str, float] = {}
+        self.country_covered: Dict[str, float] = {}
 
     def update(
         self, count: float, geo_context: Dict[str, Any], is_explicit_total: bool = False
@@ -1051,6 +1060,89 @@ class Tracker:
         # 2. Verify candidate is not already used in region_totals
         # 3. If found, promote to region_totals (e.g. "Rest of World")
         pass
+
+    def record_coverage(self, percentage: Optional[float], covered_count: Optional[float], geo_context: Dict[str, Any]):
+        """
+        Records coverage data (rate or count) for a specific geographic scope.
+        """
+        region = geo_context.get("region")
+        countries = geo_context.get("countries", [])
+        
+        # Determine scope
+        scope = "global"
+        target_code = None
+        
+        if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+            scope = "region"
+        
+        if len(countries) == 1:
+            scope = "country"
+            target_code = countries[0]["code"]
+            
+        # 1. Handle Rates (Percentages)
+        if percentage is not None:
+            if scope == "global":
+                self.global_rate = percentage
+            elif scope == "region":
+                self.region_rates[region] = percentage
+            elif scope == "country" and target_code:
+                self.country_rates[target_code] = percentage
+                
+        # 2. Handle Counts
+        if covered_count is not None:
+            if scope == "global":
+                self.global_covered = max(self.global_covered, covered_count)
+            elif scope == "region":
+                self.region_covered[region] = max(self.region_covered.get(region, 0), covered_count)
+            elif scope == "country" and target_code:
+                self.country_covered[target_code] = max(self.country_covered.get(target_code, 0), covered_count)
+
+    def calculate_metrics(self) -> Dict[str, Any]:
+        """
+        Performs top-down calculation of coverage rates.
+        """
+        # 1. Resolve Countries (Rate -> Count)
+        for code in self.country_totals:
+            total = self.country_totals[code]
+            if code in self.country_rates:
+                # Explicit rate overrides count
+                self.country_covered[code] = (self.country_rates[code] / 100.0) * total
+        
+        # 2. Resolve Regions
+        final_region_stats = {}
+        for region in self.region_totals:
+            total = self.region_totals[region]
+            if total <= 0: continue
+            
+            covered = 0.0
+            rate = 0.0
+            
+            # Priority 1: Explicit Region Rate
+            if region in self.region_rates:
+                rate = self.region_rates[region]
+                covered = (rate / 100.0) * total
+            else:
+                # Priority 2: Sum of Children vs Explicit Region Count
+                children_sum = 0.0
+                if region in self.region_country_map:
+                    for code in self.region_country_map[region]:
+                        children_sum += self.country_covered.get(code, 0.0)
+                
+                explicit_val = self.region_covered.get(region, 0.0)
+                covered = max(explicit_val, children_sum)
+                rate = (covered / total) * 100.0 if total > 0 else 0.0
+            
+            final_region_stats[region] = {"covered": covered, "total": total, "rate": rate}
+            
+        # 3. Resolve Global
+        if self.global_rate is not None:
+            global_rate = self.global_rate
+        else:
+            regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
+            final_global_covered = max(self.global_covered, regions_sum)
+            global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
+            
+        return {"global_rate": round(global_rate, 2), "region_stats": final_region_stats}
 
 
 class UnionAnalyzer:
@@ -1527,6 +1619,10 @@ class UnionAnalyzer:
             elif last_employee_count:
                 relevant_total = last_employee_count
 
+            # 8. External Source Fallback
+            if not relevant_total:
+                relevant_total = get_external_worker_count(current_region, geo_context.get("countries", []))
+
             # 7. Determine Coverage Data (Dispatch)
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
@@ -1686,10 +1782,45 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        """
-        New summary function that currently just returns the Tracker's census data.
-        """
+        # Populate Tracker with Coverage Data from Results
+        for item in results:
+            data = item.get("coverage_data", {})
+            geo = item.get("geographic_context", {})
+            
+            # Skip non-current
+            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
+                continue
+                
+            pct = data.get("percentage")
+            covered = data.get("employee_count_covered")
+            not_covered = data.get("employee_count_not_covered")
+            
+            # Try to resolve not_covered to covered using Tracker's totals
+            if covered is None and not_covered is not None:
+                scope_total = None
+                region = geo.get("region")
+                countries = geo.get("countries", [])
+                
+                if len(countries) == 1:
+                    code = countries[0]["code"]
+                    scope_total = tracker.country_totals.get(code)
+                elif region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                    scope_total = tracker.region_totals.get(region)
+                elif region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                    scope_total = tracker.global_total
+                
+                if scope_total and scope_total >= not_covered:
+                    covered = scope_total - not_covered
+            
+            tracker.record_coverage(pct, covered, geo)
+            
+        # Calculate Metrics
+        metrics = tracker.calculate_metrics()
+        
         return {
+            "weighted_average_percentage": metrics["global_rate"],
+            "likely_percentage": metrics["global_rate"],
+            "derived_regional_coverage": {r: m["rate"] for r, m in metrics["region_stats"].items()},
             "census_global_total": tracker.global_total,
             "census_region_totals": tracker.region_totals,
             "census_country_totals": tracker.country_totals,
