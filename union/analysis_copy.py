@@ -43,6 +43,33 @@ def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
             counts.append(n)
     return counts
 
+UNION_MATCH_TYPES = [
+    MatchType.UNION_TERM,
+    MatchType.COVERAGE_TERM,
+    MatchType.SPECIFIC_UNION,
+    MatchType.UNION_NAME,
+]
+
+def get_min_distance_to_matches(
+    target_span: Tuple[int, int],
+    matches: List[Dict[str, Any]],
+    match_types: List[MatchType],
+) -> float:
+    t_start, t_end = target_span
+    min_dist = float("inf")
+
+    for m in matches:
+        if m["type"] in match_types:
+            m_start, m_end = m["span"]
+            dist = 0
+            if m_end < t_start:
+                dist = t_start - m_end
+            elif t_end < m_start:
+                dist = m_start - t_end
+            
+            if dist < min_dist:
+                min_dist = dist
+    return min_dist
 
 def construct_window(
     match_span: Tuple[int, int],
@@ -150,6 +177,10 @@ class SimpleCoverageAnalyzer:
         notes.append(f"Explicit percentage: {pct}%")
 
         is_percent_of_total = False
+        # Ensure matches are found
+        if not analysis._matches:
+             return
+
         pct_match = next(
             (
                 m
@@ -200,44 +231,24 @@ class SimpleCoverageAnalyzer:
                 notes.append(f"Count (total): {count}. {ratio} covered. Inferred {other} not covered.")
 
         else:
-            is_count_total = False
-            if count_match and pct_match and count_match["span"][1] < pct_match["span"][0]:
-                union_matches = [
-                    m
-                    for m in analysis._matches
-                    if m["type"]
-                    in (
-                        MatchType.UNION_TERM,
-                        MatchType.COVERAGE_TERM,
-                        MatchType.SPECIFIC_UNION,
-                        MatchType.UNION_NAME,
-                    )
-                ]
+            # Determine if count is Total or Covered based on proximity to union terms
+            is_count_total = True # Default to Total if ambiguous
+            
+            if pct_match and count_match:
+                dist_to_pct = get_min_distance_to_matches(pct_match["span"], analysis._matches, UNION_MATCH_TYPES)
+                dist_to_count = get_min_distance_to_matches(count_match["span"], analysis._matches, UNION_MATCH_TYPES)
+                
+                # If both are far, ignore (likely unrelated numbers)
+                if dist_to_pct > 100 and dist_to_count > 100:
+                    notes.append("Ignored: Percentage and Count too far from union terms")
+                    return
 
-                if union_matches:
-                    dist_to_pct = min(
-                        (
-                            min(
-                                abs(m["span"][0] - pct_match["span"][1]),
-                                abs(m["span"][1] - pct_match["span"][0]),
-                            )
-                            for m in union_matches
-                        ),
-                        default=float("inf"),
-                    )
-                    dist_to_count = min(
-                        (
-                            min(
-                                abs(m["span"][0] - count_match["span"][1]),
-                                abs(m["span"][1] - count_match["span"][0]),
-                            )
-                            for m in union_matches
-                        ),
-                        default=float("inf"),
-                    )
-
-                    if dist_to_pct < dist_to_count:
-                        is_count_total = True
+                # If union term is closer to Percentage, then Percentage describes coverage -> Count is Total
+                if dist_to_pct < dist_to_count:
+                    is_count_total = True
+                # If union term is closer to Count, then Count is Covered
+                elif dist_to_count < dist_to_pct:
+                    is_count_total = False
 
                 if check_is_total_context(count_match["span"], analysis.text):
                     is_count_total = True
@@ -318,24 +329,30 @@ class SimpleCoverageAnalyzer:
             data["employee_count_total"] = total
             other = total - part
             assert m1 and m2
-            is_negated = False
-            if analysis.negation_terms:
-                # Check if the 'part' count is locally negated
-                # We use m1 or m2 depending on which one corresponds to 'part'
-                part_match = m1 if m1["val"] == part else m2
-                if part_match and check_local_negation(part_match["span"], analysis.text, backward=50, forward=50):
-                    is_negated = True
+            # Check if 'part' is associated with union
+            part_match = m1 if m1["val"] == part else m2
+            if part_match:
+                dist = get_min_distance_to_matches(part_match["span"], analysis._matches, UNION_MATCH_TYPES)
+                if dist < 100:
+                    is_negated = False
+                    if analysis.negation_terms:
+                        if check_local_negation(part_match["span"], analysis.text, backward=50, forward=50):
+                            is_negated = True
 
-            if is_negated:
-                data["employee_count_not_covered"] = part
-                data["employee_count_covered"] = other
-                data["negated"] = True
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Count (not covered): {part} of {total}. Inferred {other} covered.")
-            else:
-                data["employee_count_covered"] = part
-                data["employee_count_not_covered"] = other
-                notes.append(f"Count (covered): {part} of {total}. Inferred {other} not covered.")
+                    if is_negated:
+                        data["employee_count_not_covered"] = part
+                        data["employee_count_covered"] = other
+                        data["negated"] = True
+                        data["negation_type"] = NegationType.NOT_COVERED.value
+                        notes.append(f"Count (not covered): {part} of {total}. Inferred {other} covered.")
+                    else:
+                        data["employee_count_covered"] = part
+                        data["employee_count_not_covered"] = other
+                        notes.append(f"Count (covered): {part} of {total}. Inferred {other} not covered.")
+                else:
+                    # Part is not near union term -> Assume it's just a subset (e.g. "20 in marketing")
+                    # Record total only
+                    notes.append(f"Count (total): {total}. Subset {part} not associated with union.")
         else:
             total = c1 + c2
             data["employee_count_total"] = total
@@ -347,7 +364,7 @@ class SimpleCoverageAnalyzer:
                 notes.append(f"Count (covered): {c1} + {c2} = {total}")
 
         if data.get("employee_count_total", 0) > 0:
-            covered = data.get("employee_count_covered", 0)
+            covered = data.get("employee_count_covered", 0) or 0
             pct = (covered / data["employee_count_total"]) * 100.0
             data["percentage"] = round(pct, 2)
             data["type"] = CoverageType.CALCULATED.value
@@ -368,12 +385,24 @@ class SimpleCoverageAnalyzer:
 
         if effective_counts:
             count = effective_counts[0]
-            if analysis.negation_terms:
-                data.update({"employee_count_not_covered": count, "negated": True, "negation_type": NegationType.NOT_COVERED.value})
-                notes.append(f"Count (not covered): {count}")
+            count_match = next((m for m in analysis._matches if m["val"] == count and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)), None)
+            
+            is_associated = False
+            if count_match:
+                dist = get_min_distance_to_matches(count_match["span"], analysis._matches, UNION_MATCH_TYPES)
+                if dist < 100:
+                    is_associated = True
+            
+            if is_associated:
+                if analysis.negation_terms:
+                    data.update({"employee_count_not_covered": count, "negated": True, "negation_type": NegationType.NOT_COVERED.value})
+                    notes.append(f"Count (not covered): {count}")
+                else:
+                    data["employee_count_covered"] = count
+                    notes.append(f"Count (covered): {count}")
             else:
-                data["employee_count_covered"] = count
-                notes.append(f"Count (covered): {count}")
+                data["employee_count_total"] = count
+                notes.append(f"Count (total): {count} (no union association)")
 
     def _handle_qualitative_zero(
         self,
@@ -598,6 +627,11 @@ class ComplexCoverageAnalyzer:
             if len(matches) == 2:
                 matches.sort(key=lambda x: x['span'][0])
                 if is_range_context(self.analysis.text, matches[0]['span'], matches[1]['span']):
+                    # Validate association
+                    dist = get_min_distance_to_matches(matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES)
+                    if dist > 100:
+                        return False
+
                     p1 = matches[0]['val']
                     p2 = matches[1]['val']
                     avg = (p1 + p2) / 2
@@ -621,14 +655,28 @@ class ComplexCoverageAnalyzer:
                     c1 = matches[0]['val']
                     c2 = matches[1]['val']
                     avg = (c1 + c2) / 2
-                    if self.analysis.negation_terms:
-                        self.data["employee_count_not_covered"] = round(avg)
-                        self.data["negated"] = True
-                        self.data["negation_type"] = NegationType.NOT_COVERED.value
-                        self.data["note"] = f"Averaged from range {c1} to {c2} (not covered)"
+                    
+                    # Validate association
+                    dist = get_min_distance_to_matches(matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES)
+                    is_associated = dist < 100
+
+                    if is_associated:
+                        is_negated = False
+                        if self.analysis.negation_terms:
+                            if check_local_negation(matches[0]["span"], self.analysis.text, backward=50):
+                                is_negated = True
+
+                        if is_negated:
+                            self.data["employee_count_not_covered"] = round(avg)
+                            self.data["negated"] = True
+                            self.data["negation_type"] = NegationType.NOT_COVERED.value
+                            self.data["note"] = f"Averaged from range {c1} to {c2} (not covered)"
+                        else:
+                            self.data["employee_count_covered"] = round(avg)
+                            self.data["note"] = f"Averaged from range {c1} to {c2} (covered)"
                     else:
-                        self.data["employee_count_covered"] = round(avg)
-                        self.data["note"] = f"Averaged from range {c1} to {c2} (covered)"
+                        self.data["employee_count_total"] = round(avg)
+                        self.data["note"] = f"Averaged from range {c1} to {c2} (total - no union association)"
                     return True
 
         return False
@@ -652,6 +700,11 @@ class ComplexCoverageAnalyzer:
                     text_between = self.analysis.text[span1[1] : span2[0]]
                     # Check for "of" and short distance
                     if OF_REGEX.search(text_between) and len(text_between.strip()) < 30:
+                        # Validate association
+                        dist = get_min_distance_to_matches(span1, self.analysis._matches, UNION_MATCH_TYPES)
+                        if dist > 100:
+                            continue
+
                         p1 = m1["val"]
                         p2 = m2["val"]
                         combined = (p1 * p2) / 100.0

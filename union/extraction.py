@@ -650,7 +650,7 @@ class UnionExtractor:
             lambda m: m.group(0),
             None
         )
-        print(analysis)
+
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
