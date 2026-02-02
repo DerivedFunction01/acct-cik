@@ -1562,6 +1562,7 @@ class Tracker:
             
         # 3. Resolve Global
         regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
+        sum_of_regions_rate = (regions_sum / self.global_total * 100.0) if self.global_total > 0 else 0.0
         
         if self.global_rate is not None and not self.global_rate_qualitative:
             global_rate = self.global_rate
@@ -1579,7 +1580,7 @@ class Tracker:
             global_rate = (final_global_covered / self.global_total * 100.0) if self.global_total > 0 else 0.0
             self.resolution_log.append(f"Global: Total {self.global_total} -> Covered {final_global_covered:.1f} ({global_rate:.1f}%) via {source_desc}")
             
-        return {"global_rate": round(global_rate, 2), "region_stats": final_region_stats, "log": self.resolution_log}
+        return {"global_rate": round(global_rate, 2), "sum_of_regions_rate": round(sum_of_regions_rate, 2), "region_stats": final_region_stats, "log": self.resolution_log}
 
 
 class UnionAnalyzer:
@@ -2273,6 +2274,7 @@ class UnionAnalyzer:
         return {
             "weighted_average_percentage": metrics["global_rate"],
             "likely_percentage": metrics["global_rate"],
+            "secondary_percentage": metrics["sum_of_regions_rate"],
             "derived_regional_coverage": {r: m["rate"] for r, m in region_stats.items()},
             "derived_regional_covered_counts": {r: m["covered"] for r, m in region_stats.items()},
             "derived_regional_not_covered_counts": {

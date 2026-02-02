@@ -35,9 +35,8 @@ def analyze_discrepancies():
             cik, 
             year, 
             period_of_report,
-            likely_union_pct, 
-            weighted_union_pct, 
-            risk_count_union,
+            union_rate, 
+            secondary_rate, 
             pct_north_america, 
             pct_europe, 
             pct_asia, 
@@ -45,8 +44,8 @@ def analyze_discrepancies():
             pct_mea, 
             pct_intl
         FROM {TABLE_NAME}
-        WHERE likely_union_pct IS NOT NULL 
-          AND weighted_union_pct IS NOT NULL
+        WHERE union_rate IS NOT NULL 
+          AND secondary_rate IS NOT NULL
     """
     
     try:
@@ -63,7 +62,7 @@ def analyze_discrepancies():
         return
 
     # Calculate absolute difference
-    df['pct_diff'] = (df['likely_union_pct'] - df['weighted_union_pct']).abs()
+    df['pct_diff'] = (df['union_rate'] - df['secondary_rate']).abs()
     
     # Flag records exceeding threshold
     flagged_df = df[df['pct_diff'] >= THRESHOLD].copy()
@@ -80,7 +79,7 @@ def analyze_discrepancies():
     if not flagged_df.empty:
         # Display top discrepancies
         print("\nTop 10 Discrepancies:")
-        display_cols = ['cik', 'year', 'likely_union_pct', 'weighted_union_pct', 'pct_diff']
+        display_cols = ['cik', 'year', 'union_rate', 'secondary_rate', 'pct_diff']
         print(flagged_df[display_cols].head(10).to_string(index=False))
         
         # Save to CSV

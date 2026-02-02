@@ -34,19 +34,14 @@ def process_row(row):
         "period_of_report": period,
         "has_item1": False,
         "has_item1a": False,
-        "likely_union_pct": None,
-        "weighted_union_pct": None,
-        "total_employees": None,
+        "union_rate": None,
+        "secondary_rate": None,
         "pct_north_america": None,
         "pct_europe": None,
         "pct_asia": None,
         "pct_latam": None,
         "pct_mea": None,
         "pct_intl": None,
-        "risk_count_total": 0,
-        "risk_count_union": 0,
-        "unions_mentioned": [],
-        "countries_mentioned": []
     }
 
     # --- Process Item 1 (Business Description) ---
@@ -59,41 +54,21 @@ def process_row(row):
                 # Extract Summary Metrics
                 summary = data.get("summary", {})
                 if summary:
-                    res["likely_union_pct"] = summary.get("likely_percentage")
-                    res["weighted_union_pct"] = summary.get("weighted_average_percentage")
+                    res["union_rate"] = summary.get("likely_percentage")
+                    res["secondary_rate"] = summary.get("secondary_percentage")
                     
-                    # Extract Region Percentages
-                    regions = summary.get("region_percentages", {})
-                    if regions:
-                        res["pct_north_america"] = get_region_val(regions, [Region.NORTH_AMERICA.value, "US/Canada"])
-                        res["pct_europe"] = get_region_val(regions, [Region.EUROPE.value])
-                        res["pct_asia"] = get_region_val(regions, [Region.ASIA_PACIFIC.value, "Asia"])
-                        res["pct_latam"] = get_region_val(regions, [Region.LATIN_AMERICA.value])
-                        res["pct_mea"] = get_region_val(regions, [Region.MIDDLE_EAST_AFRICA.value, "Africa"])
-                        res["pct_intl"] = get_region_val(regions, [Region.INTERNATIONAL.value])
+                    # Extract Region Data
+                    regions_pct = summary.get("derived_regional_coverage", {})
 
-                # Extract Specific Entities (Unions & Countries)
-                items = data.get("items", [])
-                unions = set()
-                countries = set()
-                
-                for item in items:
-                    geo = item.get("geographic_context", {})
-                    
-                    # Extract specific union names if identified
-                    if geo.get("union_names_mentioned"):
-                        for u in geo["union_names_mentioned"]:
-                            unions.add(u)
-                    elif geo.get("union_name_indicator"):
-                        unions.add(geo["union_name_indicator"])
-                    
-                    # Extract countries
-                    if geo.get("countries"):
-                        for c in geo["countries"]:
-                            countries.add(c["code"])
-                
-                res["unions_mentioned"] = sorted(list(unions))
-                res["countries_mentioned"] = sorted(list(countries))
+                    def extract_region_metrics(keys, suffix):
+                        res[f"pct_{suffix}"] = get_region_val(regions_pct, keys)
+
+                    extract_region_metrics([Region.NORTH_AMERICA.value, "US/Canada"], "north_america")
+                    extract_region_metrics([Region.EUROPE.value], "europe")
+                    extract_region_metrics([Region.ASIA_PACIFIC.value, "Asia"], "asia")
+                    extract_region_metrics([Region.LATIN_AMERICA.value], "latam")
+                    extract_region_metrics([Region.MIDDLE_EAST_AFRICA.value, "Africa"], "mea")
+                    extract_region_metrics([Region.INTERNATIONAL.value], "intl")
 
         except json.JSONDecodeError:
             pass
@@ -106,9 +81,6 @@ def process_row(row):
             items = data.get("items", [])
             if items:
                 res["has_item1a"] = True
-                res["risk_count_total"] = len(items)
-                # Count risks specifically flagged as UNION_RISK
-                res["risk_count_union"] = sum(1 for i in items if i.get("type") == RiskType.UNION_RISK.value)
         except json.JSONDecodeError:
             pass
             
@@ -124,6 +96,7 @@ def main():
     
     # Create the summary table
     logging.info(f"Creating table {TARGET_TABLE}...")
+    c.execute(f"DROP TABLE IF EXISTS {TARGET_TABLE}")
     c.execute(f"""
         CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (
             accession TEXT PRIMARY KEY,
@@ -132,18 +105,14 @@ def main():
             period_of_report TEXT,
             has_item1 BOOLEAN,
             has_item1a BOOLEAN,
-            likely_union_pct REAL,
-            weighted_union_pct REAL,
+            union_rate REAL,
+            secondary_rate REAL,
             pct_north_america REAL,
             pct_europe REAL,
             pct_asia REAL,
             pct_latam REAL,
             pct_mea REAL,
-            pct_intl REAL,
-            risk_count_total INTEGER,
-            risk_count_union INTEGER,
-            unions_mentioned TEXT,
-            countries_mentioned TEXT
+            pct_intl REAL
         )
     """)
     
@@ -175,24 +144,20 @@ def main():
             res["period_of_report"],
             res["has_item1"],
             res["has_item1a"],
-            res["likely_union_pct"],
-            res["weighted_union_pct"],
+            res["union_rate"],
+            res["secondary_rate"],
             res["pct_north_america"],
             res["pct_europe"],
             res["pct_asia"],
             res["pct_latam"],
             res["pct_mea"],
-            res["pct_intl"],
-            res["risk_count_total"],
-            res["risk_count_union"],
-            ", ".join(res["unions_mentioned"]),
-            ", ".join(res["countries_mentioned"])
+            res["pct_intl"]
         ))
         
         if len(batch) >= 1000:
             c.executemany(f"""
                 INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, batch)
             count = len(batch)
@@ -202,7 +167,7 @@ def main():
     if batch:
         c.executemany(f"""
             INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
         """, batch)
         count = len(batch)
