@@ -704,6 +704,59 @@ class ContextualNumberCleaner:
         return "\n\n".join(texts)
 
 
+class ConcisenessCleaner:
+    """
+    Removes unnecessary words (articles, estimations) and simplifies verbose phrasing.
+    Runs after other cleaners to prepare text for extraction.
+    """
+    def __init__(self):
+        # Words to remove completely
+        self.removals = [
+            r"\b(?:a|an|the)\b",
+            r"\b(?:approximately|approx\.?|roughly|estimated|est\.?)\b",
+            r"\b(?:herein|thereof|therein|hereby|whereby)\b",
+        ]
+        self.removal_regex = re.compile(
+            "|".join(self.removals), re.IGNORECASE
+        )
+
+        # Replacements (Long -> Short)
+        self.replacements = [
+            (re.compile(r"\butiliz(?:e|es|ed|ing)\b", re.IGNORECASE), "use"),
+            (re.compile(r"\bcommenc(?:e|es|ed|ing)\b", re.IGNORECASE), "start"),
+            (re.compile(r"\bdemonstrat(?:e|es|ed|ing)\b", re.IGNORECASE), "show"),
+            (re.compile(r"\bupon\b", re.IGNORECASE), "on"),
+            (re.compile(r"\bregarding\b", re.IGNORECASE), "about"),
+        ]
+        
+        self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
+
+    def clean(self, text: str) -> str:
+        if not text:
+            return ""
+        
+        # Apply removals
+        text = self.removal_regex.sub(" ", text)
+        
+        # Apply replacements
+        for pattern, replacement in self.replacements:
+            text = pattern.sub(replacement, text)
+            
+        # Split into paragraphs to preserve structure and apply space cleaning per paragraph
+        paragraphs = text.split('\n\n')
+        processed = []
+        for p in paragraphs:
+            p = clean_spaces_and_punctuation(p)
+            if not p:
+                continue
+            if p[0].islower():
+                p = p[0].upper() + p[1:]
+            p = self.recap_pattern.sub(lambda m: m.group(1) + m.group(2).upper(), p)
+            processed.append(p)
+            
+        return "\n\n".join(processed)
+
+
 # ============================================================================
 # AUTOMATED TEST FRAMEWORK
 # ============================================================================

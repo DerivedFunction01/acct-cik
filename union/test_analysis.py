@@ -11,7 +11,7 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 import json
 from extraction import UnionExtractor
 from analysis import UnionAnalyzer
-from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner
+from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
 ITEM_1 = """
@@ -165,6 +165,7 @@ if __name__ == "__main__":
     cleaner = MinimalTextCleaner()
     currency_remover = CurrencyRemover()
     contextual_cleaner = ContextualNumberCleaner()
+    conciseness_cleaner = ConcisenessCleaner()
 
     # Reporting year context
     reporting_year = 2023
@@ -178,6 +179,7 @@ if __name__ == "__main__":
     cleaned_text = cleaner.clean(ITEM_1)
     cleaned_text = currency_remover.clean(cleaned_text)
     cleaned_text = contextual_cleaner.clean(cleaned_text)
+    cleaned_text = conciseness_cleaner.clean(cleaned_text)
     print("="* 80)
     print("Cleaned Text:\n")
     print(cleaned_text)
@@ -229,6 +231,7 @@ if __name__ == "__main__":
     cleaned_text = cleaner.clean(ITEM_1A)
     cleaned_text = currency_remover.clean(cleaned_text)
     cleaned_text = contextual_cleaner.clean(cleaned_text)
+    cleaned_text = conciseness_cleaner.clean(cleaned_text)
 
     # print("="* 80)
     # print("Cleaned Text (Item 1A):\n")

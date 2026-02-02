@@ -18,7 +18,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
-from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner
+from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner
 from defs.table_processor import process_table
 from defs.table_sentences import generate_primitive_sentences
 
@@ -103,14 +103,16 @@ FILTER_REGEX = None
 CLEANER = None
 CURRENCY_REMOVER = None
 CONTEXTUAL_CLEANER = None
+CONCISENESS_CLEANER = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER
+    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER, CONCISENESS_CLEANER
     FILTER_REGEX = compile_filtering_regex()
     CLEANER = MinimalTextCleaner()
     CURRENCY_REMOVER = CurrencyRemover()
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
+    CONCISENESS_CLEANER = ConcisenessCleaner()
 
 def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> List[str]:
     """
@@ -125,6 +127,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
     assert CLEANER is not None
     assert CURRENCY_REMOVER is not None
     assert CONTEXTUAL_CLEANER is not None
+    assert CONCISENESS_CLEANER is not None
 
     # Flatten and split content
     raw_blocks = []
@@ -174,6 +177,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
         # Remove non-employee numerics (facilities, growth rates)
         cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block)
+
+        # Remove unnecessary words and simplify
+        cleaned_block = CONCISENESS_CLEANER.clean(cleaned_block)
 
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
