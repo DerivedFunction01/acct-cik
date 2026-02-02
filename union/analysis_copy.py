@@ -587,37 +587,104 @@ class UnionAnalyzer:
         mapping counts/percentages to the nearest positive/negative keywords.
         Updates 'data' in-place.
         """
-        # Simple proximity heuristic
-        union_terms = analysis.union_terms + analysis.coverage_terms
-        negation_terms = analysis.negation_terms
+        # 1. Gather entities
+        counts = [m for m in analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+        percents = [m for m in analysis._matches if m['type'] == MatchType.PERCENT]
+        numbers = [m for m in analysis._matches if m['type'] == MatchType.NUMBER]
         
-        # If we have counts, try to assign them
-        if analysis.worker_counts:
-            # If we have explicit negation terms ("non-union"), assign nearest count to not_covered
-            if negation_terms:
-                # Find count nearest to negation
-                # For simplicity, if we have 2 counts and 1 negation, assume smaller is negation?
-                # Or if we have "X union, Y non-union"
-                if len(analysis.worker_counts) >= 2:
-                    # Assume the structure matches the order of terms? 
-                    # This is risky without span indices. 
-                    # Fallback: If we have explicit "non-union", treat the count near it as not_covered.
-                    # Since we don't have spans easily accessible here without re-parsing or passing them,
-                    # we will use a basic heuristic:
-                    pass
-            
-            # If we have explicit union terms, assign nearest count to covered
-            if union_terms and not data["employee_count_covered"]:
-                # Default: take the first count as covered if union terms are present
-                data["employee_count_covered"] = analysis.worker_counts[0]
+        # Combine counts and numbers (prefer counts, but use numbers if needed)
+        count_spans = set(c['span'] for c in counts)
+        all_values = counts + [n for n in numbers if n['span'] not in count_spans]
 
-        # If we have percentages
-        if analysis.percentages:
-            # If negation is present ("10% are non-union"), invert it
-            if negation_terms and not union_terms:
-                 data["percentage"] = 100.0 - analysis.percentages[0]
-                 data["negated"] = True
-                 data["note"] = f"Inverted from {analysis.percentages[0]}% non-union/not covered"
+        # Indicators
+        positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME, MatchType.COVERAGE_TERM)]
+        negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION, MatchType.NON_COVERAGE)]
+        totals = [m for m in analysis._matches if m['type'] in (MatchType.WORKER_TERM,)]
+        
+        # Helper to find nearest indicator
+        def get_nearest_type(target_span):
+            t_start, t_end = target_span
+            best_dist = float('inf')
+            best_type = None # 'covered', 'not_covered', 'total'
+            
+            candidates = []
+            for p in positives: candidates.append(('covered', p))
+            for n in negatives: candidates.append(('not_covered', n))
+            for t in totals: candidates.append(('total', t))
+            
+            for c_type, m in candidates:
+                m_start, m_end = m['span']
+                
+                # Distance calculation
+                dist = 0
+                if m_end < t_start: dist = t_start - m_end
+                elif t_end < m_start: dist = m_start - t_end
+                
+                # Weighting: Negatives/Positives are stronger signals than Totals
+                eff_dist = dist
+                if c_type == 'total':
+                    eff_dist += 20 # Penalty to prefer specific union/non-union terms
+                
+                if eff_dist < best_dist:
+                    best_dist = eff_dist
+                    best_type = c_type
+            
+            if best_dist > 150: return None # Threshold
+            return best_type
+
+        # Map Percentages
+        for p in percents:
+            ptype = get_nearest_type(p['span'])
+            
+            # Use standalone function
+            adj_val, note = apply_qualitative_multipliers(p['val'], p['span'], analysis.text, apply=True)
+            
+            if ptype == 'not_covered':
+                # Invert
+                val = adj_val
+                data['percentage'] = 100.0 - val
+                data['negated'] = True
+                data['negation_type'] = NegationType.NOT_COVERED.value
+                data['note'] = f"Inverted from {val}% not covered"
+                if note:
+                    data['note'] += f" ({note})"
+            elif ptype == 'covered':
+                data['percentage'] = adj_val
+                if note:
+                    data['note'] = note
+
+        # Map Counts
+        total_candidates = []
+        for c in all_values:
+            val = c['val']
+            ctype = get_nearest_type(c['span'])
+            
+            if ctype == 'covered':
+                data['employee_count_covered'] = val
+            elif ctype == 'not_covered':
+                data['employee_count_not_covered'] = val
+            elif ctype == 'total':
+                total_candidates.append(val)
+        
+        # Handle Totals
+        if total_candidates:
+            data['employee_count_total'] = sum(total_candidates)
+
+        # Calculate missing values
+        if data['employee_count_covered'] and data['employee_count_not_covered']:
+             if not data['employee_count_total']:
+                 data['employee_count_total'] = data['employee_count_covered'] + data['employee_count_not_covered']
+             
+             # Recalculate percentage based on the aggregate counts
+             pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
+             data['percentage'] = round(pct, 2)
+             data['type'] = CoverageType.CALCULATED.value
+             data['note'] = (data['note'] or "") + f" | Recalculated % from counts: {data['employee_count_covered']}/{data['employee_count_total']}"
+
+        elif data['employee_count_total'] and data['employee_count_covered'] and not data['percentage']:
+             pct = (data['employee_count_covered'] / data['employee_count_total']) * 100
+             data['percentage'] = round(pct, 2)
+             data['type'] = CoverageType.CALCULATED.value
 
     def _analyze_item1a(self, sentences: List[str], reporting_year: Optional[int] = None) -> List[Dict[str, Any]]:
         """
@@ -650,4 +717,92 @@ class UnionAnalyzer:
         Computes a weighted average of union coverage percentages from analysis results.
         Then selects the BEST TEXT CANDIDATE that matches the calculation.
         """
-        return {}
+        if region_totals is None:
+            region_totals = {}
+
+        total_weighted_pct = 0.0
+        total_employees = 0.0
+        
+        valid_percentages = []
+        grouped_items = {} # (weight, region_key) -> list of percentages
+
+        for item in results:
+            data = item.get("coverage_data", {})
+            geo = item.get("geographic_context", {})
+            
+            # Skip non-current
+            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
+                continue
+
+            pct = data.get("percentage")
+            
+            # Determine Weight (Total Employees)
+            weight = data.get("employee_count_total")
+            
+            # Fallback Weight Logic
+            if not weight:
+                covered = data.get("employee_count_covered")
+                not_covered = data.get("employee_count_not_covered")
+                if covered is not None and not_covered is not None:
+                    weight = covered + not_covered
+                elif not_covered is not None and (pct == 0 or data.get("negated")):
+                     weight = not_covered
+            
+            if not weight:
+                region = geo.get("region")
+                if region and region in region_totals:
+                    weight = region_totals[region]
+                elif geo.get("countries"):
+                    for c in geo["countries"]:
+                        if c["code"] in region_totals:
+                            weight = region_totals[c["code"]]
+                            break
+            
+            if not weight and global_workforce > 0:
+                if geo.get("region") in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                    weight = global_workforce
+
+            # Determine Percentage if missing
+            if pct is None:
+                covered = data.get("employee_count_covered")
+                if covered is not None and weight and weight > 0:
+                    pct = (covered / weight) * 100.0
+                elif data.get("negated") and data.get("negation_type") in (NegationType.ZERO_COVERAGE.value, NegationType.QUALITATIVE_ZERO.value):
+                    pct = 0.0
+
+            if pct is not None:
+                valid_percentages.append(pct)
+                
+                if weight and weight > 0:
+                    # Group by weight and region to avoid double counting identical statements
+                    region_key = (
+                        geo.get("region", "UNKNOWN"),
+                        tuple(sorted(c["code"] for c in geo.get("countries", [])))
+                    )
+                    key = (weight, region_key)
+                    
+                    if key not in grouped_items:
+                        grouped_items[key] = []
+                    grouped_items[key].append(pct)
+
+        # Calculate Weighted Average
+        for (weight, _), pcts in grouped_items.items():
+            avg_pct = sum(pcts) / len(pcts)
+            total_weighted_pct += avg_pct * weight
+            total_employees += weight
+
+        weighted_avg = 0.0
+        if total_employees > 0:
+            weighted_avg = total_weighted_pct / total_employees
+
+        # Find closest text candidate
+        closest_pct = None
+        if valid_percentages:
+            closest_pct = min(valid_percentages, key=lambda x: abs(x - weighted_avg))
+
+        return {
+            "weighted_average_percentage": round(weighted_avg, 2),
+            "total_employees_analyzed": total_employees,
+            "likely_percentage": closest_pct,
+            "all_percentages": sorted(valid_percentages)
+        }
