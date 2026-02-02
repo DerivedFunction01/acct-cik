@@ -721,7 +721,7 @@ class ComplexCoverageAnalyzer:
 
     # Delimiters: , ; or words like while, although, but, however
     delimiter_regex = re.compile(
-        r"(?<!\d)[,;](?!\d)|\b(?:while|although|whereas|but|however)\b", re.IGNORECASE
+        r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
     )
 
     def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
@@ -1492,34 +1492,22 @@ class Tracker:
 
     def resolve(self):
         """
-        Enforces hierarchy constraints using a greedy algorithm.
-        Constraint: Sum of children (countries) cannot exceed parent (region).
-        If violated, we assume double-counting and prioritize larger entities until full.
+        Resolves region totals and ensures consistency.
+        Updates region totals if the sum of country totals exceeds the region total.
         """
         self._resolve_region_totals()
 
+        # Bottom-up adjustment: Ensure region total is at least the sum of its countries
         for region, countries in self.region_country_map.items():
-            region_total = self.region_totals.get(region, 0)
-            if region_total <= 0:
-                continue
-
-            # Filter to known countries and sort by size (Greedy approach)
-            known_countries = [c for c in countries if c in self.country_totals]
-            sorted_countries = sorted(
-                known_countries, key=lambda x: self.country_totals[x], reverse=True
-            )
-
-            running_sum = 0.0
-            accepted_countries = set()
-
-            for c in sorted_countries:
-                val = self.country_totals[c]
-                if running_sum + val <= region_total:
-                    running_sum += val
-                    accepted_countries.add(c)
-
-            # Update the map to only include the 'accepted' disjoint children
-            self.region_country_map[region] = accepted_countries
+            # Calculate sum of known country totals
+            countries_sum = sum(self.country_totals.get(c, 0) for c in countries)
+            current_total = self.region_totals.get(region, 0)
+            
+            # If countries sum up to more than the region total, trust the bottom-up sum
+            if countries_sum > current_total:
+                self.region_totals[region] = countries_sum
+                if countries_sum > 0:
+                    self.explicit_regions.add(region)
 
         self.reconcile()
 
@@ -1665,13 +1653,14 @@ class Tracker:
 
         is_whole_entity = False
         if census_total > 0 and effective_total:
-            # 5% tolerance or if effective is larger (new info)
-            if abs(effective_total - census_total) / census_total < 0.05 or effective_total > census_total:
+            # 25% tolerance or if effective is larger (new info)
+            if abs(effective_total - census_total) / census_total < 0.25 or effective_total > census_total:
                 is_whole_entity = True
         elif census_total == 0:
             # No census data, assume this is the whole entity
             is_whole_entity = True
 
+        union_name = geo_context.get("union_name_indicator")
         # Validation: Check against sum of smaller portions
         if is_whole_entity and effective_total:
             known_sub_total = 0.0
@@ -1688,7 +1677,7 @@ class Tracker:
                         for c in self.region_country_map[region]
                     )
 
-            if known_sub_total > 0 and effective_total < known_sub_total * 0.9:
+            if known_sub_total > 0 and effective_total < known_sub_total * 0.7:
                 is_whole_entity = False
 
         # 1. Handle Rates (Percentages)
@@ -1697,7 +1686,8 @@ class Tracker:
                 candidate = {
                     "rate": percentage,
                     "weight": effective_total or 0.0,
-                    "is_qualitative": is_qualitative
+                    "is_qualitative": is_qualitative,
+                    "union_name": union_name
                 }
                 if scope == "global":
                     self.global_rate_candidates.append(candidate)
@@ -1737,12 +1727,64 @@ class Tracker:
         pool = explicit if explicit else candidates
         is_qual = not bool(explicit)
 
-        total_weight = sum(c["weight"] for c in pool)
-        if total_weight > 0:
-            weighted_sum = sum(c["rate"] * c["weight"] for c in pool)
-            return weighted_sum / total_weight, is_qual
-        else:
-            return sum(c["rate"] for c in pool) / len(pool), is_qual
+        # Group by union name to handle additive rates (e.g. 5% UAW + 10% Teamsters)
+        # None/Empty union_name implies a generic statement about the whole scope
+        by_union: Dict[Optional[str], List[Dict[str, Any]]] = {}
+        for c in pool:
+            u_name = c.get("union_name")
+            if u_name not in by_union:
+                by_union[u_name] = []
+            by_union[u_name].append(c)
+
+        # 1. Calculate average for each specific union (resolving conflicts within the same union)
+        # 2. Calculate average for the generic group (resolving conflicts within generic statements)
+        resolved_groups = {}
+        for u_name, group in by_union.items():
+            if u_name is not None:
+                total_weight = sum(c["weight"] for c in group)
+                if total_weight > 0:
+                    weighted_sum = sum(c["rate"] * c["weight"] for c in group)
+                    resolved_groups[u_name] = weighted_sum / total_weight
+                else:
+                    resolved_groups[u_name] = sum(c["rate"] for c in group) / len(group)
+            else:
+                # Generic group: Cluster and Sum
+                rates = sorted([c["rate"] for c in group])
+                clusters = []
+                if rates:
+                    current_cluster = [rates[0]]
+                    for r in rates[1:]:
+                        if abs(r - statistics.mean(current_cluster)) < 2.0:
+                            current_cluster.append(r)
+                        else:
+                            clusters.append(statistics.mean(current_cluster))
+                            current_cluster = [r]
+                    clusters.append(statistics.mean(current_cluster))
+                
+                if not clusters:
+                    resolved_groups[u_name] = 0.0
+                    continue
+
+                max_val = max(clusters)
+                sum_others = sum(clusters) - max_val
+                val_sum = sum(clusters)
+                
+                # Check if max is roughly sum of others (Total vs Parts) or if sum > 100%
+                if (sum_others > 0 and abs(max_val - sum_others) < 2.0) or val_sum > 105.0:
+                    resolved_groups[u_name] = max_val
+                else:
+                    resolved_groups[u_name] = val_sum
+
+        # Sum of specific unions (Additive)
+        specific_sum = sum(rate for u_name, rate in resolved_groups.items() if u_name)
+        
+        # Generic rate (Total)
+        generic_rate = resolved_groups.get(None, 0.0)
+
+        # The true rate is likely the max of the (Sum of Parts) vs (Stated Total)
+        final_rate = max(specific_sum, generic_rate)
+
+        return final_rate, is_qual
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
@@ -1848,10 +1890,10 @@ class Tracker:
         global_rate_cand, global_is_qual = self._resolve_rate(self.global_rate_candidates)
         global_rate = None
 
-        if self.global_total <= 0:
-            self.resolution_log.append(
-                "Global: Aborted. No global employee total found."
-            )
+        if self.global_total <= 0 and global_rate_cand is None:
+             self.resolution_log.append(
+                "Global: Aborted. No global employee total found and no explicit rates."
+             )
         elif global_rate_cand is not None and not global_is_qual:
             global_rate = global_rate_cand
             self.resolution_log.append(f"Global: Explicit Rate {global_rate}%")
@@ -2147,76 +2189,7 @@ class UnionAnalyzer:
 
         return mapped_counts, sentence_total
 
-    def _apply_remaining_logic(
-        self,
-        analysis: SentenceAnalysis,
-        coverage_data: Dict[str, Any],
-        results: List[Dict[str, Any]],
-    ):
-        """
-        Handles 'Remaining/Rest/Other' logic linking to previous sentence.
-        e.g. '80% are unionized. The remaining employees are not.' -> 20%
-        """
-        if (
-            analysis.has_remaining_other
-            and coverage_data["percentage"] is None
-            and coverage_data["employee_count_covered"] is None
-            and coverage_data["employee_count_not_covered"] is None
-            and results
-        ):
-            prev_item = results[-1]
-            if "coverage_data" in prev_item:
-                prev_data = prev_item["coverage_data"]
-
-                # Case 1: Previous had percentage
-                if prev_data.get("percentage") is not None:
-                    prev_pct = prev_data["percentage"]
-                    remaining_pct = max(0.0, 100.0 - prev_pct)
-
-                    coverage_data["percentage"] = round(remaining_pct, 2)
-                    coverage_data["type"] = CoverageType.CALCULATED.value
-                    coverage_data["note"] = f"Calculated from remaining of {prev_pct}%"
-
-                    # Infer negation status if not explicit
-                    if not coverage_data.get("negated") and not analysis.union_terms:
-                        # Flip previous status
-                        if not prev_data.get("negated"):
-                            coverage_data["negated"] = True
-                            coverage_data["negation_type"] = (
-                                NegationType.NOT_COVERED.value
-                            )
-                        else:
-                            coverage_data["negated"] = False
-
-                # Case 2: Previous had counts
-                elif prev_data.get("employee_count_total"):
-                    total = prev_data["employee_count_total"]
-                    prev_val = (
-                        prev_data.get("employee_count_covered")
-                        if prev_data.get("employee_count_covered") is not None
-                        else prev_data.get("employee_count_not_covered")
-                    )
-
-                    if prev_val is not None:
-                        remaining_count = max(0, total - prev_val)
-                        coverage_data["employee_count_total"] = total
-                        coverage_data["note"] = (
-                            f"Calculated remaining count (Total {total} - Prev {prev_val})"
-                        )
-
-                        if coverage_data.get("negated") or (
-                            analysis.negation_terms and not analysis.union_terms
-                        ):
-                            coverage_data["employee_count_not_covered"] = (
-                                remaining_count
-                            )
-                            coverage_data["negated"] = True
-                            coverage_data["negation_type"] = (
-                                NegationType.NOT_COVERED.value
-                            )
-                        else:
-                            coverage_data["employee_count_covered"] = remaining_count
-
+    
     def _merge_continuation_items(
         self, results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -2503,8 +2476,6 @@ class UnionAnalyzer:
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
-
-            self._apply_remaining_logic(analysis, coverage_data, results)
 
             # 8. Construct Result
             should_include = False
