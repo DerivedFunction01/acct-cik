@@ -403,3 +403,5 @@ CHANGE_TERMS = [
     # Transition
     r"transition(?:s|ed|ing)?",
 ]
+
+PERSONNEL_EVENT_REGEX = build_regex(PERSONNEL_EVENT_TERMS)

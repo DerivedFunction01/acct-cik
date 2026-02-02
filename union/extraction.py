@@ -54,6 +54,11 @@ OF_REGEX = build_regex([
     r"(?:out\s+)?of"
 ])
 
+TOTAL_MODIFIER_REGEX = build_regex([
+    r"total", r"global", r"worldwide", r"aggregate", r"consolidated", 
+    r"entire", r"overall", r"combined", r"full", r"whole"
+])
+
 QUALITATIVE_MULTIPLIERS = [
     (build_regex([r"almost", r"nearly", r"virtually"]), 0.95),
     (build_regex([r"(?:slightly|just)\s+(?:under|below)", r"less\s+than"]), 0.90),
@@ -92,6 +97,7 @@ class MatchType(Enum):
     SUPPLIER_TERM = "SUPPLIER_TERM"
     COVERAGE_TERM = "COVERAGE_TERM"
     QUALITATIVE_TERM = "QUALITATIVE_TERM"
+    TOTAL_MODIFIER = "TOTAL_MODIFIER"
 
 @dataclass
 class GeoMatch:
@@ -119,6 +125,7 @@ class SentenceAnalysis:
     supplier_terms: List[str] = field(default_factory=list)
     coverage_terms: List[str] = field(default_factory=list)
     qualitative_terms: List[str] = field(default_factory=list)
+    total_modifiers: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     
     # Temporal / Conditional flags
@@ -625,6 +632,13 @@ class UnionExtractor:
                 lambda m: m.group(0),
                 qual_side_effect
             )
+
+        # 19. Extract Total Modifiers
+        process_matches(
+            TOTAL_MODIFIER_REGEX, MatchType.TOTAL_MODIFIER,
+            lambda m: m.group(0),
+            lambda m, val: analysis.total_modifiers.append(val)
+        )
         print(analysis)
         return analysis
 

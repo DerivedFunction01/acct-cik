@@ -13,7 +13,8 @@ from defs.output_enums import (
 
 from defs.union_regex import (
     NON_COVERAGE_REGEX, RELATIONSHIP_NEUTRAL_TERMS, RELATIONSHIP_QUALITY_TERMS, 
-    RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX
+    RELATIONSHIP_NEGATIVE_TERMS, BOILERPLATE_REGEX,
+    PERSONNEL_EVENT_REGEX
 )
 
 class SimpleCoverageAnalyzer:
@@ -370,6 +371,69 @@ def determine_geo_context(analysis: SentenceAnalysis, last_context: Optional[Dic
     # 4. Fallback
     return {"region": Region.UNKNOWN.value,  "countries": [], "specificity": Specificity.IMPLICIT.value}
 
+def check_is_total_context(analysis: SentenceAnalysis, match_span: Optional[Tuple[int, int]] = None) -> bool:
+    """
+    Checks if 'total', 'global', 'worldwide', etc. are present in the sentence,
+    optionally near a specific match.
+    """
+    if not analysis.total_modifiers:
+        return False
+    
+    # If no span provided, just return True if modifiers exist (sentence level)
+    if not match_span:
+        return True
+        
+    # If span provided, check proximity (e.g. within 50 chars)
+    total_matches = [m for m in analysis._matches if m['type'] == MatchType.TOTAL_MODIFIER]
+    start, end = match_span
+    
+    for tm in total_matches:
+        t_start, t_end = tm['span']
+        # Check distance
+        dist = 0
+        if t_end < start: dist = start - t_end
+        elif end < t_start: dist = t_start - end
+        
+        if dist < 60: # Window to capture "total [approx] [number]" or "total of [number]"
+            return True
+            
+    return False
+
+def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
+    """
+    Determines the status of labor relationships (Positive, Negative, Neutral).
+    """
+    if not (analysis.relationship_terms and analysis.relationship_quality_terms):
+        return None
+
+    # Find the quality term closest to the relationship term
+    # For simplicity, we'll take the first quality term found if we have a relationship term
+    quality_term = analysis.relationship_quality_terms[0].lower()
+    
+    # Check for local negation of the quality term (e.g. "not good")
+    is_quality_negated = False
+    q_match = next((m for m in analysis._matches if m['type'] == MatchType.RELATIONSHIP_QUALITY), None)
+    
+    if q_match:
+        q_start = q_match['span'][0]
+        # Look for negation terms ending just before q_start
+        negation_matches = [m for m in analysis._matches if m['type'] in (MatchType.NEGATION, MatchType.NON_COVERAGE)]
+        for n_match in negation_matches:
+            n_end = n_match['span'][1]
+            # Check distance (approx 25 chars covers "are not", "is not")
+            if 0 < (q_start - n_end) < 25:
+                is_quality_negated = True
+                break
+
+    status = RelationshipStatus.UNKNOWN
+    if quality_term in RELATIONSHIP_NEUTRAL_TERMS:
+        status = RelationshipStatus.NEGATIVE if is_quality_negated else RelationshipStatus.NEUTRAL 
+    elif quality_term in RELATIONSHIP_QUALITY_TERMS:
+        status = RelationshipStatus.NEGATIVE if is_quality_negated else RelationshipStatus.POSITIVE
+    elif quality_term in RELATIONSHIP_NEGATIVE_TERMS:
+        status = RelationshipStatus.POSITIVE if is_quality_negated else RelationshipStatus.NEGATIVE
+    
+    return status.value if status != RelationshipStatus.UNKNOWN else None
 
 class UnionAnalyzer:
     def __init__(self):
@@ -440,6 +504,8 @@ class UnionAnalyzer:
         serving as a potential global denominator.
         """
         global_max_workers = 0.0
+        explicit_global_max = 0.0
+
         for s in sentences:
             ans = self.extractor.analyze_sentence(s)
 
@@ -460,7 +526,21 @@ class UnionAnalyzer:
                 local_max = max(counts)
                 if not is_historical and local_max > global_max_workers:
                     global_max_workers = local_max
-        return global_max_workers
+
+                    # Check for explicit "Total" context without specific regional limitation
+                    if check_is_total_context(ans):
+                        # Check if restricted to a region (e.g. "Total US employees")
+                        is_regional = False
+                        for m in ans.geo_matches:
+                            if m.source_type == GeoSource.EXPLICIT and m.region not in (Region.INTERNATIONAL, Region.UNKNOWN):
+                                is_regional = True
+                                break
+                        
+                        if not is_regional:
+                            if local_max > explicit_global_max:
+                                explicit_global_max = local_max
+
+        return explicit_global_max if explicit_global_max > 0 else global_max_workers
 
     def _analyze_block(
         self, 
@@ -580,6 +660,24 @@ class UnionAnalyzer:
             elif has_data and geo_context["specificity"] != Specificity.IMPLICIT.value:
                 should_include = True
 
+            # Exclude "monitoring" statements with no data (Statement Only)
+            # e.g. "We are committed to constructive engagement..."
+            if (
+                should_include
+                and not has_data
+                and BOILERPLATE_REGEX.search(sent)
+            ):
+                should_include = False
+
+            # Exclude personnel events (layoffs, hiring) if no union keywords are present
+            # e.g. "We laid off 500 employees." (Avoids treating 500 as a workforce total)
+            if (
+                should_include
+                and not analysis.union_terms
+                and PERSONNEL_EVENT_REGEX.search(sent)
+            ):
+                should_include = False
+
             # Filter out Risk Items embedded in Item 1
             if analysis.risk_terms and not has_data:
                 risk_item = create_risk_item(sent, analysis, is_historical=is_historical)
@@ -617,6 +715,11 @@ class UnionAnalyzer:
         data.setdefault("temporal_scope", TemporalScope.CURRENT.value)
         if is_historical:
             data["temporal_scope"] = TemporalScope.HISTORICAL.value
+            
+        # Relationship Status
+        rel_status = determine_relationship_status(analysis)
+        if rel_status:
+            data["relationship_status"] = rel_status
         
         return data
 
@@ -696,7 +799,7 @@ class UnionAnalyzer:
         # Indicators
         positives = [m for m in analysis._matches if m['type'] in (MatchType.UNION_TERM, MatchType.SPECIFIC_UNION, MatchType.UNION_NAME, MatchType.COVERAGE_TERM)]
         negatives = [m for m in analysis._matches if m['type'] in (MatchType.NON_UNION, MatchType.NEGATION, MatchType.NON_COVERAGE)]
-        totals = [m for m in analysis._matches if m['type'] in (MatchType.WORKER_TERM,)]
+        totals = [m for m in analysis._matches if m['type'] in (MatchType.WORKER_TERM, MatchType.TOTAL_MODIFIER)]
         
         # Helper to find nearest indicator
         def get_nearest_type(target_span):
