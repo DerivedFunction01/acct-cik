@@ -137,4 +137,29 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"\s+(?=[A-Z_])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
 )
 
+
+SENTENCE_SPLIT_PATTERN2 = re.compile(
+    r"(?<=[.!?])"  # Positive lookbehind for punctuation
+    # 1. Protect Initials (e.g., "John H. Smith") -> Capital + Dot
+    r"(?<!\b[A-Z]\.)"
+    # 2. Protect 2-letter Acronyms (e.g., "U.S.", "U.K.", "N.Y.") -> Cap.Cap.
+    r"(?<!\b[A-Z]\.[A-Z]\.)"
+    # 3. Protect 3-letter and 4-letter Acronyms (e.g., "U.S.A.", "S.E.C.", "F.A.S.B.") -> Cap.Cap.Cap.Cap. 4-letter acronyms are rare
+    r"(?<!\b[A-Z]\.[A-Z]\.[A-Z]\.)"
+    r"(?<!\b[A-Z]\.[A-Z]\.[A-Z]\.[A-Z]\.)"
+    # 4. Protect common Title/Corp abbreviations (Mixed Case)
+    r"(?<!\bInc\.)"
+    r"(?<!\bCorp\.)"
+    r"(?<!\bLtd\.)"
+    r"(?<!\bLlc\.)"
+    r"(?<!\bNo\.)"  # "Note No. 5"
+    r"(?<!\bNos\.)"  # Plural numbers
+    r"(?<!\bVol\.)"  # Volume
+    r"(?<!\bvs\.)"  # versus
+    r"(?<!\bp\.)"  # p. (page) - FIXED (Separated)
+    r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
+    r"(?<!\b[Ee]tc\.)"  # etc.
+    r"\s+(?=[A-Z0-9_])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
+)
+
 YEAR_REGEX = re.compile(r"\b(19\d{2}|20\d{2})\b")

@@ -3,10 +3,10 @@ import statistics
 import re
 
 from extraction import (
+    NEGATION_REGEX,
     UnionExtractor,
     SentenceAnalysis,
     MatchType,
-    NEGATION_REGEX,
     REMAIN_REGEX,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
@@ -33,6 +33,14 @@ from defs.union_regex import (
 )
 
 
+def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
+    """Combines worker_counts and relevant numbers (heuristic filter)."""
+    counts = list(analysis.worker_counts)
+    for n in analysis.numbers:
+        if n > 5 or n == 0:
+            counts.append(n)
+    return counts
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -55,11 +63,24 @@ class SimpleCoverageAnalyzer:
         }
 
         notes = []
-
+        # Check for union context
+        has_union_context = (
+            bool(analysis.union_terms)
+            or bool(analysis.coverage_terms)
+            or bool(analysis.negation_terms)
+            or any(
+                m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
+                for m in analysis.geo_matches
+            )
+        )
+        if not has_union_context:
+            data["type"] = None
+            return data
+        effective_counts = get_effective_counts(analysis)
         # 0. Handle 1 Percentage + 1 Count (Combined)
-        if len(analysis.percentages) == 1 and len(analysis.worker_counts) == 1:
+        if len(analysis.percentages) == 1 and len(effective_counts) == 1:
             pct = analysis.percentages[0]
-            count = analysis.worker_counts[0]
+            count = effective_counts[0]
 
             data["percentage"] = pct
             data["type"] = CoverageType.EXPLICIT_PERCENT.value
@@ -83,7 +104,7 @@ class SimpleCoverageAnalyzer:
                 (
                     m
                     for m in analysis._matches
-                    if m["type"] == MatchType.WORKER_COUNT and m["val"] == count
+                        if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == count
                 ),
                 None,
             )
@@ -119,6 +140,87 @@ class SimpleCoverageAnalyzer:
                     if pct > 0:
                         data["employee_count_total"] = round(count / (pct / 100.0))
 
+        # 0.5 Handle 2 Counts (Total vs Part)
+        elif not analysis.percentages and len(effective_counts) == 2:
+            c1 = effective_counts[0]
+            c2 = effective_counts[1]
+
+            # Find matches to check text between
+            m1 = next(
+                (
+                    m
+                    for m in analysis._matches
+                    if m["type"] == MatchType.WORKER_COUNT and m["val"] == c1
+                ) or (m for m in analysis._matches if m["type"] == MatchType.NUMBER and m["val"] == c1),
+                None,
+            )
+            # Find m2 (handle duplicate values)
+            m2 = next(
+                (
+                    m
+                    for m in analysis._matches
+                    if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                    and m["val"] == c2
+                    and m is not m1
+                ),
+                None,
+            )
+
+            is_subset = True # Default to subset (Max is Total)
+            if m1 and m2:
+                # Ensure order
+                if m1["span"][0] > m2["span"][0]:
+                    m1, m2 = m2, m1
+
+                text_between = analysis.text[m1["span"][1]:m2["span"][0]]
+
+                # Check text before first number for "Of" (e.g. "Of our 100 employees, 20...")
+                text_before = analysis.text[max(0, m1["span"][0] - 25):m1["span"][0]]
+
+                # "of" -> Subset (e.g. "50 of 100" OR "Of 100... 50")
+                if OF_REGEX.search(text_between) or OF_REGEX.search(text_before):
+                    is_subset = True
+                # "and" -> Addition (e.g. "50 UAW and 50 Teamsters")
+                elif re.search(r'\band\b', text_between, re.IGNORECASE):
+                    is_subset = False
+
+            if is_subset:
+                # Assume larger is total
+                total = max(c1, c2)
+                part = min(c1, c2)
+
+                data["employee_count_total"] = total
+
+                if analysis.negation_terms:
+                    data["employee_count_not_covered"] = part
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                    data["employee_count_covered"] = total - part
+                    notes.append(f"Count (not covered): {part} of {total}")
+                else:
+                    data["employee_count_covered"] = part
+                    notes.append(f"Count (covered): {part} of {total}")
+            else:
+                # Addition (Part + Part = Total)
+                total = c1 + c2
+                data["employee_count_total"] = total
+
+                if analysis.negation_terms:
+                    data["employee_count_not_covered"] = total
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                    notes.append(f"Count (not covered): {c1} + {c2} = {total}")
+                else:
+                    data["employee_count_covered"] = total
+                    notes.append(f"Count (covered): {c1} + {c2} = {total}")
+
+            if data["employee_count_total"] and data["employee_count_total"] > 0:
+                covered = data["employee_count_covered"] if data["employee_count_covered"] is not None else 0
+                pct = (covered / data["employee_count_total"]) * 100.0
+                data["percentage"] = round(pct, 2)
+                data["type"] = CoverageType.CALCULATED.value
+                notes.append(f"Calculated percentage: {data['percentage']}%")
+
         else:
             # 1. Explicit Percentage
             if analysis.percentages:
@@ -128,8 +230,8 @@ class SimpleCoverageAnalyzer:
                 notes.append(f"Explicit percentage: {pct}%")
 
             # 2. Explicit Count
-            if analysis.worker_counts:
-                count = analysis.worker_counts[0]
+            if effective_counts:
+                count = effective_counts[0]
                 if analysis.negation_terms:
                     data["employee_count_not_covered"] = count
                     data["negated"] = True
@@ -142,10 +244,10 @@ class SimpleCoverageAnalyzer:
         # 3. Qualitative Zero ("None are represented")
         if (
             not analysis.percentages
-            and not analysis.worker_counts
+            and not effective_counts
             and analysis.negation_terms
         ):
-            if any(NEGATION_REGEX.search(t) for t in analysis.negation_terms):
+            if any(analysis.negation_terms):
                 data["percentage"] = 0.0
                 data["negated"] = True
                 data["negation_type"] = NegationType.ZERO_COVERAGE.value
@@ -301,8 +403,9 @@ class ComplexCoverageAnalyzer:
         }
 
     def analyze(self) -> Dict[str, Any]:
+        counts = get_effective_counts(self.analysis)
         # 0. Ranges (High priority)
-        if self._handle_ranges():
+        if self._handle_ranges(counts=counts):
             return self.data
 
         # 1. Percent of Percent (High priority)
@@ -310,7 +413,7 @@ class ComplexCoverageAnalyzer:
             return self.data
 
         # 2. Mixed Coverage (Resolves specific counts/percents)
-        self._resolve_mixed_coverage()
+        self._resolve_mixed_coverage(counts=counts)
 
         # 3. Ratios
         if not self.data["percentage"]:
@@ -327,7 +430,7 @@ class ComplexCoverageAnalyzer:
 
         return self.data
 
-    def _handle_ranges(self) -> bool:
+    def _handle_ranges(self, counts: List[float] =[]) -> bool:
         """
         Detects ranges like "20% to 25%" or "500 to 600 employees".
         Averages them and treats as explicit.
@@ -348,8 +451,13 @@ class ComplexCoverageAnalyzer:
                     return True
 
         # 2. Count Ranges
-        if not self.data["percentage"] and len(self.analysis.worker_counts) == 2:
-            matches = [m for m in self.analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+        if not self.data["percentage"] and len(counts) == 2:
+            matches = matches = [
+                m
+                for m in self.analysis._matches
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                and m["val"] in counts
+            ]
             if len(matches) == 2:
                 matches.sort(key=lambda x: x['span'][0])
                 if is_range_context(self.analysis.text, matches[0]['span'], matches[1]['span']):
@@ -397,7 +505,7 @@ class ComplexCoverageAnalyzer:
                         return True
         return False
 
-    def _resolve_mixed_coverage(self):
+    def _resolve_mixed_coverage(self, counts: List[float] = []):
         """
         Resolves mixed coverage by segmenting text on delimiters and mapping
         values to keywords within the same segment.
@@ -411,14 +519,13 @@ class ComplexCoverageAnalyzer:
             segments.append((boundaries[i], boundaries[i + 1]))
 
         # 2. Gather entities
-        counts = [
-            m for m in self.analysis._matches if m["type"] == MatchType.WORKER_COUNT
+        _counts = [
+            m
+            for m in self.analysis._matches
+            if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+            and m["val"] in counts
         ]
         percents = [m for m in self.analysis._matches if m["type"] == MatchType.PERCENT]
-        numbers = [m for m in self.analysis._matches if m["type"] == MatchType.NUMBER]
-
-        count_spans = set(c["span"] for c in counts)
-        all_values = counts + [n for n in numbers if n["span"] not in count_spans]
 
         positives = [
             m
@@ -445,7 +552,7 @@ class ComplexCoverageAnalyzer:
 
         # 3. Respectively Logic
         if self.analysis.has_respectively:
-            sorted_values = sorted(all_values, key=lambda x: x["span"][0])
+            sorted_values = sorted(_counts, key=lambda x: x["span"][0])
             sorted_percents = sorted(percents, key=lambda x: x["span"][0])
 
             tagged_keywords = []
@@ -565,7 +672,7 @@ class ComplexCoverageAnalyzer:
                     self.data["note"] = note
 
         total_candidates = []
-        for c in all_values:
+        for c in _counts:
             ctype = get_nearest_type_in_segment(c["span"])
             if ctype == "covered":
                 self.data["employee_count_covered"] = c["val"]
@@ -657,10 +764,14 @@ def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
     if analysis.ratios:
         return False
 
+    effective_counts = get_effective_counts(analysis)
+    # 2.5 Simple Counts of Counts
+    if len(analysis.percentages) == 0 and len(effective_counts) == 2:
+        return True
     # 3. Max 1 Percentage, Max 1 Count (avoid ambiguity)
     if len(analysis.percentages) > 1:
         return False
-    if len(analysis.worker_counts) > 1:
+    if len(effective_counts) > 1:
         return False
 
     return True
@@ -944,6 +1055,8 @@ class Tracker:
         
         self.global_covered: float = 0.0
         self.region_covered: Dict[str, float] = {}
+        self.region_aggregates: Dict[str, float] = {} # For "Germany and France" type aggregates
+        self.region_completeness: Dict[str, bool] = {} # True if explicit region-wide statement found
         self.country_covered: Dict[str, float] = {}
 
     def update(
@@ -1061,7 +1174,7 @@ class Tracker:
         # 3. If found, promote to region_totals (e.g. "Rest of World")
         pass
 
-    def record_coverage(self, percentage: Optional[float], covered_count: Optional[float], geo_context: Dict[str, Any]):
+    def record_coverage(self, percentage: Optional[float], covered_count: Optional[float], geo_context: Dict[str, Any], scope_total: Optional[float] = None, not_covered_count: Optional[float] = None):
         """
         Records coverage data (rate or count) for a specific geographic scope.
         """
@@ -1082,6 +1195,57 @@ class Tracker:
             # If multiple countries are listed (e.g. "Germany and France"), 
             # this is an aggregate count, not a region-wide rate.
             scope = "aggregate"
+            
+        # --- 2-of-3 Derivation and Validation ---
+        # Determine the effective total to use for validation/calculation
+        effective_total = scope_total
+        if effective_total is None:
+            if scope == "global":
+                effective_total = self.global_total
+            elif scope == "region" and region:
+                effective_total = self.region_totals.get(region)
+            elif scope == "country" and target_code:
+                effective_total = self.country_totals.get(target_code)
+
+        # Case 1: Have Rate + Total -> Derive Covered
+        if percentage is not None and effective_total and effective_total > 0 and covered_count is None:
+            covered_count = (percentage / 100.0) * effective_total
+            
+        # Case 2: Have Covered + Total -> Derive Rate
+        if covered_count is not None and effective_total and effective_total > 0 and percentage is None:
+            percentage = (covered_count / effective_total) * 100.0
+            
+        # Case 3: Have All Three -> Validate and Resolve
+        if percentage is not None and covered_count is not None and effective_total and effective_total > 0:
+            implied_rate = (covered_count / effective_total) * 100.0
+            diff = abs(implied_rate - percentage)
+            
+            # Rounding tolerance (e.g. 1.5% allows for "approx 15%" vs 16.2%)
+            if diff > 2:
+                # Conflict Resolution: Trust explicit counts over rounded rates
+                # If we trust the count, we should NOT record the explicit rate as the "truth" for the region
+                # because calculate_metrics prioritizes explicit rates.
+                # So we drop the percentage from the record request, effectively treating it as derived.
+                percentage = None 
+            else:
+                # Consistent (within rounding). 
+                # We keep both. The explicit rate will be stored in region_rates (if applicable),
+                # and explicit count in region_covered.
+                pass
+
+        # Track Completeness: Explicit region mention implies complete coverage info for that region
+        if scope == "region" and region:
+            self.region_completeness[region] = True
+
+        # Check if sum of covered + not_covered matches the region total (approximate)
+        # This handles cases where we have counts that sum up to the workforce, implying completeness
+        if region and region in self.region_totals:
+            reg_total = self.region_totals[region]
+            if reg_total > 0:
+                c_val = covered_count if covered_count is not None else 0.0
+                nc_val = not_covered_count if not_covered_count is not None else 0.0
+                if (c_val + nc_val) > 0 and abs((c_val + nc_val) - reg_total) < (reg_total * 0.05):
+                    self.region_completeness[region] = True
             
         # 1. Handle Rates (Percentages)
         if percentage is not None:
@@ -1105,9 +1269,11 @@ class Tracker:
         if covered_count is not None:
             if scope == "global":
                 self.global_covered = max(self.global_covered, covered_count)
-            elif scope in ("region", "aggregate") and region:
-                # For aggregates, we treat it as a known "covered count" for the region
+            elif scope == "region" and region:
                 self.region_covered[region] = max(self.region_covered.get(region, 0), covered_count)
+            elif scope == "aggregate" and region:
+                # Store aggregates separately so they don't override complete region counts
+                self.region_aggregates[region] = max(self.region_aggregates.get(region, 0), covered_count)
             elif scope == "country" and target_code:
                 self.country_covered[target_code] = max(self.country_covered.get(target_code, 0), covered_count)
 
@@ -1137,14 +1303,20 @@ class Tracker:
                 rate = self.region_rates[region]
                 covered = (rate / 100.0) * total
             else:
-                # Priority 2: Trust Raw Counts (Explicit Region Count OR Sum of Children)
-                children_sum = 0.0
-                if region in self.region_country_map:
-                    for code in self.region_country_map[region]:
-                        children_sum += self.country_covered.get(code, 0.0)
-                
-                explicit_val = self.region_covered.get(region, 0.0)
-                covered = max(explicit_val, children_sum)
+                # Priority 2: Explicit Region Count (If marked Complete)
+                if self.region_completeness.get(region):
+                    covered = self.region_covered.get(region, 0.0)
+                else:
+                    # Priority 3: Best available partial data (Max of Aggregate vs Sum of Countries)
+                    # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
+                    children_sum = 0.0
+                    if region in self.region_country_map:
+                        for code in self.region_country_map[region]:
+                            children_sum += self.country_covered.get(code, 0.0)
+                    
+                    aggregate_val = self.region_aggregates.get(region, 0.0)
+                    covered = max(aggregate_val, children_sum)
+
                 rate = (covered / total) * 100.0 if total > 0 else 0.0
             
             final_region_stats[region] = {"covered": covered, "total": total, "rate": rate}
@@ -1167,24 +1339,24 @@ class UnionAnalyzer:
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
 
-    def _detect_count_range(self, analysis: SentenceAnalysis) -> Optional[float]:
+    def _detect_count_range(self, analysis: SentenceAnalysis, counts: List[float]) -> Optional[float]:
         """
         Detects if worker_counts form a range (e.g. 100 to 200).
         Returns average if range found, else None.
         """
-        if len(analysis.worker_counts) != 2:
+        if len(counts) != 2:
             return None
-            
-        matches = [m for m in analysis._matches if m['type'] == MatchType.WORKER_COUNT]
+
+        matches = [m for m in analysis._matches if m['type'] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m['val'] in counts]
         if len(matches) != 2:
             return None
-            
+
         matches.sort(key=lambda x: x['span'][0])
         m1, m2 = matches[0], matches[1]
-        
+
         if is_range_context(analysis.text, m1['span'], m2['span']):
             return (m1['val'] + m2['val']) / 2
-                
+
         return None
 
     def _determine_geo_context(
@@ -1280,7 +1452,8 @@ class UnionAnalyzer:
             if (is_historical or analysis.has_historical) and not analysis.has_current:
                 continue
 
-            if analysis.worker_counts:
+            effective_counts = get_effective_counts(analysis)
+            if effective_counts:
                 # Determine context (reusing logic to ensure consistency with Pass 2)
                 geo_context = self._determine_geo_context(
                     analysis, last_geo_context, idx, last_geo_sentence_idx
@@ -1294,19 +1467,19 @@ class UnionAnalyzer:
                     last_geo_sentence_idx = idx
 
                 # Determine if this count is an explicit total
-                max_count = max(analysis.worker_counts)
+                max_count = max(effective_counts)
                 count_match = next(
                     (
                         m
                         for m in analysis._matches
-                        if m["type"] == MatchType.WORKER_COUNT and m["val"] == max_count
+                        if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == max_count
                     ),
                     None,
                 )
                 span = count_match["span"] if count_match else None
                 is_explicit = check_is_total_context(analysis, span)
 
-                range_avg = self._detect_count_range(analysis)
+                range_avg = self._detect_count_range(analysis, effective_counts)
                 final_count = range_avg if range_avg else max_count
 
                 tracker.update(final_count, geo_context, is_explicit_total=is_explicit)
@@ -1320,7 +1493,8 @@ class UnionAnalyzer:
         mapped_counts = {}
         sentence_total = None
 
-        counts = [m for m in analysis._matches if m["type"] == MatchType.WORKER_COUNT]
+        # Include numbers > 5 to catch cases like "1000" (number) -> "Germany" (geo)
+        counts = [m for m in analysis._matches if m["type"] == MatchType.WORKER_COUNT or (m["type"] == MatchType.NUMBER and m["val"] > 5)]
         if not counts:
             return {}, None
 
@@ -1543,12 +1717,13 @@ class UnionAnalyzer:
                 is_historical = True
 
             # 2. Update Context (Worker Counts)
-            if analysis.worker_counts and not is_historical:
-                last_employee_count = max(analysis.worker_counts)
+            effective_counts = get_effective_counts(analysis)
+            if effective_counts and not is_historical:
+                last_employee_count = max(effective_counts)
 
             # 3. Relevance Check
             has_coverage = bool(analysis.percentages or analysis.negation_terms)
-            has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
+            has_worker_context = bool(analysis.worker_terms or effective_counts)
             is_relevant = (
                 bool(
                     analysis.union_terms
@@ -1556,7 +1731,7 @@ class UnionAnalyzer:
                     or analysis.negation_terms
                 )
                 or (has_coverage and has_worker_context)
-                or bool(analysis.worker_counts)
+                or bool(effective_counts)
             )
 
             if not is_relevant:
@@ -1575,17 +1750,17 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = idx
 
             # 5. Update Region Totals
-            if analysis.worker_counts:
+            if effective_counts:
                 # Check for range first
-                range_avg = self._detect_count_range(analysis)
-                
+                range_avg = self._detect_count_range(analysis, effective_counts)
+
                 if range_avg:
                     current_val = range_avg
                     mapped_counts = {}
                 else:
                     # Try intelligent mapping first
                     mapped_counts, sent_total = self._resolve_counts_to_geography(analysis)
-                    current_val = max(analysis.worker_counts)
+                    current_val = max(effective_counts)
 
                 if mapped_counts:
                     # Use specific mappings
@@ -1800,46 +1975,54 @@ class UnionAnalyzer:
         """
         Computes weighted average coverage and derived regional stats using Tracker data.
         """
-        # 1. Calculate Weighted Average using legacy logic
-        # Use tracker totals if available
-        global_workforce = tracker.global_total
-        r_totals = region_totals if region_totals else tracker.region_totals
-        
-        summary = self.compute_weighted_coverage_legacy(results, global_workforce, r_totals)
-
-        # 2. Calculate Derived Regional Coverage
-        # (Rate = Sum of Implied Covered / Region Total)
-        derived_regional = {}
-        
-        # Group items by region to sum covered counts
-        region_covered_sums = {}
-        
+        # Populate Tracker with Coverage Data from Results
         for item in results:
             data = item.get("coverage_data", {})
             geo = item.get("geographic_context", {})
-            region = geo.get("region")
             
-            # Calculate implied covered count for this item
+            # Skip non-current
+            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
+                continue
+                
             pct = data.get("percentage")
+            covered = data.get("employee_count_covered")
+            not_covered = data.get("employee_count_not_covered")
             total = data.get("employee_count_total")
             
-            if region and region in r_totals and pct is not None and total:
-                implied_covered = (pct / 100.0) * total
-                region_covered_sums[region] = region_covered_sums.get(region, 0.0) + implied_covered
-
-        # Compute rates
-        for reg, covered_sum in region_covered_sums.items():
-            total = r_totals.get(reg, 0)
-            if total > 0:
-                derived_regional[reg] = round((covered_sum / total) * 100.0, 2)
-
-        summary.update({
-            "derived_regional_coverage": derived_regional,
+            # Try to resolve not_covered to covered
+            if covered is None and not_covered is not None:
+                if total and total >= not_covered:
+                    covered = total - not_covered
+                else:
+                    # Try to find total from Tracker if not in item
+                    scope_total = None
+                    region = geo.get("region")
+                    countries = geo.get("countries", [])
+                    
+                    if len(countries) == 1:
+                        code = countries[0]["code"]
+                        scope_total = tracker.country_totals.get(code)
+                    elif region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                        scope_total = tracker.region_totals.get(region)
+                    elif region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                        scope_total = tracker.global_total
+                    
+                    if scope_total and scope_total >= not_covered:
+                        covered = scope_total - not_covered
+            
+            tracker.record_coverage(pct, covered, geo, scope_total=total, not_covered_count=not_covered)
+            
+        # Calculate Metrics
+        metrics = tracker.calculate_metrics()
+        
+        return {
+            "weighted_average_percentage": metrics["global_rate"],
+            "likely_percentage": metrics["global_rate"],
+            "derived_regional_coverage": {r: m["rate"] for r, m in metrics["region_stats"].items()},
             "census_global_total": tracker.global_total,
             "census_region_totals": tracker.region_totals,
             "census_country_totals": tracker.country_totals,
-        })
-        return summary
+        }
 
     def compute_weighted_coverage_legacy(
         self,
@@ -1967,10 +2150,12 @@ class UnionAnalyzer:
         if total_employees > 0:
             weighted_avg = total_weighted_pct / total_employees
 
-        # Find closest text candidate
+        # Find closest text candidate, but only if it is within +/- 3%
         closest_pct = None
         if valid_percentages:
             closest_pct = min(valid_percentages, key=lambda x: abs(x - weighted_avg))
+        if closest_pct and (abs(closest_pct - weighted_avg) > 3):
+            closest_pct = round(weighted_avg, 2)
 
         return {
             "weighted_average_percentage": round(weighted_avg, 2),

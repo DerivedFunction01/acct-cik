@@ -2,15 +2,15 @@ import re
 from typing import Any, Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
-from defs.regex_lib import build_alternation, build_regex, YEAR_REGEX
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, YEAR_REGEX
 from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
 
 SPACE_PATTERN = re.compile(r"\s+")
-PUNCT_SPACE_PATTERN = re.compile(r"\s+([,.;:!?])")
-DOUBLE_PUNCT_PATTERN = re.compile(r"([,.;:!?])\1+")
+PUNCT_SPACE_PATTERN = re.compile(r"\s+([,\.;\:\!\?])")
+DOUBLE_PUNCT_PATTERN = re.compile(r"([,\.;\:\!\?])\1+")
 
 
 def clean_spaces_and_punctuation(text: str) -> str:
@@ -887,6 +887,31 @@ class ConcisenessCleaner:
                 r"therein",
                 r"hereby",
                 r"whereby",
+                r"(?:hour|dai|week|year)ly",
+                r"productions?",
+                r"facilit(?:y|ies)",
+                r"places?",
+                r"locations?",
+                r"distributions?",
+                r"manufacturing",
+                r"propert(?:y|ies)",
+                r"stores?",
+                r"branch(?:es)?",
+                r"warehouses?",
+                r"offices",
+                r"centers?",
+                r"various",
+                r"certain",
+                r"several",
+                r"addition(?:ally)?",
+                r"furthermore",
+                r"moreover",
+                r"particular(?:ly)?",
+                r"general(?:ly)?",
+                r"located",
+                r"situated",
+                r"principally",
+                r"primarily",
             ]
         )
 
@@ -897,32 +922,50 @@ class ConcisenessCleaner:
             (re.compile(r"\bdemonstrat(?:e|es|ed|ing)\b", re.IGNORECASE), "show"),
             (re.compile(r"\bupon\b", re.IGNORECASE), "on"),
             (re.compile(r"\bregarding\b", re.IGNORECASE), "about"),
+            (re.compile(r"\bconsist(?:s|ed|ing)?\s+of\b", re.IGNORECASE), "are"),
+            (re.compile(r"\bcompris(?:e|es|ed|ing)(?:\s+of)?\b", re.IGNORECASE), "are"),
+            (re.compile(r"\bcomposed\s+of\b", re.IGNORECASE), "are"),
+            (re.compile(r"\bin\s+order\s+to\b", re.IGNORECASE), "to"),
+            (re.compile(r"\bwith\s+respect\s+to\b", re.IGNORECASE), "for"),
+            (re.compile(r"\bin\s+connection\s+with\b", re.IGNORECASE), "for"),
+            (re.compile(r"\bas\s+a\s+result\s+of\b", re.IGNORECASE), "because"),
+            (re.compile(r"\bdue\s+to\b", re.IGNORECASE), "because"),
+            (re.compile(r"\bin\s+the\s+event\s+of\b", re.IGNORECASE), "if"),
+            (re.compile(r"\bin\s+case\s+of\b", re.IGNORECASE), "if"),
+            (re.compile(r"\bsubsequent\s+to\b", re.IGNORECASE), "after"),
         ]
 
         self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
+        self.leading_symbols = re.compile(r"^[\s\-\*•·>_,;!.\?]+", re.UNICODE)
 
     def clean(self, text: str) -> str:
         if not text:
             return ""
-
-        # Apply removals
-        text = self.removal_regex.sub(" ", text)
-
-        # Apply replacements
-        for pattern, replacement in self.replacements:
-            text = pattern.sub(replacement, text)
-
-        # Split into paragraphs to preserve structure and apply space cleaning per paragraph
         paragraphs = text.split("\n\n")
         processed = []
         for p in paragraphs:
-            p = clean_spaces_and_punctuation(p)
+            p = p.strip()
             if not p:
                 continue
-            if p[0].islower():
-                p = p[0].upper() + p[1:]
-            p = self.recap_pattern.sub(lambda m: m.group(1) + m.group(2).upper(), p)
-            processed.append(p)
+            sentences = []
+            for sent in SENTENCE_SPLIT_PATTERN.split(p):
+
+                # Apply removals
+                sent = self.removal_regex.sub(" ", sent)
+
+                # Apply replacements
+                for pattern, replacement in self.replacements:
+                    sent = pattern.sub(replacement, sent)
+                sent = clean_spaces_and_punctuation(sent)
+                sent = self.leading_symbols.sub("", sent).strip()
+
+                if not sent:
+                    continue
+                sent = sent[0].upper() + sent[1:]
+                sentences.append(sent.strip())
+
+            processed.append(" ".join(sentences))
+
 
         return "\n\n".join(processed)
 

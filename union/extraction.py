@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, build_compound, to_build_alternation
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN2, build_alternation, build_regex, build_compound, to_build_alternation
 from defs.union_regex import (
     UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
@@ -429,7 +429,7 @@ class UnionExtractor:
     def analyze_sentence(self, text: str) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
         working_text = text  # Mutable text for masking
-        
+
         # Pre-compute temporal flags
         analysis.has_conditional = bool(CONDITIONAL_REGEX.search(text))
         analysis.has_current = bool(CURRENT_REGEX.search(text))
@@ -446,18 +446,18 @@ class UnionExtractor:
 
             # Apply masking to working_text
             chars = list(working_text)
-            
+
             for m in current_iter_matches:
                 start, end = m.span()
                 val = m.group(0)
                 extracted = val
-                
+
                 if extractor_func:
                     try:
                         extracted = extractor_func(m)
                     except (ValueError, IndexError):
                         continue
-                
+
                 # Record match
                 analysis._matches.append({
                     'type': type_name,
@@ -465,14 +465,14 @@ class UnionExtractor:
                     'span': (start, end),
                     'text': val
                 })
-                
+
                 if side_effect:
                     side_effect(m, extracted)
-                
+
                 # Mask with spaces
                 for i in range(start, end):
                     chars[i] = ' '
-            
+
             working_text = "".join(chars)
 
         # 1. Extract Percentages
@@ -529,8 +529,8 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.negation_terms.append(val)
         )
-        
-        # 5b. Extract Non-Coverage Terms (at-will, unrepresented)
+
+        # 5b. Extract Non-Coverage Terms (at-will, unrepresented, non-union)
         process_matches(
             NON_COVERAGE_REGEX, MatchType.NON_COVERAGE,
             lambda m: m.group(0),
@@ -560,7 +560,7 @@ class UnionExtractor:
                     analysis.geo_matches.append(GeoMatch(
                         text=val, region=region, country=country, city=city, geo_code=code, source_type=GeoSource.EXPLICIT
                     ))
-            
+
             process_matches(
                 self.matcher.location_regex, MatchType.GEO,
                 lambda m: m.group(0),
@@ -587,7 +587,7 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.worker_terms.append(val)
         )
-        
+
         # 13. Extract Numbers (Generic - lowest priority)
         process_matches(
             NUMBER_REGEX, MatchType.NUMBER,
@@ -615,14 +615,14 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.supplier_terms.append(val)
         )
-        
+
         # 17. Extract Coverage Terms (e.g. "represented", "covered")
         process_matches(
             COVERAGE_REGEX, MatchType.COVERAGE_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.coverage_terms.append(val)
         )
-        
+
         # 18. Extract Qualitative Terms
         for item in COMPILED_QUALITATIVE_PATTERNS:
             def qual_side_effect(m, val):
@@ -654,7 +654,7 @@ class UnionExtractor:
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
-        parts = SENTENCE_SPLIT_PATTERN.split(text) if isinstance(text, str) else text
+        parts = SENTENCE_SPLIT_PATTERN2.split(text) if isinstance(text, str) else text
         final_parts = []
         for p in parts:
             # Secondary split by semicolon to handle compound sentences like "Chile...; Colombia..."

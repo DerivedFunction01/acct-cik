@@ -10,7 +10,7 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 
 import json
 from extraction import UnionExtractor
-from analysis import UnionAnalyzer
+from analysis_copy import UnionAnalyzer
 from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
