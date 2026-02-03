@@ -58,7 +58,7 @@ OR_REGEX = build_regex([
 TOTAL_MODIFIER_REGEX = build_regex([
     r"total", r"global", r"worldwide", r"aggregate", r"consolidated", 
     r"entire", r"overall", r"combined", r"full", r"whole",
-    r"employ(?:s|ed|ee)?",
+    r"employ(?:s|ed|ees?)?",
 ])
 
 QUALITATIVE_MULTIPLIERS = [

@@ -1457,6 +1457,13 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
 
     return status.value if status != RelationshipStatus.UNKNOWN else None
 
+@dataclass
+class Entry:
+    covered_count: Optional[float] = None
+    not_covered_count: Optional[float] = None
+    percentage: Optional[float] = None
+    total_count: Optional[float] = None
+    sent_idx: int = -1
 
 class Tracker:
     """
