@@ -793,6 +793,7 @@ ASIA_PACIFIC = {
             Location("Chongqing", ["chongqing"]),
             Location("Wuhan", ["wuhan"]),
         ],
+        ["All-China Federation of Trade Unions", "ACFTU"]
         code="CN",
     ),
     Nation(
