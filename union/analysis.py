@@ -576,7 +576,27 @@ class SimpleCoverageAnalyzer:
                 }
             )
             notes.append("Qualitative zero coverage detected")
-
+    def _handle_remaining(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str]):
+        """Handles cases like 'The remaining are represented'."""
+        if (
+            not analysis.percentages
+            and not effective_counts
+            and analysis.negation_terms
+        ):
+            data.update(
+                {
+                    "percentage": None,
+                    "negated": True if analysis.negation_terms else False,
+                    "negation_type": NegationType.ZERO_COVERAGE.value if analysis.negation_terms else None,
+                    "type": CoverageType.REMAINING.value,
+                }
+            )
+            notes.append("Qualitative zero coverage detected")
     def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         data = {
             "percentage": None,
@@ -617,8 +637,10 @@ class SimpleCoverageAnalyzer:
             data.get("percentage") is None
             and data.get("employee_count_covered") is None
             and data.get("employee_count_not_covered") is None
-        ):
-            self._handle_qualitative_zero(analysis, effective_counts, data, notes)
+        ):  
+            self._handle_remaining(analysis, effective_counts, data, notes)
+            if not data.get("type") == CoverageType.REMAINING.value:
+                self._handle_qualitative_zero(analysis, effective_counts, data, notes)
 
         data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
         data["employee_count_total"]
