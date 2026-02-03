@@ -215,12 +215,13 @@ class MinimalTextCleaner:
     )
 
     # Qualitative financial terms to numeric conversion map
-    _hundred = [
-        r"(?<!not\s)all(?=\s+(?:of|are|were))",  # all in all is rare to see in a financial filing
-        # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun/adj, not adverb
-        r"(?:complete|full|whole|entire) portions?",
-    ]
-    _hundred_alternation = build_alternation(_hundred)
+    # No point doing all
+    # _hundred = [
+    #     r"(?<!not\s)all(?=\s+(?:of|are|were))",  # all in all is rare to see in a financial filing
+    #     # 33% are completely covered. =/= 33% are 100% covered -> wrong. We need it as a noun/adj, not adverb
+    #     r"(?:complete|full|whole|entire) portions?",
+    # ]
+    # _hundred_alternation = build_alternation(_hundred)
 
     # Format: (Regex Pattern, Replacement String)
     qualitative_patterns = [
@@ -236,9 +237,9 @@ class MinimalTextCleaner:
             "0%",
         ),
         # "all of/entire" -> "100%"
-        (build_regex([_hundred_alternation]), "100%"),
-        # entirety -> 95%
-        (build_regex([r"entirety(?=\s+(?:of|are|were))"]), "95%"),
+        # (build_regex([_hundred_alternation]), "100%"),
+        # # entirety -> 95%
+        # (build_regex([r"entirety(?=\s+(?:of|are|were))"]), "95%"),
     ]
 
     # Handle "no [worker]", "none whom" -> "0 [worker]"
