@@ -138,7 +138,7 @@ _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
-        build_compound(TITLE_PREFIX, CORE.UNION.value, sep_prefix=GAP),
+        build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=GAP),
     ]
 )
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
@@ -348,6 +348,7 @@ def run_test():
         "Screen Actors Guild",
         "American Federation of Teachers",
         "United Steelworkers Union",
+        "United Air Alliance",
         "Air Line Pilots Association",
         "National Ironworkers Alliance",
         # Boundary / Punctuation Checks
