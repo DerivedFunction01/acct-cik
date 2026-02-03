@@ -1579,6 +1579,55 @@ class Tracker:
             sent_idx=sentence_index
         ))
 
+    def _matches_census(self, val: float, census: float, threshold: float = 0.05) -> bool:
+        """
+        Checks if value matches census within threshold or rounding error.
+        """
+        if census == 0:
+            return val == 0
+        
+        diff = abs(val - census)
+        # Relative error check
+        if diff / census < threshold:
+            return True
+            
+        # Absolute error check (for rounding issues, e.g. 100 vs 101)
+        if diff <= 5: 
+            return True
+            
+        return False
+
+    def _is_country_complete(self, country_code: str, census_total: float) -> bool:
+        """
+        Determines if the country's coverage data is 'complete'.
+        Complete means:
+        1. A country-scope entry exists with total_count ~ census_total.
+        2. OR, the sum of segment-scope entries' total_counts ~ census_total.
+        """
+        relevant_entries = [
+            e for e in self.entries 
+            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
+               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
+        ]
+        
+        if not relevant_entries:
+            return False
+
+        # 1. Check Country Scope
+        for e in relevant_entries:
+            if e.scope == Scope.COUNTRY and e.total_count:
+                if self._matches_census(e.total_count, census_total):
+                    return True
+        
+        # 2. Check Sum of Segments
+        segment_totals = [e.total_count for e in relevant_entries if e.scope == Scope.SEGMENT and e.total_count]
+        if segment_totals:
+            seg_sum = sum(segment_totals)
+            if self._matches_census(seg_sum, census_total):
+                return True
+                
+        return False
+
     def _resolve_single_country(self, country_code: str, census_total: float):
         """
         Helper to resolve missing coverage data for a single country given its census total.
