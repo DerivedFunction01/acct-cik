@@ -138,6 +138,8 @@ _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
+        build_compound(UNION_TERMS, UNION_TERMS, sep_prefix=GAP),
+        CORE.UNION.value,
     ]
 )
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
