@@ -51,6 +51,9 @@ REMAIN_REGEX = build_regex([
 OF_REGEX = build_regex([
     r"(?:out\s+)?of"
 ])
+OR_REGEX = build_regex([
+    r"or"
+])
 
 TOTAL_MODIFIER_REGEX = build_regex([
     r"total", r"global", r"worldwide", r"aggregate", r"consolidated", 
