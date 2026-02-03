@@ -15,7 +15,9 @@ from extraction import (
     QUALITATIVE_MULTIPLIERS,
     TOTAL_MODIFIER_REGEX,
 )
-from defs.region_regex import REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource
+from defs.region_regex import (
+    REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION
+)
 from defs.output_enums import (
     Specificity,
     CoverageType,
@@ -159,6 +161,8 @@ def check_is_total_context(
     Checks if 'total', 'global', 'worldwide', etc. are present near the match.
     """
     return check_local_regex(match_span, text, TOTAL_MODIFIER_REGEX, backward, forward)
+
+
 
 
 class SimpleCoverageAnalyzer:
@@ -1517,7 +1521,26 @@ class Tracker:
         pass
 
     def resolve(self):
-        pass
+        """
+        Resolves counts: If the location's sum > country, update country. If the country's sum > region, update region.
+        If no region exists create a key and update.
+        No updates to global here.
+        """
+        # Aggregate countries to regions
+        region_aggs = {}
+        for code, count in self.country_totals.items():
+            region_name = _CODE_TO_REGION.get(code)
+            if region_name:
+                region_aggs[region_name] = region_aggs.get(region_name, 0.0) + count
+        
+        # Update region totals if sum of countries is greater
+        for r_name, agg_count in region_aggs.items():
+            current = self.region_totals.get(r_name, 0.0)
+            if agg_count > current:
+                self.region_totals[r_name] = agg_count
+                self.resolution_log.append(
+                    f"Updated region '{r_name}' from {current} to {agg_count} based on country sum."
+                )
 
     def record_coverage(
         self,

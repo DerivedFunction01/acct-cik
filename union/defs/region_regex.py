@@ -793,7 +793,7 @@ ASIA_PACIFIC = {
             Location("Chongqing", ["chongqing"]),
             Location("Wuhan", ["wuhan"]),
         ],
-        ["All-China Federation of Trade Unions", "ACFTU"]
+        ["All-China Federation of Trade Unions", "ACFTU"],
         code="CN",
     ),
     Nation(
@@ -1202,6 +1202,25 @@ class RegionMatcher:
                 })
         return results
 
+
+def _build_code_to_region_map():
+    mapping = {}
+    all_regions = [
+        NORTH_AMERICA,
+        EUROPE,
+        ASIA_PACIFIC,
+        LATIN_AMERICA,
+        MIDDLE_EAST_AFRICA,
+        INTERNATIONAL,
+    ]
+    for r_set in all_regions:
+        for nation in r_set:
+            if nation.code:
+                mapping[nation.code] = nation.region.value
+    return mapping
+
+
+_CODE_TO_REGION = _build_code_to_region_map()
 MAJOR_CURRENCIES = {
     "USD": {"symbols": ["$"], "names": ["dollar", "dollars"], "prefix": True},
     "EUR": {"symbols": ["€"], "names": ["euro", "euros"], "prefix": True},
