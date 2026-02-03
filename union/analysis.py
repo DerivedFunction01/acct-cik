@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import List, Dict, Any, Optional, Tuple, Union
 import statistics
 import re
@@ -161,8 +162,6 @@ def check_is_total_context(
     Checks if 'total', 'global', 'worldwide', etc. are present near the match.
     """
     return check_local_regex(match_span, text, TOTAL_MODIFIER_REGEX, backward, forward)
-
-
 
 
 class SimpleCoverageAnalyzer:
@@ -1489,15 +1488,38 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
 
     return status.value if status != RelationshipStatus.UNKNOWN else None
 
+
+class Scope(Enum):
+    GLOBAL = "GLOBAL" # the catch all "global workforce"
+    REGION = "REGION"
+    COUNTRY = "COUNTRY"
+    AGGREGATE = "AGGREGATE"
+    SEGMENT = "SEGMENT" # Location, union, or type of employee
+    UNKNOWN = "UNKNOWN"
+
 @dataclass
+# The coverage statement.
 class Entry:
-    covered_count: Optional[float] = None
+    """
+    Records one entry to later merge.
+    One a paragraph level: a firm starts with the total and then breaks it down
+    Assuming one region per paragraph:
+    REGION? -> COUNTRY? -> SEGMENT
+    At the SEGMENT level, no sentence forward can refer to this population (ex. We have 100 covered at Union X)
+    
+    """
+    covered_count: Optional[float] = None # If null, do not derive from total - not covered. Internal sentence logic dictates this
     not_covered_count: Optional[float] = None
     percentage: Optional[float] = None
-    total_count: Optional[float] = None
-    union_name: Optional[str] = None
+    total_count: Optional[float] = None # The sum of covered + not covered.
+    key: Optional[str] = "unknown" # Union name or location. Else it belongs to the generic bucket
     is_qualitative: bool = False
-    sent_idx: int = -1
+    is_remaining: bool = False
+    scope: Scope = Scope.UNKNOWN
+    sent_idx: int = -1 # The sentence index
+    min_idx: int = -1 # The farthest backward this sentence can reference
+    max_idx: int = -1 # The farthest forward this sentence can reference
+
 
 class Tracker:
     """
@@ -1510,6 +1532,7 @@ class Tracker:
         self.region_totals: Dict[str, float] = {}
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
+        self.entries: List[Entry] = []
 
     def update(
         self, count: float, geo_context: Dict[str, Any], is_explicit_total: bool = False, sentence_index: int = -1
@@ -1558,7 +1581,7 @@ class Tracker:
                 if region_name not in countries_in_region:
                     countries_in_region[region_name] = []
                 countries_in_region[region_name].append(code)
-        
+
         # Update region totals if sum of countries is greater
         for r_name, agg_count in region_aggs.items():
             current = self.region_totals.get(r_name, 0.0)
@@ -1600,22 +1623,35 @@ class Tracker:
         countries = geo_context.get("countries", [])
 
         # Determine scope
-        scope = "global"
-        key = "global"
+        scope = Scope.GLOBAL
+        key = scope.value
 
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-            scope = "region"
+            scope = Scope.REGION
             key = region
 
         if len(countries) == 1:
-            scope = "country"
+            scope = Scope.COUNTRY
             key = countries[0]["code"]
         elif len(countries) > 1:
-            scope = "aggregate"
-            key = region or "aggregate"
+            scope = Scope.AGGREGATE
+            key = region if region else Scope.AGGREGATE.value
 
         union_name = geo_context.get("union_name_indicator")
-        pass
+        if union_name:
+            scope = Scope.SEGMENT
+            key = f"{key}::{union_name}"
+
+        self.entries.append(Entry(
+            covered_count=covered_count,
+            not_covered_count=not_covered_count,
+            percentage=percentage,
+            total_count=scope_total,
+            key=key,
+            is_qualitative=is_qualitative,
+            scope=scope,
+            sent_idx=sentence_index
+        ))
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
