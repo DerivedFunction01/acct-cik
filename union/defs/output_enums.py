@@ -15,6 +15,7 @@ class CoverageType(Enum):
     EXPLICIT_PERCENT = "EXPLICIT_PERCENT"
     CALCULATED = "CALCULATED_FROM_COUNTS"
     QUALITATIVE = "QUALITATIVE"
+    REMAINING = "REMAINING"
 
 class PercentageQualifier(Enum):
     NONE = "NONE"
