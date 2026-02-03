@@ -1650,7 +1650,7 @@ class Tracker:
         for i in range(len(by_sent)):
             parent = by_sent[i]
             current_sum = 0.0
-            group = []
+            group: List[Entry] = []
 
             # Look ahead for children
             for j in range(i + 1, len(by_sent)):
@@ -2229,8 +2229,10 @@ class UnionAnalyzer:
             # 3. Pass 2: Coverage Analysis (Process Paragraphs)
             results = []
             last_geo_context = None
+            last_geo_sentence_idx = -1
             prev_paragraph_totals = {}
             all_region_totals = {}
+            global_sentence_index = 0
 
             # Note: We can use tracker.global_total instead of recalculating global_max
 
@@ -2238,13 +2240,17 @@ class UnionAnalyzer:
                 p_sentences = self.extractor.split_sentences(p_text)
 
                 # Analyze block with context from previous paragraph
-                block_results, local_totals, last_geo_context = self._analyze_block(
+                block_results, local_totals, last_geo_context, last_geo_sentence_idx = self._analyze_block(
                     p_sentences,
                     reporting_year=reporting_year,
                     global_max_workers=tracker.global_total,
                     initial_geo_context=last_geo_context,
+                    initial_geo_sentence_idx=last_geo_sentence_idx,
                     previous_totals=prev_paragraph_totals,
+                    start_index=global_sentence_index,
                 )
+                
+                global_sentence_index += len(p_sentences)
 
                 # Update all_region_totals with max found across all blocks
                 for reg, count in local_totals.items():
@@ -2562,8 +2568,10 @@ class UnionAnalyzer:
         reporting_year: Optional[int] = None,
         global_max_workers: float = 0.0,
         initial_geo_context: Optional[Dict] = None,
+        initial_geo_sentence_idx: int = -1,
         previous_totals: Optional[Dict[str, float]] = None,
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Optional[Dict]]:
+        start_index: int = 0,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Optional[Dict], int]:
         """
         Analyzes a block of sentences (paragraph) for Item 1.
         Returns results, totals found in THIS block, and the final geo context.
@@ -2583,7 +2591,7 @@ class UnionAnalyzer:
 
         # Context inheritance state
         last_geo_context = initial_geo_context
-        last_geo_sentence_idx = -1
+        last_geo_sentence_idx = initial_geo_sentence_idx
         last_employee_count = None
 
         # Totals found strictly within this block (prevent double counting)
@@ -2599,6 +2607,7 @@ class UnionAnalyzer:
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
+            current_idx = start_index + idx
 
             # 1. Historical Check
             is_historical = False
@@ -2623,7 +2632,7 @@ class UnionAnalyzer:
 
             # 4. Determine Geographic Context
             geo_context = self._determine_geo_context(
-                analysis, last_geo_context, idx, last_geo_sentence_idx
+                analysis, last_geo_context, current_idx, last_geo_sentence_idx
             )
 
             if geo_context["specificity"] in (
@@ -2631,7 +2640,7 @@ class UnionAnalyzer:
                 Specificity.INFERRED_UNION.value,
             ):
                 last_geo_context = geo_context
-                last_geo_sentence_idx = idx
+                last_geo_sentence_idx = current_idx
 
             # 5. Update Region Totals
             census_update_note = None
@@ -2738,13 +2747,13 @@ class UnionAnalyzer:
                 "coverage_data": coverage_data,
                 "lookup_totals": effective_totals.copy(),
                 "census_note": census_update_note,
-                "sentence_index": idx,
+                "sentence_index": current_idx,
             }
             results.append(item)
 
         merged_results = self._merge_continuation_items(results)
 
-        return merged_results, effective_totals, last_geo_context
+        return merged_results, effective_totals, last_geo_context, last_geo_sentence_idx
 
     def _determine_coverage_data(
         self,

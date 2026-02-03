@@ -545,7 +545,7 @@ QUALITATIVE_TERMS = [
         upper_bound=5.0,
     ),
     QualitativeTerm(
-        core_terms=["immaterial", "negligible"],
+        core_terms=["immaterial", "negligible", "not material"],
         positive_pct=1.0,
         negated_pct=25.0,  # ✓ REASONABLE: "not immaterial/negligible" → "material/significant" (~25%)
         requires_suffix=False,
