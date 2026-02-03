@@ -723,76 +723,163 @@ EUROPE = {
 }
 
 ASIA_PACIFIC = {
-    Nation("Asia Pacific", ["asia pacific", "apac", "asia-pacific"], Region.ASIA_PACIFIC, code="APAC"),
-    Nation("Asia", ["asia", "asian"], Region.ASIA_PACIFIC, code="ASIA"),
-    Nation("Japan", ["japan", "japanese"], Region.ASIA_PACIFIC, [
-        Location("Tokyo", ["tokyo"]),
-        Location("Osaka", ["osaka"]),
-        Location("Nagoya", ["nagoya"]),
-        Location("Yokohama", ["yokohama"]),
-    ], [
-        "Rengo", "Japanese Trade Union Confederation",
-        "UA Zensen",
-        "JAM", "Japanese Association of Metal and Allied Workers",
-    ], [
-        "Shunto",
-    ], code="JP"),
-    Nation("South Korea", ["south korea", "korea", "korean"], Region.ASIA_PACIFIC, [
-        Location("Seoul", ["seoul"]),
-        Location("Busan", ["busan", "pusan"]),
-        Location("Incheon", ["incheon"]),
-        Location("Ulsan", ["ulsan"]),
-    ], [
-        "KCTU", "Korean Confederation of Trade Unions",
-        "FKTU", "Federation of Korean Trade Unions",
-    ], code="KR"),
+    Nation(
+        "Asia",
+        ["asia", "asian", "asia pacific", "apac", "asia-pacific"],
+        Region.ASIA_PACIFIC,
+        code="APAC",
+    ),
+    Nation(
+        "Japan",
+        ["japan", "japanese"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Tokyo", ["tokyo"]),
+            Location("Osaka", ["osaka"]),
+            Location("Nagoya", ["nagoya"]),
+            Location("Yokohama", ["yokohama"]),
+        ],
+        [
+            "Rengo",
+            "Japanese Trade Union Confederation",
+            "UA Zensen",
+            "JAM",
+            "Japanese Association of Metal and Allied Workers",
+        ],
+        [
+            "Shunto",
+        ],
+        code="JP",
+    ),
+    Nation(
+        "South Korea",
+        ["south korea", "korea", "korean"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Seoul", ["seoul"]),
+            Location("Busan", ["busan", "pusan"]),
+            Location("Incheon", ["incheon"]),
+            Location("Ulsan", ["ulsan"]),
+        ],
+        [
+            "KCTU",
+            "Korean Confederation of Trade Unions",
+            "FKTU",
+            "Federation of Korean Trade Unions",
+        ],
+        code="KR",
+    ),
     Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC, code="SG"),
     Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
-    Nation("Taiwan", ["taiwan", "taiwanese"], Region.ASIA_PACIFIC, [
-        Location("Taipei", ["taipei"]),
-    ], code="TW"),
-    Nation("China", ["china", "chinese", "prc", "p.r.c."], Region.ASIA_PACIFIC, [
-        Location("Shanghai", ["shanghai"]),
-        Location("Beijing", ["beijing"]),
-        Location("Shenzhen", ["shenzhen"]),
-        Location("Guangzhou", ["guangzhou"]),
-        Location("Tianjin", ["tianjin"]),
-        Location("Chongqing", ["chongqing"]),
-        Location("Wuhan", ["wuhan"]),
-    ], code="CN"),
-    Nation("Thailand", ["thailand", "thai"], Region.ASIA_PACIFIC, [
-        Location("Bangkok", ["bangkok"]),
-    ], code="TH"),
-    Nation("Malaysia", ["malaysia", "malaysian"], Region.ASIA_PACIFIC, [
-        Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
-    ], code="MY"),
-    Nation("Philippines", ["philippines", "philippine", "filipino"], Region.ASIA_PACIFIC, [
-        Location("Manila", ["manila"]),
-    ], code="PH"),
-    Nation("Vietnam", ["vietnam", "vietnamese"], Region.ASIA_PACIFIC, [
-        Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
-        Location("Hanoi", ["hanoi"]),
-    ], code="VN"),
-    Nation("Indonesia", ["indonesia", "indonesian"], Region.ASIA_PACIFIC, [
-        Location("Jakarta", ["jakarta"]),
-    ], code="ID"),
-    Nation("India", ["india", "indian"], Region.ASIA_PACIFIC, [
-        Location("Mumbai", ["mumbai", "bombay"]),
-        Location("Bangalore", ["bangalore", "bengaluru"]),
-        Location("New Delhi", ["new delhi", "delhi"]),
-    ], code="IN"),
+    Nation(
+        "Taiwan",
+        ["taiwan", "taiwanese"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Taipei", ["taipei"]),
+        ],
+        code="TW",
+    ),
+    Nation(
+        "China",
+        ["china", "chinese", "prc", "p.r.c."],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Shanghai", ["shanghai"]),
+            Location("Beijing", ["beijing"]),
+            Location("Shenzhen", ["shenzhen"]),
+            Location("Guangzhou", ["guangzhou"]),
+            Location("Tianjin", ["tianjin"]),
+            Location("Chongqing", ["chongqing"]),
+            Location("Wuhan", ["wuhan"]),
+        ],
+        code="CN",
+    ),
+    Nation(
+        "Thailand",
+        ["thailand", "thai"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Bangkok", ["bangkok"]),
+        ],
+        code="TH",
+    ),
+    Nation(
+        "Malaysia",
+        ["malaysia", "malaysian"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
+        ],
+        code="MY",
+    ),
+    Nation(
+        "Philippines",
+        ["philippines", "philippine", "filipino"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Manila", ["manila"]),
+        ],
+        code="PH",
+    ),
+    Nation(
+        "Vietnam",
+        ["vietnam", "vietnamese"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
+            Location("Hanoi", ["hanoi"]),
+        ],
+        code="VN",
+    ),
+    Nation(
+        "Indonesia",
+        ["indonesia", "indonesian"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Jakarta", ["jakarta"]),
+        ],
+        code="ID",
+    ),
+    Nation(
+        "India",
+        ["india", "indian"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Mumbai", ["mumbai", "bombay"]),
+            Location("Bangalore", ["bangalore", "bengaluru"]),
+            Location("New Delhi", ["new delhi", "delhi"]),
+        ],
+        code="IN",
+    ),
     Nation("Pakistan", ["pakistan", "pakistani"], Region.ASIA_PACIFIC, code="PK"),
-    Nation("Australia", ["australia", "australian"], Region.ASIA_PACIFIC, [
-        Location("Sydney", ["sydney"]),
-        Location("Melbourne", ["melbourne"]),
-    ], [
-        "ACTU", "Australian Council of Trade Unions",
-        "CFMEU", "Construction, Forestry, Maritime, Mining and Energy Union",
-        "AWU", "Australian Workers' Union",
-    ], code="AU"),
-    Nation("New Zealand", ["new zealand", "nz"], Region.ASIA_PACIFIC, [
-        Location("Auckland", ["auckland"]),
-    ], code="NZ"),
+    Nation(
+        "Australia",
+        ["australia", "australian"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Sydney", ["sydney"]),
+            Location("Melbourne", ["melbourne"]),
+        ],
+        [
+            "ACTU",
+            "Australian Council of Trade Unions",
+            "CFMEU",
+            "Construction, Forestry, Maritime, Mining and Energy Union",
+            "AWU",
+            "Australian Workers' Union",
+        ],
+        code="AU",
+    ),
+    Nation(
+        "New Zealand",
+        ["new zealand", "nz"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Auckland", ["auckland"]),
+        ],
+        code="NZ",
+    ),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
     Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"),
 }
