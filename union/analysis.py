@@ -1457,6 +1457,7 @@ class Tracker:
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
+        self.mentioned_countries: set[str] = set()
 
     def update(
         self, count: float, geo_context: Dict[str, Any]
@@ -1487,12 +1488,31 @@ class Tracker:
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
 
+    def register_mentions(self, geo_context: Dict[str, Any]):
+        countries = geo_context.get("countries", [])
+        for c in countries:
+            if c.get("code"):
+                self.mentioned_countries.add(c["code"])
+
     def resolve(self):
         """
         Resolves counts: If the location's sum > country, update country. If the country's sum > region, update region.
         If no region exists create a key and update.
         No updates to global here.
         """
+        # Ensure all country_totals are in mentioned_countries
+        for code in self.country_totals:
+            self.mentioned_countries.add(code)
+
+        # Build map of region -> mentioned countries
+        mentioned_in_region = {}
+        for code in self.mentioned_countries:
+            r_name = _CODE_TO_REGION.get(code)
+            if r_name:
+                if r_name not in mentioned_in_region:
+                    mentioned_in_region[r_name] = set()
+                mentioned_in_region[r_name].add(code)
+
         # Aggregate countries to regions
         region_aggs = {}
         countries_in_region = {}
@@ -1515,7 +1535,9 @@ class Tracker:
 
         # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
         for r_name, codes in countries_in_region.items():
-            if len(codes) == 1:
+            all_mentioned = mentioned_in_region.get(r_name, set())
+            
+            if len(codes) == 1 and len(all_mentioned) == 1:
                 code = codes[0]
                 r_total = self.region_totals.get(r_name, 0.0)
                 c_total = self.country_totals.get(code, 0.0)
@@ -1705,6 +1727,18 @@ class Tracker:
         """
         Generic gap filling for a list of entries against a census total.
         """
+        # 0. Fix zero-total entries for the main scope if census is known
+        # This handles cases where extraction found "0 unionized" (or 0 non-union) and set total=0 locally,
+        # failing to inherit the broader census total.
+        if len(entries) == 1:
+            for e in entries:
+                if e.key == name and e.total_count == 0 and census_total > 0:
+                    if e.not_covered_count == 0:
+                        e.total_count = census_total
+                        e.not_covered_count = census_total
+                        e.percentage = 0.0
+                        self.resolution_log.append(f"Fixed Zero-Total for {name}: 0 not covered implies 0% coverage.")
+
         # 1. Resolve entries with known percentages first (Independent resolution)
         # This handles qualitative percentages ("majority") or explicit percentages where total was unknown
         for e in entries:
@@ -1789,6 +1823,47 @@ class Tracker:
                     target.percentage = round(raw_pct, 2)
                 self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
+    def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
+        """
+        Resolves gaps for geographic constituents (e.g. Countries in a Region).
+        Logic: Sum of Country Totals should equal Region Total.
+        """
+        # 1. Sum known totals
+        known_sum = 0.0
+        unknowns = []
+        
+        for e in entries:
+            # Use total_count if available
+            if e.total_count is not None:
+                known_sum += e.total_count
+            # If not, maybe we can derive it from covered/pct?
+            elif e.covered_count is not None and e.percentage is not None and e.percentage > 0:
+                derived_total = round(e.covered_count / (e.percentage / 100.0))
+                e.total_count = derived_total
+                known_sum += derived_total
+                self.resolution_log.append(f"Derived TOTAL for {name} ({e.key}): {derived_total} from count/pct")
+            else:
+                unknowns.append(e)
+        
+        # 2. Solve for single unknown
+        if len(unknowns) == 1 and known_sum < region_total:
+            target = unknowns[0]
+            gap = region_total - known_sum
+            
+            # Sanity check: Gap should be positive and reasonable
+            if gap > 0:
+                target.total_count = gap
+                self.resolution_log.append(f"Resolved GEO GAP for {name} ({target.key}): Total {gap} (derived from {region_total} - {known_sum})")
+                
+                # If the target has a percentage, we can now derive covered_count
+                if target.percentage is not None:
+                    target.covered_count = round((target.percentage / 100.0) * gap)
+                    self.resolution_log.append(f"Resolved COUNT for {name} ({target.key}): {target.percentage}% of {gap}")
+                # If target has covered_count, derive percentage
+                elif target.covered_count is not None:
+                    target.percentage = round((target.covered_count / gap) * 100.0, 2)
+                    self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {target.covered_count}/{gap}")
+
     def _get_region_entries(self, region_name: str) -> List[Entry]:
         relevant = []
         for e in self.entries:
@@ -1816,6 +1891,43 @@ class Tracker:
                     relevant.append(e)
         return relevant
 
+    def _inject_placeholders(self, region_name: str):
+        """
+        Injects placeholder entries for countries mentioned in text but missing from entries.
+        This allows gap filling to attribute remaining counts to these countries.
+        Also backfills total_count from country_totals for all country entries in the region.
+        """
+        # 1. Inject missing mentioned countries
+        existing_keys = {e.key for e in self.entries if e.scope == Scope.COUNTRY}
+        
+        for code in self.mentioned_countries:
+            if code in existing_keys:
+                continue
+            
+            if _CODE_TO_REGION.get(code) == region_name:
+                self.entries.append(Entry(
+                    scope=Scope.COUNTRY,
+                    key=code,
+                    is_explicit=False # It's an inferred placeholder
+                ))
+                self.resolution_log.append(f"Injected placeholder for mentioned country: {code} in {region_name}")
+                existing_keys.add(code)
+
+        # 2. Backfill totals from country_totals for ALL entries in this region
+        region_entries = self._get_region_entries(region_name)
+        
+        for e in region_entries:
+            if e.scope == Scope.COUNTRY and e.key in self.country_totals:
+                known_total = self.country_totals[e.key]
+                
+                if e.total_count is None:
+                    e.total_count = known_total
+                    self.resolution_log.append(f"Backfilled total for {e.key}: {known_total}")
+                elif e.total_count < known_total:
+                     old = e.total_count
+                     e.total_count = known_total
+                     self.resolution_log.append(f"Updated total for {e.key} from {old} to {known_total} (census match)")
+
     def _resolve_single_country(self, country_code: str, census_total: float):
         relevant_entries = [
             e for e in self.entries 
@@ -1828,11 +1940,12 @@ class Tracker:
         self._resolve_gap_list(country_code, census_total, relevant_entries)
 
     def _resolve_single_region(self, region_name: str, region_total: float):
+        self._inject_placeholders(region_name)
         entries = self._get_region_entries(region_name)
         if not entries:
             return
         self._resolve_overlaps_list(region_name, entries)
-        self._resolve_gap_list(region_name, region_total, entries)
+        self._resolve_geographic_gaps(region_name, region_total, entries)
     
     def resolve_coverage(self):
         """
@@ -2017,20 +2130,21 @@ class UnionAnalyzer:
             if (is_historical or analysis.has_historical) and not analysis.has_current:
                 continue
 
+            # Determine context (reusing logic to ensure consistency with Pass 2)
+            geo_context = self._determine_geo_context(
+                analysis, last_geo_context, idx, last_geo_sentence_idx
+            )
+
+            if geo_context["specificity"] in (
+                Specificity.EXPLICIT.value,
+                Specificity.INFERRED_UNION.value,
+            ):
+                last_geo_context = geo_context
+                last_geo_sentence_idx = idx
+                tracker.register_mentions(geo_context)
+
             effective_counts = get_effective_counts(analysis)
             if effective_counts:
-                # Determine context (reusing logic to ensure consistency with Pass 2)
-                geo_context = self._determine_geo_context(
-                    analysis, last_geo_context, idx, last_geo_sentence_idx
-                )
-
-                if geo_context["specificity"] in (
-                    Specificity.EXPLICIT.value,
-                    Specificity.INFERRED_UNION.value,
-                ):
-                    last_geo_context = geo_context
-                    last_geo_sentence_idx = idx
-
                 # Determine if this count is an explicit total
                 max_count = max(effective_counts)
                 count_match = next(
