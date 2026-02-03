@@ -1675,14 +1675,33 @@ class Tracker:
         """
         Generic gap filling for a list of entries against a census total.
         """
+        # 1. Resolve entries with known percentages first (Independent resolution)
+        # This handles qualitative percentages ("majority") or explicit percentages where total was unknown
+        for e in entries:
+            if e.covered_count is None and e.percentage is not None:
+                # Apply if total is unknown OR matches the census (i.e. it's a country-wide rate)
+                if e.total_count is None or self._matches_census(e.total_count, census_total):
+                    e.covered_count = round((e.percentage / 100.0) * census_total)
+                    e.total_count = census_total
+                    self.resolution_log.append(f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}")
+
+        # 2. Backfill percentages for entries with counts but no percentage
+        for e in entries:
+            if e.covered_count is not None and e.percentage is None:
+                if e.total_count is None or self._matches_census(e.total_count, census_total):
+                     e.total_count = census_total
+                     if census_total > 0:
+                         e.percentage = round((e.covered_count / census_total) * 100.0, 2)
+                         self.resolution_log.append(f"Resolved PCT for {name} ({e.key}): {e.covered_count}/{census_total}")
+
+        # 3. Identify remaining gaps (Dependent resolution)
         partials = []
         others_sum = 0.0
         
         for e in entries:
             # Check if partial (needs filling)
-            is_partial = e.is_remaining or \
-                         (e.covered_count is None and e.percentage is not None) or \
-                         (e.covered_count is not None and e.percentage is None)
+            # We look for entries that are STILL missing counts after Step 1
+            is_partial = e.is_remaining or (e.covered_count is None and e.not_covered_count is None)
             
             if is_partial:
                 partials.append(e)
@@ -1705,15 +1724,12 @@ class Tracker:
                     target.not_covered_count = 0.0
                 self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
                     
-            elif target.covered_count is None and target.percentage is not None:
-                target.covered_count = round((target.percentage / 100.0) * census_total)
+            elif target.covered_count is None and target.percentage is None:
+                target.covered_count = gap
                 target.total_count = census_total
-                self.resolution_log.append(f"Resolved COUNT for {name}: {target.percentage}% of {census_total}")
-
-            elif target.covered_count is not None and target.percentage is None:
-                target.percentage = round((target.covered_count / census_total) * 100.0, 2)
-                target.total_count = census_total
-                self.resolution_log.append(f"Resolved PCT for {name}: {target.covered_count}/{census_total}")
+                if census_total > 0:
+                    target.percentage = round((gap / census_total) * 100.0, 2)
+                self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
     def _get_region_entries(self, region_name: str) -> List[Entry]:
         relevant = []
