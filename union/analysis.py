@@ -1628,75 +1628,57 @@ class Tracker:
                 
         return False
 
-    def _resolve_overlaps(self, country_code: str, census_total: float):
+    def _resolve_overlaps_list(self, name: str, entries: List[Entry]):
         """
-        Checks if the largest entry is the sum of the others (Parent-Child relationship).
-        Useful when we have a total line and then breakdown lines.
+        Generic overlap resolution for a list of entries.
         """
-        relevant_entries = [
-            e for e in self.entries 
-            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
-               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
-        ]
-        
         # Only consider entries with a known total population
-        candidates = [e for e in relevant_entries if e.total_count is not None]
+        candidates = [e for e in entries if e.total_count is not None]
         if len(candidates) < 2:
             return
 
         # Sort descending by total_count
-        candidates.sort(key=lambda x: x.total_count, reverse=True) # type: ignore
-        
+        candidates.sort(key=lambda x: x.total_count, reverse=True)  # type: ignore
+
         parent = candidates[0]
         children = candidates[1:]
-        
-        children_total = sum(c.total_count for c in children) # type: ignore
-        
+
+        children_total = sum(c.total_count for c in children)  # type: ignore
+
         # Check if Parent ~ Sum(Children)
-        # We use a slightly looser threshold for aggregation checks
-        if self._matches_census(parent.total_count, children_total, threshold=0.10): # type: ignore
+        if self._matches_census(parent.total_count, children_total, threshold=0.10):  # type: ignore
             # Validate Covered Count if available
             if parent.covered_count is not None:
                 children_covered = sum(c.covered_count or 0.0 for c in children)
-                
+
                 # If children have mixed coverage (some None), we can't fully validate sum
                 children_have_coverage = all(c.covered_count is not None for c in children)
-                
+
                 if children_have_coverage:
                     if self._matches_census(parent.covered_count, children_covered, threshold=0.10):
                         self.resolution_log.append(
-                            f"Subset Validated {country_code}: {parent.total_count} (Covered {parent.covered_count}) "
+                            f"Subset Validated {name}: {parent.total_count} (Covered {parent.covered_count}) "
                             f"matches sum of {len(children)} segments."
                         )
                     else:
-                         self.resolution_log.append(
-                            f"Subset Mismatch {country_code}: Totals match ({parent.total_count}) but "
+                        self.resolution_log.append(
+                            f"Subset Mismatch {name}: Totals match ({parent.total_count}) but "
                             f"Covered ({parent.covered_count} vs {children_covered}) do not."
                         )
             else:
-                 self.resolution_log.append(
-                    f"Subset Potential {country_code}: {parent.total_count} matches sum of {len(children)} segments. "
+                self.resolution_log.append(
+                    f"Subset Potential {name}: {parent.total_count} matches sum of {len(children)} segments. "
                     "Parent covered count unknown."
                 )
 
-    def _resolve_single_country(self, country_code: str, census_total: float):
+    def _resolve_gap_list(self, name: str, census_total: float, entries: List[Entry]):
         """
-        Helper to resolve missing coverage data for a single country given its census total.
+        Generic gap filling for a list of entries against a census total.
         """
-        # Filter entries for this country (Country scope or Segment within country)
-        relevant_entries = [
-            e for e in self.entries 
-            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
-               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
-        ]
-        
-        if not relevant_entries:
-            return
-
         partials = []
         others_sum = 0.0
         
-        for e in relevant_entries:
+        for e in entries:
             # Check if partial (needs filling)
             is_partial = e.is_remaining or \
                          (e.covered_count is None and e.percentage is not None) or \
@@ -1721,28 +1703,74 @@ class Tracker:
                 else:
                     target.covered_count = gap
                     target.not_covered_count = 0.0
-                self.resolution_log.append(f"Resolved REMAINING for {country_code}: {gap}")
+                self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
                     
             elif target.covered_count is None and target.percentage is not None:
                 target.covered_count = round((target.percentage / 100.0) * census_total)
                 target.total_count = census_total
-                self.resolution_log.append(f"Resolved COUNT for {country_code}: {target.percentage}% of {census_total}")
+                self.resolution_log.append(f"Resolved COUNT for {name}: {target.percentage}% of {census_total}")
 
             elif target.covered_count is not None and target.percentage is None:
                 target.percentage = round((target.covered_count / census_total) * 100.0, 2)
                 target.total_count = census_total
-                self.resolution_log.append(f"Resolved PCT for {country_code}: {target.covered_count}/{census_total}")
+                self.resolution_log.append(f"Resolved PCT for {name}: {target.covered_count}/{census_total}")
+
+    def _get_region_entries(self, region_name: str) -> List[Entry]:
+        relevant = []
+        for e in self.entries:
+            # 1. Direct Region Match
+            if e.scope == Scope.REGION and e.key == region_name:
+                relevant.append(e)
+                continue
+            
+            # 2. Child Country Match
+            code = None
+            if e.scope == Scope.COUNTRY:
+                code = e.key
+            elif e.scope == Scope.SEGMENT:
+                # Try to extract code from "US::UAW" or "North America::Pilots"
+                if e.key:
+                    parts = e.key.split("::")
+                    if parts[0] == region_name:
+                        relevant.append(e)
+                        continue
+                    code = parts[0]
+            
+            if code:
+                # Check mapping
+                if _CODE_TO_REGION.get(code) == region_name:
+                    relevant.append(e)
+        return relevant
+
+    def _resolve_single_country(self, country_code: str, census_total: float):
+        relevant_entries = [
+            e for e in self.entries 
+            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
+               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
+        ]
+        if not relevant_entries:
+            return
+        self._resolve_overlaps_list(country_code, relevant_entries)
+        self._resolve_gap_list(country_code, census_total, relevant_entries)
+
+    def _resolve_single_region(self, region_name: str, region_total: float):
+        entries = self._get_region_entries(region_name)
+        if not entries:
+            return
+        self._resolve_overlaps_list(region_name, entries)
+        self._resolve_gap_list(region_name, region_total, entries)
     
     def resolve_coverage(self):
         """
-        Fills in missing info given a country and its segments.
-        Logic: If a country has a known census total, and there is exactly one partial entry
-        (e.g. 'remaining', or missing count/pct), and the sum of other entries is less than the total,
-        we infer the missing values.
+        Fills in missing info for countries and regions.
         """
+        # 1. Resolve Countries
         for country_code, census_total in self.country_totals.items():
-            self._resolve_overlaps(country_code, census_total)
             self._resolve_single_country(country_code, census_total)
+
+        # 2. Resolve Regions
+        for region_name, region_total in self.region_totals.items():
+            self._resolve_single_region(region_name, region_total)
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
