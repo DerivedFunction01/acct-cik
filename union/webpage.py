@@ -1719,7 +1719,15 @@ def parse_content(data):
 
         if not parsed_documents:
             debug_print(f"No documents parsed from {url}")
-            return None
+            return pd.Series(
+                {
+                    "url": url,
+                    "accession": accession,
+                    "item1": [],
+                    "item1a": [],
+                    "period_of_report": None,
+                }
+            )
 
         # 2. Filter each document for keywords and aggregate results
         item1_matches = []
