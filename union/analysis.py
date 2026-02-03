@@ -1610,8 +1610,8 @@ class Tracker:
             Allows for rough approximation where child might be slightly larger due to
             rounding, contractors, or estimation differences.
             """
-            # Standard case: Child is smaller
-            if child_total < parent_total:
+            # Standard case: Child is smaller, and at least 20% the size of the parent
+            if child_total < parent_total and child_total > parent_total * 0.20:
                 return True
 
             # Edge case: Rounding/Estimates (Child slightly larger)
@@ -1641,6 +1641,7 @@ class Tracker:
             stack = [] # List of CoverageEntry (parents)
 
             for entry in group:
+                assert isinstance(entry, CoverageEntry)
                 # Pop parents that are smaller or equal (siblings/finished blocks)
                 while stack and not is_refinement(entry.total, stack[-1].total):
                     stack.pop()

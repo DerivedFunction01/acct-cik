@@ -1,7 +1,7 @@
 from enum import Enum
 
 class Specificity(Enum):
-    EXPLICIT = "explicit"
+    EXPLICIT = "EXPLICIT"
     INHERITED = "INHERITED_PREV"
     INFERRED_UNION = "INFERRED_UNION"
     INFERRED_LANG = "INFERRED_LANGUAGE"
