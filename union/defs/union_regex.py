@@ -138,8 +138,7 @@ _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
-        build_compound(set(UNION_TERMS) - {CORE.UNITED}, UNION_TERMS, sep_prefix=GAP), # Prevent united alliance
-        CORE.UNION.value,
+        build_compound(TITLE_PREFIX, CORE.UNION.value, sep_prefix=GAP),
     ]
 )
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
