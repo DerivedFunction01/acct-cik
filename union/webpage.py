@@ -2203,7 +2203,7 @@ def fetch_worker_adaptive(
                     else:
                         # Fallback
                         url_queue.put((result[1], accession))
-                if result[0] == "RATE_LIMITED":
+                elif result[0] == "RATE_LIMITED":
                     # Explicit rate limit - signal the rate limiter
                     rate_limiter.signal_429()
                     # Put URL back for retry (sleep already increased)
@@ -2214,6 +2214,9 @@ def fetch_worker_adaptive(
                     rate_limiter.signal_timeout()
                     url_queue.put((url, accession))
                     time.sleep(0.5)
+                
+                elif result[0] == "PERMANENT_FAILURE":
+                    print(f"🛑 Permanent failure (404) for {url}. Dropping.")
 
                 else:
                     # Successfully fetched - put in raw queue
