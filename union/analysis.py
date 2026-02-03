@@ -1493,6 +1493,7 @@ class Tracker:
         self.candidates.append(
             {"count": count, "context": geo_context, "explicit": is_explicit_total}
         )
+
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
         unions = geo_context.get("union_names_mentioned", [])
@@ -1550,60 +1551,23 @@ class Tracker:
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
 
-        self.reconcile()
+        # self.reconcile() # Removed complex reconciliation logic
 
     def _resolve_region_totals(self):
         """
         Refines region totals based on candidates.
         Logic: If Sum(Parts) ~= Max(Candidates), then Total = Max. Else Total = Sum.
         """
-        for region, candidates in self.region_candidates.items():
-            # 1. Explicit Override
-            explicits = [c["count"] for c in candidates if c["explicit"]]
-            if explicits:
-                self.region_totals[region] = max(explicits)
-                self.explicit_regions.add(region)
-                continue
-
-            # 2. Implicit Resolution
-            counts = sorted([c["count"] for c in candidates], reverse=True)
-            if not counts:
-                continue
-
-            max_val = counts[0]
-            sum_others = sum(counts[1:])
-
-            # If we have multiple counts, check if they sum up to the max
-            # Allow 10% relative difference OR <= 5 absolute difference (for small numbers)
-            diff = abs(max_val - sum_others)
-            if len(counts) > 1 and max_val > 0 and sum_others > 0:
-                if diff / max_val < 0.10 or diff <= 5:
-                    self.region_totals[region] = max_val
-                else:
-                    self.region_totals[region] = sum(counts)
-            else:
-                self.region_totals[region] = sum(counts)
+        # TODO: Re-implement logic to refine region totals based on candidates vs sum of parts
+        pass
 
     def resolve(self):
         """
         Resolves region totals and ensures consistency.
         Updates region totals if the sum of country totals exceeds the region total.
         """
-        self._resolve_region_totals()
-
-        # Bottom-up adjustment: Ensure region total is at least the sum of its countries
-        for region, countries in self.region_country_map.items():
-            # Calculate sum of known country totals
-            countries_sum = sum(self.country_totals.get(c, 0) for c in countries)
-            current_total = self.region_totals.get(region, 0)
-            
-            # If countries sum up to more than the region total, trust the bottom-up sum
-            if countries_sum > current_total:
-                self.region_totals[region] = countries_sum
-                if countries_sum > 0:
-                    self.explicit_regions.add(region)
-
-        self.reconcile()
+        # TODO: Re-implement resolution logic (bottom-up adjustment)
+        pass
 
     def reconcile(self):
         """
@@ -1611,58 +1575,16 @@ class Tracker:
         1. Updates Global if Sum(Regions) > Global.
         2. Attempts to fill gaps if Global > Sum(Regions).
         """
-        specific_regions_sum = sum(
-            count
-            for region, count in self.region_totals.items()
-            if region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value)
-        )
-
-        # Scenario 2: Global Max missing or too low -> Update from Regions
-        if specific_regions_sum > self.global_total:
-            self.global_total = specific_regions_sum
-
-        # Scenario 1: Global Max exists, but regions are missing -> Fill Gap
-        elif self.global_total > specific_regions_sum:
-            gap = self.global_total - specific_regions_sum
-            if gap > self.global_total * 0.10:
-                self._fill_region_gap(gap)
+        # TODO: Re-implement reconciliation logic (Global vs Sum of Regions)
+        pass
 
     def _fill_region_gap(self, gap: float):
         """
         Greedy approach to 'fill' in a region using unassigned numbers
         that match the gap between Global Total and Sum(Known Regions).
         """
-        best_match = None
-        min_diff = float('inf')
-
-        for cand in self.candidates:
-            count = cand["count"]
-            context = cand["context"]
-            region = context.get("region")
-
-            # Ignore if no region, or if region is International/Unknown
-            if not region or region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-                continue
-            
-            # Ignore if region is already tracked
-            if region in self.region_totals:
-                continue
-
-            # Check fit
-            diff = abs(count - gap)
-            
-            # Criteria: Relative error < 10% OR Absolute error <= 5
-            if (diff / gap < 0.10) or (diff <= 5):
-                if diff < min_diff:
-                    min_diff = diff
-                    best_match = (region, count)
-
-        if best_match:
-            region, count = best_match
-            self.region_totals[region] = count
-            self.resolution_log.append(
-                f"Inferred Region {region}: {count} based on Global Gap {gap:.1f}"
-            )
+        # TODO: Re-implement gap filling logic
+        pass
 
     def record_coverage(
         self,
@@ -1694,132 +1616,26 @@ class Tracker:
             # this is an aggregate count, not a region-wide rate.
             scope = "aggregate"
 
-        # --- 2-of-3 Derivation and Validation ---
-        # Determine the effective total to use for validation/calculation
-        effective_total = scope_total
-        if effective_total is None:
-            if scope == "global":
-                effective_total = self.global_total
-            elif scope == "region" and region:
-                effective_total = self.region_totals.get(region)
-            elif scope == "country" and target_code:
-                effective_total = self.country_totals.get(target_code)
-
-        # Case 1: Have Rate + Total -> Derive Covered
-        if (
-            percentage is not None
-            and effective_total
-            and effective_total > 0
-            and covered_count is None
-        ):
-            covered_count = (percentage / 100.0) * effective_total
-
-        # Case 2: Have Covered + Total -> Derive Rate
-        if (
-            covered_count is not None
-            and effective_total
-            and effective_total > 0
-            and percentage is None
-        ):
-            percentage = (covered_count / effective_total) * 100.0
-
-        # Case 3: Have All Three -> Validate and Resolve
-        if (
-            percentage is not None
-            and covered_count is not None
-            and effective_total
-            and effective_total > 0
-        ):
-            implied_rate = (covered_count / effective_total) * 100.0
-            diff = abs(implied_rate - percentage)
-
-            # Rounding tolerance (e.g. 1.5% allows for "approx 15%" vs 16.2%)
-            if diff > 2:
-                # Conflict Resolution: Trust explicit counts over rounded rates
-                # If we trust the count, we should NOT record the explicit rate as the "truth" for the region
-                # because calculate_metrics prioritizes explicit rates.
-                # So we drop the percentage from the record request, effectively treating it as derived.
-                percentage = None
-            else:
-                # Consistent (within rounding).
-                # We keep both. The explicit rate will be stored in region_rates (if applicable),
-                # and explicit count in region_covered.
-                pass
-
-        # Track Completeness: Explicit region mention implies complete coverage info for that region
-        if scope == "region" and region:
-            self.region_completeness[region] = True
-
-        # Check if sum of covered + not_covered matches the region total (approximate)
-        # This handles cases where we have counts that sum up to the workforce, implying completeness
-        if region and region in self.region_totals:
-            reg_total = self.region_totals[region]
-            if reg_total > 0:
-                c_val = covered_count if covered_count is not None else 0.0
-                nc_val = not_covered_count if not_covered_count is not None else 0.0
-                if (c_val + nc_val) > 0 and abs((c_val + nc_val) - reg_total) < (
-                    reg_total * 0.05
-                ):
-                    self.region_completeness[region] = True
-
-        # Determine Census Total for Scope (for validation)
-        census_total = 0.0
-        if scope == "global":
-            census_total = self.global_total
-        elif scope == "region" and region:
-            census_total = self.region_totals.get(region, 0.0)
-        elif scope == "country" and target_code:
-            census_total = self.country_totals.get(target_code, 0.0)
-
-        is_whole_entity = False
-        if census_total > 0 and effective_total:
-            # 25% tolerance or if effective is larger (new info)
-            diff = abs(effective_total - census_total)
-            if (diff / census_total < 0.25) or (diff <= 5) or (effective_total > census_total):
-                is_whole_entity = True
-        elif census_total == 0:
-            # No census data, assume this is the whole entity
-            is_whole_entity = True
-
         union_name = geo_context.get("union_name_indicator")
-        # Validation: Check against sum of smaller portions
-        if is_whole_entity and effective_total:
-            known_sub_total = 0.0
-            if scope == "global":
-                known_sub_total = sum(
-                    count
-                    for r, count in self.region_totals.items()
-                    if r not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value)
-                )
-            elif scope == "region" and region:
-                if region in self.region_country_map:
-                    known_sub_total = sum(
-                        self.country_totals.get(c, 0.0)
-                        for c in self.region_country_map[region]
-                    )
-
-            if known_sub_total > 0 and effective_total < known_sub_total * 0.7:
-                is_whole_entity = False
 
         # 1. Handle Rates (Percentages)
         if percentage is not None:
-            if is_whole_entity:
-                candidate = {
-                    "rate": percentage,
-                    "weight": effective_total or 0.0,
-                    "is_qualitative": is_qualitative,
-                    "union_name": union_name
-                }
-                if scope == "global":
-                    self.global_rate_candidates.append(candidate)
-                elif scope == "region" and region and not countries:
-                    if region not in self.region_rate_candidates:
-                        self.region_rate_candidates[region] = []
-                    self.region_rate_candidates[region].append(candidate)
-                elif scope == "country" and target_code:
-                    if target_code not in self.country_rate_candidates:
-                        self.country_rate_candidates[target_code] = []
-                    self.country_rate_candidates[target_code].append(candidate)
+            candidate = {
+                "rate": percentage,
+                "weight": scope_total or 0.0,
+                "is_qualitative": is_qualitative,
+                "union_name": union_name
+            }
+            if scope == "global":
+                self.global_rate_candidates.append(candidate)
+            elif scope == "region" and region and not countries:
+                if region not in self.region_rate_candidates:
+                    self.region_rate_candidates[region] = []
+                self.region_rate_candidates[region].append(candidate)
+            elif scope == "country" and target_code:
+                if target_code not in self.country_rate_candidates:
+                    self.country_rate_candidates[target_code] = []
+                self.country_rate_candidates[target_code].append(candidate)
 
         # 2. Handle Counts
         if covered_count is not None:
@@ -1851,351 +1667,30 @@ class Tracker:
                     self.country_not_covered.get(target_code, 0), not_covered_count
                 )
 
+        # Track Completeness
+        if scope == "region" and region:
+            self.region_completeness[region] = True
+
     def _resolve_rate(self, candidates: List[Dict[str, Any]], min_covered: float = 0.0, min_not_covered: float = 0.0) -> Tuple[Optional[float], bool]:
-        if not candidates:
-            return None, False
-
-        # Filter candidates that invalidate known covered counts (only for Generic rates)
-        valid_candidates = []
-        for c in candidates:
-            # Only validate Generic rates (union_name is None) against the total min_covered
-            if c.get("union_name") is None:
-                if c["weight"] > 0:
-                    implied_covered = (c["rate"] / 100.0) * c["weight"]
-                    # Allow tolerance: if implied is significantly less than min_covered, reject
-                    if implied_covered < min_covered * 0.9 and (min_covered - implied_covered) > 5:
-                        continue
-                    
-                    implied_not_covered = ((100.0 - c["rate"]) / 100.0) * c["weight"]
-                    if implied_not_covered < min_not_covered * 0.9 and (min_not_covered - implied_not_covered) > 5:
-                        continue
-                elif c["rate"] == 0 and min_covered > 5:
-                     continue
-                elif c["rate"] == 100.0 and min_not_covered > 5:
-                     continue
-            valid_candidates.append(c)
-            
-        if not valid_candidates:
-            return None, False
-
-        # Filter out qualitative if explicit exists
-        explicit = [c for c in valid_candidates if not c["is_qualitative"]]
-        pool = explicit if explicit else valid_candidates
-        is_qual = not bool(explicit)
-
-        # Group by union name to handle additive rates (e.g. 5% UAW + 10% Teamsters)
-        # None/Empty union_name implies a generic statement about the whole scope
-        by_union: Dict[Optional[str], List[Dict[str, Any]]] = {}
-        for c in pool:
-            u_name = c.get("union_name")
-            if u_name not in by_union:
-                by_union[u_name] = []
-            by_union[u_name].append(c)
-
-        # 1. Calculate average for each specific union (resolving conflicts within the same union)
-        # 2. Calculate average for the generic group (resolving conflicts within generic statements)
-        resolved_groups = {}
-        for u_name, group in by_union.items():
-            if u_name is not None:
-                total_weight = sum(c["weight"] for c in group)
-                if total_weight > 0:
-                    weighted_sum = sum(c["rate"] * c["weight"] for c in group)
-                    resolved_groups[u_name] = weighted_sum / total_weight
-                else:
-                    resolved_groups[u_name] = sum(c["rate"] for c in group) / len(group)
-            else:
-                # Generic group: Cluster and Sum
-                rates = sorted([c["rate"] for c in group])
-                clusters = []
-                if rates:
-                    current_cluster = [rates[0]]
-                    for r in rates[1:]:
-                        if abs(r - statistics.mean(current_cluster)) < 2.0:
-                            current_cluster.append(r)
-                        else:
-                            clusters.append(statistics.mean(current_cluster))
-                            current_cluster = [r]
-                    clusters.append(statistics.mean(current_cluster))
-                
-                if not clusters:
-                    resolved_groups[u_name] = 0.0
-                    continue
-
-                max_val = max(clusters)
-                sum_others = sum(clusters) - max_val
-                val_sum = sum(clusters)
-                
-                # Check if max is roughly sum of others (Total vs Parts) or if sum > 100%
-                if (sum_others > 0 and abs(max_val - sum_others) < 2.0) or val_sum > 105.0:
-                    resolved_groups[u_name] = max_val
-                else:
-                    resolved_groups[u_name] = val_sum
-
-        # Sum of specific unions (Additive)
-        specific_sum = sum(rate for u_name, rate in resolved_groups.items() if u_name)
-        
-        # Generic rate (Total)
-        generic_rate = resolved_groups.get(None, 0.0)
-
-        # The true rate is likely the max of the (Sum of Parts) vs (Stated Total)
-        final_rate = max(specific_sum, generic_rate)
-
-        return final_rate, is_qual
+        """
+        Resolves a list of rate candidates into a single effective rate.
+        """
+        # TODO: Re-implement rate resolution logic (weighted averages, conflict resolution)
+        return None, False
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
         Performs top-down calculation of coverage rates with priority logic.
-        Priority: Explicit Rate > Explicit Count > Sum of Children.
         """
-        # Keep existing logs (e.g. from _fill_region_gap)
-        # self.resolution_log = []
-
-        # 1. Resolve Countries (Rate -> Count)
-        for code in self.country_totals:
-            total = self.country_totals[code]
-            known_covered = self.country_covered.get(code, 0.0)
-            known_not_covered = self.country_not_covered.get(code, 0.0)
-            cand_rate, is_qual = self._resolve_rate(self.country_rate_candidates.get(code, []), min_covered=known_covered, min_not_covered=known_not_covered)
-
-            if cand_rate is not None:
-                # Explicit rate overrides count
-                self.country_covered[code] = (cand_rate / 100.0) * total
-                qual_str = " (Qualitative)" if is_qual else ""
-                self.resolution_log.append(
-                    f"Country {code}: Explicit Rate {cand_rate:.1f}%{qual_str} on Total {total} -> Covered {self.country_covered[code]:.1f}"
-                )
-            elif code in self.country_covered:
-                self.resolution_log.append(
-                    f"Country {code}: Explicit Count {self.country_covered[code]} on Total {total}"
-                )
-
+        # TODO: Re-implement top-down calculation logic
+        # 1. Resolve Countries
         # 2. Resolve Regions
-        final_region_stats = {}
-        for region in self.region_totals:
-            total = self.region_totals[region]
-            if total <= 0:
-                continue
-
-            covered = 0.0
-            rate = None
-            source_desc = ""
-
-            # Calculate children sum early for validation
-            children_sum = 0.0
-            children_not_covered_sum = 0.0
-            children_total_sum = 0.0
-            children_details = []
-            if region in self.region_country_map:
-                for code in self.region_country_map[region]:
-                    c_cov = self.country_covered.get(code, 0.0)
-                    c_not_cov = self.country_not_covered.get(code, 0.0)
-                    c_tot = self.country_totals.get(code, 0.0)
-                    children_sum += c_cov
-                    children_not_covered_sum += c_not_cov
-                    children_total_sum += c_tot
-                    if c_cov > 0:
-                        children_details.append(f"{code}:{c_cov:.0f}")
-
-            known_covered = max(self.region_covered.get(region, 0.0), children_sum)
-            known_not_covered = max(self.region_not_covered.get(region, 0.0), children_not_covered_sum)
-            cand_rate, is_qual = self._resolve_rate(self.region_rate_candidates.get(region, []), min_covered=known_covered, min_not_covered=known_not_covered)
-
-            # Priority 1: Explicit Region Rate (Non-Qualitative)
-            if cand_rate is not None and not is_qual:
-                rate = cand_rate
-                covered = (rate / 100.0) * total
-                source_desc = f"Explicit Rate {rate}%"
-            # Priority 2: Explicit Region Count (If marked Complete)
-            elif self.region_completeness.get(region):
-                covered = self.region_covered.get(region, 0.0)
-                source_desc = f"Explicit Count {covered} (Complete)"
-                rate = (covered / total) * 100.0
-            # Priority 3: Qualitative Rate
-            elif cand_rate is not None and is_qual:
-                rate = cand_rate
-                covered = (rate / 100.0) * total
-                source_desc = f"Qualitative Rate {rate}%"
-            else:
-                # Priority 4: Best available partial data (Max of Aggregate vs Sum of Countries)
-                # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
-                aggregate_val = self.region_aggregates.get(region, 0.0)
-
-                # Check completeness: Do known children account for enough of the region?
-                completeness = (children_total_sum / total) if total > 0 else 0.0
-
-                if aggregate_val > children_sum:
-                    covered = aggregate_val
-                    rate = (covered / total) * 100.0
-                    source_desc = f"Aggregate Partial {aggregate_val} (vs Children Sum {children_sum})"
-                elif completeness >= 0.5:
-                    covered = children_sum
-                    rate = (covered / total) * 100.0
-                    source_desc = f"Sum of Children {children_sum} ({', '.join(children_details)})"
-                else:
-                    # Abort rate calculation due to missing data, but keep covered count for global sum
-                    covered = children_sum
-                    rate = None
-                    source_desc = f"Aborted (Low Completeness {completeness:.1%})"
-
-            not_covered = 0.0
-            if rate is not None:
-                not_covered = total - covered
-            else:
-                not_covered = max(self.region_not_covered.get(region, 0.0), children_not_covered_sum)
-
-            final_region_stats[region] = {
-                "covered": covered,
-                "not_covered": not_covered,
-                "total": total,
-                "rate": rate,
-            }
-            self.resolution_log.append(
-                f"Region {region}: Total {total} -> Covered {covered:.1f} ({f'{rate:.1f}%' if rate is not None else 'N/A'}) via {source_desc}"
-            )
-
-        # Gap Filling: If Global Union Count is known, infer missing regions
-        effective_global_covered = self.global_covered
-        if effective_global_covered <= 0:
-             g_rate, _ = self._resolve_rate(self.global_rate_candidates)
-             if g_rate is not None and self.global_total > 0:
-                 effective_global_covered = (g_rate / 100.0) * self.global_total
-        
-        if effective_global_covered > 0:
-            known_covered = 0.0
-            missing_regions = []
-            missing_workforce = 0.0
-            
-            for r, stats in final_region_stats.items():
-                if stats["rate"] is not None:
-                    known_covered += stats["covered"]
-                else:
-                    missing_regions.append(r)
-                    missing_workforce += stats["total"]
-            
-            if missing_regions and missing_workforce > 0:
-                residual = effective_global_covered - known_covered
-                # Tolerance for rounding (e.g. 1% of global)
-                if residual < 0 and abs(residual) < (effective_global_covered * 0.01):
-                    residual = 0.0
-                
-                if residual >= 0:
-                    # Check if the residual mathematically fits into specific regions
-                    # (i.e. is it impossible for some regions to hold this count?)
-                    viable_candidates = []
-                    for r in missing_regions:
-                        r_total = final_region_stats[r]["total"]
-                        # Allow slight tolerance (e.g. 95% fit)
-                        if r_total >= (residual * 0.95):
-                            viable_candidates.append(r)
-
-                    if len(viable_candidates) == 1:
-                        # Case: Only one region can mathematically hold the residual
-                        target_r = viable_candidates[0]
-                        stats = final_region_stats[target_r]
-                        
-                        # Cap at 100% (or slightly above if tolerance allowed)
-                        assigned_count = min(residual, stats["total"])
-                        assigned_rate = (assigned_count / stats["total"]) * 100.0
-                        
-                        stats["rate"] = assigned_rate
-                        stats["covered"] = assigned_count
-                        self.resolution_log.append(
-                            f"Region {target_r}: Inferred Rate {assigned_rate:.1f}% via Global Residual ({residual:.0f}) - Single Viable Candidate"
-                        )
-                        
-                        # Set others to 0
-                        for r in missing_regions:
-                            if r != target_r:
-                                stats = final_region_stats[r]
-                                stats["rate"] = 0.0
-                                stats["covered"] = 0.0
-                                self.resolution_log.append(
-                                    f"Region {r}: Inferred Rate 0.0% (Residual assigned to {target_r})"
-                                )
-                    else:
-                        # Case: Multiple or No viable candidates -> Distribute proportionally
-                        implied_rate = (residual / missing_workforce) * 100.0
-                        # Sanity check: Rate <= 100% (with tolerance)
-                        if implied_rate <= 105.0:
-                            for r in missing_regions:
-                                stats = final_region_stats[r]
-                                stats["rate"] = implied_rate
-                                stats["covered"] = (implied_rate / 100.0) * stats["total"]
-                                self.resolution_log.append(
-                                    f"Region {r}: Inferred Rate {implied_rate:.1f}% via Global Residual ({residual:.0f}/{missing_workforce:.0f})"
-                                )
-
         # 3. Resolve Global
-        regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
-        sum_of_regions_rate = (
-            (regions_sum / self.global_total * 100.0) if self.global_total > 0 else None
-        )
-
-        regions_not_covered_sum = sum(stat["not_covered"] for stat in final_region_stats.values())
-        known_covered = max(self.global_covered, regions_sum)
-        known_not_covered = max(self.global_not_covered, regions_not_covered_sum)
-        global_rate_cand, global_is_qual = self._resolve_rate(self.global_rate_candidates, min_covered=known_covered, min_not_covered=known_not_covered)
-        global_rate = None
-
-        if self.global_total <= 0 and global_rate_cand is None:
-             self.resolution_log.append(
-                "Global: Aborted. No global employee total found and no explicit rates."
-             )
-        elif global_rate_cand is not None and not global_is_qual:
-            global_rate = global_rate_cand
-            self.resolution_log.append(f"Global: Explicit Rate {global_rate}%")
-        elif self.global_covered >= regions_sum:
-            final_global_covered = self.global_covered
-            global_rate = (
-                (final_global_covered / self.global_total * 100.0)
-                if self.global_total > 0
-                else 0.0
-            )
-            self.resolution_log.append(
-                f"Global: Explicit Count {final_global_covered} (>= Regions Sum {regions_sum:.1f})"
-            )
-        elif global_rate_cand is not None and global_is_qual:
-            global_rate = global_rate_cand
-            self.resolution_log.append(f"Global: Qualitative Rate {global_rate}%")
-        else:
-            # Fallback: Sum of Regions
-            # Use weighted average of regions that have valid rates (complete data)
-            valid_stats = [
-                s for s in final_region_stats.values() if s["rate"] is not None
-            ]
-            valid_regions_total = sum(s["total"] for s in valid_stats)
-            valid_regions_covered = sum(s["covered"] for s in valid_stats)
-
-            completeness_ratio = (
-                (valid_regions_total / self.global_total)
-                if self.global_total > 0
-                else 0.0
-            )
-
-            if completeness_ratio < 0.5:
-                self.resolution_log.append(
-                    f"Global: Aborted. Low data completeness ({completeness_ratio:.1%} of {self.global_total})."
-                )
-                global_rate = None
-            else:
-                global_rate = (
-                    (valid_regions_covered / valid_regions_total * 100.0)
-                    if valid_regions_total > 0
-                    else 0.0
-                )
-                source_desc = f"Weighted Avg of Valid Regions ({valid_regions_covered:.0f}/{valid_regions_total:.0f})"
-                self.resolution_log.append(
-                    f"Global: Total {self.global_total} -> Rate {global_rate:.1f}% via {source_desc} (Completeness {completeness_ratio:.1%})"
-                )
-
+        
         return {
-            "global_rate": round(global_rate, 2) if global_rate is not None else None,
-            "sum_of_regions_rate": (
-                round(sum_of_regions_rate, 2)
-                if sum_of_regions_rate is not None
-                else None
-            ),
-            "region_stats": final_region_stats,
+            "global_rate": None,
+            "sum_of_regions_rate": None,
+            "region_stats": {},
             "log": self.resolution_log,
         }
 
