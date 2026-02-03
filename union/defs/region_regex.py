@@ -610,16 +610,15 @@ NORTH_AMERICA = {
         code="CA",
     ),
     Nation(
-        "North America",
-        ["north america", "north american"],
+        "North America (Domestic)",
+        ["north america", "north american", "domestic"],
         Region.NORTH_AMERICA,
         code="NA",
     ),
-    Nation("domestic", ["domestic"], Region.NORTH_AMERICA, code="DOMESTIC"),  # Dummy
 }
 
 EUROPE = {
-    Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], ["European Works Council", "Comité d'entreprise européen"], code="EU"),
+    Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], [], code="EU"),
     Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE, [
         Location("London", ["london"]),
         Location("Birmingham", ["birmingham"]),
@@ -1083,10 +1082,8 @@ INT_LANGUAGE_MAP = {
 }
 REGION_CODES = {
     "NA",
-    "DOMESTIC",
     "EU",
     "APAC",
-    "ASIA",
     "LATAM",
     "MEA",
     "AFRICA",

@@ -563,7 +563,7 @@ class SimpleCoverageAnalyzer:
         data = {
             "percentage": None,
             "employee_count_covered": None,
-            "employee_count_not_covered": None,
+            "employee_count_not_covered": 0,
             "employee_count_total": None,
             "negated": False,
             "negation_type": None,
@@ -730,7 +730,7 @@ class ComplexCoverageAnalyzer:
         self.data = {
             "percentage": None,
             "employee_count_covered": None,
-            "employee_count_not_covered": None,
+            "employee_count_not_covered": 0,
             "employee_count_total": total_count,
             "negated": False,
             "negation_type": None,
@@ -1330,15 +1330,6 @@ def determine_geo_context(
                             "locations": c["locations"],
                         }
                     )
-                # Special handling for Domestic -> US
-                elif r_code == "DOMESTIC" and c["code"] == "US":
-                    r_obj["countries"].append(
-                        {
-                            "name": c["name"],
-                            "code": c["code"],
-                            "locations": c["locations"],
-                        }
-                    )
 
             # Remove temporary field
             c.pop("region_enum", None)
@@ -1515,21 +1506,28 @@ class Tracker:
                     self.global_total = count
 
         # 2. Regional Update
+        # Check if this count applies to the Region as a whole
+        # 1. No specific countries listed (Generic Region count)
+        # 2. OR Region explicitly mentioned alongside countries (e.g. "Europe (France, Germany)")
+        is_region_candidate = (not countries) or bool(geo_context.get("regions"))
+
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-            if region not in self.region_candidates:
-                self.region_candidates[region] = []
-            self.region_candidates[region].append({
-                "count": count,
-                "explicit": is_explicit_total
-            })
+            if is_region_candidate:
+                if region not in self.region_candidates:
+                    self.region_candidates[region] = []
+                self.region_candidates[region].append({
+                    "count": count,
+                    "explicit": is_explicit_total
+                })
 
             current = self.region_totals.get(region, 0)
-            if is_explicit_total:
+            if is_explicit_total and is_region_candidate:
                 self.region_totals[region] = max(current, count)
                 self.explicit_regions.add(region)
             elif region not in self.explicit_regions:
                 # Only update implicit if region is not locked by explicit total
-                if count > current:
+                # And if it's a region candidate (don't let country counts override region total implicitly)
+                if is_region_candidate and count > current:
                     self.region_totals[region] = count
 
             # Track hierarchy for resolution
@@ -2335,7 +2333,11 @@ class UnionAnalyzer:
         # Align matches (assuming order preservation in extraction)
         if len(geo_match_objs) == len(raw_geo_matches):
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
-                geo_entries.append({"code": obj.geo_code, "span": raw["span"]})
+                # Use Region Name for generic accumulators, Code for countries
+                key = obj.geo_code
+                if obj.geo_code in REGION_CODES:
+                    key = obj.region.value
+                geo_entries.append({"code": key, "span": raw["span"]})
 
         # 1. "Respectively" Logic
         if analysis.has_respectively and len(counts) == len(geo_entries):
@@ -2596,6 +2598,7 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = idx
 
             # 5. Update Region Totals
+            census_update_note = None
             if effective_counts:
                 # Check for range first
                 range_avg = self._detect_count_range(analysis, effective_counts)
@@ -2610,9 +2613,17 @@ class UnionAnalyzer:
                     )
                     current_val = max(effective_counts)
 
+                updates_found = []
+
                 if mapped_counts:
                     # Use specific mappings
                     for code, count in mapped_counts.items():
+                        # Check if this is a source of the total (Update vs Previous)
+                        prev_val = previous_totals.get(code, 0) if previous_totals else 0
+                        curr_max = effective_totals.get(code, 0)
+                        if count > prev_val and count >= curr_max:
+                            updates_found.append(f"{code}: {count}")
+
                         if count > local_totals.get(code, 0):
                             local_totals[code] = count
                         if count > effective_totals.get(code, 0):
@@ -2626,6 +2637,11 @@ class UnionAnalyzer:
                     ):
                         region_key = geo_context["region"]
 
+                        prev_val = previous_totals.get(region_key, 0) if previous_totals else 0
+                        curr_max = effective_totals.get(region_key, 0)
+                        if current_val > prev_val and current_val >= curr_max:
+                            updates_found.append(f"{region_key}: {current_val}")
+
                         if current_val > local_totals.get(region_key, 0):
                             local_totals[region_key] = current_val
 
@@ -2634,11 +2650,21 @@ class UnionAnalyzer:
 
                         for c in geo_context.get("countries", []):
                             c_code = c["code"]
+                            
+                            prev_val = previous_totals.get(c_code, 0) if previous_totals else 0
+                            curr_max = effective_totals.get(c_code, 0)
+                            if current_val > prev_val and current_val >= curr_max:
+                                updates_found.append(f"{c_code}: {current_val}")
+
                             # Only update if we didn't map it specifically above (though mapped_counts check covers this)
                             if current_val > local_totals.get(c_code, 0):
                                 local_totals[c_code] = current_val
                             if current_val > effective_totals.get(c_code, 0):
                                 effective_totals[c_code] = current_val
+                
+                if updates_found:
+                    unique_updates = sorted(list(set(updates_found)))
+                    census_update_note = f"Updates lookup: {', '.join(unique_updates)}"
 
             # 6. Determine Relevant Total for Calculation
             relevant_total = None
@@ -2715,6 +2741,7 @@ class UnionAnalyzer:
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
                     "lookup_totals": effective_totals.copy(),
+                    "census_note": census_update_note,
                     "sentence_index": idx,
                 }
                 results.append(item)

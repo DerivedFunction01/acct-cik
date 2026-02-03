@@ -37,7 +37,7 @@ U.S. employees, consisting primarily of technical, administrative, and sales per
 In 2023, we reduced U.S. headcount by 1,500 positions through operational efficiency initiatives, 
 which contributed to a 3% decline in overall union density within the United States.
 
-European Operations. We employ 7,100 workers across Europe. In France, we operate facilities with 3,000 
+European Operations. In France, we operate facilities with 3,000 
 employees who are substantially all covered by industry-wide collective bargaining agreements and represented 
 through the Comité Social et Économique, a mandatory French employee representation structure. In Germany, 
 we employ 4,100 workers across two principal locations. Our Hamburg manufacturing facility employs 2,600 workers, 
