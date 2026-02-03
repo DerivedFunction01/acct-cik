@@ -1618,8 +1618,8 @@ class Tracker:
 
         union_name = geo_context.get("union_name_indicator")
 
-        # 1. Handle Rates (Percentages)
-        if percentage is not None:
+        # 1. Handle Rates (Percentages). Do not keep 0% and 100%. 
+        if percentage is not None and percentage > 0.0 and percentage < 100.0:
             candidate = {
                 "rate": percentage,
                 "weight": scope_total or 0.0,
