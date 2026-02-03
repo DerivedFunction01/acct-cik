@@ -1436,6 +1436,7 @@ class Entry:
     is_qualitative: bool = False
     is_explicit: bool = False # The firm plainly states that it is the total of something within that scope
     is_remaining: bool = False
+    is_negated: bool = False
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
     min_idx: int = -1 # The farthest backward this sentence can reference
@@ -1532,6 +1533,7 @@ class Tracker:
         is_qualitative: bool = False,
         is_remaining: bool = False,
         is_explicit: bool = False,
+        is_negated: bool = False,
         sentence_index: int = -1
     ):
         """
@@ -1572,17 +1574,74 @@ class Tracker:
             is_qualitative=is_qualitative,
             is_remaining=is_remaining,
             is_explicit=is_explicit,
+            is_negated=is_negated,
             scope=scope,
             sent_idx=sentence_index
         ))
+
+    def _resolve_single_country(self, country_code: str, census_total: float):
+        """
+        Helper to resolve missing coverage data for a single country given its census total.
+        """
+        # Filter entries for this country (Country scope or Segment within country)
+        relevant_entries = [
+            e for e in self.entries 
+            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
+               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
+        ]
+        
+        if not relevant_entries:
+            return
+
+        partials = []
+        others_sum = 0.0
+        
+        for e in relevant_entries:
+            # Check if partial (needs filling)
+            is_partial = e.is_remaining or \
+                         (e.covered_count is None and e.percentage is not None) or \
+                         (e.covered_count is not None and e.percentage is None)
+            
+            if is_partial:
+                partials.append(e)
+            else:
+                # Sum up knowns (covered + not covered)
+                others_sum += (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
+
+        # Constraint: Only one partial entry and room to fill
+        if len(partials) == 1 and others_sum < census_total:
+            target = partials[0]
+            gap = census_total - others_sum
+            
+            if target.is_remaining:
+                target.total_count = census_total
+                if target.is_negated:
+                    target.not_covered_count = gap
+                    target.covered_count = 0.0
+                else:
+                    target.covered_count = gap
+                    target.not_covered_count = 0.0
+                self.resolution_log.append(f"Resolved REMAINING for {country_code}: {gap}")
+                    
+            elif target.covered_count is None and target.percentage is not None:
+                target.covered_count = round((target.percentage / 100.0) * census_total)
+                target.total_count = census_total
+                self.resolution_log.append(f"Resolved COUNT for {country_code}: {target.percentage}% of {census_total}")
+
+            elif target.covered_count is not None and target.percentage is None:
+                target.percentage = round((target.covered_count / census_total) * 100.0, 2)
+                target.total_count = census_total
+                self.resolution_log.append(f"Resolved PCT for {country_code}: {target.covered_count}/{census_total}")
     
     def resolve_coverage(self):
         """
-        Docstring for resolve_coverage
-        
-        :param self: Description
+        Fills in missing info given a country and its segments.
+        Logic: If a country has a known census total, and there is exactly one partial entry
+        (e.g. 'remaining', or missing count/pct), and the sum of other entries is less than the total,
+        we infer the missing values.
         """
-        pass
+        for country_code, census_total in self.country_totals.items():
+            self._resolve_single_country(country_code, census_total)
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
@@ -1663,6 +1722,7 @@ class UnionAnalyzer:
             all_sentences = self.extractor.split_sentences(text)
             self._populate_tracker(all_sentences, tracker, reporting_year)
             tracker.resolve()
+            # tracker.resolve_coverage() # Will be called after population
 
             # 3. Pass 2: Coverage Analysis (Process Paragraphs)
             results = []
@@ -1715,8 +1775,12 @@ class UnionAnalyzer:
                     is_qualitative=(cov.get("type") == CoverageType.QUALITATIVE.value),
                     is_remaining=(cov.get("type") == CoverageType.REMAINING.value),
                     is_explicit=(cov.get("type") == CoverageType.EXPLICIT_PERCENT.value),
+                    is_negated=cov.get("negated", False),
                     sentence_index=item.get("sentence_index", -1)
                 )
+
+            # Resolve missing coverage data using collected totals
+            tracker.resolve_coverage()
 
             summary = self.compute_weighted_coverage(
                 results, tracker, all_region_totals
