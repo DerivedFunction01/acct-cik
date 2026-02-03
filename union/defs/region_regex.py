@@ -882,7 +882,7 @@ ASIA_PACIFIC = {
         code="NZ",
     ),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
-    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"),
+    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"), 
 }
 
 LATIN_AMERICA = {
@@ -935,6 +935,8 @@ LATIN_AMERICA = {
     Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
     Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
     Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA, code="PY"),
+    Nation("Suriname", ["suriname", "surinamese"], Region.LATIN_AMERICA, code="SR"),
+    Nation("Guyana", ["guyana", "guyanese"], Region.LATIN_AMERICA, code="GY"),
 }
 
 MIDDLE_EAST_AFRICA = {
@@ -981,6 +983,25 @@ MIDDLE_EAST_AFRICA = {
     ], code="TN"),
     Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA, code="DZ"),
     Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA, code="QA"),
+    Nation("Syria", ["syria", "syrian"], Region.MIDDLE_EAST_AFRICA, code="SY"),
+    Nation("Yemen", ["yemen", "yemeni"], Region.MIDDLE_EAST_AFRICA, code="YE"),
+    Nation("Jordan", ["jordan", "jordanian"], Region.MIDDLE_EAST_AFRICA, code="JO"),
+    Nation("Lebanon", ["lebanon", "lebanese"], Region.MIDDLE_EAST_AFRICA, code="LB"),
+    Nation("Oman", ["oman", "omanese"], Region.MIDDLE_EAST_AFRICA, code="OM"),
+    Nation("Palestine", ["palestine", "palestinian"], Region.MIDDLE_EAST_AFRICA, code="PS"),
+    Nation("Iraq", ["iraq", "iraqi"], Region.MIDDLE_EAST_AFRICA, code="IQ"),
+    Nation("Libya", ["libya", "libyan"], Region.MIDDLE_EAST_AFRICA, code="LY"),
+    Nation("Sudan", ["sudan", "sudanese"], Region.MIDDLE_EAST_AFRICA, code="SD"),
+    Nation("Somalia", ["somalia", "somalian"], Region.MIDDLE_EAST_AFRICA, code="SO"),
+    Nation("Eritrea", ["eritrea", "eritrean"], Region.MIDDLE_EAST_AFRICA, code="ER"),
+    Nation("Djibouti", ["djibouti", "djiboutian"], Region.MIDDLE_EAST_AFRICA, code="DJ"),
+    Nation("Mauritania", ["mauritania", "mauritanian"], Region.MIDDLE_EAST_AFRICA, code="MR"),
+    Nation("Mali", ["mali", "malian"], Region.MIDDLE_EAST_AFRICA, code="ML"),
+    Nation("Niger", ["niger", "nigerian"], Region.MIDDLE_EAST_AFRICA, code="NE"),
+    Nation("Senegal", ["senegal", "senegalese"], Region.MIDDLE_EAST_AFRICA, code="SN"),
+    Nation("Chad", ["chad", "chadian"], Region.MIDDLE_EAST_AFRICA, code="TD"),
+    Nation("Liberia", ["liberia", "liberian"], Region.MIDDLE_EAST_AFRICA, code="LR"),
+    Nation("Sierra Leone", ["sierra leone", "sierraleonean"], Region.MIDDLE_EAST_AFRICA, code="SL"),    
 }
 
 INTERNATIONAL = {
