@@ -800,7 +800,7 @@ class UnionExtractor:
         process_matches(
             TOTAL_MODIFIER_REGEX, MatchType.TOTAL_MODIFIER,
             lambda m: m.group(0),
-            lambda val: analysis.total_modifiers.append(val)
+            lambda m, val: analysis.total_modifiers.append(val)
         )
 
         # 20. Extract Respectively
