@@ -2026,16 +2026,51 @@ class Tracker:
                     residual = 0.0
                 
                 if residual >= 0:
-                    implied_rate = (residual / missing_workforce) * 100.0
-                    # Sanity check: Rate <= 100% (with tolerance)
-                    if implied_rate <= 105.0:
+                    # Check if the residual mathematically fits into specific regions
+                    # (i.e. is it impossible for some regions to hold this count?)
+                    viable_candidates = []
+                    for r in missing_regions:
+                        r_total = final_region_stats[r]["total"]
+                        # Allow slight tolerance (e.g. 95% fit)
+                        if r_total >= (residual * 0.95):
+                            viable_candidates.append(r)
+
+                    if len(viable_candidates) == 1:
+                        # Case: Only one region can mathematically hold the residual
+                        target_r = viable_candidates[0]
+                        stats = final_region_stats[target_r]
+                        
+                        # Cap at 100% (or slightly above if tolerance allowed)
+                        assigned_count = min(residual, stats["total"])
+                        assigned_rate = (assigned_count / stats["total"]) * 100.0
+                        
+                        stats["rate"] = assigned_rate
+                        stats["covered"] = assigned_count
+                        self.resolution_log.append(
+                            f"Region {target_r}: Inferred Rate {assigned_rate:.1f}% via Global Residual ({residual:.0f}) - Single Viable Candidate"
+                        )
+                        
+                        # Set others to 0
                         for r in missing_regions:
-                            stats = final_region_stats[r]
-                            stats["rate"] = implied_rate
-                            stats["covered"] = (implied_rate / 100.0) * stats["total"]
-                            self.resolution_log.append(
-                                f"Region {r}: Inferred Rate {implied_rate:.1f}% via Global Residual ({residual:.0f}/{missing_workforce:.0f})"
-                            )
+                            if r != target_r:
+                                stats = final_region_stats[r]
+                                stats["rate"] = 0.0
+                                stats["covered"] = 0.0
+                                self.resolution_log.append(
+                                    f"Region {r}: Inferred Rate 0.0% (Residual assigned to {target_r})"
+                                )
+                    else:
+                        # Case: Multiple or No viable candidates -> Distribute proportionally
+                        implied_rate = (residual / missing_workforce) * 100.0
+                        # Sanity check: Rate <= 100% (with tolerance)
+                        if implied_rate <= 105.0:
+                            for r in missing_regions:
+                                stats = final_region_stats[r]
+                                stats["rate"] = implied_rate
+                                stats["covered"] = (implied_rate / 100.0) * stats["total"]
+                                self.resolution_log.append(
+                                    f"Region {r}: Inferred Rate {implied_rate:.1f}% via Global Residual ({residual:.0f}/{missing_workforce:.0f})"
+                                )
 
         # 3. Resolve Global
         regions_sum = sum(stat["covered"] for stat in final_region_stats.values())
