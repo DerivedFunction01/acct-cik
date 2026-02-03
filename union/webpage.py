@@ -937,6 +937,9 @@ def fetch_url(
             if rate_limiter:
                 rate_limiter.signal_429()
             return None
+        if resp.status_code == 404:
+            # The url is blank; return empty string
+            return ""
         if resp.status_code != 200:
             print(f"Error {resp.status_code} for {url}")
             return None
