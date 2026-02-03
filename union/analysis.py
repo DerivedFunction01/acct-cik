@@ -422,6 +422,8 @@ class SimpleCoverageAnalyzer:
                     if pct is not None:
                         data["percentage"] = pct
                         data["type"] = CoverageType.QUALITATIVE.value
+                        if term.lower_bound is not None and term.upper_bound is not None and (term.is_absolute or not is_term_negated):
+                            data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
 
                         has_status_negation = any(
                             m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
@@ -694,6 +696,7 @@ class ComplexCoverageAnalyzer:
             "negated": False,
             "negation_type": None,
             "type": CoverageType.NONE.value,
+            "qualitative_bounds": None,
             "note": None,
         }
 
@@ -1435,6 +1438,7 @@ class Entry:
     key: Optional[str] = "unknown" # Union name or location. Else it belongs to the generic bucket
     is_qualitative: bool = False
     is_explicit: bool = False # The firm plainly states that it is the total of something within that scope
+    qualitative_bounds: Optional[Tuple[float, float]] = None
     is_remaining: bool = False
     is_negated: bool = False
     scope: Scope = Scope.UNKNOWN
@@ -1529,6 +1533,7 @@ class Tracker:
         scope_total: Optional[float] = None,
         not_covered_count: Optional[float] = None,
         is_qualitative: bool = False,
+        qualitative_bounds: Optional[Tuple[float, float]] = None,
         is_remaining: bool = False,
         is_explicit: bool = False,
         is_negated: bool = False,
@@ -1570,6 +1575,7 @@ class Tracker:
             total_count=scope_total,
             key=key,
             is_qualitative=is_qualitative,
+            qualitative_bounds=qualitative_bounds,
             is_remaining=is_remaining,
             is_explicit=is_explicit,
             is_negated=is_negated,
@@ -1715,7 +1721,21 @@ class Tracker:
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
                      e.total_count = census_total
                      if census_total > 0:
-                         e.percentage = round((e.covered_count / census_total) * 100.0, 2)
+                         raw_pct = (e.covered_count / census_total) * 100.0
+                         
+                         # Validate/Adjust with bounds
+                         if e.qualitative_bounds:
+                             lower, upper = e.qualitative_bounds
+                             if raw_pct < lower and (lower - raw_pct) < 2.0:
+                                 raw_pct = lower
+                                 self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
+                             elif raw_pct > upper and (raw_pct - upper) < 2.0:
+                                 raw_pct = upper
+                                 self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
+                             elif raw_pct < lower or raw_pct > upper:
+                                 self.resolution_log.append(f"Warning: Calculated PCT {raw_pct:.2f}% for {name} ({e.key}) is outside bounds [{lower}, {upper}]")
+
+                         e.percentage = round(raw_pct, 2)
                          self.resolution_log.append(f"Resolved PCT for {name} ({e.key}): {e.covered_count}/{census_total}")
 
         # 3. Identify remaining gaps (Dependent resolution)
@@ -1752,7 +1772,21 @@ class Tracker:
                 target.covered_count = gap
                 target.total_count = census_total
                 if census_total > 0:
-                    target.percentage = round((gap / census_total) * 100.0, 2)
+                    raw_pct = (gap / census_total) * 100.0
+                    
+                    # Validate/Adjust with bounds
+                    if target.qualitative_bounds:
+                         lower, upper = target.qualitative_bounds
+                         if raw_pct < lower and (lower - raw_pct) < 5.0:
+                             raw_pct = lower
+                             self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
+                         elif raw_pct > upper and (raw_pct - upper) < 5.0:
+                             raw_pct = upper
+                             self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
+                         elif raw_pct < lower or raw_pct > upper:
+                             self.resolution_log.append(f"Warning: Inferred Gap PCT {raw_pct:.2f}% for {name} ({target.key}) is outside bounds [{lower}, {upper}]")
+
+                    target.percentage = round(raw_pct, 2)
                 self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
     def _get_region_entries(self, region_name: str) -> List[Entry]:
@@ -1942,6 +1976,7 @@ class UnionAnalyzer:
                     scope_total=cov.get("employee_count_total"),
                     not_covered_count=cov.get("employee_count_not_covered"),
                     is_qualitative=(cov.get("type") == CoverageType.QUALITATIVE.value),
+                    qualitative_bounds=cov.get("qualitative_bounds"),
                     is_remaining=(cov.get("type") == CoverageType.REMAINING.value),
                     is_explicit=(cov.get("type") == CoverageType.EXPLICIT_PERCENT.value),
                     is_negated=cov.get("negated", False),
@@ -2461,6 +2496,8 @@ class UnionAnalyzer:
                     if term.is_absolute:
                         data["percentage"] = term.positive_pct
                         data["type"] = CoverageType.QUALITATIVE.value
+                        if term.lower_bound is not None and term.upper_bound is not None:
+                            data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
                         data["note"] = f"Absolute qualitative: '{pattern_str}'"
                     else:
                         pct = term.get_percentage(is_negated=is_locally_negated)
@@ -2468,6 +2505,8 @@ class UnionAnalyzer:
                             data["percentage"] = pct
                             data["type"] = CoverageType.QUALITATIVE.value
                             data["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
+                            if not is_locally_negated and term.lower_bound is not None and term.upper_bound is not None:
+                                data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
 
         return data
 
