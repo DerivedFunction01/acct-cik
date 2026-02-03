@@ -540,6 +540,12 @@ class SimpleCoverageAnalyzer:
                     notes.append(f"Count (covered): {count}")
                 data["type"] = CoverageType.CALCULATED.value
                 data["employee_count_total"] = count
+            elif analysis.negation_terms: # single count ..... are nonunion at this stage.
+                data["employee_count_total"] = count
+                data["employee_count_not_covered"] = count
+                data["negated"] = True
+                data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Count (not covered): {count}")
             else:
                 data["employee_count_total"] = count
                 notes.append(f"Count (total): {count} (no union association)")
@@ -1463,6 +1469,8 @@ class Entry:
     not_covered_count: Optional[float] = None
     percentage: Optional[float] = None
     total_count: Optional[float] = None
+    union_name: Optional[str] = None
+    is_qualitative: bool = False
     sent_idx: int = -1
 
 class Tracker:

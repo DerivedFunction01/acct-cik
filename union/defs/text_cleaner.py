@@ -249,15 +249,15 @@ class MinimalTextCleaner:
 
     # Handle "all [worker]" -> "100% of [worker]"
     # Ensure not preceded by "not"
-    all_worker_pattern = re.compile(
-        rf"(?<!\bnot\s)\ball\s+((?:[\w-]+\s+){{0,3}}{_worker_pattern})\b", re.IGNORECASE
-    )
+    # all_worker_pattern = re.compile(
+    #     rf"(?<!\bnot\s)\ball\s+((?:[\w-]+\s+){{0,3}}{_worker_pattern})\b", re.IGNORECASE
+    # )
 
-    # Handle "[worker] ... were/are all" -> "[worker] ... were/are 100%"
-    worker_all_pattern = re.compile(
-        rf"\b({_worker_pattern}(?:\s+[\w-]+){{0,3}}\s+(?:were|are)?)\s+all\b",
-        re.IGNORECASE,
-    )
+    # # Handle "[worker] ... were/are all" -> "[worker] ... were/are 100%"
+    # worker_all_pattern = re.compile(
+    #     rf"\b({_worker_pattern}(?:\s+[\w-]+){{0,3}}\s+(?:were|are)?)\s+all\b",
+    #     re.IGNORECASE,
+    # )
 
     # Fix capitalization of "the" at start of sentences
     fix_the_capitalization_pattern = re.compile(r"(^|[.!?]\s+)the\b")
@@ -683,8 +683,8 @@ class MinimalTextCleaner:
             paragraph = self.a_multiplier_pattern.sub("one ", paragraph)
             for pattern, replacement in self.qualitative_patterns:
                 paragraph = pattern.sub(replacement, paragraph)
-            paragraph = self.all_worker_pattern.sub(r"100% of \1", paragraph)
-            paragraph = self.worker_all_pattern.sub(r"\1 100%", paragraph)
+            # paragraph = self.all_worker_pattern.sub(r"100% of \1", paragraph)
+            # paragraph = self.worker_all_pattern.sub(r"\1 100%", paragraph)
             paragraph = self.no_worker_pattern.sub(r"0 \1", paragraph)
             paragraph = self.number_phrase_pattern.sub(
                 self._parse_number_phrase, paragraph
