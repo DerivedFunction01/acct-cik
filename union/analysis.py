@@ -516,6 +516,7 @@ class SimpleCoverageAnalyzer:
                                 f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} covered"
                             )
                 else:
+                    data["type"] = CoverageType.CALCULATED.value
                     notes.append(f"Count (total): {count} (qualitative term present)")
 
             elif is_associated:
@@ -531,6 +532,7 @@ class SimpleCoverageAnalyzer:
                 else:
                     data["employee_count_covered"] = count
                     notes.append(f"Count (covered): {count}")
+                data["type"] = CoverageType.CALCULATED.value
                 data["employee_count_total"] = count
             else:
                 data["employee_count_total"] = count
@@ -567,7 +569,7 @@ class SimpleCoverageAnalyzer:
             "employee_count_total": None,
             "negated": False,
             "negation_type": None,
-            "type": CoverageType.QUALITATIVE.value,
+            "type": CoverageType.NONE.value,
             "note": None,
         }
 
@@ -734,7 +736,7 @@ class ComplexCoverageAnalyzer:
             "employee_count_total": total_count,
             "negated": False,
             "negation_type": None,
-            "type": CoverageType.QUALITATIVE.value,
+            "type": CoverageType.NONE.value,
             "note": None,
         }
 
@@ -1472,7 +1474,9 @@ class Tracker:
         self.country_rate_candidates: Dict[str, List[Dict[str, Any]]] = {}
 
         self.global_covered: float = 0.0
+        self.global_not_covered: float = 0.0
         self.region_covered: Dict[str, float] = {}
+        self.region_not_covered: Dict[str, float] = {}
         self.region_aggregates: Dict[str, float] = (
             {}
         )  # For "Germany and France" type aggregates
@@ -1480,6 +1484,7 @@ class Tracker:
             {}
         )  # True if explicit region-wide statement found
         self.country_covered: Dict[str, float] = {}
+        self.country_not_covered: Dict[str, float] = {}
         self.resolution_log: List[str] = []
 
     def update(
@@ -1833,14 +1838,49 @@ class Tracker:
                 self.country_covered[target_code] = max(
                     self.country_covered.get(target_code, 0), covered_count
                 )
+        
+        if not_covered_count is not None:
+            if scope == "global":
+                self.global_not_covered = max(self.global_not_covered, not_covered_count)
+            elif scope == "region" and region:
+                self.region_not_covered[region] = max(
+                    self.region_not_covered.get(region, 0), not_covered_count
+                )
+            elif scope == "country" and target_code:
+                self.country_not_covered[target_code] = max(
+                    self.country_not_covered.get(target_code, 0), not_covered_count
+                )
 
-    def _resolve_rate(self, candidates: List[Dict[str, Any]]) -> Tuple[Optional[float], bool]:
+    def _resolve_rate(self, candidates: List[Dict[str, Any]], min_covered: float = 0.0, min_not_covered: float = 0.0) -> Tuple[Optional[float], bool]:
         if not candidates:
             return None, False
 
+        # Filter candidates that invalidate known covered counts (only for Generic rates)
+        valid_candidates = []
+        for c in candidates:
+            # Only validate Generic rates (union_name is None) against the total min_covered
+            if c.get("union_name") is None:
+                if c["weight"] > 0:
+                    implied_covered = (c["rate"] / 100.0) * c["weight"]
+                    # Allow tolerance: if implied is significantly less than min_covered, reject
+                    if implied_covered < min_covered * 0.9 and (min_covered - implied_covered) > 5:
+                        continue
+                    
+                    implied_not_covered = ((100.0 - c["rate"]) / 100.0) * c["weight"]
+                    if implied_not_covered < min_not_covered * 0.9 and (min_not_covered - implied_not_covered) > 5:
+                        continue
+                elif c["rate"] == 0 and min_covered > 5:
+                     continue
+                elif c["rate"] == 100.0 and min_not_covered > 5:
+                     continue
+            valid_candidates.append(c)
+            
+        if not valid_candidates:
+            return None, False
+
         # Filter out qualitative if explicit exists
-        explicit = [c for c in candidates if not c["is_qualitative"]]
-        pool = explicit if explicit else candidates
+        explicit = [c for c in valid_candidates if not c["is_qualitative"]]
+        pool = explicit if explicit else valid_candidates
         is_qual = not bool(explicit)
 
         # Group by union name to handle additive rates (e.g. 5% UAW + 10% Teamsters)
@@ -1913,7 +1953,9 @@ class Tracker:
         # 1. Resolve Countries (Rate -> Count)
         for code in self.country_totals:
             total = self.country_totals[code]
-            cand_rate, is_qual = self._resolve_rate(self.country_rate_candidates.get(code, []))
+            known_covered = self.country_covered.get(code, 0.0)
+            known_not_covered = self.country_not_covered.get(code, 0.0)
+            cand_rate, is_qual = self._resolve_rate(self.country_rate_candidates.get(code, []), min_covered=known_covered, min_not_covered=known_not_covered)
 
             if cand_rate is not None:
                 # Explicit rate overrides count
@@ -1938,7 +1980,25 @@ class Tracker:
             rate = None
             source_desc = ""
 
-            cand_rate, is_qual = self._resolve_rate(self.region_rate_candidates.get(region, []))
+            # Calculate children sum early for validation
+            children_sum = 0.0
+            children_not_covered_sum = 0.0
+            children_total_sum = 0.0
+            children_details = []
+            if region in self.region_country_map:
+                for code in self.region_country_map[region]:
+                    c_cov = self.country_covered.get(code, 0.0)
+                    c_not_cov = self.country_not_covered.get(code, 0.0)
+                    c_tot = self.country_totals.get(code, 0.0)
+                    children_sum += c_cov
+                    children_not_covered_sum += c_not_cov
+                    children_total_sum += c_tot
+                    if c_cov > 0:
+                        children_details.append(f"{code}:{c_cov:.0f}")
+
+            known_covered = max(self.region_covered.get(region, 0.0), children_sum)
+            known_not_covered = max(self.region_not_covered.get(region, 0.0), children_not_covered_sum)
+            cand_rate, is_qual = self._resolve_rate(self.region_rate_candidates.get(region, []), min_covered=known_covered, min_not_covered=known_not_covered)
 
             # Priority 1: Explicit Region Rate (Non-Qualitative)
             if cand_rate is not None and not is_qual:
@@ -1958,18 +2018,6 @@ class Tracker:
             else:
                 # Priority 4: Best available partial data (Max of Aggregate vs Sum of Countries)
                 # We assume aggregates (e.g. "EU countries") and country sums are competing for the same truth
-                children_sum = 0.0
-                children_total_sum = 0.0
-                children_details = []
-                if region in self.region_country_map:
-                    for code in self.region_country_map[region]:
-                        c_cov = self.country_covered.get(code, 0.0)
-                        c_tot = self.country_totals.get(code, 0.0)
-                        children_sum += c_cov
-                        children_total_sum += c_tot
-                        if c_cov > 0:
-                            children_details.append(f"{code}:{c_cov:.0f}")
-
                 aggregate_val = self.region_aggregates.get(region, 0.0)
 
                 # Check completeness: Do known children account for enough of the region?
@@ -1989,8 +2037,15 @@ class Tracker:
                     rate = None
                     source_desc = f"Aborted (Low Completeness {completeness:.1%})"
 
+            not_covered = 0.0
+            if rate is not None:
+                not_covered = total - covered
+            else:
+                not_covered = max(self.region_not_covered.get(region, 0.0), children_not_covered_sum)
+
             final_region_stats[region] = {
                 "covered": covered,
+                "not_covered": not_covered,
                 "total": total,
                 "rate": rate,
             }
@@ -2076,7 +2131,10 @@ class Tracker:
             (regions_sum / self.global_total * 100.0) if self.global_total > 0 else None
         )
 
-        global_rate_cand, global_is_qual = self._resolve_rate(self.global_rate_candidates)
+        regions_not_covered_sum = sum(stat["not_covered"] for stat in final_region_stats.values())
+        known_covered = max(self.global_covered, regions_sum)
+        known_not_covered = max(self.global_not_covered, regions_not_covered_sum)
+        global_rate_cand, global_is_qual = self._resolve_rate(self.global_rate_candidates, min_covered=known_covered, min_not_covered=known_not_covered)
         global_rate = None
 
         if self.global_total <= 0 and global_rate_cand is None:
@@ -2546,7 +2604,9 @@ class UnionAnalyzer:
 
         # Effective totals for lookup (Previous Paragraph + Local So Far)
         effective_totals = previous_totals.copy() if previous_totals else {}
-        effective_totals.update(local_totals)
+        for k, v in local_totals.items():
+            if v > effective_totals.get(k, 0):
+                effective_totals[k] = v
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
@@ -2748,7 +2808,7 @@ class UnionAnalyzer:
 
         merged_results = self._merge_continuation_items(results)
 
-        return merged_results, local_totals, last_geo_context
+        return merged_results, effective_totals, last_geo_context
 
     def _determine_coverage_data(
         self,

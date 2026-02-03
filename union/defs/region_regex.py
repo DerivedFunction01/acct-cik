@@ -68,6 +68,7 @@ NORTH_AMERICA = {
             "capitol hill",
             "silicon valley",
             "twin cities",
+            "domestic",
             add_restrictions(
                 r"american?", lookbehinds=[r"central", r"latin", r"south"]
             ),

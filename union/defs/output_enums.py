@@ -11,6 +11,7 @@ class Specificity(Enum):
 
 
 class CoverageType(Enum):
+    NONE = "NONE"
     EXPLICIT_PERCENT = "EXPLICIT_PERCENT"
     CALCULATED = "CALCULATED_FROM_COUNTS"
     QUALITATIVE = "QUALITATIVE"
