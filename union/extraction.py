@@ -8,7 +8,7 @@ from defs.regex_lib import SENTENCE_SPLIT_PATTERN2, build_alternation, build_reg
 from defs.union_regex import (
     GAP, UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
     NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
-    , SUPPLIER_REGEX, COVERAGE_REGEX
+    , SUPPLIER_REGEX, COVERAGE_REGEX, BOILERPLATE_REGEX, PERSONNEL_EVENT_REGEX
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource
 
@@ -144,6 +144,8 @@ class SentenceAnalysis:
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
+    
+    is_relevant: bool = False
 
 @dataclass
 class QualitativeTerm:
@@ -582,6 +584,7 @@ class UnionExtractor:
         analysis.has_future = bool(FUTURE_REGEX.search(text))
         analysis.has_respectively = bool(RESPECTIVELY_REGEX.search(text))
         analysis.has_remaining_other = bool(REMAIN_REGEX.search(text))
+        analysis.is_relevant = False
 
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
             nonlocal working_text
@@ -810,6 +813,49 @@ class UnionExtractor:
             None
         )
 
+        # Determine relevancy
+        # 1. Explicit Union/Labor/Coverage/Risk terms
+        has_union_keywords = bool(
+            analysis.union_terms 
+            or analysis.coverage_terms 
+            or analysis.risk_terms
+            or analysis.qualitative_membership_terms
+            or analysis.relationship_terms
+        )
+        
+        # 2. Geographic matches derived from Union names
+        has_union_geo = any(
+            m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
+            for m in analysis.geo_matches
+        )
+        
+        # 3. Negation (often used for "non-union", "not covered")
+        has_negation = bool(analysis.negation_terms)
+        
+        # 4. Quantitative Coverage (Percentage/Ratio + Worker Context)
+        # We check if there's a percentage/ratio AND (worker terms OR worker counts)
+        has_quant = bool(analysis.percentages or analysis.ratios or analysis.numbers)
+        has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
+        
+        analysis.is_relevant = (
+            has_union_keywords
+            or has_union_geo
+            or has_negation
+            or (has_quant and has_worker_context)
+            or bool(analysis.worker_counts)
+        )
+
+        # 5. Exclusions (Boilerplate / Personnel)
+        if analysis.is_relevant:
+             # Personnel: Exclude if no union terms and matches personnel event
+             if not analysis.union_terms and PERSONNEL_EVENT_REGEX.search(text):
+                 analysis.is_relevant = False
+             
+             # Boilerplate: Exclude if no quantitative data and matches boilerplate
+            #  elif BOILERPLATE_REGEX.search(text):
+            #      has_data = bool(analysis.percentages or analysis.ratios or analysis.worker_counts)
+            #      if not has_data:
+            #          analysis.is_relevant = False
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:

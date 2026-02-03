@@ -34,8 +34,6 @@ from defs.union_regex import (
     RELATIONSHIP_NEUTRAL_TERMS,
     RELATIONSHIP_QUALITY_TERMS,
     RELATIONSHIP_NEGATIVE_TERMS,
-    BOILERPLATE_REGEX,
-    PERSONNEL_EVENT_REGEX,
     UNION_REGEX,
 )
 
@@ -441,11 +439,13 @@ class SimpleCoverageAnalyzer:
                             )
                         else:
                             data["employee_count_covered"] = ratio
+                            data["employee_count_not_covered"] = count - ratio
                             data["note"] = (
                                 f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} covered"
                             )
                 else:
                     data["type"] = CoverageType.CALCULATED.value
+                    data["employee_count_total"] = count
                     notes.append(f"Count (total): {count} (qualitative term present)")
 
             elif is_associated:
@@ -2075,6 +2075,9 @@ class UnionAnalyzer:
                         should_merge = False
                     if c_data["employee_count_not_covered"] is not None and n_data["employee_count_not_covered"] is not None:
                         should_merge = False
+                    # If both have a total, don't merge
+                    if c_data["employee_count_total"] is not None and n_data["employee_count_total"] is not None:
+                        should_merge = False
 
                     # 2. Subject Conflict Check (Specific Unions)
                     # Do not merge if both items mention different specific unions (e.g. UAW vs Teamsters)
@@ -2147,7 +2150,7 @@ class UnionAnalyzer:
                         if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
                             c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
 
-                    skip_indices.add(i + 1)
+                        skip_indices.add(i + 1)
 
             merged_results.append(current)
         return merged_results
@@ -2214,20 +2217,7 @@ class UnionAnalyzer:
                 last_employee_count = max(effective_counts)
 
             # 3. Relevance Check
-            has_coverage = bool(analysis.percentages or analysis.negation_terms)
-            has_worker_context = bool(analysis.worker_terms or effective_counts)
-            is_relevant = (
-                bool(
-                    analysis.union_terms
-                    or analysis.geo_matches
-                    or analysis.negation_terms
-                    or analysis.qualitative_membership_terms
-                )
-                or (has_coverage and has_worker_context)
-                or bool(effective_counts)
-            )
-
-            if not is_relevant:
+            if not analysis.is_relevant:
                 continue
 
             # 4. Determine Geographic Context
@@ -2340,56 +2330,16 @@ class UnionAnalyzer:
             )
 
             # 8. Construct Result
-            should_include = False
-            has_data = (
-                coverage_data.get("percentage") is not None
-                or coverage_data.get("employee_count_covered") is not None
-                or coverage_data.get("negated")
-            )
-
-            if analysis.union_terms:
-                should_include = True
-            elif has_data and geo_context["specificity"] != Specificity.IMPLICIT.value:
-                should_include = True
-
-            # Exclude "monitoring" statements with no data (Statement Only)
-            # e.g. "We are committed to constructive engagement..."
-            if (
-                should_include
-                and (not has_data or analysis.relationship_terms)
-                and BOILERPLATE_REGEX.search(sent)
-            ):
-                should_include = False
-
-            # Exclude personnel events (layoffs, hiring) if no union keywords are present
-            # e.g. "We laid off 500 employees." (Avoids treating 500 as a workforce total)
-            if (
-                should_include
-                and not analysis.union_terms
-                and PERSONNEL_EVENT_REGEX.search(sent)
-            ):
-                should_include = False
-
-            # Filter out Risk Items embedded in Item 1 (Use boilerplate block)
-            if (analysis.risk_terms and not has_data) or BOILERPLATE_REGEX.search(sent):
-                risk_item = create_risk_item(
-                    sent, analysis, is_historical=is_historical
-                )
-                if risk_item:
-                    results.append(risk_item)
-                should_include = False
-
-            if should_include:
-                item = {
-                    "sentence": sent,
-                    "keyword_matched": analysis.union_terms or None,
-                    "geographic_context": geo_context,
-                    "coverage_data": coverage_data,
-                    "lookup_totals": effective_totals.copy(),
-                    "census_note": census_update_note,
-                    "sentence_index": idx,
-                }
-                results.append(item)
+            item = {
+                "sentence": sent,
+                "keyword_matched": analysis.union_terms or None,
+                "geographic_context": geo_context,
+                "coverage_data": coverage_data,
+                "lookup_totals": effective_totals.copy(),
+                "census_note": census_update_note,
+                "sentence_index": idx,
+            }
+            results.append(item)
 
         merged_results = self._merge_continuation_items(results)
 
@@ -2504,4 +2454,17 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        return {}
+        entries_dump = []
+        for e in tracker.entries:
+            data = e.__dict__.copy()
+            if isinstance(data.get("scope"), Enum):
+                data["scope"] = data["scope"].value
+            entries_dump.append(data)
+
+        return {
+            "entries": entries_dump,
+            "region_totals": tracker.region_totals,
+            "country_totals": tracker.country_totals,
+            "global_total": tracker.global_total,
+            "resolution_log": tracker.resolution_log,
+        }

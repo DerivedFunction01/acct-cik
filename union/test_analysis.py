@@ -16,53 +16,12 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 ITEM_1 = """
 ITEM 1. BUSINESS
 
-TechAdvance Manufacturing Corp and its subsidiaries operate a global manufacturing, logistics, and 
-technology services business. As of December 31, 2023, we employ approximately 100,000 employees 
-worldwide across North America, Europe, Latin America, and Asia-Pacific regions.
-
-Employees and Labor Relations
-
-We maintain a diverse workforce across multiple operational divisions. As of year-end 2023, our total 
-global employee base consisted of approximately 100,000 personnel.
-
-United States Operations. Our domestic operations employ 57,520 workers across 15 manufacturing 
-facilities and 30 distribution hubs. Of our 14,200 hourly production workers, 11,644 are represented 
-by the United Auto Workers (UAW) under collective bargaining agreements. Additionally, 920 logistics 
-personnel in our East Coast distribution centers are fully represented by the International Brotherhood 
-of Teamsters. 
-
 Our flight operations employ 500 pilots, all of whom are unionized under the Air Line Pilots Association (ALPA).
 We employ 200 senior managers who are not subject to collective bargaining agreements. The remaining 44,256 
 U.S. employees, consisting primarily of technical, administrative, and sales personnel, are non-union. 
 In 2023, we reduced U.S. headcount by 1,500 positions through operational efficiency initiatives, 
 which contributed to a 3% decline in overall union density within the United States.
 
-European Operations. In France, we operate facilities with 3,000 
-employees who are substantially all covered by industry-wide collective bargaining agreements and represented 
-through the Comité Social et Économique, a mandatory French employee representation structure. In Germany, 
-we employ 4,100 workers across two principal locations. Our Hamburg manufacturing facility employs 2,600 workers, 
-of whom 95%, or approximately 2,470 employees, maintain membership in IG Metall. Our Munich administrative center
-employs 1,500 workers and operates under German Works Council (Betriebsrat) provisions, which provide for 
-employee consultation and co-determination rights, though we maintain no formal union contract at this location.
-
-Latin American Operations. We employ 2,900 workers in Latin America. In Mexico, our manufacturing operations 
-in Monterrey employ 1,800 workers. Approximately 270 employees, or 15% of our Mexican workforce, are 
-represented under a collective bargaining agreement with the Sindicato de Trabajadores Mineros Unidos. 
-In Brazil, our operations employ 1,100 workers. While subject to annual industry-wide union negotiations 
-and wage setting mechanisms, formal union membership among our Brazilian workforce remains limited.
-
-Asia-Pacific Operations. We employ 33,200 workers across Asia-Pacific. In Japan, we employ 3,200 workers 
-who participate in the annual Shunto wage negotiation process; however, these employees remain entirely
-non-union. In China, we employ 10,000 workers across multiple manufacturing sites. Our Chinese operations 
-operate within the All-China Federation of Trade Unions (ACFTU) framework as required by applicable law. 
-However, we report zero formal collective bargaining representation for our Chinese workforce. 
-
-In India, our technology hub in Bangalore employs 20,000 software engineers and technical support 
-personnel, none of whom are currently unionized.
-
-Summary. Worldwide, as of December 31, 2023, our unionized workforce totaled approximately 
-18,800 employees, representing approximately 19% of our total global workforce. This represented a 
-modest decline from prior year due to operational changes and divestitures.
 """
 
 ITEM_1A = """

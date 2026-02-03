@@ -961,7 +961,6 @@ class ConcisenessCleaner:
                     sent = pattern.sub(replacement, sent)
                 sent = clean_spaces_and_punctuation(sent)
                 sent = self.leading_symbols.sub("", sent).strip()
-
                 if not sent:
                     continue
                 sent = sent[0].upper() + sent[1:]
