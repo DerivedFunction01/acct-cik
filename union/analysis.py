@@ -1528,10 +1528,14 @@ class Tracker:
         """
         # Aggregate countries to regions
         region_aggs = {}
+        countries_in_region = {}
         for code, count in self.country_totals.items():
             region_name = _CODE_TO_REGION.get(code)
             if region_name:
                 region_aggs[region_name] = region_aggs.get(region_name, 0.0) + count
+                if region_name not in countries_in_region:
+                    countries_in_region[region_name] = []
+                countries_in_region[region_name].append(code)
         
         # Update region totals if sum of countries is greater
         for r_name, agg_count in region_aggs.items():
@@ -1541,6 +1545,18 @@ class Tracker:
                 self.resolution_log.append(
                     f"Updated region '{r_name}' from {current} to {agg_count} based on country sum."
                 )
+
+        # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
+        for r_name, codes in countries_in_region.items():
+            if len(codes) == 1:
+                code = codes[0]
+                r_total = self.region_totals.get(r_name, 0.0)
+                c_total = self.country_totals.get(code, 0.0)
+                if r_total > c_total:
+                    self.country_totals[code] = r_total
+                    self.resolution_log.append(
+                        f"Updated country '{code}' from {c_total} to {r_total} based on region '{r_name}' total (single country)."
+                    )
 
     def record_coverage(
         self,
