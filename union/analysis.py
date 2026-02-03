@@ -1439,8 +1439,6 @@ class Entry:
     is_negated: bool = False
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
-    min_idx: int = -1 # The farthest backward this sentence can reference
-    max_idx: int = -1 # The farthest forward this sentence can reference
 
 
 class Tracker:
@@ -1637,39 +1635,55 @@ class Tracker:
         if len(candidates) < 2:
             return
 
-        # Sort descending by total_count
-        candidates.sort(key=lambda x: x.total_count, reverse=True)  # type: ignore
+        # 1. Sliding Window (Breakdowns within breakdowns)
+        # Sort by sentence index to respect narrative flow
+        by_sent = sorted(candidates, key=lambda x: x.sent_idx)
+        
+        for i in range(len(by_sent)):
+            parent = by_sent[i]
+            current_sum = 0.0
+            group = []
+            
+            # Look ahead for children
+            for j in range(i + 1, len(by_sent)):
+                child = by_sent[j]
+                
+                # Skip if child is larger than parent (likely not a part)
+                if child.total_count >= parent.total_count: # type: ignore
+                    continue
+                    
+                current_sum += child.total_count # type: ignore
+                group.append(child)
+                
+                # Check match
+                if self._matches_census(parent.total_count, current_sum, threshold=0.05): # type: ignore
+                    # Check coverage consistency
+                    p_cov = parent.covered_count
+                    c_cov_sum = sum(g.covered_count or 0.0 for g in group)
+                    
+                    msg = f"Breakdown Detected {name}: {parent.total_count} (sent {parent.sent_idx}) matches sum of {len(group)} items."
+                    
+                    if p_cov is not None:
+                        if self._matches_census(p_cov, c_cov_sum, threshold=0.10):
+                             msg += f" Covered counts also match ({p_cov})."
+                        else:
+                             msg += f" BUT Covered counts mismatch ({p_cov} vs {c_cov_sum})."
+                    
+                    self.resolution_log.append(msg)
+                    break
+                
+                if current_sum > parent.total_count * 1.1: # type: ignore
+                    break
 
-        parent = candidates[0]
-        children = candidates[1:]
-
-        children_total = sum(c.total_count for c in children)  # type: ignore
-
-        # Check if Parent ~ Sum(Children)
-        if self._matches_census(parent.total_count, children_total, threshold=0.10):  # type: ignore
-            # Validate Covered Count if available
-            if parent.covered_count is not None:
-                children_covered = sum(c.covered_count or 0.0 for c in children)
-
-                # If children have mixed coverage (some None), we can't fully validate sum
-                children_have_coverage = all(c.covered_count is not None for c in children)
-
-                if children_have_coverage:
-                    if self._matches_census(parent.covered_count, children_covered, threshold=0.10):
-                        self.resolution_log.append(
-                            f"Subset Validated {name}: {parent.total_count} (Covered {parent.covered_count}) "
-                            f"matches sum of {len(children)} segments."
-                        )
-                    else:
-                        self.resolution_log.append(
-                            f"Subset Mismatch {name}: Totals match ({parent.total_count}) but "
-                            f"Covered ({parent.covered_count} vs {children_covered}) do not."
-                        )
-            else:
-                self.resolution_log.append(
-                    f"Subset Potential {name}: {parent.total_count} matches sum of {len(children)} segments. "
-                    "Parent covered count unknown."
-                )
+        # 2. Global Parent vs All Children (Fallback)
+        by_size = sorted(candidates, key=lambda x: x.total_count, reverse=True) # type: ignore
+        largest = by_size[0]
+        rest_total = sum(c.total_count for c in by_size[1:]) # type: ignore
+        
+        if self._matches_census(largest.total_count, rest_total, threshold=0.10): # type: ignore
+             self.resolution_log.append(
+                f"Global Hierarchy {name}: {largest.total_count} matches sum of all other {len(by_size)-1} entries."
+            )
 
     def _resolve_gap_list(self, name: str, census_total: float, entries: List[Entry]):
         """
