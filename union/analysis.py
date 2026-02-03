@@ -1458,20 +1458,6 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
     return status.value if status != RelationshipStatus.UNKNOWN else None
 
 
-@dataclass
-class CoverageEntry:
-    scope: str
-    key: str
-    total: float
-    covered: float = 0.0
-    not_covered: float = 0.0
-    percentage: Optional[float] = None
-    is_explicit_total: bool = False
-    is_qualitative: bool = False
-    sentence_index: int = -1
-    union_name: Optional[str] = None
-    children: List["CoverageEntry"] = field(default_factory=list)
-
 class Tracker:
     """
     Tracks the 'Whole Pie' (Total Employee Counts) across different geographic scopes.
@@ -1482,10 +1468,6 @@ class Tracker:
         self.global_total: float = 0.0
         self.region_totals: Dict[str, float] = {}
         self.country_totals: Dict[str, float] = {}
-
-        # Unified storage for all statements (Census + Coverage)
-        # Key: sentence_index
-        self.entries: Dict[int, CoverageEntry] = {}
         self.resolution_log: List[str] = []
 
     def update(
@@ -1517,27 +1499,9 @@ class Tracker:
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
 
-        # 4. Record Entry for Hierarchy
-        if sentence_index >= 0:
-            key = region
-            if len(countries) == 1:
-                key = countries[0]["code"]
-
-            if sentence_index not in self.entries:
-                self.entries[sentence_index] = CoverageEntry(
-                    scope="region" if not countries else "country",
-                    key=key or "global",
-                    total=count,
-                    is_explicit_total=is_explicit_total,
-                    sentence_index=sentence_index
-                )
-            else:
-                # Update existing (if we found a better total in Pass 1?)
-                # Usually Pass 1 is the authority on Totals.
-                self.entries[sentence_index].total = max(self.entries[sentence_index].total, count)
+        pass
 
     def resolve(self):
-        # No-op for simplified tracker, logic moved to calculate_metrics
         pass
 
     def record_coverage(
@@ -1575,169 +1539,17 @@ class Tracker:
             key = region or "aggregate"
 
         union_name = geo_context.get("union_name_indicator")
-
-        # Create or Update Entry
-        if sentence_index not in self.entries:
-            self.entries[sentence_index] = CoverageEntry(
-                scope=scope,
-                key=key,
-                total=scope_total or 0.0,
-                sentence_index=sentence_index
-            )
-
-        entry = self.entries[sentence_index]
-        if percentage is not None:
-            entry.percentage = percentage
-        if covered_count is not None:
-            entry.covered = covered_count
-        if not_covered_count is not None:
-            entry.not_covered = not_covered_count
-        if scope_total is not None:
-            entry.total = max(entry.total, scope_total)
-
-        entry.is_qualitative = is_qualitative
-        entry.union_name = union_name
+        pass
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
         Performs calculation of coverage rates using Parent-Sibling hierarchy logic.
         """
-        from collections import defaultdict
-
-        def is_refinement(child_total: float, parent_total: float) -> bool:
-            """
-            Determines if 'child_total' is a refinement (child) of 'parent_total'.
-            Allows for rough approximation where child might be slightly larger due to
-            rounding, contractors, or estimation differences.
-            """
-            # Standard case: Child is smaller, and at least 20% the size of the parent
-            if child_total < parent_total and child_total > parent_total * 0.20:
-                return True
-
-            # Edge case: Rounding/Estimates (Child slightly larger)
-            # Allow up to 5% variance where child > parent
-            # e.g. Parent 100k, Child 101k -> Treated as child/refinement
-            if child_total <= parent_total * 1.05:
-                return True
-
-            return False
-
-        # 1. Group entries by Key (Region/Country)
-        grouped_entries = defaultdict(list)
-        for e in self.entries.values():
-            if e.total > 0: # Only consider entries with totals
-                grouped_entries[e.key].append(e)
-
-        region_stats = {}
-        global_covered_sum = 0.0
-        global_total_sum = 0.0
-
-        for key, group in grouped_entries.items():
-            # Sort by sentence index (order of appearance)
-            group.sort(key=lambda x: x.sentence_index)
-
-            # Build Hierarchy (Stack-based)
-            roots = []
-            stack = [] # List of CoverageEntry (parents)
-
-            for entry in group:
-                assert isinstance(entry, CoverageEntry)
-                # Pop parents that are smaller or equal (siblings/finished blocks)
-                while stack and not is_refinement(entry.total, stack[-1].total):
-                    stack.pop()
-
-                if stack:
-                    stack[-1].children.append(entry)
-                    # Now, decide if we push 'entry' to the stack.
-                    # Only push if it's an explicit total, making it a potential parent.
-                    if entry.is_explicit_total:
-                        stack.append(entry)
-                else:
-                    # It's a root, always push roots to the stack
-                    roots.append(entry)
-                    stack.append(entry)
-
-            # Calculate Metrics for this Key
-            key_covered = 0.0
-            key_total = 0.0
-
-            def process_node(node: CoverageEntry) -> Tuple[float, float]:
-                # Calculate children stats
-                children_covered = 0.0
-                children_total = 0.0
-                for child in node.children:
-                    c_cov, c_tot = process_node(child)
-                    children_covered += c_cov
-                    children_total += c_tot
-
-                # Determine node stats
-                node_covered = node.covered
-
-                # If percentage exists, calculate covered
-                if node.percentage is not None and node.covered == 0:
-                    node_covered = (node.percentage / 100.0) * node.total
-
-                # If not_covered exists, infer covered
-                if node.not_covered > 0 and node_covered == 0:
-                    node_covered = max(0, node.total - node.not_covered)
-
-                # Enforce constraint: Parent covered >= Sum(Children covered)
-                effective_covered = max(node_covered, children_covered)
-
-                # Enforce constraint: Parent total >= Sum(Children total)
-                # (Though we trust the parent total if explicit)
-                effective_total = max(node.total, children_total)
-
-                return effective_covered, effective_total
-
-            for root in roots:
-                r_cov, r_tot = process_node(root)
-                key_covered += r_cov
-                key_total += r_tot
-
-            # Store stats
-            if key_total > 0:
-                rate = (key_covered / key_total) * 100.0
-                region_stats[key] = {
-                    "rate": rate,
-                    "covered": key_covered,
-                    "total": key_total
-                }
-
-                # Accumulate to Global (if this is a top-level region or country)
-                # Note: This simple summation assumes keys are disjoint.
-                # In reality, "France" is inside "Europe".
-                # We should probably only sum up Regions + Independent Countries.
-                # For now, we rely on the fact that usually companies report EITHER by Region OR by Country.
-                # Or we can just sum everything and assume the user wants the breakdown.
-                # But for the "Global Rate", we should be careful.
-                # Let's assume "Global" key handles the global total if present.
-
-                if key == "global":
-                    global_covered_sum = key_covered
-                    global_total_sum = key_total
-
-        # If no explicit global key, sum up the parts?
-        # This is risky if regions overlap.
-        # But let's provide the "Sum of Regions" as secondary.
-
-        sum_regions_covered = sum(s["covered"] for k, s in region_stats.items() if k != "global")
-        sum_regions_total = sum(s["total"] for k, s in region_stats.items() if k != "global")
-
-        sum_regions_rate = 0.0
-        if sum_regions_total > 0:
-            sum_regions_rate = (sum_regions_covered / sum_regions_total) * 100.0
-
-        global_rate = 0.0
-        if global_total_sum > 0:
-            global_rate = (global_covered_sum / global_total_sum) * 100.0
-        elif sum_regions_total > 0:
-            global_rate = sum_regions_rate
 
         return {
-            "global_rate": global_rate,
-            "sum_of_regions_rate": sum_regions_rate,
-            "region_stats": region_stats,
+            "global_rate": None,
+            "sum_of_regions_rate": None,
+            "region_stats": {},
             "log": [],
         }
 
@@ -2461,81 +2273,4 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        """
-        Computes weighted average coverage and derived regional stats using Tracker data.
-        """
-        # Populate Tracker with Coverage Data from Results
-        for item in results:
-            data = item.get("coverage_data", {})
-            geo = item.get("geographic_context", {})
-
-            # Skip non-current
-            if data.get("temporal_scope") != TemporalScope.CURRENT.value:
-                continue
-
-            pct = data.get("percentage")
-            covered = data.get("employee_count_covered")
-            not_covered = data.get("employee_count_not_covered")
-            total = data.get("employee_count_total")
-
-            # Try to resolve not_covered to covered
-            if covered is None and not_covered is not None:
-                if total and total >= not_covered:
-                    covered = total - not_covered
-                else:
-                    # Try to find total from Tracker if not in item
-                    scope_total = None
-                    region = geo.get("region")
-                    countries = geo.get("countries", [])
-
-                    if len(countries) == 1:
-                        code = countries[0]["code"]
-                        scope_total = tracker.country_totals.get(code)
-                    elif region and region not in (
-                        Region.INTERNATIONAL.value,
-                        Region.UNKNOWN.value,
-                    ):
-                        scope_total = tracker.region_totals.get(region)
-                    elif region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-                        scope_total = tracker.global_total
-
-                    if scope_total and scope_total >= not_covered:
-                        covered = scope_total - not_covered
-
-            is_qual = data.get("type") == CoverageType.QUALITATIVE.value
-
-            tracker.record_coverage(
-                pct,
-                covered,
-                geo,
-                scope_total=total,
-                not_covered_count=not_covered,
-                is_qualitative=is_qual,
-                sentence_index=item.get("sentence_index", -1)
-            )
-
-        # Calculate Metrics
-        metrics = tracker.calculate_metrics()
-        region_stats = metrics.get("region_stats", {})
-
-        return {
-            "weighted_average_percentage": metrics["global_rate"],
-            "likely_percentage": metrics["global_rate"],
-            "secondary_percentage": metrics["sum_of_regions_rate"],
-            "derived_regional_coverage": {
-                r: m["rate"] for r, m in region_stats.items()
-            },
-            "derived_regional_covered_counts": {
-                r: m["covered"] for r, m in region_stats.items()
-            },
-            "derived_regional_not_covered_counts": {
-                r: m["total"] - m["covered"] for r, m in region_stats.items()
-            },
-            "derived_regional_total_counts": {
-                r: m["total"] for r, m in region_stats.items()
-            },
-            "census_global_total": tracker.global_total,
-            "census_region_totals": tracker.region_totals,
-            "census_country_totals": tracker.country_totals,
-            "resolution_log": metrics.get("log", []),
-        }
+        return {}
