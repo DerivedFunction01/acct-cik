@@ -571,7 +571,7 @@ class SimpleCoverageAnalyzer:
         data = {
             "percentage": None,
             "employee_count_covered": None,
-            "employee_count_not_covered": 0,
+            "employee_count_not_covered": None,
             "employee_count_total": None,
             "negated": False,
             "negation_type": None,
@@ -738,7 +738,7 @@ class ComplexCoverageAnalyzer:
         self.data = {
             "percentage": None,
             "employee_count_covered": None,
-            "employee_count_not_covered": 0,
+            "employee_count_not_covered": None,
             "employee_count_total": total_count,
             "negated": False,
             "negation_type": None,
@@ -1641,22 +1641,20 @@ class Tracker:
             stack = [] # List of CoverageEntry (parents)
 
             for entry in group:
-                # Logic:
-                # If entry.total < stack.top.total -> Child (Refinement)
-                # If entry.total >= stack.top.total -> Sibling (Different Segment)
-
                 # Pop parents that are smaller or equal (siblings/finished blocks)
                 while stack and not is_refinement(entry.total, stack[-1].total):
                     stack.pop()
 
                 if stack:
-                    # entry is child of stack[-1]
                     stack[-1].children.append(entry)
+                    # Now, decide if we push 'entry' to the stack.
+                    # Only push if it's an explicit total, making it a potential parent.
+                    if entry.is_explicit_total:
+                        stack.append(entry)
                 else:
-                    # entry is a new root
+                    # It's a root, always push roots to the stack
                     roots.append(entry)
-
-                stack.append(entry)
+                    stack.append(entry)
 
             # Calculate Metrics for this Key
             key_covered = 0.0
