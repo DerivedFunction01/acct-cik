@@ -1628,6 +1628,57 @@ class Tracker:
                 
         return False
 
+    def _resolve_overlaps(self, country_code: str, census_total: float):
+        """
+        Checks if the largest entry is the sum of the others (Parent-Child relationship).
+        Useful when we have a total line and then breakdown lines.
+        """
+        relevant_entries = [
+            e for e in self.entries 
+            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
+               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
+        ]
+        
+        # Only consider entries with a known total population
+        candidates = [e for e in relevant_entries if e.total_count is not None]
+        if len(candidates) < 2:
+            return
+
+        # Sort descending by total_count
+        candidates.sort(key=lambda x: x.total_count, reverse=True) # type: ignore
+        
+        parent = candidates[0]
+        children = candidates[1:]
+        
+        children_total = sum(c.total_count for c in children) # type: ignore
+        
+        # Check if Parent ~ Sum(Children)
+        # We use a slightly looser threshold for aggregation checks
+        if self._matches_census(parent.total_count, children_total, threshold=0.10): # type: ignore
+            # Validate Covered Count if available
+            if parent.covered_count is not None:
+                children_covered = sum(c.covered_count or 0.0 for c in children)
+                
+                # If children have mixed coverage (some None), we can't fully validate sum
+                children_have_coverage = all(c.covered_count is not None for c in children)
+                
+                if children_have_coverage:
+                    if self._matches_census(parent.covered_count, children_covered, threshold=0.10):
+                        self.resolution_log.append(
+                            f"Subset Validated {country_code}: {parent.total_count} (Covered {parent.covered_count}) "
+                            f"matches sum of {len(children)} segments."
+                        )
+                    else:
+                         self.resolution_log.append(
+                            f"Subset Mismatch {country_code}: Totals match ({parent.total_count}) but "
+                            f"Covered ({parent.covered_count} vs {children_covered}) do not."
+                        )
+            else:
+                 self.resolution_log.append(
+                    f"Subset Potential {country_code}: {parent.total_count} matches sum of {len(children)} segments. "
+                    "Parent covered count unknown."
+                )
+
     def _resolve_single_country(self, country_code: str, census_total: float):
         """
         Helper to resolve missing coverage data for a single country given its census total.
@@ -1690,6 +1741,7 @@ class Tracker:
         we infer the missing values.
         """
         for country_code, census_total in self.country_totals.items():
+            self._resolve_overlaps(country_code, census_total)
             self._resolve_single_country(country_code, census_total)
 
     def calculate_metrics(self) -> Dict[str, Any]:
