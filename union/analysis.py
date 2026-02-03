@@ -14,7 +14,6 @@ from extraction import (
     REMAIN_REGEX,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
-    TOTAL_MODIFIER_REGEX,
 )
 from defs.region_regex import (
     REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION
@@ -152,18 +151,6 @@ def check_local_union(
     return check_local_regex(match_span, text, regexes, backward, forward)
 
 
-def check_is_total_context(
-    match_span: Tuple[int, int],
-    text: str,
-    backward: int = 60,
-    forward: int = 60,
-) -> bool:
-    """
-    Checks if 'total', 'global', 'worldwide', etc. are present near the match.
-    """
-    return check_local_regex(match_span, text, TOTAL_MODIFIER_REGEX, backward, forward)
-
-
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -282,8 +269,9 @@ class SimpleCoverageAnalyzer:
                     is_strongly_covered = (dist_to_count < dist_to_pct) and (
                         dist_to_count < 50
                     )
-                    if not is_strongly_covered:
-                        if check_is_total_context(count_match["span"], analysis.text):
+                    if not is_strongly_covered and analysis.total_modifiers:
+                        _cnt_dist = get_min_distance_to_matches(count_match["span"], analysis._matches, [MatchType.TOTAL_MODIFIER])
+                        if _cnt_dist < 100:
                             is_count_total = True
 
             if is_count_total or count_total:
@@ -1514,6 +1502,7 @@ class Entry:
     total_count: Optional[float] = None # The sum of covered + not covered.
     key: Optional[str] = "unknown" # Union name or location. Else it belongs to the generic bucket
     is_qualitative: bool = False
+    is_explicit: bool = False # The firm plainly states that it is the total of something within that scope
     is_remaining: bool = False
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
@@ -1535,7 +1524,7 @@ class Tracker:
         self.entries: List[Entry] = []
 
     def update(
-        self, count: float, geo_context: Dict[str, Any], is_explicit_total: bool = False, sentence_index: int = -1
+        self, count: float, geo_context: Dict[str, Any]
     ):
         # 1. Update Lookups (Keep for analyze_block usage)
         # This logic is simplified to just maintain max values for lookups
@@ -1562,8 +1551,6 @@ class Tracker:
             code = c["code"]
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
-
-        pass
 
     def resolve(self):
         """
@@ -1611,6 +1598,8 @@ class Tracker:
         scope_total: Optional[float] = None,
         not_covered_count: Optional[float] = None,
         is_qualitative: bool = False,
+        is_remaining: bool = False,
+        is_explicit: bool = False,
         sentence_index: int = -1
     ):
         """
@@ -1649,9 +1638,19 @@ class Tracker:
             total_count=scope_total,
             key=key,
             is_qualitative=is_qualitative,
+            is_remaining=is_remaining,
+            is_explicit=is_explicit,
             scope=scope,
             sent_idx=sentence_index
         ))
+    
+    def resolve_coverage(self):
+        """
+        Docstring for resolve_coverage
+        
+        :param self: Description
+        """
+        pass
 
     def calculate_metrics(self) -> Dict[str, Any]:
         """
@@ -1762,6 +1761,31 @@ class UnionAnalyzer:
                 # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
                 prev_paragraph_totals = local_totals
 
+            # Populate tracker with coverage entries
+            for item in results:
+                cov = item.get("coverage_data", {})
+                geo = item.get("geographic_context", {})
+                
+                # Skip if no meaningful coverage data
+                if (
+                    cov.get("percentage") is None 
+                    and cov.get("employee_count_covered") is None 
+                    and not cov.get("negated")
+                ):
+                    continue
+
+                tracker.record_coverage(
+                    percentage=cov.get("percentage"),
+                    covered_count=cov.get("employee_count_covered"),
+                    geo_context=geo,
+                    scope_total=cov.get("employee_count_total"),
+                    not_covered_count=cov.get("employee_count_not_covered"),
+                    is_qualitative=(cov.get("type") == CoverageType.QUALITATIVE.value),
+                    is_remaining=(cov.get("type") == CoverageType.REMAINING.value),
+                    is_explicit=(cov.get("type") == CoverageType.EXPLICIT_PERCENT.value),
+                    sentence_index=item.get("sentence_index", -1)
+                )
+
             summary = self.compute_weighted_coverage(
                 results, tracker, all_region_totals
             )
@@ -1819,14 +1843,12 @@ class UnionAnalyzer:
                     None,
                 )
                 span = count_match["span"] if count_match else None
-                is_explicit = (
-                    check_is_total_context(span, analysis.text) if span else False
-                )
+
 
                 range_avg = self._detect_count_range(analysis, effective_counts)
                 final_count = range_avg if range_avg else max_count
 
-                tracker.update(final_count, geo_context, is_explicit_total=is_explicit, sentence_index=idx)
+                tracker.update(final_count, geo_context)
 
     def _resolve_counts_to_geography(
         self, analysis: SentenceAnalysis

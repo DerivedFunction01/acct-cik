@@ -144,14 +144,6 @@ class SentenceAnalysis:
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
-# %%
-import re
-from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional, Tuple
-from enum import Enum
-
-from defs.regex_lib import build_compound, build_regex, to_build_alternation
-
 
 @dataclass
 class QualitativeTerm:
@@ -808,7 +800,7 @@ class UnionExtractor:
         process_matches(
             TOTAL_MODIFIER_REGEX, MatchType.TOTAL_MODIFIER,
             lambda m: m.group(0),
-            lambda m, val: analysis.total_modifiers.append(val)
+            lambda val: analysis.total_modifiers.append(val)
         )
 
         # 20. Extract Respectively
