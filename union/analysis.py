@@ -1577,6 +1577,14 @@ class Tracker:
             sent_idx=sentence_index
         ))
 
+    def _get_tolerance(self, entries: List[Entry], base_threshold: float = 0.05) -> float:
+        """
+        Returns a looser tolerance if any entry is qualitative.
+        """
+        if any(e.is_qualitative for e in entries):
+            return max(base_threshold, 0.20)
+        return base_threshold
+
     def _matches_census(self, val: float, census: float, threshold: float = 0.05) -> bool:
         """
         Checks if value matches census within threshold or rounding error.
@@ -1664,7 +1672,9 @@ class Tracker:
                     msg = f"Breakdown Detected {name}: {parent.total_count} (sent {parent.sent_idx}) matches sum of {len(group)} items."
                     
                     if p_cov is not None:
-                        if self._matches_census(p_cov, c_cov_sum, threshold=0.10):
+                        # Dynamic tolerance for qualitative entries
+                        tolerance = self._get_tolerance([parent] + group, base_threshold=0.10)
+                        if self._matches_census(p_cov, c_cov_sum, threshold=tolerance):
                              msg += f" Covered counts also match ({p_cov})."
                         else:
                              msg += f" BUT Covered counts mismatch ({p_cov} vs {c_cov_sum})."

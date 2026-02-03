@@ -173,6 +173,10 @@ class QualitativeTerm:
     prefix_gap: Optional[str] = "[- ]"
     suffix_gap: Optional[str] = "[- ]"
 
+    # Bounds for validation
+    lower_bound: Optional[float] = None
+    upper_bound: Optional[float] = None
+
     def build_pattern(self) -> str:
         """Build regex pattern using build_compound."""
         if self.prefix_terms and self.suffix_terms:
@@ -198,6 +202,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=85.0,
         negated_pct=10.0,  # "not substantially" = minority (~10%)
         requires_suffix=False,
+        lower_bound=75.0,
+        upper_bound=100.0,
     ),
     # ===== 65% TIER (Significant/Major) =====
     QualitativeTerm(
@@ -206,6 +212,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=65.0,
         negated_pct=20.0,  # "not significant" = minor/small
         requires_suffix=False,
+        lower_bound=50.0,
+        upper_bound=85.0,
     ),
     # ===== 51% TIER (Majority/Most) =====
     QualitativeTerm(
@@ -214,6 +222,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=51.0,
         negated_pct=10.0,  # "not majority" = minority
         requires_suffix=False,
+        lower_bound=50.0,
+        upper_bound=100.0,
     ),
     # ===== 40% TIER (Substantial Minority) =====
     QualitativeTerm(
@@ -222,6 +232,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=40.0,
         negated_pct=None,
         requires_suffix=False,
+        lower_bound=30.0,
+        upper_bound=50.0,
     ),
     # ===== 25% TIER (Meaningful/Notable) =====
     QualitativeTerm(
@@ -230,6 +242,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=25.0,
         negated_pct=5.0,  # "not meaningful" = minimal
         requires_suffix=False,
+        lower_bound=10.0,
+        upper_bound=40.0,
     ),
     # ===== 5% TIER (Small/Minor) =====
     QualitativeTerm(
@@ -241,6 +255,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=5.0,
         negated_pct=None,
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=15.0,
     ),
     # ===== 3% TIER (Minimal/Negligible) =====
     QualitativeTerm(
@@ -249,6 +265,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=3.0,
         negated_pct=None,
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=10.0,
     ),
     # ===== 1% TIER (De Minimis/Immaterial) =====
     QualitativeTerm(
@@ -257,6 +275,8 @@ QUALITATIVE_MEMBERSHIP = [
         positive_pct=1.0,
         negated_pct=20.0,  # "not immaterial" = material/significant
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
 ]
 
@@ -268,6 +288,8 @@ QUALITATIVE_TERMS = [
         positive_pct=75.0,
         negated_pct=None,  # "not vast majority" could be 51%, 30%, or 10%
         requires_suffix=False,
+        lower_bound=70.0,
+        upper_bound=100.0,
     ),
     # ===== 65% TIER (Predominant) =====
     QualitativeTerm(
@@ -276,6 +298,8 @@ QUALITATIVE_TERMS = [
         positive_pct=65.0,
         negated_pct=None,  # Downgrade is unclear
         requires_suffix=False,
+        lower_bound=55.0,
+        upper_bound=90.0,
     ),
     QualitativeTerm(
         core_terms=["majority", "bulk"],
@@ -283,6 +307,8 @@ QUALITATIVE_TERMS = [
         positive_pct=65.0,
         negated_pct=None,  # Could be modest, small, or minor
         requires_suffix=False,
+        lower_bound=55.0,
+        upper_bound=90.0,
     ),
     # ===== 60% TIER (Bulk) =====
     QualitativeTerm(
@@ -291,6 +317,8 @@ QUALITATIVE_TERMS = [
         positive_pct=60.0,
         negated_pct=None,  # Ambiguous downgrade
         requires_suffix=True,
+        lower_bound=51.0,
+        upper_bound=90.0,
     ),
     # ===== 51% TIER (Simple Majority) =====
     QualitativeTerm(
@@ -298,6 +326,8 @@ QUALITATIVE_TERMS = [
         positive_pct=51.0,
         negated_pct=10.0,  # ✓ CLEAR: "not majority" = "minority" (~10%)
         requires_suffix=False,
+        lower_bound=50.0,
+        upper_bound=100.0,
     ),
     QualitativeTerm(
         core_terms=["most"],
@@ -305,6 +335,8 @@ QUALITATIVE_TERMS = [
         positive_pct=51.0,
         negated_pct=None,  # "not most of" is vague
         requires_suffix=True,
+        lower_bound=50.0,
+        upper_bound=100.0,
     ),
     # ===== 40% TIER (Major/Predominant Minority) =====
     QualitativeTerm(
@@ -313,6 +345,8 @@ QUALITATIVE_TERMS = [
         positive_pct=40.0,
         negated_pct=None,  # "not major" could be modest, small, or minor
         requires_suffix=False,
+        lower_bound=30.0,
+        upper_bound=49.9,
     ),
     QualitativeTerm(
         core_terms=["minority"],
@@ -326,6 +360,8 @@ QUALITATIVE_TERMS = [
         positive_pct=40.0,
         negated_pct=None,  # Downgrade unclear
         requires_suffix=False,
+        lower_bound=30.0,
+        upper_bound=49.9,
     ),
     # ===== 30% TIER (Considerable) =====
     QualitativeTerm(
@@ -334,6 +370,8 @@ QUALITATIVE_TERMS = [
         positive_pct=30.0,
         negated_pct=None,  # Could be modest or small
         requires_suffix=False,
+        lower_bound=20.0,
+        upper_bound=50.0,
     ),
     # ===== 25% TIER (Significant/Substantial) =====
     QualitativeTerm(
@@ -342,6 +380,8 @@ QUALITATIVE_TERMS = [
         positive_pct=25.0,
         negated_pct=None,  # Could be modest, small, or insignificant
         requires_suffix=False,
+        lower_bound=10.0,
+        upper_bound=50.0,
     ),
     # "is/are/was/were significant/material/etc."
     QualitativeTerm(
@@ -357,6 +397,8 @@ QUALITATIVE_TERMS = [
         positive_pct=25.0,
         negated_pct=1.0,  # ✓ CLEARER: "is not significant" = "is insignificant" (~1%)
         requires_suffix=False,
+        lower_bound=10.0,
+        upper_bound=50.0,
     ),
     # ===== DOUBLE NEGATIVES (Absolute meaning) =====
     # "not insignificant" = significant (25%)
@@ -377,6 +419,8 @@ QUALITATIVE_TERMS = [
         negated_pct=25.0,  # ✓ ABSOLUTE: meaning doesn't flip
         is_absolute=True,
         requires_suffix=False,
+        lower_bound=10.0,
+        upper_bound=50.0,
     ),
     # ===== 20% TIER (Good) =====
     QualitativeTerm(
@@ -385,6 +429,8 @@ QUALITATIVE_TERMS = [
         positive_pct=20.0,
         negated_pct=None,  # "not good" is vague
         requires_suffix=False,
+        lower_bound=10.0,
+        upper_bound=40.0,
     ),
     QualitativeTerm(
         core_terms=["many"],
@@ -392,6 +438,8 @@ QUALITATIVE_TERMS = [
         positive_pct=20.0,
         negated_pct=None,
         requires_suffix=True,
+        lower_bound=10.0,
+        upper_bound=40.0,
     ),
     QualitativeTerm(
         core_terms=["numerous", "many"],
@@ -400,6 +448,8 @@ QUALITATIVE_TERMS = [
         negated_pct=None,
         requires_suffix=True,
         suffix_gap=GAP,
+        lower_bound=10.0,
+        upper_bound=40.0,
     ),
     # ===== 15% TIER (Fair/Modest) =====
     QualitativeTerm(
@@ -408,6 +458,8 @@ QUALITATIVE_TERMS = [
         positive_pct=15.0,
         negated_pct=None,  # Could be large or small
         requires_suffix=False,
+        lower_bound=5.0,
+        upper_bound=30.0,
     ),
     # ===== 10% TIER (Minority/Small) =====
     QualitativeTerm(
@@ -415,6 +467,8 @@ QUALITATIVE_TERMS = [
         positive_pct=10.0,
         negated_pct=51.0,  # ✓ CLEAR: "not minority" = "majority" (~51%)
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=50.0,
     ),
     QualitativeTerm(
         core_terms=["portion", "share", "amount", "fraction"],
@@ -422,6 +476,8 @@ QUALITATIVE_TERMS = [
         positive_pct=10.0,
         negated_pct=None,  # "not small" could be modest, significant, or large
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=20.0,
     ),
     QualitativeTerm(
         core_terms=["minor", "small"],
@@ -429,6 +485,8 @@ QUALITATIVE_TERMS = [
         positive_pct=10.0,
         negated_pct=25.0,  # ✓ REASONABLE: "is not small/minor" → "is significant" (~25%)
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=20.0,
     ),
     QualitativeTerm(
         core_terms=["fraction"],
@@ -436,6 +494,8 @@ QUALITATIVE_TERMS = [
         positive_pct=10.0,
         negated_pct=None,  # "not fraction of" is vague
         requires_suffix=True,
+        lower_bound=0.0,
+        upper_bound=20.0,
     ),
     # ===== 5% TIER (Handful/Few/Nominal/Limited) =====
     QualitativeTerm(
@@ -444,6 +504,8 @@ QUALITATIVE_TERMS = [
         positive_pct=5.0,
         negated_pct=None,  # "not handful" could be many things
         requires_suffix=True,
+        lower_bound=0.0,
+        upper_bound=10.0,
     ),
     QualitativeTerm(
         core_terms=["number"],
@@ -451,6 +513,8 @@ QUALITATIVE_TERMS = [
         positive_pct=5.0,
         negated_pct=None,
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=15.0,
     ),
     QualitativeTerm(
         core_terms=["portion", "share", "number", "amount", "fraction"],
@@ -458,6 +522,8 @@ QUALITATIVE_TERMS = [
         positive_pct=5.0,
         negated_pct=None,  # Could be modest or significant
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=15.0,
     ),
     QualitativeTerm(
         core_terms=["nominal", "limited"],
@@ -465,6 +531,8 @@ QUALITATIVE_TERMS = [
         positive_pct=5.0,
         negated_pct=25.0,  # ✓ REASONABLE: "is not limited/nominal" → "is significant" (~25%)
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=15.0,
     ),
     # ===== 1% TIER (Insignificant/Negligible) =====
     QualitativeTerm(
@@ -473,12 +541,16 @@ QUALITATIVE_TERMS = [
         positive_pct=1.0,
         negated_pct=None,  # Could be modest, significant, or substantial
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
     QualitativeTerm(
         core_terms=["immaterial", "negligible"],
         positive_pct=1.0,
         negated_pct=25.0,  # ✓ REASONABLE: "not immaterial/negligible" → "material/significant" (~25%)
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
     QualitativeTerm(
         core_terms=[
@@ -493,12 +565,16 @@ QUALITATIVE_TERMS = [
         positive_pct=1.0,
         negated_pct=25.0,  # ✓ REASONABLE: "is not insignificant" → "is significant" (~25%)
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
     QualitativeTerm(
         core_terms=["de minimis"],
         positive_pct=1.0,
         negated_pct=None,  # Rare to negate, unclear meaning
         requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
     QualitativeTerm(
         core_terms=["nominal", "token"],
@@ -506,6 +582,8 @@ QUALITATIVE_TERMS = [
         positive_pct=1.0,
         negated_pct=None,  # "not nominal amount" is vague
         requires_suffix=True,
+        lower_bound=0.0,
+        upper_bound=5.0,
     ),
 ]
 
