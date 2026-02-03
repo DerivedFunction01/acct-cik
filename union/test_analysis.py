@@ -16,7 +16,7 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 ITEM_1 = """
 ITEM 1. BUSINESS
 
-TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 100,000 employees worldwide.
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide.
 
 UNITED STATES OPERATIONS
 

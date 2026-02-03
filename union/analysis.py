@@ -1536,7 +1536,7 @@ class Tracker:
         # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
         for r_name, codes in countries_in_region.items():
             all_mentioned = mentioned_in_region.get(r_name, set())
-            
+
             if len(codes) == 1 and len(all_mentioned) == 1:
                 code = codes[0]
                 r_total = self.region_totals.get(r_name, 0.0)
@@ -1569,6 +1569,7 @@ class Tracker:
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
+        union_name = geo_context.get("union_name_indicator")
 
         # Determine scope
         scope = Scope.GLOBAL
@@ -1579,16 +1580,18 @@ class Tracker:
             key = region
 
         if len(countries) == 1:
-            scope = Scope.COUNTRY
-            key = countries[0]["code"]
+            country_code = countries[0]["code"]
+            scope = Scope.SEGMENT
+            key = f"{country_code}::Segment_{len(self.entries)}"
+
         elif len(countries) > 1:
             scope = Scope.AGGREGATE
             key = region if region else Scope.AGGREGATE.value
 
-        union_name = geo_context.get("union_name_indicator")
         if union_name:
+            country_code = countries[0]["code"]
             scope = Scope.SEGMENT
-            key = f"{key}::{union_name}"
+            key = f"{country_code}::{union_name}"
 
         self.entries.append(Entry(
             covered_count=covered_count,
@@ -1619,47 +1622,16 @@ class Tracker:
         """
         if census == 0:
             return val == 0
-        
+
         diff = abs(val - census)
         # Relative error check
         if diff / census < threshold:
             return True
-            
+
         # Absolute error check (for rounding issues, e.g. 100 vs 101)
         if diff <= 5: 
             return True
-            
-        return False
 
-    def _is_country_complete(self, country_code: str, census_total: float) -> bool:
-        """
-        Determines if the country's coverage data is 'complete'.
-        Complete means:
-        1. A country-scope entry exists with total_count ~ census_total.
-        2. OR, the sum of segment-scope entries' total_counts ~ census_total.
-        """
-        relevant_entries = [
-            e for e in self.entries 
-            if (e.scope == Scope.COUNTRY and e.key == country_code) or 
-               (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
-        ]
-        
-        if not relevant_entries:
-            return False
-
-        # 1. Check Country Scope
-        for e in relevant_entries:
-            if e.scope == Scope.COUNTRY and e.total_count:
-                if self._matches_census(e.total_count, census_total):
-                    return True
-        
-        # 2. Check Sum of Segments
-        segment_totals = [e.total_count for e in relevant_entries if e.scope == Scope.SEGMENT and e.total_count]
-        if segment_totals:
-            seg_sum = sum(segment_totals)
-            if self._matches_census(seg_sum, census_total):
-                return True
-                
         return False
 
     def _resolve_overlaps_list(self, name: str, entries: List[Entry]):
@@ -1674,42 +1646,42 @@ class Tracker:
         # 1. Sliding Window (Breakdowns within breakdowns)
         # Sort by sentence index to respect narrative flow
         by_sent = sorted(candidates, key=lambda x: x.sent_idx)
-        
+
         for i in range(len(by_sent)):
             parent = by_sent[i]
             current_sum = 0.0
             group = []
-            
+
             # Look ahead for children
             for j in range(i + 1, len(by_sent)):
                 child = by_sent[j]
-                
+
                 # Skip if child is larger than parent (likely not a part)
                 if child.total_count >= parent.total_count: # type: ignore
                     continue
-                    
+
                 current_sum += child.total_count # type: ignore
                 group.append(child)
-                
+
                 # Check match
                 if self._matches_census(parent.total_count, current_sum, threshold=0.05): # type: ignore
                     # Check coverage consistency
                     p_cov = parent.covered_count
                     c_cov_sum = sum(g.covered_count or 0.0 for g in group)
-                    
+
                     msg = f"Breakdown Detected {name}: {parent.total_count} (sent {parent.sent_idx}) matches sum of {len(group)} items."
-                    
+
                     if p_cov is not None:
                         # Dynamic tolerance for qualitative entries
                         tolerance = self._get_tolerance([parent] + group, base_threshold=0.10)
                         if self._matches_census(p_cov, c_cov_sum, threshold=tolerance):
-                             msg += f" Covered counts also match ({p_cov})."
+                            msg += f" Covered counts also match ({p_cov})."
                         else:
-                             msg += f" BUT Covered counts mismatch ({p_cov} vs {c_cov_sum})."
-                    
+                            msg += f" BUT Covered counts mismatch ({p_cov} vs {c_cov_sum})."
+
                     self.resolution_log.append(msg)
                     break
-                
+
                 if current_sum > parent.total_count * 1.1: # type: ignore
                     break
 
@@ -1717,9 +1689,9 @@ class Tracker:
         by_size = sorted(candidates, key=lambda x: x.total_count, reverse=True) # type: ignore
         largest = by_size[0]
         rest_total = sum(c.total_count for c in by_size[1:]) # type: ignore
-        
+
         if self._matches_census(largest.total_count, rest_total, threshold=0.10): # type: ignore
-             self.resolution_log.append(
+            self.resolution_log.append(
                 f"Global Hierarchy {name}: {largest.total_count} matches sum of all other {len(by_size)-1} entries."
             )
 
@@ -1753,75 +1725,83 @@ class Tracker:
         for e in entries:
             if e.covered_count is not None and e.percentage is None:
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
-                     e.total_count = census_total
-                     if census_total > 0:
-                         raw_pct = (e.covered_count / census_total) * 100.0
-                         
-                         # Validate/Adjust with bounds
-                         if e.qualitative_bounds:
-                             lower, upper = e.qualitative_bounds
-                             if raw_pct < lower and (lower - raw_pct) < 2.0:
-                                 raw_pct = lower
-                                 self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
-                             elif raw_pct > upper and (raw_pct - upper) < 2.0:
-                                 raw_pct = upper
-                                 self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
-                             elif raw_pct < lower or raw_pct > upper:
-                                 self.resolution_log.append(f"Warning: Calculated PCT {raw_pct:.2f}% for {name} ({e.key}) is outside bounds [{lower}, {upper}]")
+                    e.total_count = census_total
+                    if census_total > 0:
+                        raw_pct = (e.covered_count / census_total) * 100.0
 
-                         e.percentage = round(raw_pct, 2)
-                         self.resolution_log.append(f"Resolved PCT for {name} ({e.key}): {e.covered_count}/{census_total}")
+                        # Validate/Adjust with bounds
+                        if e.qualitative_bounds:
+                            lower, upper = e.qualitative_bounds
+                            if raw_pct < lower and (lower - raw_pct) < 2.0:
+                                raw_pct = lower
+                                self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
+                            elif raw_pct > upper and (raw_pct - upper) < 2.0:
+                                raw_pct = upper
+                                self.resolution_log.append(f"Adjusted PCT for {name} ({e.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
+                            elif raw_pct < lower or raw_pct > upper:
+                                self.resolution_log.append(f"Warning: Calculated PCT {raw_pct:.2f}% for {name} ({e.key}) is outside bounds [{lower}, {upper}]")
+
+                        e.percentage = round(raw_pct, 2)
+                        self.resolution_log.append(f"Resolved PCT for {name} ({e.key}): {e.covered_count}/{census_total}")
 
         # 3. Identify remaining gaps (Dependent resolution)
-        partials = []
+        partials: List[Entry] = []
         others_sum = 0.0
-        
-        for e in entries:
-            # Check if partial (needs filling)
-            # We look for entries that are STILL missing counts after Step 1
-            is_partial = e.is_remaining or (e.covered_count is None and e.not_covered_count is None)
-            
-            if is_partial:
-                partials.append(e)
-            else:
-                # Sum up knowns (covered + not covered)
-                others_sum += (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
 
-        # Constraint: Only one partial entry and room to fill
-        if len(partials) == 1 and others_sum < census_total:
-            target = partials[0]
-            gap = census_total - others_sum
-            
-            if target.is_remaining:
-                target.total_count = census_total
-                if target.is_negated:
-                    target.not_covered_count = gap
-                    target.covered_count = 0.0
-                else:
-                    target.covered_count = gap
-                    target.not_covered_count = 0.0
-                self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
-                    
-            elif target.covered_count is None and target.percentage is None:
-                target.covered_count = gap
-                target.total_count = census_total
-                if census_total > 0:
-                    raw_pct = (gap / census_total) * 100.0
-                    
-                    # Validate/Adjust with bounds
-                    if target.qualitative_bounds:
-                         lower, upper = target.qualitative_bounds
-                         if raw_pct < lower and (lower - raw_pct) < 5.0:
-                             raw_pct = lower
-                             self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
-                         elif raw_pct > upper and (raw_pct - upper) < 5.0:
-                             raw_pct = upper
-                             self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
-                         elif raw_pct < lower or raw_pct > upper:
-                             self.resolution_log.append(f"Warning: Inferred Gap PCT {raw_pct:.2f}% for {name} ({target.key}) is outside bounds [{lower}, {upper}]")
+        # for e in entries:
+        #     # CRITICAL: Only mark as partial if EXPLICITLY marked as remaining or negated
+        #     # Don't assume unknown = "rest of population"
+        #     is_partial = e.is_remaining or (e.is_negated and e.covered_count is None)
 
-                    target.percentage = round(raw_pct, 2)
-                self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
+        #     if is_partial:
+        #         partials.append(e)
+        #     else:
+        #         # Only sum entries that have explicit coverage data
+        #         if e.covered_count is not None or e.not_covered_count is not None:
+        #             others_sum += (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
+
+        # # Constraint: Only one partial entry and room to fill
+        # if len(partials) == 1 and others_sum < census_total:
+        #     target = partials[0]
+        #     # ONLY fill if explicitly marked as remainder
+        #     if not (target.is_remaining or target.is_negated):
+        #         self.resolution_log.append(
+        #             f"Skipped gap fill for {name} ({target.key}): "
+        #             f"Unknown coverage data (not marked as remainder)"
+        #         )
+        #         return
+        #     gap = census_total - others_sum
+
+        #     if target.is_remaining:
+        #         target.total_count = census_total
+        #         if target.is_negated:
+        #             target.not_covered_count = gap
+        #             target.covered_count = 0.0
+        #         else:
+        #             target.covered_count = gap
+        #             target.not_covered_count = 0.0
+        #         self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
+
+        #     elif target.covered_count is None and target.percentage is None:
+        #         target.covered_count = gap
+        #         target.total_count = census_total
+        #         if census_total > 0:
+        #             raw_pct = (gap / census_total) * 100.0
+
+        #             # Validate/Adjust with bounds
+        #             if target.qualitative_bounds:
+        #                 lower, upper = target.qualitative_bounds
+        #                 if raw_pct < lower and (lower - raw_pct) < 5.0:
+        #                     raw_pct = lower
+        #                     self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
+        #                 elif raw_pct > upper and (raw_pct - upper) < 5.0:
+        #                     raw_pct = upper
+        #                     self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
+        #                 elif raw_pct < lower or raw_pct > upper:
+        #                     self.resolution_log.append(f"Warning: Inferred Gap PCT {raw_pct:.2f}% for {name} ({target.key}) is outside bounds [{lower}, {upper}]")
+
+        #             target.percentage = round(raw_pct, 2)
+        #         self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
     def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
         """
@@ -1830,8 +1810,8 @@ class Tracker:
         """
         # 1. Sum known totals
         known_sum = 0.0
-        unknowns = []
-        
+        unknowns: List[Entry] = []
+
         for e in entries:
             # Use total_count if available
             if e.total_count is not None:
@@ -1844,17 +1824,17 @@ class Tracker:
                 self.resolution_log.append(f"Derived TOTAL for {name} ({e.key}): {derived_total} from count/pct")
             else:
                 unknowns.append(e)
-        
+
         # 2. Solve for single unknown
         if len(unknowns) == 1 and known_sum < region_total:
             target = unknowns[0]
             gap = region_total - known_sum
-            
+
             # Sanity check: Gap should be positive and reasonable
             if gap > 0:
                 target.total_count = gap
                 self.resolution_log.append(f"Resolved GEO GAP for {name} ({target.key}): Total {gap} (derived from {region_total} - {known_sum})")
-                
+
                 # If the target has a percentage, we can now derive covered_count
                 if target.percentage is not None:
                     target.covered_count = round((target.percentage / 100.0) * gap)
@@ -1871,7 +1851,7 @@ class Tracker:
             if e.scope == Scope.REGION and e.key == region_name:
                 relevant.append(e)
                 continue
-            
+
             # 2. Child Country Match
             code = None
             if e.scope == Scope.COUNTRY:
@@ -1884,7 +1864,7 @@ class Tracker:
                         relevant.append(e)
                         continue
                     code = parts[0]
-            
+
             if code:
                 # Check mapping
                 if _CODE_TO_REGION.get(code) == region_name:
@@ -1899,11 +1879,11 @@ class Tracker:
         """
         # 1. Inject missing mentioned countries
         existing_keys = {e.key for e in self.entries if e.scope == Scope.COUNTRY}
-        
+
         for code in self.mentioned_countries:
             if code in existing_keys:
                 continue
-            
+
             if _CODE_TO_REGION.get(code) == region_name:
                 self.entries.append(Entry(
                     scope=Scope.COUNTRY,
@@ -1915,18 +1895,18 @@ class Tracker:
 
         # 2. Backfill totals from country_totals for ALL entries in this region
         region_entries = self._get_region_entries(region_name)
-        
+
         for e in region_entries:
             if e.scope == Scope.COUNTRY and e.key in self.country_totals:
                 known_total = self.country_totals[e.key]
-                
+
                 if e.total_count is None:
                     e.total_count = known_total
                     self.resolution_log.append(f"Backfilled total for {e.key}: {known_total}")
                 elif e.total_count < known_total:
-                     old = e.total_count
-                     e.total_count = known_total
-                     self.resolution_log.append(f"Updated total for {e.key} from {old} to {known_total} (census match)")
+                    old = e.total_count
+                    e.total_count = known_total
+                    self.resolution_log.append(f"Updated total for {e.key} from {old} to {known_total} (census match)")
 
     def _resolve_single_country(self, country_code: str, census_total: float):
         relevant_entries = [
@@ -1946,7 +1926,7 @@ class Tracker:
             return
         self._resolve_overlaps_list(region_name, entries)
         self._resolve_geographic_gaps(region_name, region_total, entries)
-    
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
@@ -1960,16 +1940,222 @@ class Tracker:
             self._resolve_single_region(region_name, region_total)
 
     def calculate_metrics(self) -> Dict[str, Any]:
-        """
-        Performs calculation of coverage rates using Parent-Sibling hierarchy logic.
-        """
-
-        return {
-            "global_rate": None,
-            "sum_of_regions_rate": None,
-            "region_stats": {},
-            "log": [],
+        metrics = {
+            "likely_percentage": None,
+            "secondary_percentage": None,
+            "derived_regional_coverage": {},
+            "global_covered_count": 0.0,
+            "global_total_count": 0.0,
+            "_logs": [],  # New key to store logs
+            "resolution": self.resolution_log,
         }
+
+        def log(message: str):
+            """Helper function to append logs to the metrics dict"""
+            metrics["_logs"].append(message)
+
+        log("=" * 80)
+        log("STARTING METRICS CALCULATION (BOTTOM-UP PRIORITY)")
+        log("=" * 80)
+
+        # 1. Aggregate Regions (Bottom-Up FIRST)
+        log("\n[STEP 1] Aggregating Regions (Bottom-Up Priority)...")
+        bottom_up_covered = 0.0
+        bottom_up_total = 0.0
+
+        for region in Region:
+            r_name = region.value
+            if r_name == "Unknown":
+                log(f"  ⊘ Skipping 'Unknown' region")
+                continue
+
+            log(f"\n  Processing Region: {r_name}")
+            r_covered = 0.0
+            r_total = 0.0
+            has_data = False
+
+            # A. Check Region-Level Entry
+            log(f"    [A] Checking region-level entry...")
+            r_entry = next(
+                (e for e in self.entries if e.scope == Scope.REGION and e.key == r_name),
+                None,
+            )
+
+            if r_entry and (
+                r_entry.covered_count is not None or r_entry.percentage is not None
+            ):
+                log(f"      ✓ Found region entry: {r_entry}")
+                if r_entry.covered_count is not None:
+                    r_covered = r_entry.covered_count
+                    r_total = r_entry.total_count if r_entry.total_count else 0.0
+                    has_data = True
+                    log(f"        → Using covered_count: {r_covered}/{r_total}")
+                elif r_entry.percentage is not None and r_entry.total_count:
+                    r_covered = (r_entry.percentage / 100.0) * r_entry.total_count
+                    r_total = r_entry.total_count
+                    has_data = True
+                    log(
+                        f"        → Calculated from percentage: {r_entry.percentage}% of {r_total} = {r_covered}"
+                    )
+                elif r_entry.percentage is not None:
+                    metrics["derived_regional_coverage"][r_name] = r_entry.percentage
+                    log(
+                        f"        → Stored percentage only (no total): {r_entry.percentage}%"
+                    )
+            else:
+                log(f"      ✗ No region-level entry found")
+
+            # B. If no region-level data, sum Country-Level Entries
+            if not has_data:
+                log(f"    [B] Aggregating country-level entries for {r_name}...")
+                c_entries = [
+                    e
+                    for e in self.entries
+                    if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name
+                ]
+                log(f"      Found {len(c_entries)} country entries")
+
+                for c in c_entries:
+                    log(f"        Processing country: {c.key}")
+                    c_cov = 0.0
+                    c_tot = 0.0
+                    c_has_local_data = False
+
+                    if c.covered_count is not None:
+                        c_cov = c.covered_count
+                        c_tot = c.total_count if c.total_count else 0.0
+                        c_has_local_data = True
+                        log(f"          → Using covered_count: {c_cov}/{c_tot}")
+                    elif c.percentage is not None and c.total_count:
+                        c_cov = (c.percentage / 100.0) * c.total_count
+                        c_tot = c.total_count
+                        c_has_local_data = True
+                        log(
+                            f"          → Calculated from percentage: {c.percentage}% of {c_tot} = {c_cov}"
+                        )
+
+                    # Check Segments for this country
+                    if not c_has_local_data:
+                        log(f"          → Checking segments for {c.key}...")
+                        segs = [
+                            s
+                            for s in self.entries
+                            if s.scope == Scope.SEGMENT
+                            and s.key
+                            and s.key.startswith(f"{c.key}::")
+                        ]
+                        log(f"            Found {len(segs)} segments")
+                        if segs:
+                            seg_cov = sum(s.covered_count for s in segs if s.covered_count)
+                            seg_tot = (
+                                c.total_count
+                                if c.total_count
+                                else sum(s.total_count for s in segs if s.total_count)
+                            )
+
+                            if seg_cov > 0 or seg_tot > 0:
+                                c_cov = seg_cov
+                                c_tot = seg_tot
+                                c_has_local_data = True
+                                log(
+                                    f"            → Aggregated segments: {seg_cov}/{seg_tot}"
+                                )
+
+                    if c_has_local_data:
+                        r_covered += c_cov
+                        r_total += c_tot
+                        has_data = True
+                        log(
+                            f"          ✓ Added to region total. Region now: {r_covered}/{r_total}"
+                        )
+
+            # C. Update Metrics
+            if has_data:
+                bottom_up_covered += r_covered
+                bottom_up_total += r_total
+                log(f"    ✓ Region {r_name} data: {r_covered}/{r_total}")
+
+                if r_name not in metrics["derived_regional_coverage"] and r_total > 0:
+                    regional_pct = round((r_covered / r_total) * 100.0, 2)
+                    metrics["derived_regional_coverage"][r_name] = regional_pct
+                    log(f"      → Stored in derived_regional_coverage: {regional_pct}%")
+            else:
+                log(f"    ✗ No data found for region {r_name}")
+
+        # 2. Check for Explicit Global Entry (AFTER bottom-up)
+        log("\n[STEP 2] Checking for Explicit Global Entry...")
+        global_entry = next((e for e in self.entries if e.scope == Scope.GLOBAL), None)
+        global_entry_percentage = None
+        global_entry_counts = (None, None)
+
+        if global_entry:
+            log(f"  ✓ Found global entry: {global_entry}")
+            if global_entry.percentage is not None:
+                global_entry_percentage = global_entry.percentage
+                log(f"    → Found explicit percentage: {global_entry.percentage}%")
+            if global_entry.covered_count is not None and global_entry.total_count:
+                global_entry_counts = (global_entry.covered_count, global_entry.total_count)
+                log(
+                    f"    → Found explicit counts: {global_entry.covered_count}/{global_entry.total_count}"
+                )
+        else:
+            log("  ✗ No global entry found")
+
+        # 3. Finalize Global Metrics
+        log("\n[STEP 3] Finalizing Global Metrics...")
+        metrics["global_covered_count"] = bottom_up_covered
+        metrics["global_total_count"] = bottom_up_total
+        log(f"  Bottom-up aggregated totals: {bottom_up_covered}/{bottom_up_total}")
+
+        # Priority: Bottom-up > Explicit Global Entry
+        if bottom_up_total > 0:
+            # We have bottom-up data, use it
+            metrics["likely_percentage"] = round(
+                (bottom_up_covered / bottom_up_total) * 100.0, 2
+            )
+            log(
+                f"  ✓ Using bottom-up data: {metrics['likely_percentage']}% ({bottom_up_covered}/{bottom_up_total})"
+            )
+
+            # If explicit global provides different denominator, calculate alternative
+            if global_entry_counts[1] and global_entry_counts[1] != bottom_up_total:
+                metrics["secondary_percentage"] = round(
+                    (bottom_up_covered / global_entry_counts[1]) * 100.0, 2
+                )
+                log(
+                    f"    → Alternative calculation with explicit global total: {metrics['secondary_percentage']}% ({bottom_up_covered}/{global_entry_counts[1]})"
+                )
+        elif global_entry_percentage is not None:
+            # Fall back to explicit global percentage if no bottom-up data
+            metrics["likely_percentage"] = global_entry_percentage
+            log(f"  ✓ Using explicit global percentage: {global_entry_percentage}%")
+        elif global_entry_counts[0] is not None and global_entry_counts[1]:
+            # Fall back to explicit global counts if no bottom-up data
+            metrics["likely_percentage"] = round(
+                (global_entry_counts[0] / global_entry_counts[1]) * 100.0, 2
+            )
+            log(
+                f"  ✓ Using explicit global counts: {metrics['likely_percentage']}% ({global_entry_counts[0]}/{global_entry_counts[1]})"
+            )
+        else:
+            log(f"  ✗ No data available (neither bottom-up nor explicit global)")
+
+        if metrics["likely_percentage"] is None and self.global_total > 0:
+            metrics["likely_percentage"] = round(
+                (bottom_up_covered / self.global_total) * 100.0, 2
+            )
+            log(f"  ✓ Calculated using self.global_total: {metrics['likely_percentage']}%")
+
+        log("\n" + "=" * 80)
+        log("FINAL METRICS:")
+        log(f"  likely_percentage: {metrics['likely_percentage']}")
+        log(f"  secondary_percentage: {metrics['secondary_percentage']}")
+        log(f"  global_covered_count: {metrics['global_covered_count']}")
+        log(f"  global_total_count: {metrics['global_total_count']}")
+        log(f"  derived_regional_coverage: {metrics['derived_regional_coverage']}")
+        log("=" * 80)
+
+        return metrics
 
 
 class UnionAnalyzer:
@@ -2071,9 +2257,9 @@ class UnionAnalyzer:
 
             # Populate tracker with coverage entries
             for item in results:
-                cov = item.get("coverage_data", {})
+                cov: Dict[str, Any] = item.get("coverage_data", {})
                 geo = item.get("geographic_context", {})
-                
+
                 # Skip if no meaningful coverage data
                 if (
                     cov.get("percentage") is None 
@@ -2158,7 +2344,6 @@ class UnionAnalyzer:
                 )
                 span = count_match["span"] if count_match else None
 
-
                 range_avg = self._detect_count_range(analysis, effective_counts)
                 final_count = range_avg if range_avg else max_count
 
@@ -2242,7 +2427,6 @@ class UnionAnalyzer:
 
         return mapped_counts, sentence_total
 
-    
     def _merge_continuation_items(
         self, results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -2502,7 +2686,7 @@ class UnionAnalyzer:
 
                         for c in geo_context.get("countries", []):
                             c_code = c["code"]
-                            
+
                             prev_val = previous_totals.get(c_code, 0) if previous_totals else 0
                             curr_max = effective_totals.get(c_code, 0)
                             if current_val > prev_val and current_val >= curr_max:
@@ -2513,7 +2697,7 @@ class UnionAnalyzer:
                                 local_totals[c_code] = current_val
                             if current_val > effective_totals.get(c_code, 0):
                                 effective_totals[c_code] = current_val
-                
+
                 if updates_found:
                     unique_updates = sorted(list(set(updates_found)))
                     census_update_note = f"Updates lookup: {', '.join(unique_updates)}"
@@ -2675,17 +2859,15 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
+        output = tracker.calculate_metrics()
+
         entries_dump = []
         for e in tracker.entries:
             data = e.__dict__.copy()
             if isinstance(data.get("scope"), Enum):
                 data["scope"] = data["scope"].value
             entries_dump.append(data)
+        logs = output.get("_logs", [])
 
-        return {
-            "entries": entries_dump,
-            "region_totals": tracker.region_totals,
-            "country_totals": tracker.country_totals,
-            "global_total": tracker.global_total,
-            "resolution_log": tracker.resolution_log,
-        }
+        output["entries"] = entries_dump
+        return output
