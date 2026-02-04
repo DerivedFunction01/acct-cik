@@ -968,15 +968,15 @@ class UnionExtractor:
 
         # 5. Exclusions (Boilerplate / Personnel)
         if analysis.is_relevant:
-             # Personnel: Exclude if no union terms and matches personnel event
-             if not analysis.union_terms and PERSONNEL_EVENT_REGEX.search(text):
+            # Personnel: Exclude if no union terms and matches personnel event
+            if not analysis.union_terms and PERSONNEL_EVENT_REGEX.search(text):
                  analysis.is_relevant = False
              
-             # Boilerplate: Exclude if no quantitative data and matches boilerplate
-            #  elif BOILERPLATE_REGEX.search(text):
-            #      has_data = bool(analysis.percentages or analysis.ratios or analysis.worker_counts)
-            #      if not has_data:
-            #          analysis.is_relevant = False
+             #Boilerplate: Exclude if no quantitative data and matches boilerplate
+            elif BOILERPLATE_REGEX.search(text):
+                has_data = bool(analysis.percentages or analysis.ratios or analysis.worker_counts or analysis.numbers)
+                if not has_data:
+                    analysis.is_relevant = False
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
