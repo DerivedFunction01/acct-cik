@@ -1493,10 +1493,10 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
 
 class Scope(Enum):
     GLOBAL = "GLOBAL" # the catch all "global workforce"
-    REGION = "REGION"
-    COUNTRY = "COUNTRY"
+    REGION = "REGION" # Should not be used for counts; only as placeholders
+    COUNTRY = "COUNTRY" # Should not be used for counts; only as placeholders
     AGGREGATE = "AGGREGATE"
-    SEGMENT = "SEGMENT" # Location, union, or type of employee
+    SEGMENT = "SEGMENT" # Any mention is a segment
     UNKNOWN = "UNKNOWN"
 
 @dataclass
@@ -2052,7 +2052,7 @@ class Tracker:
                 self.resolution_log.append(f"Inherited Global Total {self.global_total} to 'US' (Default Domestic)")
 
             for e in self.entries:
-                if e.key == Region.DOMESTIC.value:
+                if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value]:
                     e.key = "US"
                     e.scope = Scope.SEGMENT
                     self.resolution_log.append("Resolved 'Domestic' to 'US' (Default)")
