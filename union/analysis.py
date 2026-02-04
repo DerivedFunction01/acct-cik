@@ -299,12 +299,7 @@ class SimpleCoverageAnalyzer:
             (
                 m
                 for m in analysis._matches
-                if m["type"] == MatchType.WORKER_COUNT and m["val"] == c1
-            )
-            or (
-                m
-                for m in analysis._matches
-                if m["type"] == MatchType.NUMBER and m["val"] == c1
+                if (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == c1
             ),
             None,
         )
