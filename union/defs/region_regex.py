@@ -3,6 +3,8 @@ from enum import Enum
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from defs.regex_lib import add_restrictions
+
+
 class Region(Enum):
     NORTH_AMERICA = "US/Canada"
     LATIN_AMERICA = "Latin America"
@@ -25,6 +27,7 @@ class Location:
     phrases: list[str]
     cities: list["Location"] = field(default_factory=list)
 
+
 @dataclass
 class Nation:
     name: str
@@ -34,12 +37,13 @@ class Nation:
     unions: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
     code: str = ""
-    
+
     def __hash__(self):
         return hash(self.name)
-    
+
     def __eq__(self, other):
         return self.name == other.name
+
 
 NORTH_AMERICA = {
     Nation(
@@ -619,107 +623,382 @@ NORTH_AMERICA = {
 }
 
 EUROPE = {
-    Nation("Europe", ["europe", "eurozone", "eu", "european"], Region.EUROPE, [], [], [], code="EU"),
-    Nation("United Kingdom", ["uk", "u.k.", "britain", "united kingdom"], Region.EUROPE, [
-        Location("London", ["london"]),
-        Location("Birmingham", ["birmingham"]),
-        Location("Manchester", ["manchester"]),
-    ], [
-        "Unite the Union",
-        "UNISON",
-        "GMB",
-        "RMT", "National Union of Rail, Maritime and Transport Workers",
-        "ASLEF", "Associated Society of Locomotive Engineers and Firemen",
-        "TSSA", "Transport Salaried Staffs' Association",
-    ], code="GB"),
+    Nation(
+        "Europe",
+        ["europe", "eurozone", "eu", "european"],
+        Region.EUROPE,
+        [],
+        [],
+        [],
+        code="EU",
+    ),
+    Nation(
+        "United Kingdom",
+        ["uk", "u.k.", "britain", "united kingdom"],
+        Region.EUROPE,
+        [
+            Location("London", ["london"]),
+            Location("Birmingham", ["birmingham"]),
+            Location("Manchester", ["manchester"]),
+        ],
+        [
+            "Unite the Union",
+            "UNISON",
+            "GMB",
+            "RMT",
+            "National Union of Rail, Maritime and Transport Workers",
+            "ASLEF",
+            "Associated Society of Locomotive Engineers and Firemen",
+            "TSSA",
+            "Transport Salaried Staffs' Association",
+        ],
+        code="GB",
+    ),
     Nation("Norway", ["norway", "norwegian"], Region.EUROPE, code="NO"),
-    Nation("Sweden", ["sweden", "swedish"], Region.EUROPE, [
-        Location("Stockholm", ["stockholm"]),
-    ], code="SE"),
+    Nation(
+        "Sweden",
+        ["sweden", "swedish"],
+        Region.EUROPE,
+        [Location("Stockholm", ["stockholm"])],
+        ["Unionen"],
+        ["Saltsjöbadsavtalet", "Kollektivavtal"],
+        code="SE",
+    ),
     Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
-    Nation("Poland", ["poland", "polish"], Region.EUROPE, [
-        Location("Warsaw", ["warsaw"]),
-    ], code="PL"),
+    Nation(
+        "Poland",
+        ["poland", "polish"],
+        Region.EUROPE,
+        [
+            Location("Warsaw", ["warsaw"]),
+        ],
+        code="PL",
+    ),
     Nation("Hungary", ["hungary", "hungarian"], Region.EUROPE, code="HU"),
-    Nation("Czech Republic", ["czech republic", "czechia", "czech"], Region.EUROPE, code="CZ"),
-    Nation("Turkey", ["turkey", "turkish"], Region.EUROPE, [
-        Location("Istanbul", ["istanbul"]),
-    ], code="TR"),
-    Nation("Russia", ["russia", "russian"], Region.EUROPE, [
-        Location("Moscow", ["moscow"]),
-    ], code="RU"),
+    Nation(
+        "Czech Republic",
+        ["czech republic", "czechia", "czech"],
+        Region.EUROPE,
+        code="CZ",
+    ),
+    Nation(
+        "Turkey",
+        ["turkey", "turkish"],
+        Region.EUROPE,
+        [
+            Location("Istanbul", ["istanbul"]),
+        ],
+        code="TR",
+    ),
+    Nation(
+        "Russia",
+        ["russia", "russian"],
+        Region.EUROPE,
+        [
+            Location("Moscow", ["moscow"]),
+        ],
+        code="RU",
+    ),
     Nation("Bulgaria", ["bulgaria", "bulgarian"], Region.EUROPE, code="BG"),
     Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
-    Nation("Germany", ["germany", "german", "deutschland"], Region.EUROPE, [
-        Location("Frankfurt", ["frankfurt"]),
-        Location("Berlin", ["berlin"]),
-        Location("Munich", ["munich"]),
-        Location("Hamburg", ["hamburg"]),
-        Location("Stuttgart", ["stuttgart"]),
-        Location("Cologne", ["cologne", "koln"]),
-        Location("Dusseldorf", ["dusseldorf"]),
-    ], [
-        "IG Metall",
-        "ver.di",
-        "IG BCE",
-        "DGB", "German Trade Union Confederation",
-    ], [
-        "Gewerkschaft", "Arbeitnehmer", "Betriebsrat", "Tarifvertrag", "Bergbau", "Automobil", "Mitbestimmung", "Aufsichtsrat", "Tarifverhandlungen", "Luftfahrt", "Chemie", "Metall", "Bau", "Eisenbahn",
-    ], code="DE"),
-    Nation("France", ["france", "french"], Region.EUROPE, [
-        Location("Paris", ["paris"]),
-        Location("Lyon", ["lyon"]),
-        Location("Marseille", ["marseille"]),
-    ], [
-        "CFDT", "French Democratic Confederation of Labour",
-        "FO", "Force Ouvrière",
-        "CGT", "Confédération Générale du Travail",
-    ], [
-        "Comité Social et Économique", "Cheminots",
-    ], code="FR"),
-    Nation("Italy", ["italy", "italian"], Region.EUROPE, [
-        Location("Milan", ["milan"]),
-        Location("Rome", ["rome"]),
-        Location("Turin", ["turin", "torino"]),
-    ], [
-        "CGIL", "Italian General Confederation of Labour",
-        "CISL",
-        "UIL",
-    ], [
-        "Sindacato", "Lavoro", "Sciopero", "Automobilistico", "Contratto Collettivo", "Contrattazione", "Trasporti", "Metalmeccanici", "Chimico", "Edile", "Ferrovie",
-    ], code="IT"),
-    Nation("Spain", ["spain", "spanish"], Region.EUROPE, [
-        Location("Madrid", ["madrid"]),
-        Location("Barcelona", ["barcelona"]),
-    ], [
-        "CCOO", "Workers' Commissions",
-    ], [
-        # Moved to International due to ambiguity with Latin America
-    ], code="ES"),
-    Nation("Netherlands", ["netherlands", "dutch", "holland"], Region.EUROPE, [
-        Location("Amsterdam", ["amsterdam"]),
-        Location("Rotterdam", ["rotterdam"]),
-    ], [], [
-        "Vakbond", "Ondernemingsraad", "CAO", "Metaal", "Bouw", "Vervoer", "Spoorwegen",
-    ], code="NL"),
-    Nation("Switzerland", ["switzerland", "swiss"], Region.EUROPE, [
-        Location("Zurich", ["zurich"]),
-        Location("Geneva", ["geneva"]),
-    ], code="CH"),
-    Nation("Belgium", ["belgium", "belgian"], Region.EUROPE, [
-        Location("Brussels", ["brussels"]),
-        Location("Antwerp", ["antwerp"]),
-    ], code="BE"),
-    Nation("Austria", ["austria", "austrian"], Region.EUROPE, [
-        Location("Vienna", ["vienna"]),
-    ], code="AT"),
-    Nation("Ireland", ["ireland", "irish"], Region.EUROPE, [
-        Location("Dublin", ["dublin"]),
-    ], code="IE"),
-    Nation("Portugal", ["portugal", "portuguese"], Region.EUROPE, code="PT"),
-    Nation("Greece", ["greece", "greek"], Region.EUROPE, code="GR"),
-    Nation("Finland", ["finland", "finnish"], Region.EUROPE, code="FI"),
-    Nation("Ukraine", ["ukraine", "ukrainian"], Region.EUROPE, code="UA"),
+    Nation(
+        "Germany",
+        ["germany", "german", "deutschland"],
+        Region.EUROPE,
+        [
+            Location("Frankfurt", ["frankfurt"]),
+            Location("Berlin", ["berlin"]),
+            Location("Munich", ["munich"]),
+            Location("Hamburg", ["hamburg"]),
+            Location("Stuttgart", ["stuttgart"]),
+            Location("Cologne", ["cologne", "koln"]),
+            Location("Dusseldorf", ["dusseldorf"]),
+            Location("Wolfsburg", ["wolfsburg"]),  # VW Headquarters
+            Location("Ingolstadt", ["ingolstadt"]),  # Audi
+            Location("Ludwigshafen", ["ludwigshafen"]),  # BASF / Chemicals
+            Location("Leverkusen", ["leverkusen"]),  # Bayer
+            Location("Hanover", ["hanover", "hannover"]),
+            Location("Walldorf", ["walldorf"]),  # SAP / Tech
+            Location("Bonn", ["bonn"]),
+            Location("Nuremberg", ["nuremberg", "nurnberg"]),
+            Location("Essen", ["essen"]),
+            Location("Rüsselsheim", ["russelsheim", "ruesselsheim"]),  # Opel/Stellantis
+        ],
+        [
+            "IG Metall",
+            "ver.di",
+            "IG BCE",
+            "DGB",
+            "German Trade Union Confederation",
+        ],
+        [
+            "Gewerkschaft",
+            "Arbeitnehmer",
+            "Betriebsrat",
+            "Tarifvertrag",
+            "Mitbestimmung",
+            "Aufsichtsrat",
+            "Tarifverhandlungen",
+            "Metall",
+            "Chemie",
+            "Automobil",
+        ],
+        code="DE",
+    ),
+    # --- FRANCE ---
+    Nation(
+        "France",
+        ["france", "french"],
+        Region.EUROPE,
+        [
+            Location("Paris", ["paris"]),
+            Location("Lyon", ["lyon"]),
+            Location("Marseille", ["marseille"]),
+            Location("Toulouse", ["toulouse"]),  # Aerospace hub
+            Location("Lille", ["lille"]),
+            Location("Nantes", ["nantes"]),
+            Location("Bordeaux", ["bordeaux"]),
+            Location("Strasbourg", ["strasbourg"]),
+            Location("Grenoble", ["grenoble"]),  # Tech hub
+            Location("Sophia Antipolis", ["sophia antipolis", "valbonne"]),
+        ],
+        [
+            "CFDT",
+            "French Democratic Confederation of Labour",
+            "Force Ouvrière",
+            "CGT",
+            "Confédération Générale du Travail",
+            "CFE-CGC",
+            "Confédération Française de l'Encadrement",  # Management union
+            "UNSA",
+            "Solidaires",
+            "SUD",
+        ],
+        [
+            "Comité Social et Économique",
+            "CSE",
+            "Convention collective",
+            "Accord de branche",
+            "Accord d'entreprise",
+            "Délégués syndicaux",
+            "Code du Travail",
+            "35 heures",
+            "Bilan social",
+        ],
+        code="FR",
+    ),
+    # --- ITALY ---
+    Nation(
+        "Italy",
+        ["italy", "italian"],
+        Region.EUROPE,
+        [
+            Location("Milan", ["milan"]),
+            Location("Rome", ["rome"]),
+            Location("Turin", ["turin", "torino"]),  # Fiat/Automotive hub
+            Location("Genoa", ["genoa", "genova"]),
+            Location("Bologna", ["bologna"]),
+            Location("Naples", ["naples", "napoli"]),
+        ],
+        ["CGIL", "CISL", "UIL", "FIOM", "FIM", "UILM"],
+        [
+            "Lavoro",
+            "Sciopero",
+            "CCNL",
+            "Contratto Collettivo",
+            "Metalmeccanici",
+            "Contrattazione",
+            "Automobilistico",
+        ],
+        code="IT",
+    ),
+    Nation(
+        "Spain",
+        ["spain", "spanish"],
+        Region.EUROPE,
+        [
+            Location("Madrid", ["madrid"]),
+            Location("Barcelona", ["barcelona"]),
+            Location("Valencia", ["valencia"]),  # Ford plant location
+            Location("Zaragoza", ["zaragoza"]),
+            Location("Vigo", ["vigo"]),
+            Location("Bilbao", ["bilbao"]),
+        ],
+        [
+            "CCOO",
+            "Workers' Commissions",
+            "UGT",
+            "Confederación Sindical de Comisiones Obreras",
+            "Unión General de Trabajadores",
+            "ELA",
+            "CIG",
+        ],
+        [
+            "Convenio Colectivo",
+            "Comité de Empresa",
+            "Delegados",
+            "Estatuto de los Trabajadores",
+        ],
+        code="ES",
+    ),
+    Nation(
+        "Netherlands",
+        ["netherlands", "dutch", "holland"],
+        Region.EUROPE,
+        [
+            Location("Amsterdam", ["amsterdam"]),
+            Location("Rotterdam", ["rotterdam"]),  # Major Port hub
+            Location("Eindhoven", ["eindhoven"]),  # Tech hub
+            Location("The Hague", ["the hague", "den haag"]),            
+            Location("Utrecht", ["utrecht"]),
+            Location("Groningen", ["groningen"]),
+            Location("Tilburg", ["tilburg"]),
+            Location("Almere", ["almere"]),
+            Location("Breda", ["breda"]),
+            Location("Nijmegen", ["nijmegen"]),
+            
+        ],
+        ["FNV", "CNV", "De Unie"],
+        [
+            "Vakbond",
+            "Ondernemingsraad",
+            "CAO",
+            "WTR",
+            "Polder model",
+            "Spoorwegen",
+        ],
+        code="NL",
+    ),
+    # --- OTHER EUROPEAN NATIONS ---
+    Nation(
+        "Switzerland",
+        ["switzerland", "swiss"],
+        Region.EUROPE,
+        [
+            Location("Zurich", ["zurich"]),
+            Location("Geneva", ["geneva"]),
+            Location("Basel", ["basel"]),
+            Location("Bern", ["bern"]),            
+            Location("Lausanne", ["lausanne"]),
+            Location("Lucerne", ["lucerne"]),
+            Location("Lugano", ["lugano"]),
+            
+        ],
+        ["Unia", "Syna"],
+        ["GAV", "CCT", "Arbeitsfrieden"],
+        code="CH",
+    ),
+    Nation(
+        "Belgium",
+        ["belgium", "belgian"],
+        Region.EUROPE,
+        [
+            Location("Brussels", ["brussels"]),
+            Location("Antwerp", ["antwerp"]),
+            Location("Ghent", ["ghent"]),
+            Location("Liege", ["liege"]),            
+            Location("Charleroi", ["charleroi"]),
+            Location("Liege", ["liege", "liège"]),
+            Location("Bruges", ["bruges"]),
+            
+        ],
+        ["ACV", "CSC", "ABVV", "FGTB"],
+        ["CP", "Indexation", "CBA"],
+        code="BE",
+    ),
+    Nation(
+        "Austria",
+        ["austria", "austrian"],
+        Region.EUROPE,
+        [
+            Location("Vienna", ["vienna"]),
+            Location("Linz", ["linz"]),
+            Location("Salzburg", ["salzburg"]),
+            Location("Graz", ["graz"]),
+            Location("Steyr", ["steyr"]),
+        ],
+        ["ÖGB"],
+        ["Kollektivvertrag"],
+        code="AT",
+    ),
+    Nation(
+        "Ireland",
+        ["ireland", "irish"],
+        Region.EUROPE,
+        [
+            Location("Dublin", ["dublin"]),
+            Location("Cork", ["cork"]),
+            Location("Galway", ["galway"]),
+            Location("Limerick", ["limerick"]),
+            Location("Waterford", ["waterford"]),
+        ],
+        ["ICTU", "SIPTU"],
+        ["Industrial Relations Act"],
+        code="IE",
+    ),
+    Nation(
+        "Portugal",
+        ["portugal", "portuguese"],
+        Region.EUROPE,
+        [
+            Location("Lisbon", ["lisbon", "lisboa"]),
+            Location("Porto", ["porto", "oportu"]),
+            Location("Setubal", ["setubal"]),  # Major automotive hub
+            Location("Palmela", ["palmela"]),  # Autoeuropa (VW)
+            Location("Mangualde", ["mangualde"]),  # Stellantis
+            Location("Aveiro", ["aveiro"]),  # Renault/Cacia
+        ],
+        ["CGTP", "UGT Portugal"],
+        ["Contratação coletiva", "Sindicato", "Greve"],  # Strike/CBA terms
+        code="PT",
+    ),
+    Nation(
+        "Greece",
+        ["greece", "greek"],
+        Region.EUROPE,
+        [
+            Location("Athens", ["athens", "athina"]),
+            Location("Piraeus", ["piraeus", "peiraias"]),  # Major Port
+            Location("Thessaloniki", ["thessaloniki"]),
+            Location("Patras", ["patras", "patra"]),
+            Location("Heraklion", ["heraklion"]),
+            Location("Larissa", ["larissa"]),
+            Location("Volos", ["volos"]),
+        ],
+        ["GSEE", "ADEDY", "PAME"],
+        ["Syndikato", "Syllogiki symvasi"],  # Union/CBA terms
+        code="GR",
+    ),
+    Nation(
+        "Finland",
+        ["finland", "finnish"],
+        Region.EUROPE,
+        [
+            Location("Helsinki", ["helsinki"]),
+            Location("Espoo", ["espoo"]),
+            Location("Tampere", ["tampere"]),
+            Location("Oulu", ["oulu"]),
+            Location("Turku", ["turku"]),
+            Location("Vantaa", ["vantaa"]),
+        ],
+        ["SAK", "STTK", "Akava"],
+        ["Työehtosopimus", "TES", "Ammattiliitto"],  # CBA/Union terms
+        code="FI",
+    ),
+    Nation(
+        "Ukraine",
+        ["ukraine", "ukrainian"],
+        Region.EUROPE,
+        [
+            Location("Kyiv", ["kyiv", "kiev"]),
+            Location("Lviv", ["lviv"]),
+            Location("Odesa", ["odesa", "odessa"]),
+            Location("Kharkiv", ["kharkiv", "kharkov"]),
+            Location("Dnipro", ["dnipro", "dnipropetrovsk"]),
+            Location("Donetsk", ["donetsk"]),
+        ],
+        code="UA",
+    ),
 }
 
 ASIA_PACIFIC = {
@@ -882,55 +1161,103 @@ ASIA_PACIFIC = {
         code="NZ",
     ),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
-    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"), 
+    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"),
 }
 
 LATIN_AMERICA = {
-    Nation("Latin America", ["latin america", "latam", "south america", "south american"], Region.LATIN_AMERICA, code="LATAM"),
-    Nation("Mexico", ["mexico", "mexican"], Region.LATIN_AMERICA, [
-        Location("Mexico City", ["mexico city", "cdmx"]),
-        Location("Monterrey", ["monterrey"]),
-        Location("Saltillo", ["saltillo", "ramos arizpe"]),
-        Location("Hermosillo", ["hermosillo"]),
-        Location("Puebla", ["puebla"]),
-        Location("Toluca", ["toluca"]),
-        Location("San Luis Potosi", ["san luis potosi", "slp"]),
-        Location("Aguascalientes", ["aguascalientes"]),
-        Location("Silao", ["silao"]),
-        Location("Guanajuato", ["guanajuato"]),
-        Location("Queretaro", ["queretaro"]),
-        Location("Tijuana", ["tijuana"]),
-        Location("Juarez", ["juarez", "ciudad juarez"]),
-        Location("Cuautitlan", ["cuautitlan"]),
-    ], [
-        "CTM", "Confederation of Mexican Workers",
-    ], [
-        "Maquiladora",
-    ], code="MX"),
-    Nation("Brazil", ["brazil", "brazilian"], Region.LATIN_AMERICA, [
-        Location("Sao Paulo", ["sao paulo"]),
-        Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
-    ], [
-        "CUT", "Unified Workers' Central",
-        "Força Sindical",
-    ], [
-        "Dissídio",
-    ], code="BR"),
-    Nation("Argentina", ["argentina", "argentine"], Region.LATIN_AMERICA, [
-        Location("Buenos Aires", ["buenos aires"]),
-    ], code="AR"),
-    Nation("Chile", ["chile", "chilean"], Region.LATIN_AMERICA, [
-        Location("Santiago", ["santiago"]),
-    ], code="CL"),
-    Nation("Colombia", ["colombia", "colombian"], Region.LATIN_AMERICA, [
-        Location("Bogota", ["bogota"]),
-    ], code="CO"),
+    Nation(
+        "Latin America",
+        ["latin america", "latam", "south america", "south american"],
+        Region.LATIN_AMERICA,
+        code="LATAM",
+    ),
+    Nation(
+        "Mexico",
+        ["mexico", "mexican"],
+        Region.LATIN_AMERICA,
+        [
+            Location("Mexico City", ["mexico city", "cdmx"]),
+            Location("Monterrey", ["monterrey"]),
+            Location("Saltillo", ["saltillo", "ramos arizpe"]),
+            Location("Hermosillo", ["hermosillo"]),
+            Location("Puebla", ["puebla"]),
+            Location("Toluca", ["toluca"]),
+            Location("San Luis Potosi", ["san luis potosi", "slp"]),
+            Location("Aguascalientes", ["aguascalientes"]),
+            Location("Silao", ["silao"]),
+            Location("Guanajuato", ["guanajuato"]),
+            Location("Queretaro", ["queretaro"]),
+            Location("Tijuana", ["tijuana"]),
+            Location("Juarez", ["juarez", "ciudad juarez"]),
+            Location("Cuautitlan", ["cuautitlan"]),
+        ],
+        [
+            "CTM",
+            "Confederation of Mexican Workers",
+        ],
+        [
+            "Maquiladora",
+        ],
+        code="MX",
+    ),
+    Nation(
+        "Brazil",
+        ["brazil", "brazilian"],
+        Region.LATIN_AMERICA,
+        [
+            Location("Sao Paulo", ["sao paulo"]),
+            Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
+        ],
+        [
+            "CUT",
+            "Unified Workers' Central",
+            "Força Sindical",
+        ],
+        [
+            "Dissídio",
+        ],
+        code="BR",
+    ),
+    Nation(
+        "Argentina",
+        ["argentina", "argentine"],
+        Region.LATIN_AMERICA,
+        [
+            Location("Buenos Aires", ["buenos aires"]),
+        ],
+        code="AR",
+    ),
+    Nation(
+        "Chile",
+        ["chile", "chilean"],
+        Region.LATIN_AMERICA,
+        [
+            Location("Santiago", ["santiago"]),
+        ],
+        code="CL",
+    ),
+    Nation(
+        "Colombia",
+        ["colombia", "colombian"],
+        Region.LATIN_AMERICA,
+        [
+            Location("Bogota", ["bogota"]),
+        ],
+        code="CO",
+    ),
     Nation("Peru", ["peru", "peruvian"], Region.LATIN_AMERICA, code="PE"),
     Nation("Venezuela", ["venezuela", "venezuelan"], Region.LATIN_AMERICA, code="VE"),
     Nation("Ecuador", ["ecuador", "ecuadorian"], Region.LATIN_AMERICA, code="EC"),
     Nation("Guatemala", ["guatemala", "guatemalan"], Region.LATIN_AMERICA, code="GT"),
-    Nation("Dominican Republic", ["dominican republic", "dominican"], Region.LATIN_AMERICA, code="DO"),
-    Nation("Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA, code="CR"),
+    Nation(
+        "Dominican Republic",
+        ["dominican republic", "dominican"],
+        Region.LATIN_AMERICA,
+        code="DO",
+    ),
+    Nation(
+        "Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA, code="CR"
+    ),
     Nation("Panama", ["panama", "panamanian"], Region.LATIN_AMERICA, code="PA"),
     Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
     Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
@@ -940,47 +1267,115 @@ LATIN_AMERICA = {
 }
 
 MIDDLE_EAST_AFRICA = {
-    Nation("Middle East", ["middle east", "middle eastern", "mena"], Region.MIDDLE_EAST_AFRICA, code="MEA"),
+    Nation(
+        "Middle East",
+        ["middle east", "middle eastern", "mena"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="MEA",
+    ),
     Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
-    Nation("United Arab Emirates", ["uae", "u.a.e.", "emirates"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Dubai", ["dubai"]),
-        Location("Abu Dhabi", ["abu dhabi"]),
-    ], code="AE"),
-    Nation("Saudi Arabia", ["saudi arabia", "saudi"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Riyadh", ["riyadh"]),
-    ], code="SA"),
-    Nation("Israel", ["israel", "israeli"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Tel Aviv", ["tel aviv"]),
-        Location("Jerusalem", ["jerusalem"]),
-    ], code="IL"),
+    Nation(
+        "United Arab Emirates",
+        ["uae", "u.a.e.", "emirates"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Dubai", ["dubai"]),
+            Location("Abu Dhabi", ["abu dhabi"]),
+        ],
+        code="AE",
+    ),
+    Nation(
+        "Saudi Arabia",
+        ["saudi arabia", "saudi"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Riyadh", ["riyadh"]),
+        ],
+        code="SA",
+    ),
+    Nation(
+        "Israel",
+        ["israel", "israeli"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Tel Aviv", ["tel aviv"]),
+            Location("Jerusalem", ["jerusalem"]),
+        ],
+        code="IL",
+    ),
     Nation("Kuwait", ["kuwait", "kuwaiti"], Region.MIDDLE_EAST_AFRICA, code="KW"),
-    Nation("South Africa", ["south africa", "south african"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Johannesburg", ["johannesburg", "joburg"]),
-        Location("Cape Town", ["cape town"]),
-    ], [
-        "COSATU", "Congress of South African Trade Unions",
-        "AMCU", "Association of Mineworkers and Construction Union",
-        "NUMSA", "National Union of Metalworkers of South Africa",
-    ], code="ZA"),
-    Nation("Nigeria", ["nigeria", "nigerian"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Lagos", ["lagos"]),
-    ], code="NG"),
-    Nation("Kenya", ["kenya", "kenyan"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Nairobi", ["nairobi"]),
-    ], code="KE"),
+    Nation(
+        "South Africa",
+        ["south africa", "south african"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Johannesburg", ["johannesburg", "joburg"]),
+            Location("Cape Town", ["cape town"]),
+        ],
+        [
+            "COSATU",
+            "Congress of South African Trade Unions",
+            "AMCU",
+            "Association of Mineworkers and Construction Union",
+            "NUMSA",
+            "National Union of Metalworkers of South Africa",
+        ],
+        code="ZA",
+    ),
+    Nation(
+        "Nigeria",
+        ["nigeria", "nigerian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Lagos", ["lagos"]),
+        ],
+        code="NG",
+    ),
+    Nation(
+        "Kenya",
+        ["kenya", "kenyan"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Nairobi", ["nairobi"]),
+        ],
+        code="KE",
+    ),
     Nation("Tanzania", ["tanzania", "tanzanian"], Region.MIDDLE_EAST_AFRICA, code="TZ"),
-    Nation("Egypt", ["egypt", "egyptian"], Region.MIDDLE_EAST_AFRICA, [
-        Location("Cairo", ["cairo"]),
-    ], code="EG"),
+    Nation(
+        "Egypt",
+        ["egypt", "egyptian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Cairo", ["cairo"]),
+        ],
+        code="EG",
+    ),
     Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA, code="ET"),
     Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA, code="GH"),
-    Nation("Morocco", ["morocco", "moroccan"], Region.MIDDLE_EAST_AFRICA, [], [
-        "UMT", "Union Marocaine du Travail",
-        "CDT", "Confédération Démocratique du Travail",
-    ], code="MA"),
-    Nation("Tunisia", ["tunisia", "tunisian"], Region.MIDDLE_EAST_AFRICA, [], [
-        "UGTT", "Union Générale Tunisienne du Travail",
-    ], code="TN"),
+    Nation(
+        "Morocco",
+        ["morocco", "moroccan"],
+        Region.MIDDLE_EAST_AFRICA,
+        [],
+        [
+            "UMT",
+            "Union Marocaine du Travail",
+            "CDT",
+            "Confédération Démocratique du Travail",
+        ],
+        code="MA",
+    ),
+    Nation(
+        "Tunisia",
+        ["tunisia", "tunisian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [],
+        [
+            "UGTT",
+            "Union Générale Tunisienne du Travail",
+        ],
+        code="TN",
+    ),
     Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA, code="DZ"),
     Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA, code="QA"),
     Nation("Syria", ["syria", "syrian"], Region.MIDDLE_EAST_AFRICA, code="SY"),
@@ -988,20 +1383,34 @@ MIDDLE_EAST_AFRICA = {
     Nation("Jordan", ["jordan", "jordanian"], Region.MIDDLE_EAST_AFRICA, code="JO"),
     Nation("Lebanon", ["lebanon", "lebanese"], Region.MIDDLE_EAST_AFRICA, code="LB"),
     Nation("Oman", ["oman", "omanese"], Region.MIDDLE_EAST_AFRICA, code="OM"),
-    Nation("Palestine", ["palestine", "palestinian"], Region.MIDDLE_EAST_AFRICA, code="PS"),
+    Nation(
+        "Palestine", ["palestine", "palestinian"], Region.MIDDLE_EAST_AFRICA, code="PS"
+    ),
     Nation("Iraq", ["iraq", "iraqi"], Region.MIDDLE_EAST_AFRICA, code="IQ"),
     Nation("Libya", ["libya", "libyan"], Region.MIDDLE_EAST_AFRICA, code="LY"),
     Nation("Sudan", ["sudan", "sudanese"], Region.MIDDLE_EAST_AFRICA, code="SD"),
     Nation("Somalia", ["somalia", "somalian"], Region.MIDDLE_EAST_AFRICA, code="SO"),
     Nation("Eritrea", ["eritrea", "eritrean"], Region.MIDDLE_EAST_AFRICA, code="ER"),
-    Nation("Djibouti", ["djibouti", "djiboutian"], Region.MIDDLE_EAST_AFRICA, code="DJ"),
-    Nation("Mauritania", ["mauritania", "mauritanian"], Region.MIDDLE_EAST_AFRICA, code="MR"),
+    Nation(
+        "Djibouti", ["djibouti", "djiboutian"], Region.MIDDLE_EAST_AFRICA, code="DJ"
+    ),
+    Nation(
+        "Mauritania",
+        ["mauritania", "mauritanian"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="MR",
+    ),
     Nation("Mali", ["mali", "malian"], Region.MIDDLE_EAST_AFRICA, code="ML"),
     Nation("Niger", ["niger", "nigerian"], Region.MIDDLE_EAST_AFRICA, code="NE"),
     Nation("Senegal", ["senegal", "senegalese"], Region.MIDDLE_EAST_AFRICA, code="SN"),
     Nation("Chad", ["chad", "chadian"], Region.MIDDLE_EAST_AFRICA, code="TD"),
     Nation("Liberia", ["liberia", "liberian"], Region.MIDDLE_EAST_AFRICA, code="LR"),
-    Nation("Sierra Leone", ["sierra leone", "sierraleonean"], Region.MIDDLE_EAST_AFRICA, code="SL"),    
+    Nation(
+        "Sierra Leone",
+        ["sierra leone", "sierraleonean"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SL",
+    ),
 }
 
 INTERNATIONAL = {
@@ -1019,7 +1428,8 @@ INTERNATIONAL = {
             "PSI",
             "Public Services International",
         ],
-        code="INT"),
+        code="INT",
+    ),
     Nation(
         "International Spanish",
         [],
@@ -1098,8 +1508,21 @@ INTERNATIONAL = {
 INT_LANGUAGE_MAP = {
     "INT_PT": {"BR", "PT"},
     "INT_ES": {
-        "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", 
-        "GT", "DO", "CR", "PA", "UY", "BO", "PY"
+        "ES",
+        "MX",
+        "AR",
+        "CL",
+        "CO",
+        "PE",
+        "VE",
+        "EC",
+        "GT",
+        "DO",
+        "CR",
+        "PA",
+        "UY",
+        "BO",
+        "PY",
     },
     "INT_FR": {"FR", "BE", "CH", "CA"},
 }
@@ -1116,13 +1539,19 @@ REGION_CODES = {
     "INT_FR",
 }
 
+
 class RegionMatcher:
     """
     Compiles regexes for Regions, Nations, and Specific Unions.
     Allows independent parsing of text to find these entities.
     """
-    union_map: Dict[str, Tuple[Region, str, str]] = {} # term -> (Region, Country, Code)
-    location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {} # term -> (Region, Country, City, Code)
+
+    union_map: Dict[str, Tuple[Region, str, str]] = (
+        {}
+    )  # term -> (Region, Country, Code)
+    location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = (
+        {}
+    )  # term -> (Region, Country, City, Code)
 
     specific_union_regex: Optional[re.Pattern] = None
     location_regex: Optional[re.Pattern] = None
@@ -1135,8 +1564,12 @@ class RegionMatcher:
     @classmethod
     def _compile(cls):
         all_regions = [
-            NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, 
-            MIDDLE_EAST_AFRICA, INTERNATIONAL
+            NORTH_AMERICA,
+            EUROPE,
+            ASIA_PACIFIC,
+            LATIN_AMERICA,
+            MIDDLE_EAST_AFRICA,
+            INTERNATIONAL,
         ]
 
         union_phrases = set()
@@ -1147,40 +1580,79 @@ class RegionMatcher:
                 # 1. Map Specific Unions
                 for union_name in nation.unions:
                     # Store mapping
-                    cls.union_map[union_name.lower()] = (nation.region, nation.name, nation.code)
+                    cls.union_map[union_name.lower()] = (
+                        nation.region,
+                        nation.name,
+                        nation.code,
+                    )
                     union_phrases.add(union_name)
 
                 # 1b. Map Keywords (Treat as Phrases for detection - Region Match Only)
                 for keyword in nation.keywords:
-                    cls.location_map[keyword.lower()] = (nation.region, nation.name, None, nation.code)
+                    cls.location_map[keyword.lower()] = (
+                        nation.region,
+                        nation.name,
+                        None,
+                        nation.code,
+                    )
                     geo_phrases.add(keyword)
 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
-                    cls.location_map[phrase.lower()] = (nation.region, nation.name, None, nation.code)
+                    cls.location_map[phrase.lower()] = (
+                        nation.region,
+                        nation.name,
+                        None,
+                        nation.code,
+                    )
                     geo_phrases.add(phrase)
 
                 # 3. Map Nation Name
-                cls.location_map[nation.name.lower()] = (nation.region, nation.name, None, nation.code)
+                cls.location_map[nation.name.lower()] = (
+                    nation.region,
+                    nation.name,
+                    None,
+                    nation.code,
+                )
                 geo_phrases.add(nation.name)
 
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
                     # Location Name
-                    cls.location_map[loc.name.lower()] = (nation.region, nation.name, loc.name, nation.code)
+                    cls.location_map[loc.name.lower()] = (
+                        nation.region,
+                        nation.name,
+                        loc.name,
+                        nation.code,
+                    )
                     geo_phrases.add(loc.name)
 
                     # Location Phrases
                     for phrase in loc.phrases:
-                        cls.location_map[phrase.lower()] = (nation.region, nation.name, loc.name, nation.code)
+                        cls.location_map[phrase.lower()] = (
+                            nation.region,
+                            nation.name,
+                            loc.name,
+                            nation.code,
+                        )
                         geo_phrases.add(phrase)
 
                     # Sub-cities
                     for sub in loc.cities:
-                        cls.location_map[sub.name.lower()] = (nation.region, nation.name, sub.name, nation.code)
+                        cls.location_map[sub.name.lower()] = (
+                            nation.region,
+                            nation.name,
+                            sub.name,
+                            nation.code,
+                        )
                         geo_phrases.add(sub.name)
                         for phrase in sub.phrases:
-                            cls.location_map[phrase.lower()] = (nation.region, nation.name, sub.name, nation.code)
+                            cls.location_map[phrase.lower()] = (
+                                nation.region,
+                                nation.name,
+                                sub.name,
+                                nation.code,
+                            )
                             geo_phrases.add(phrase)
 
         # Helper to safely escape phrases (unless they are already regex patterns)
@@ -1197,12 +1669,16 @@ class RegionMatcher:
 
         # Compile Specific Union Regex
         if union_phrases:
-            pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
+            pattern_str = (
+                r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
+            )
             cls.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
 
         # Compile Location Regex
         if geo_phrases:
-            pattern_str = r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
+            pattern_str = (
+                r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
+            )
             cls.location_regex = re.compile(pattern_str, re.IGNORECASE)
 
         cls._compiled = True
@@ -1213,14 +1689,18 @@ class RegionMatcher:
         if self.specific_union_regex:
             for m in self.specific_union_regex.finditer(text):
                 term = m.group(0)
-                region, country, code = self.union_map.get(term.lower(), (None, None, None))
-                results.append({
-                    "term": term,
-                    "region": region,
-                    "country": country,
-                    "code": code,
-                    "span": m.span()
-                })
+                region, country, code = self.union_map.get(
+                    term.lower(), (None, None, None)
+                )
+                results.append(
+                    {
+                        "term": term,
+                        "region": region,
+                        "country": country,
+                        "code": code,
+                        "span": m.span(),
+                    }
+                )
         return results
 
 

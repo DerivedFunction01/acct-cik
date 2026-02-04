@@ -931,6 +931,7 @@ class ConcisenessCleaner:
             (re.compile(r"\bin\s+the\s+event\s+of\b", re.IGNORECASE), "if"),
             (re.compile(r"\bin\s+case\s+of\b", re.IGNORECASE), "if"),
             (re.compile(r"\bsubsequent\s+to\b", re.IGNORECASE), "after"),
+            (re.compile(r"\bUS GAAP\b", re.IGNORECASE), "standards"),
         ]
 
         self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
@@ -962,7 +963,6 @@ class ConcisenessCleaner:
                 sentences.append(sent.strip())
 
             processed.append(" ".join(sentences))
-
 
         return "\n\n".join(processed)
 
