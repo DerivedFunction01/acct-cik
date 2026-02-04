@@ -90,7 +90,14 @@ NORTH_AMERICA = {
                 ["california", "ca", "cal"],
                 [
                     Location("San Francisco", ["san francisco", "sf", "bay area"]),
-                    Location("Los Angeles", ["los angeles", "la"]),
+                    Location("Los Angeles", ["los angeles", "la"]),                    
+                    Location("San Diego", ["san diego"]),
+                    Location("San Jose", ["san jose"]),
+                    Location("Fremont", ["fremont"]),                    
+                    Location("Irvine", ["irvine"]),
+                    Location("Sacramento", ["sacramento"]),
+                    Location("Palo Alto", ["palo alto"]),
+                    
                 ],
             ),
             Location(
@@ -98,14 +105,27 @@ NORTH_AMERICA = {
                 ["texas", "tx"],
                 [
                     Location("Houston", ["houston"]),
-                    Location("Dallas", ["dallas"]),
+                    Location("Dallas", ["dallas"]),                    
+                    Location("Austin", ["austin"]),
+                    Location("San Antonio", ["san antonio"]),
+                    Location("Fort Worth", ["fort worth"]),
+                    Location("Arlington", ["arlington, tx", "arlington, texas"]),
+                    Location("El Paso", ["el paso"]),
+                    Location("Laredo", ["laredo"]),
+                    Location("Lubbock", ["lubbock"]),
+
                 ],
             ),
             Location(
                 "Illinois",
                 ["illinois", "il"],
                 [
-                    Location("Chicago", ["chicago"]),
+                    Location("Chicago", ["chicago"]),                    
+                    Location("Springfield", ["springfield, il"]),
+                    Location("Peoria", ["peoria"]),
+                    Location("Rockford", ["rockford"]),
+                    Location("Belvidere", ["belvidere"]),
+                    
                 ],
             ),
             Location(
@@ -113,13 +133,24 @@ NORTH_AMERICA = {
                 ["massachusetts"],
                 [
                     Location("Boston", ["boston"]),
+                    Location("Worcester", ["worcester"]),
+                    Location("Cambridge", ["cambridge, ma" ]),
+                    Location("Springfield", ["springfield, ma"]),
+                    Location("Lowell", ["lowell"]),
+                    
                 ],
             ),
             Location(
                 "Washington",
-                ["washington", "wa"],
+                ["washington"],
                 [
-                    Location("Seattle", ["seattle"]),
+                    Location("Seattle", ["seattle"]),                    
+                    Location("Spokane", ["spokane"]),
+                    Location("Tacoma", ["tacoma"]),
+                    Location("Bellevue", ["bellevue"]),
+                    Location("Everett", ["everett"]),
+                    Location("Renton", ["renton"]),
+                    
                 ],
             ),
             Location(
@@ -127,6 +158,12 @@ NORTH_AMERICA = {
                 ["florida", "fl"],
                 [
                     Location("Miami", ["miami"]),
+                    Location("Tampa", ["tampa"]),
+                    Location("Orlando", ["orlando"]),
+                    Location("Jacksonville", ["jacksonville"]),
+                    Location("Tallahassee", ["tallahassee"]),
+                    Location("Fort Lauderdale", ["fort lauderdale"]),
+                    
                 ],
             ),
             Location(
@@ -155,6 +192,15 @@ NORTH_AMERICA = {
                 [
                     Location("Pittsburgh", ["pittsburgh"]),
                     Location("Philadelphia", ["philadelphia", "philly"]),
+                    Location("Erie", ["erie"]),                    
+                    Location("Harrisburg", ["harrisburg"]),
+                    Location("Allentown", ["allentown"]),
+                    Location("Scranton", ["scranton"]),                    
+                    Location("York", ["york, pa",]),
+                    Location("Reading", ["reading, pa"]),
+                    Location("Lancaster", ["lancaster, pa"]),                    
+                    Location("Bethlehem", ["bethlehem, pa", "bethlehem steel"]),
+                    Location("Wilkes-Barre", ["wilkes-barre"]),
                 ],
             ),
             Location(
@@ -163,7 +209,12 @@ NORTH_AMERICA = {
                 [
                     Location("Indianapolis", ["indianapolis"]),
                     Location("Lafayette", ["lafayette"]),
-                    Location("Princeton", ["princeton"]),
+                    Location("Princeton", ["princeton"]),                    
+                    Location("Fort Wayne", ["fort wayne"]),
+                    Location("South Bend", ["south bend"]),
+                    Location("Evansville", ["evansville"]),
+                    Location("Greensburg", ["greensburg, in"]),
+                    
                 ],
             ),
             Location(
@@ -172,6 +223,8 @@ NORTH_AMERICA = {
                 [
                     Location("Louisville", ["louisville"]),
                     Location("Georgetown", ["georgetown"]),
+                    Location("Bowling Green", ["bowling green"]),
+                    
                 ],
             ),
             Location(
@@ -637,7 +690,7 @@ EUROPE = {
     ),
     Nation(
         "United Kingdom",
-        ["uk", "u.k.", "britain", "united kingdom"],
+        ["uk", "u.k.", "britain", "united kingdom", "england", add_restrictions("british", lookaheads=[r"virgin", r"columbia"])],
         Region.EUROPE,
         [
             Location("London", ["london"]),
@@ -1136,6 +1189,62 @@ EUROPE = {
         ],
         code="UA",
     ),
+    Nation(
+        "Luxembourg",
+        ["luxembourg", "luxembourgish"],
+        Region.EUROPE,
+        [Location("Luxembourg City", ["luxembourg city"])],
+        code="LU",
+    ),
+    Nation(
+        "Cyprus",
+        ["cyprus", "cypriot"],
+        Region.EUROPE,
+        [Location("Nicosia", ["nicosia"]), Location("Limassol", ["limassol"])],
+        code="CY",
+    ),
+    Nation(
+        "Malta",
+        ["malta", "maltese"],
+        Region.EUROPE,
+        [Location("Valletta", ["valletta"])],
+        code="MT",
+    ),
+    Nation(
+        "Jersey",
+        ["jersey"],
+        Region.EUROPE,
+        [Location("Saint Helier", ["saint helier", "st. helier"])],
+        code="JE",
+    ),
+    Nation(
+        "Guernsey",
+        ["guernsey"],
+        Region.EUROPE,
+        [Location("Saint Peter Port", ["saint peter port", "st. peter port"])],
+        code="GG",
+    ),
+    Nation(
+        "Isle of Man",
+        ["isle of man", "manx"],
+        Region.EUROPE,
+        [Location("Douglas", ["douglas"])],
+        code="IM",
+    ),
+    Nation(
+        "Liechtenstein",
+        ["liechtenstein"],
+        Region.EUROPE,
+        [Location("Vaduz", ["vaduz"])],
+        code="LI",
+    ),
+    Nation(
+        "Monaco",
+        ["monaco", "monegasque"],
+        Region.EUROPE,
+        [Location("Monte Carlo", ["monte carlo"])],
+        code="MC",
+    ),
 }
 ASIA_PACIFIC = {
     Nation(
@@ -1531,6 +1640,48 @@ LATIN_AMERICA = {
     Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
     Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
     Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA, code="PY"),
+    Nation(
+        "Cayman Islands",
+        ["cayman islands", "cayman", "caymans"],
+        Region.LATIN_AMERICA,
+        [Location("George Town", ["george town"])],
+        code="KY",
+    ),
+    Nation(
+        "Bermuda",
+        ["bermuda", "bermudian"],
+        Region.LATIN_AMERICA,
+        [Location("Hamilton", ["hamilton, bermuda"])],
+        code="BM",
+    ),
+    Nation(
+        "British Virgin Islands",
+        ["british virgin islands", "bvi", "b.v.i."],
+        Region.LATIN_AMERICA,
+        [Location("Road Town", ["road town"])],
+        code="VG",
+    ),
+    Nation(
+        "Bahamas",
+        ["bahamas", "bahamian"],
+        Region.LATIN_AMERICA,
+        [Location("Nassau", ["nassau"])],
+        code="BS",
+    ),
+    Nation(
+        "Barbados",
+        ["barbados", "barbadian"],
+        Region.LATIN_AMERICA,
+        [Location("Bridgetown", ["bridgetown"])],
+        code="BB",
+    ),
+    Nation(
+        "Curacao",
+        ["curacao", "curaçao"],
+        Region.LATIN_AMERICA,
+        [Location("Willemstad", ["willemstad"])],
+        code="CW",
+    ),
 }
 MIDDLE_EAST_AFRICA = {
     Nation(
@@ -1800,6 +1951,13 @@ MIDDLE_EAST_AFRICA = {
             Location("Kirkuk", ["kirkuk"]),
         ],
         code="IQ",
+    ),
+    Nation(
+        "Mauritius",
+        ["mauritius", "mauritian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [Location("Port Louis", ["port louis"])],
+        code="MU",
     ),
 }
 

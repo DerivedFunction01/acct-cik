@@ -1559,13 +1559,14 @@ class Tracker:
     Used to provide the correct denominator for coverage calculations.
     """
 
-    def __init__(self):
+    def __init__(self, domestic_country_code: str = "US"):
         self.global_total: float = 0.0
         self.region_totals: Dict[str, float] = {}
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
         self.mentioned_countries: set[str] = set()
+        self.domestic_country_code = domestic_country_code
 
     def update(
         self, count: float, geo_context: Dict[str, Any]
@@ -1596,6 +1597,8 @@ class Tracker:
         if len(countries) == 1:
             c = countries[0]
             code = c["code"]
+            if code == "DOM":
+                code = self.domestic_country_code
             if count > self.country_totals.get(code, 0):
                 self.country_totals[code] = count
 
@@ -1603,7 +1606,10 @@ class Tracker:
         countries = geo_context.get("countries", [])
         for c in countries:
             if c.get("code"):
-                self.mentioned_countries.add(c["code"])
+                code = c["code"]
+                if code == "DOM":
+                    code = self.domestic_country_code
+                self.mentioned_countries.add(code)
 
     def resolve(self):
         """
@@ -1709,11 +1715,17 @@ class Tracker:
                 scope = Scope.REGION
                 key = region
         elif region == Region.UNKNOWN.value:
-            key = "Domestic" if "DOM" in codes else Region.DOMESTIC.value
-            scope = Scope.REGION
+            if "DOM" in codes:
+                key = self.domestic_country_code
+                scope = Scope.COUNTRY
+            else:
+                key = Region.DOMESTIC.value
+                scope = Scope.REGION
 
         if len(countries) == 1:
             country_code = countries[0]["code"]
+            if country_code == "DOM":
+                country_code = self.domestic_country_code
             scope = Scope.SEGMENT
             key = f"{country_code}::Segment_{len(self.entries)}"
 
@@ -1723,6 +1735,8 @@ class Tracker:
 
         if union_name:
             country_code = countries[0]["code"]
+            if country_code == "DOM":
+                country_code = self.domestic_country_code
             scope = Scope.SEGMENT
             key = f"{country_code}::{union_name}"
 
@@ -2183,39 +2197,97 @@ class Tracker:
         self._resolve_overlaps_list(region_name, entries)
         self._resolve_geographic_gaps(region_name, region_total, entries)
 
-    def _resolve_domestic(self):
+    def _route_domestic(self, target_country: Optional[str] = None):
+        if target_country is None:
+            target_country = self.domestic_country_code
+
         # Filter for valid country codes (2 letters usually)
         valid_countries = {c for c in self.mentioned_countries if c and len(c) == 2}
+        other_countries = valid_countries - {target_country}
 
-        # Condition: No countries mentioned OR only US mentioned
-        if not valid_countries or valid_countries == {'US'}:
-            # Inherit global total if we are defaulting to US and have no specific data
-            if self.global_total > 0 and self.country_totals.get("US", 0) == 0:
-                self.country_totals["US"] = self.global_total
-                self.resolution_log.append(f"Inherited Global Total {self.global_total} to 'US' (Default Domestic)")
+        # Condition: No other countries mentioned
+        if not other_countries:
+            # Inherit global total if we are defaulting to target and have no specific data
+            if self.global_total > 0 and self.country_totals.get(target_country, 0) == 0:
+                self.country_totals[target_country] = self.global_total
+                self.resolution_log.append(f"Inherited Global Total {self.global_total} to '{target_country}' (Default Domestic)")
 
-            for idx, e in enumerate(self.entries):
-                if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value, "DOM", "Domestic"]:
-                    e.key = "US"
-                    e.scope = Scope.COUNTRY
-                    self.resolution_log.append("Resolved 'Domestic'/'Unknown' to 'US' (Default)")
-                elif e.scope == Scope.SEGMENT and e.key and (e.key.startswith("DOM::") or e.key.startswith("Domestic::")):
-                    suffix = e.key.split("::", 1)[1]
-                    e.key = f"US::{suffix}"
-                    self.resolution_log.append("Resolved Domestic Segment to 'US::...' (Default)")
+        for idx, e in enumerate(self.entries):
+            if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value, "DOM", "Domestic"]:
+                e.key = target_country
+                e.scope = Scope.COUNTRY
+                self.resolution_log.append(f"Resolved 'Domestic'/'Unknown' to '{target_country}'")
+            elif e.scope == Scope.SEGMENT and e.key and (e.key.startswith("DOM::") or e.key.startswith("Domestic::")):
+                suffix = e.key.split("::", 1)[1]
+                e.key = f"{target_country}::{suffix}"
+                self.resolution_log.append(f"Resolved Domestic Segment to '{target_country}::...'")
 
-            # Remap Totals
-            if "DOM" in self.country_totals:
-                val = self.country_totals.pop("DOM")
-                self.country_totals["US"] = max(self.country_totals.get("US", 0), val)
-                self.resolution_log.append(f"Remapped country total DOM ({val}) to US")
+        # Remap Totals
+        if "DOM" in self.country_totals:
+            val = self.country_totals.pop("DOM")
+            self.country_totals[target_country] = max(self.country_totals.get(target_country, 0), val)
+            self.resolution_log.append(f"Remapped country total DOM ({val}) to {target_country}")
+
+    def _resolve_international_gap(self):
+        """
+        Derives International total if Global Total is known and other regions are known.
+        Global - (North America + Europe + ...) = International
+        """
+        if self.global_total <= 0:
+            return
+
+        # Find International Entry (Scope.REGION)
+        intl_entry = next((e for e in self.entries if e.scope == Scope.REGION and e.key == Region.INTERNATIONAL.value), None)
+        
+        # If we don't have an International entry to fill, or it already has a total, skip
+        if not intl_entry or intl_entry.total_count is not None:
+            return
+
+        # Calculate sum of other regions
+        resolved_region_totals = {}
+        
+        for r in Region:
+            r_name = r.value
+            if r_name in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                continue
+                
+            # 1. Check for Region Entry
+            r_entry = next((e for e in self.entries if e.scope == Scope.REGION and e.key == r_name), None)
+            if r_entry and r_entry.total_count:
+                resolved_region_totals[r_name] = r_entry.total_count
+                continue
+                
+            # 2. Sum Countries (using max per country code to avoid duplicates)
+            c_entries = [e for e in self.entries if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name]
+            
+            c_totals = {}
+            for e in c_entries:
+                if e.total_count:
+                    c_totals[e.key] = max(c_totals.get(e.key, 0), e.total_count)
+            
+            if c_totals:
+                resolved_region_totals[r_name] = sum(c_totals.values())
+
+        sum_others = sum(resolved_region_totals.values())
+        
+        if sum_others < self.global_total:
+            gap = self.global_total - sum_others
+            if gap > 0:
+                intl_entry.total_count = gap
+                self.resolution_log.append(f"Resolved International Total: {gap} (Global {self.global_total} - Others {sum_others})")
+                
+                if intl_entry.percentage is not None:
+                    intl_entry.covered_count = round((intl_entry.percentage / 100.0) * gap)
+                    self.resolution_log.append(f"Resolved International Count: {intl_entry.percentage}% of {gap}")
+                elif intl_entry.covered_count is not None:
+                    intl_entry.percentage = round((intl_entry.covered_count / gap) * 100.0, 2)
 
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
         """
         # 0. Resolve Domestic
-        self._resolve_domestic()
+        self._route_domestic()
         # 0.5 Resolve Aggregates (Propagate down)
         self._resolve_aggregates()
         # 1. Resolve Countries
@@ -2225,6 +2297,9 @@ class Tracker:
         # 2. Resolve Regions
         for region_name, region_total in self.region_totals.items():
             self._resolve_single_region(region_name, region_total)
+            
+        # 3. Resolve International Gap
+        self._resolve_international_gap()
 
     def calculate_metrics(self) -> Dict[str, Any]:
         metrics = {
@@ -2272,7 +2347,7 @@ class Tracker:
             if r_entry and (
                 r_entry.covered_count is not None or r_entry.percentage is not None
             ):
-                log(f"      ✓ Found region entry: {r_entry}")
+                log(f"      ✓ Found region entry: {r_entry.key}")
                 if r_entry.covered_count is not None:
                     r_covered = r_entry.covered_count
                     r_total = r_entry.total_count if r_entry.total_count else 0.0
@@ -2453,12 +2528,13 @@ class Tracker:
 
 
 class UnionAnalyzer:
-    def __init__(self):
+    def __init__(self, domestic_country_code: str = "US"):
         self.extractor = UnionExtractor()
         self.simple_analyzer = SimpleCoverageAnalyzer()
         self.denominator_analyzer = UnionDenominatorAnalyzer()
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
+        self.domestic_country_code = domestic_country_code
 
     def _detect_count_range(
         self, analysis: SentenceAnalysis, counts: List[float]
@@ -2596,7 +2672,7 @@ class UnionAnalyzer:
                 paragraphs = [text]
 
             # 2. Pass 1: Census (Populate Tracker with Totals)
-            tracker = Tracker()
+            tracker = Tracker(domestic_country_code=self.domestic_country_code)
             all_sentences = self.extractor.split_sentences(text)
             self._populate_tracker(all_sentences, tracker, reporting_year)
             tracker.resolve()
@@ -2987,7 +3063,7 @@ class UnionAnalyzer:
         Returns results, totals found in THIS block, and the final geo context.
         """
         # 0. Local Census (Pre-scan paragraph)
-        local_tracker = Tracker()
+        local_tracker = Tracker(domestic_country_code=self.domestic_country_code)
         self._populate_tracker(
             sentences,
             local_tracker,
