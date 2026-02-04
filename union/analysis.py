@@ -1802,6 +1802,34 @@ class Tracker:
                         e.percentage = 0.0
                         self.resolution_log.append(f"Fixed Zero-Total for {name}: 0 not covered implies 0% coverage.")
 
+        # 0b. Fix implicit total mismatch for single entry (e.g. "10 are union" vs Census 200)
+        if len(entries) == 1:
+            e = entries[0]
+            # If we have a census total, and the entry has a much smaller implicit total
+            if census_total > 0 and e.total_count is not None and e.total_count > 0:
+                # Check if entry is implicit and significantly smaller than census
+                if not e.is_explicit and not self._matches_census(e.total_count, census_total) and census_total > e.total_count:
+                    # Check if it looks like a subset inference (covered ~= total OR not_covered ~= total)
+                    is_subset_inference = False
+                    if e.covered_count is not None and self._matches_census(e.covered_count, e.total_count):
+                        is_subset_inference = True
+                    elif e.not_covered_count is not None and self._matches_census(e.not_covered_count, e.total_count):
+                        is_subset_inference = True
+                    
+                    if is_subset_inference:
+                        old_total = e.total_count
+                        e.total_count = census_total
+                        
+                        # Recalculate the other side
+                        if e.covered_count is not None:
+                            e.not_covered_count = census_total - e.covered_count
+                            e.percentage = round((e.covered_count / census_total) * 100.0, 2)
+                        elif e.not_covered_count is not None:
+                            e.covered_count = census_total - e.not_covered_count
+                            e.percentage = round((e.covered_count / census_total) * 100.0, 2)
+                        
+                        self.resolution_log.append(f"Upgraded implicit total for {name} ({e.key}) from {old_total} to {census_total} (Census Match)")
+
         # 1. Resolve entries with known percentages first (Independent resolution)
         # This handles qualitative percentages ("majority") or explicit percentages where total was unknown
         for e in entries:
@@ -2053,8 +2081,8 @@ class Tracker:
 
             for idx, e in enumerate(self.entries):
                 if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value]:
-                    e.key = f"US::Segment_{idx}"
-                    e.scope = Scope.SEGMENT
+                    e.key = "US"
+                    e.scope = Scope.COUNTRY
                     self.resolution_log.append("Resolved 'Domestic'/'Unknown' to 'US' (Default)")
 
     def resolve_coverage(self):
