@@ -1622,6 +1622,9 @@ class Tracker:
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
             scope = Scope.REGION
             key = region
+        elif region == Region.UNKNOWN.value:
+            key =  Region.DOMESTIC.value
+            scope = Scope.REGION
 
         if len(countries) == 1:
             country_code = countries[0]["code"]
@@ -1993,10 +1996,24 @@ class Tracker:
         self._resolve_overlaps_list(region_name, entries)
         self._resolve_geographic_gaps(region_name, region_total, entries)
 
+    def _resolve_domestic(self):
+        # Filter for valid country codes (2 letters usually)
+        valid_countries = {c for c in self.mentioned_countries if c and len(c) == 2}
+
+        # Condition: No countries mentioned OR only US mentioned
+        if not valid_countries or valid_countries == {'US'}:
+            for e in self.entries:
+                if e.key == Region.DOMESTIC.value:
+                    e.key = "US"
+                    e.scope = Scope.SEGMENT
+                    self.resolution_log.append("Resolved 'Domestic' to 'US' (Default)")
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
         """
+        # 3. Resolve Domestic
+        self._resolve_domestic()
         # 1. Resolve Countries
         for country_code, census_total in self.country_totals.items():
             self._resolve_single_country(country_code, census_total)

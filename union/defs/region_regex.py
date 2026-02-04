@@ -13,6 +13,7 @@ class Region(Enum):
     ASIA_PACIFIC = "Asia/Pacific"
     INTERNATIONAL = "International"
     UNKNOWN = "Unknown"
+    DOMESTIC = "Domestic"
 
 
 class GeoSource(Enum):
@@ -970,7 +971,6 @@ EUROPE = {
             "CIG",
         ],
         [
-            "Convenio Colectivo",
             "Comité de Empresa",
             "Delegados",
             "Estatuto de los Trabajadores",
@@ -1462,7 +1462,6 @@ LATIN_AMERICA = {
             "UOM",
         ],
         [
-            "Convenio Colectivo",
             "Paritarias",
             "Conflictividad laboral",
         ],
@@ -1478,7 +1477,7 @@ LATIN_AMERICA = {
             Location("Valparaiso", ["valparaiso"]),
         ],
         ["CUT Chile", "Central Unitaria de Trabajadores"],
-        ["Negociación colectiva", "Código del Trabajo"],
+        [ "Código del Trabajo"],
         code="CL",
     ),
     Nation(
@@ -1890,6 +1889,14 @@ INTERNATIONAL = {
         ],
         code="INT_FR",
     ),
+    Nation(
+        Region.DOMESTIC.value,
+        ["domestic", "domestically"],
+        Region.UNKNOWN,
+        [],
+        [],
+        [],
+    )
 }
 
 INT_LANGUAGE_MAP = {
