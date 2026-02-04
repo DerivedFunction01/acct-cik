@@ -1960,6 +1960,28 @@ class Tracker:
         ]
         if not relevant_entries:
             return
+        # Check if sum of segments exceeds census total (indicating census was just a large segment)
+        segments = [
+            e for e in relevant_entries if e.scope == Scope.SEGMENT and e.total_count
+        ]
+        if segments:
+            sorted_segs: List[Entry] = sorted(segments, key=lambda x: x.total_count, reverse=True) # type: ignore
+            largest = sorted_segs[0].total_count or 0.0
+            others_sum = sum(s.total_count for s in sorted_segs[1:] if s.total_count is not None)
+            total_sum = largest + others_sum
+
+            # Heuristic: If largest is roughly equal to sum of others, it's likely a hierarchy (Total vs Parts)
+            # If not, and the sum is significantly larger than the census, assume disjoint segments and update total.
+            is_hierarchy = False
+            if others_sum > 0 and abs(largest - others_sum) / largest < 0.15:
+                is_hierarchy = True
+
+            if not is_hierarchy and total_sum > census_total * 1.05:
+                self.country_totals[country_code] = total_sum
+                self.resolution_log.append(
+                    f"Updated Country Total for {country_code} from {census_total} to {total_sum} based on sum of disjoint segments."
+                )
+                census_total = total_sum
         self._resolve_overlaps_list(country_code, relevant_entries)
         self._resolve_gap_list(country_code, census_total, relevant_entries)
 
@@ -2150,7 +2172,7 @@ class Tracker:
         log("\n[STEP 3] Finalizing Global Metrics...")
         metrics["global_covered_count"] = bottom_up_covered
         metrics["global_total_count"] = bottom_up_total
-        
+
         if self.global_total > 0:
             metrics["measured_population_coverage"] = round((bottom_up_total / self.global_total) * 100.0, 2)
             log(f"  Measured population coverage: {metrics['measured_population_coverage']}% ({bottom_up_total}/{self.global_total})")
