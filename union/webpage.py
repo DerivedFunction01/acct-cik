@@ -129,10 +129,6 @@ CRUNCHED_TEXT_PATTERNS = [
     (re.compile(r"([a-zA-Z0-9])(\$)"), r"\1 \2"),
 ]
 
-CLEANUP_PATTERNS = [
-    # remove links
-    (re.compile(r"http\S+"), ""),
-]
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
 TABLE_HINT_PATTERN = re.compile(
@@ -888,8 +884,6 @@ def extract_content(data: str, asHTML=True) -> str:
 
     else:
         # Plain text processing (unchanged)
-        for pattern, replacement in CLEANUP_PATTERNS:
-            data = pattern.sub(replacement, data)
         parts = TABLE_SPLIT_PATTERN.split(data)
         processed_parts = []
         for i, part in enumerate(parts):

@@ -783,7 +783,7 @@ QUALITATIVE_TERMS_AMB = [
 ]
 
 COMPILED_QUALITATIVE_PATTERNS = []
-for term in QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
+for term in QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB + QUALITATIVE_ALL_TERMS:
     pattern_str = term.build_pattern()
     regex = build_regex([pattern_str])
     COMPILED_QUALITATIVE_PATTERNS.append(
@@ -1131,7 +1131,7 @@ class UnionExtractor:
 
         # 4. Quantitative Coverage (Percentage/Ratio + Worker Context)
         # We check if there's a percentage/ratio AND (worker terms OR worker counts)
-        has_quant = bool(analysis.percentages or analysis.ratios or analysis.numbers)
+        has_quant = bool(analysis.percentages or analysis.ratios or analysis.numbers or analysis.qualitative_terms)
         has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
 
         analysis.is_relevant = (
@@ -1155,6 +1155,7 @@ class UnionExtractor:
                     or analysis.ratios
                     or analysis.worker_counts
                     or analysis.numbers
+                    or analysis.qualitative_terms
                 )
                 if not has_data:
                     analysis.is_relevant = False
@@ -1170,3 +1171,5 @@ class UnionExtractor:
                 if sp.strip():
                     final_parts.append(sp.strip())
         return final_parts
+
+# %%
