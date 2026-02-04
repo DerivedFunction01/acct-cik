@@ -82,7 +82,7 @@ class MinimalTextCleaner:
         (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
         (re.compile(r"\bexecutive\s+orders?\b", re.IGNORECASE), "decree"),
         (re.compile(r"\bcourt\s+orders?\b", re.IGNORECASE), "decree"),
-        (re.compile(r"\bpurchase\s+orders?\b", re.IGNORECASE), "PO"),
+        (re.compile(r"\bpurchase\s+orders?\b", re.IGNORECASE), "purchases"),
         (re.compile(r"\btask\s+orders?\b", re.IGNORECASE), "task"),
         (re.compile(r"\bchange\s+orders?\b", re.IGNORECASE), "amendment"),
         (re.compile(r"\bstop\s+work\s+orders?\b", re.IGNORECASE), "halt"),
