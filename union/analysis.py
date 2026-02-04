@@ -40,8 +40,7 @@ def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
     """Combines worker_counts and relevant numbers (heuristic filter)."""
     counts = list(analysis.worker_counts)
     for n in analysis.numbers:
-        if n > 5 or n == 0:
-            counts.append(n)
+        counts.append(n)
     return counts
 
 
