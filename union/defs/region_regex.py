@@ -2104,6 +2104,29 @@ REGION_CODES = {
     "INT_PT",
     "INT_FR",
 }
+TAX_HAVEN_CODES = {
+    "KY",  # Cayman Islands
+    "BM",  # Bermuda
+    "VG",  # British Virgin Islands
+    "LU",  # Luxembourg
+    "IE",  # Ireland
+    "NL",  # Netherlands
+    "CH",  # Switzerland
+    "CY",  # Cyprus
+    "MT",  # Malta
+    "JE",  # Jersey
+    "GG",  # Guernsey
+    "IM",  # Isle of Man
+    "LI",  # Liechtenstein
+    "MC",  # Monaco
+    "BS",  # Bahamas
+    "BB",  # Barbados
+    "CW",  # Curacao
+    "MU",  # Mauritius
+    "PA",  # Panama
+    "HK",  # Hong Kong
+    "SG",  # Singapore
+}
 
 
 class RegionMatcher:
