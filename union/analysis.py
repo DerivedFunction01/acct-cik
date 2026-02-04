@@ -941,6 +941,7 @@ class ComplexCoverageAnalyzer:
         values to keywords within the same segment.
         """
         # 1. Identify Segments (Split by delimiters, avoiding numbers)
+        # We capture delimiters to analyze list structure
         delimiters = list(self.delimiter_regex.finditer(self.analysis.text))
 
         boundaries = [0] + [m.end() for m in delimiters] + [len(self.analysis.text)]
@@ -1083,6 +1084,51 @@ class ComplexCoverageAnalyzer:
 
             return best_type if best_dist <= 150 else None
 
+        # 4. Assign Initial Types to Counts
+        count_assignments = []  # List of dicts: {match, type, segment_idx}
+
+        for c in _counts:
+            # Find segment index
+            c_mid = (c["span"][0] + c["span"][1]) / 2
+            seg_idx = -1
+            for idx, (start, end) in enumerate(segments):
+                if start <= c_mid < end:
+                    seg_idx = idx
+                    break
+
+            # Get local type
+            ctype = get_nearest_type_in_segment(c["span"])
+            count_assignments.append({"match": c, "type": ctype, "seg_idx": seg_idx})
+
+        # 5. Propagate Types (List Logic)
+        # Sort by position
+        count_assignments.sort(key=lambda x: x["match"]["span"][0])
+
+        def is_connected(idx1, idx2):
+            if count_assignments[idx1]["seg_idx"] == count_assignments[idx2]["seg_idx"]:
+                return True
+            # Check delimiters between segments
+            start_seg = min(count_assignments[idx1]["seg_idx"], count_assignments[idx2]["seg_idx"])
+            end_seg = max(count_assignments[idx1]["seg_idx"], count_assignments[idx2]["seg_idx"])
+            
+            # If adjacent segments, check the delimiter
+            if end_seg == start_seg + 1:
+                delim_text = delimiters[start_seg].group(0).lower()
+                return "," in delim_text or "and" in delim_text or "&" in delim_text
+            return False
+
+        # Forward Propagation
+        for i in range(len(count_assignments) - 1):
+            if count_assignments[i]["type"] is not None and count_assignments[i + 1]["type"] is None:
+                if is_connected(i, i + 1):
+                    count_assignments[i + 1]["type"] = count_assignments[i]["type"]
+
+        # Backward Propagation
+        for i in range(len(count_assignments) - 1, 0, -1):
+            if count_assignments[i]["type"] is not None and count_assignments[i - 1]["type"] is None:
+                if is_connected(i, i - 1):
+                    count_assignments[i - 1]["type"] = count_assignments[i]["type"]
+
         for p in percents:
             ptype = get_nearest_type_in_segment(p["span"])
             adj_val, note = apply_qualitative_multipliers(
@@ -1102,14 +1148,17 @@ class ComplexCoverageAnalyzer:
                     self.data["note"] = note
 
         total_candidates = []
-        for c in _counts:
-            ctype = get_nearest_type_in_segment(c["span"])
+        for item in count_assignments:
+            ctype = item["type"]
+            val = item["match"]["val"]
             if ctype == "covered":
-                self.data["employee_count_covered"] = c["val"]
+                current = self.data["employee_count_covered"] or 0
+                self.data["employee_count_covered"] = current + val
             elif ctype == "not_covered":
-                self.data["employee_count_not_covered"] = c["val"]
+                current = self.data["employee_count_not_covered"] or 0
+                self.data["employee_count_not_covered"] = current + val
             elif ctype == "total":
-                total_candidates.append(c["val"])
+                total_candidates.append(val)
 
         if total_candidates:
             self.data["employee_count_total"] = sum(total_candidates)
@@ -1504,7 +1553,6 @@ class Tracker:
         # 1. Global Update
         if (
             region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value)
-            and not countries
         ):
             self.global_total = max(self.global_total, count)
 
