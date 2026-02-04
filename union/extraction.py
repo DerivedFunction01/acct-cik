@@ -126,6 +126,13 @@ DENOMINATOR_ADJECTIVES = [
 ]
 DENOMINATOR_NOUNS = [worker_term_pattern, r"population", r"unit"]
 DENOMINATOR_GAP = r"(?:[\w-]+\s+){0,2}"
+DENOMINATOR_COVERAGE_TERMS = [
+    r"subject\s+to",
+    r"covered",
+    r"represented",
+    r"under",
+    r"affiliated",
+]
 
 UNION_DENOMINATOR_REGEX = build_regex(
     [
@@ -140,6 +147,16 @@ UNION_DENOMINATOR_REGEX = build_regex(
             DENOMINATOR_PREFIX,
             [r"union", r"bargaining\s+unit"],
             sep_prefix=r"\s+(?:our\s+|the\s+)?",
+        ),
+        build_compound(
+            DENOMINATOR_PREFIX,
+            DENOMINATOR_NOUNS,
+            build_compound(
+                [r"(?:not\s+)?"],
+                [r"subject\s+to", r"covered", r"represented", r"under", r"affiliated"],
+            ),
+            sep_prefix=r"\s+" + DENOMINATOR_GAP,
+            sep_suffix=r"\s+",
         ),
     ]
 )
