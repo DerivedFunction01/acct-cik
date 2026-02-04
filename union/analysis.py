@@ -1792,60 +1792,60 @@ class Tracker:
         partials: List[Entry] = []
         others_sum = 0.0
 
-        # for e in entries:
-        #     # CRITICAL: Only mark as partial if EXPLICITLY marked as remaining or negated
-        #     # Don't assume unknown = "rest of population"
-        #     is_partial = e.is_remaining or (e.is_negated and e.covered_count is None)
+        for e in entries:
+            # CRITICAL: Only mark as partial if EXPLICITLY marked as remaining or negated
+            # Don't assume unknown = "rest of population"
+            is_partial = e.is_remaining or (e.is_negated and e.covered_count is None)
 
-        #     if is_partial:
-        #         partials.append(e)
-        #     else:
-        #         # Only sum entries that have explicit coverage data
-        #         if e.covered_count is not None or e.not_covered_count is not None:
-        #             others_sum += (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
+            if is_partial:
+                partials.append(e)
+            else:
+                # Only sum entries that have explicit coverage data
+                if e.covered_count is not None or e.not_covered_count is not None:
+                    others_sum += (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
 
-        # # Constraint: Only one partial entry and room to fill
-        # if len(partials) == 1 and others_sum < census_total:
-        #     target = partials[0]
-        #     # ONLY fill if explicitly marked as remainder
-        #     if not (target.is_remaining or target.is_negated):
-        #         self.resolution_log.append(
-        #             f"Skipped gap fill for {name} ({target.key}): "
-        #             f"Unknown coverage data (not marked as remainder)"
-        #         )
-        #         return
-        #     gap = census_total - others_sum
+        # Constraint: Only one partial entry and room to fill
+        if len(partials) == 1 and others_sum < census_total:
+            target = partials[0]
+            # ONLY fill if explicitly marked as remainder
+            if not (target.is_remaining or target.is_negated):
+                self.resolution_log.append(
+                    f"Skipped gap fill for {name} ({target.key}): "
+                    f"Unknown coverage data (not marked as remainder)"
+                )
+                return
+            gap = census_total - others_sum
 
-        #     if target.is_remaining:
-        #         target.total_count = census_total
-        #         if target.is_negated:
-        #             target.not_covered_count = gap
-        #             target.covered_count = 0.0
-        #         else:
-        #             target.covered_count = gap
-        #             target.not_covered_count = 0.0
-        #         self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
+            if target.is_remaining:
+                target.total_count = census_total
+                if target.is_negated:
+                    target.not_covered_count = gap
+                    target.covered_count = 0.0
+                else:
+                    target.covered_count = gap
+                    target.not_covered_count = 0.0
+                self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
 
-        #     elif target.covered_count is None and target.percentage is None:
-        #         target.covered_count = gap
-        #         target.total_count = census_total
-        #         if census_total > 0:
-        #             raw_pct = (gap / census_total) * 100.0
+            elif target.covered_count is None and target.percentage is None:
+                target.covered_count = gap
+                target.total_count = census_total
+                if census_total > 0:
+                    raw_pct = (gap / census_total) * 100.0
 
-        #             # Validate/Adjust with bounds
-        #             if target.qualitative_bounds:
-        #                 lower, upper = target.qualitative_bounds
-        #                 if raw_pct < lower and (lower - raw_pct) < 5.0:
-        #                     raw_pct = lower
-        #                     self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
-        #                 elif raw_pct > upper and (raw_pct - upper) < 5.0:
-        #                     raw_pct = upper
-        #                     self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
-        #                 elif raw_pct < lower or raw_pct > upper:
-        #                     self.resolution_log.append(f"Warning: Inferred Gap PCT {raw_pct:.2f}% for {name} ({target.key}) is outside bounds [{lower}, {upper}]")
+                    # Validate/Adjust with bounds
+                    if target.qualitative_bounds:
+                        lower, upper = target.qualitative_bounds
+                        if raw_pct < lower and (lower - raw_pct) < 5.0:
+                            raw_pct = lower
+                            self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to lower bound {lower}% (was {raw_pct:.2f}%)")
+                        elif raw_pct > upper and (raw_pct - upper) < 5.0:
+                            raw_pct = upper
+                            self.resolution_log.append(f"Adjusted Gap PCT for {name} ({target.key}) to upper bound {upper}% (was {raw_pct:.2f}%)")
+                        elif raw_pct < lower or raw_pct > upper:
+                            self.resolution_log.append(f"Warning: Inferred Gap PCT {raw_pct:.2f}% for {name} ({target.key}) is outside bounds [{lower}, {upper}]")
 
-        #             target.percentage = round(raw_pct, 2)
-        #         self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
+                    target.percentage = round(raw_pct, 2)
+                self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
     def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
         """

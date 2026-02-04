@@ -35,7 +35,7 @@ class CORE(Enum):
     AMALGAMATED = r"Amalgamated"
     BROTHERHOOD = r"Brotherhoods?"
     ASSOCIATION = r"Associations?"
-    ALLIANCE = r"Alli?:ances?"
+    ALLIANCE = r"Alliances?"
     SOCIETY = r"Societ(?:y|ies)"
     UNITED = r"United"
 
