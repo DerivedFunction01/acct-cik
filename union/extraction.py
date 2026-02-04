@@ -104,7 +104,7 @@ QUALITATIVE_MULTIPLIERS = [
 ]
 
 # Worker Count Pattern: Number + (optional gap) + Worker Term
-worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?"])
+worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?", r"chefs?", r"cook(?:er)?s?"])
 WORKER_COUNT_REGEX = build_regex(
     [
         rf"employ(?:ed|s)?\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",

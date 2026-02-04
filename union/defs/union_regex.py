@@ -93,7 +93,7 @@ WORKER_TERMS = [
     r"Operators?",
     r"Custodians?",
     r"Janitors?",
-    r"Security\s+(?:[Gg]uards?|[Oo]ficers?)",
+    r"(?:Security|Police)\s+(?:[Gg]uards?|[Oo]ficers?)",
     r"Fabricators?",
     r"Assemblers?",
     r"Welders?",
