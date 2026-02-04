@@ -147,19 +147,19 @@ XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
 ITEM_1_START_PATTERN = re.compile(
-    r"(?:Item\s+1\.?)(?:\s+Business)?",
+    r"\b(?:Item\s+1\b\.?)(?:\s+Business)?",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
-    r"(?:Item\s+1A\.?)(?:\s+Risk)?", re.MULTILINE | re.IGNORECASE
+    r"\b(?:Item\s+1A\b\.?)(?:\s+Risk)?", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_1B_START_PATTERN = re.compile(
-    r"(?:Item\s+1B\.?)", re.MULTILINE | re.IGNORECASE
+    r"\b(?:Item\s+1B\b\.?)", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_2_START_PATTERN = re.compile(
-    r"(?:Item\s+2\.?)", re.MULTILINE | re.IGNORECASE
+    r"\b(?:Item\s+2\b\.?)", re.MULTILINE | re.IGNORECASE
 )
 
 ANNUAL_REPORT_PATTERN = re.compile(
@@ -875,7 +875,7 @@ def extract_content(data: str, asHTML=True) -> str:
         h = html2text.HTML2Text()
         h.ignore_links = True
         h.ignore_images = True
-        h.ignore_emphasis = False
+        h.ignore_emphasis = True
         h.body_width = 0
         h.unicode_snob = True
 
