@@ -126,13 +126,17 @@ DENOMINATOR_ADJECTIVES = [
 ]
 DENOMINATOR_NOUNS = [worker_term_pattern, r"population", r"unit"]
 DENOMINATOR_GAP = r"(?:[\w-]+\s+){0,2}"
-DENOMINATOR_COVERAGE_TERMS = [
-    r"subject\s+to",
-    r"covered",
-    r"represented",
-    r"under",
-    r"affiliated",
-]
+DENOMINATOR_COVERAGE_TERMS = build_compound(
+    [r"(?:currently?\s+)"], # principally, primarily are stripped by the text cleaner
+    [
+        r"subject\s+to",
+        r"covered",
+        r"represented",
+        r"under",
+        r"affiliated",
+    ],
+    sep_prefix="",
+)
 # Capture 18% of our unionized workers, 20% of the employees represented
 UNION_DENOMINATOR_REGEX = build_regex(
     [
@@ -154,7 +158,7 @@ UNION_DENOMINATOR_REGEX = build_regex(
             DENOMINATOR_NOUNS,
             build_compound(
                 [r"(?:not\s+)?"],
-                DENOMINATOR_COVERAGE_TERMS,
+                [DENOMINATOR_COVERAGE_TERMS],
             ),
             sep_prefix=r"\s+" + DENOMINATOR_GAP,
             sep_suffix=r"\s+",
