@@ -639,7 +639,26 @@ EUROPE = {
         [
             Location("London", ["london"]),
             Location("Birmingham", ["birmingham"]),
-            Location("Manchester", ["manchester"]),
+            Location("Manchester", ["manchester"]),            
+            Location("Leeds", ["leeds"]),
+            Location("Glasgow", ["glasgow"]),
+            Location("Liverpool", ["liverpool"]),
+            Location("Sheffield", ["sheffield"]),
+            Location("Bristol", ["bristol"]),
+            Location("Edinburgh", ["edinburgh"]),
+            Location("Leicester", ["leicester"]),
+            Location("Coventry", ["coventry"]),
+            Location("Belfast", ["belfast"]),
+            Location("Cardiff", ["cardiff"]),
+            Location("Sunderland", ["sunderland"]),
+            Location("Solihull", ["solihull"]),  # Automotive hub
+            Location("Oxford", ["oxford"]),  # Automotive hub
+            Location("Derby", ["derby"]),  # Aerospace/Rail hub
+            Location("Crewe", ["crewe"]),
+            Location("Ellesmere Port", ["ellesmere port"]),
+            Location("Halewood", ["halewood"]),
+            Location("Burnaston", ["burnaston"]),
+            
         ],
         [
             "Unite the Union",
@@ -654,12 +673,36 @@ EUROPE = {
         ],
         code="GB",
     ),
-    Nation("Norway", ["norway", "norwegian"], Region.EUROPE, code="NO"),
+    Nation("Norway", ["norway", "norwegian"], Region.EUROPE, [
+            Location("Oslo", ["oslo"]),
+            Location("Bergen", ["bergen"]),
+            Location("Stavanger", ["stavanger"]),
+            Location("Trondheim", ["trondheim"]),
+            Location("Drammen", ["drammen"]),
+            Location("Fredrikstad", ["fredrikstad"]),
+            Location("Kristiansand", ["kristiansand"]),
+            Location("Sandnes", ["sandnes"]),
+            Location("Tromso", ["tromso", "tromsø"]),
+        ],code="NO"),
     Nation(
         "Sweden",
         ["sweden", "swedish"],
         Region.EUROPE,
-        [Location("Stockholm", ["stockholm"])],
+        [
+            Location("Stockholm", ["stockholm"]),
+            Location("Gothenburg", ["gothenburg", "göteborg"]),
+            Location("Malmo", ["malmo", "malmö"]),
+            Location("Gothenburg", ["gothenburg", "göteborg"]),
+            Location("Malmo", ["malmo", "malmö"]),
+            Location("Umea", ["umea", "umeå"]),
+            Location("Lund", ["lund"]),
+            Location("Uppsala", ["uppsala"]),
+            Location("Vasteras", ["vasteras", "västerås"]),
+            Location("Linkoping", ["linkoping", "linköping"]),
+            Location("Helsingborg", ["helsingborg"]),
+            Location("Jonkoping", ["jonkoping", "jönköping"]),
+            Location("Norrkoping", ["norrkoping", "norrköping"]),
+        ],
         ["Unionen"],
         ["Saltsjöbadsavtalet", "Kollektivavtal"],
         code="SE",
@@ -671,14 +714,44 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("Warsaw", ["warsaw"]),
+            Location("Krakow", ["krakow", "kraków"]),
+            Location("Wroclaw", ["wroclaw", "wrocław"]),
+            Location("Poznan", ["poznan", "poznań"]),
+            Location("Gdansk", ["gdansk", "gdańsk"]),
+            Location("Lodz", ["lodz", "łódź"]),
+            Location("Katowice", ["katowice"]),
+            Location("Gliwice", ["gliwice"]),  # Automotive hub
+            Location("Tychy", ["tychy"]),  # Automotive hub
         ],
         code="PL",
     ),
-    Nation("Hungary", ["hungary", "hungarian"], Region.EUROPE, code="HU"),
+    Nation(
+        "Hungary",
+        ["hungary", "hungarian"],
+        Region.EUROPE,
+        [
+            Location("Budapest", ["budapest"]),
+            Location("Debrecen", ["debrecen"]),
+            Location("Győr", ["gyor", "győr"]),  # Audi
+            Location("Kecskemét", ["kecskemet", "kecskemét"]),  # Mercedes
+            Location("Esztergom", ["esztergom"]),  # Suzuki
+            Location("Szentgotthárd", ["szentgotthard", "szentgotthárd"]),  # Opel
+        ],
+        code="HU",
+    ),
     Nation(
         "Czech Republic",
         ["czech republic", "czechia", "czech"],
         Region.EUROPE,
+        [
+            Location("Prague", ["prague", "praha"]),
+            Location("Mlada Boleslav", ["mlada boleslav", "mladá boleslav"]),  # Skoda
+            Location("Kvasiny", ["kvasiny"]),
+            Location("Kolín", ["kolin", "kolín"]),
+            Location("Ostrava", ["ostrava"]),
+            Location("Brno", ["brno"]),
+            Location("Plzeň", ["plzen", "plzeň"]),
+        ],
         code="CZ",
     ),
     Nation(
@@ -687,6 +760,10 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("Istanbul", ["istanbul"]),
+            Location("Ankara", ["ankara"]),
+            Location("Izmir", ["izmir"]),
+            Location("Bursa", ["bursa"]),  # Major automotive hub
+            Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
         code="TR",
     ),
@@ -696,10 +773,27 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("Moscow", ["moscow"]),
+            Location(
+                "Saint Petersburg", ["saint petersburg", "st. petersburg", "leningrad"]
+            ),
+            Location("Nizhny Novgorod", ["nizhny novgorod", "gorky"]),
+            Location("Kaluga", ["kaluga"]),  # Automotive hub
+            Location("Togliatti", ["togliatti", "tolyatti"]),  # AvtoVAZ
         ],
         code="RU",
     ),
-    Nation("Bulgaria", ["bulgaria", "bulgarian"], Region.EUROPE, code="BG"),
+    Nation(
+        "Bulgaria",
+        ["bulgaria", "bulgarian"],
+        Region.EUROPE,
+        [
+            Location("Plovdiv", ["plovdiv"]),
+            Location("Varna", ["varna"]),
+            Location("Burgas", ["burgas"]),
+            Location("Ruse", ["ruse"]),
+        ],
+        code="BG",
+    ),
     Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
     Nation(
         "Germany",
@@ -723,6 +817,10 @@ EUROPE = {
             Location("Nuremberg", ["nuremberg", "nurnberg"]),
             Location("Essen", ["essen"]),
             Location("Rüsselsheim", ["russelsheim", "ruesselsheim"]),  # Opel/Stellantis
+            Location("Mannheim", ["mannheim"]),
+            Location("Leipzig", ["leipzig"]),
+            Location("Bremen", ["bremen"]),
+            Location("Dresden", ["dresden"]),
         ],
         [
             "IG Metall",
@@ -761,6 +859,14 @@ EUROPE = {
             Location("Strasbourg", ["strasbourg"]),
             Location("Grenoble", ["grenoble"]),  # Tech hub
             Location("Sophia Antipolis", ["sophia antipolis", "valbonne"]),
+            Location("Toulon", ["toulon"]),
+            Location("Nice", ["nice"]),
+            Location("Montpellier", ["montpellier"]),
+            Location("Rennes", ["rennes"]),
+            Location("Grenoble", ["grenoble"]),
+            Location("Reims", ["reims"]),
+            Location("Saint-Etienne", ["saint-etienne", "saint-étienne"]),
+            Location("Le Havre", ["le havre"]),
         ],
         [
             "CFDT",
@@ -799,6 +905,30 @@ EUROPE = {
             Location("Genoa", ["genoa", "genova"]),
             Location("Bologna", ["bologna"]),
             Location("Naples", ["naples", "napoli"]),
+            Location("Palermo", ["palermo"]),
+            Location("Florence", ["florence", "firenze"]),
+            Location("Bari", ["bari"]),
+            Location("Catania", ["catania"]),
+            Location("Venice", ["venice", "venezia"]),
+            Location("Verona", ["verona"]),
+            Location("Messina", ["messina"]),
+            Location("Padua", ["padua", "padova"]),
+            Location("Trieste", ["trieste"]),
+            Location("Taranto", ["taranto"]),
+            Location("Brescia", ["brescia"]),
+            Location("Prato", ["prato"]),
+            Location("Parma", ["parma"]),
+            Location("Modena", ["modena"]),
+            Location("Reggio Calabria", ["reggio calabria"]),
+            Location("Reggio Emilia", ["reggio emilia"]),
+            Location("Perugia", ["perugia"]),
+            Location("Livorno", ["livorno"]),
+            Location("Ravenna", ["ravenna"]),
+            Location("Cagliari", ["cagliari"]),
+            Location("Foggia", ["foggia"]),
+            Location("Rimini", ["rimini"]),
+            Location("Salerno", ["salerno"]),
+            Location("Ferrara", ["ferrara"]),
         ],
         ["CGIL", "CISL", "UIL", "FIOM", "FIM", "UILM"],
         [
@@ -849,14 +979,13 @@ EUROPE = {
             Location("Amsterdam", ["amsterdam"]),
             Location("Rotterdam", ["rotterdam"]),  # Major Port hub
             Location("Eindhoven", ["eindhoven"]),  # Tech hub
-            Location("The Hague", ["the hague", "den haag"]),            
+            Location("The Hague", ["the hague", "den haag"]),
             Location("Utrecht", ["utrecht"]),
             Location("Groningen", ["groningen"]),
             Location("Tilburg", ["tilburg"]),
             Location("Almere", ["almere"]),
             Location("Breda", ["breda"]),
             Location("Nijmegen", ["nijmegen"]),
-            
         ],
         ["FNV", "CNV", "De Unie"],
         [
@@ -878,11 +1007,10 @@ EUROPE = {
             Location("Zurich", ["zurich"]),
             Location("Geneva", ["geneva"]),
             Location("Basel", ["basel"]),
-            Location("Bern", ["bern"]),            
+            Location("Bern", ["bern"]),
             Location("Lausanne", ["lausanne"]),
             Location("Lucerne", ["lucerne"]),
             Location("Lugano", ["lugano"]),
-            
         ],
         ["Unia", "Syna"],
         ["GAV", "CCT", "Arbeitsfrieden"],
@@ -896,11 +1024,10 @@ EUROPE = {
             Location("Brussels", ["brussels"]),
             Location("Antwerp", ["antwerp"]),
             Location("Ghent", ["ghent"]),
-            Location("Liege", ["liege"]),            
+            Location("Liege", ["liege"]),
             Location("Charleroi", ["charleroi"]),
             Location("Liege", ["liege", "liège"]),
             Location("Bruges", ["bruges"]),
-            
         ],
         ["ACV", "CSC", "ABVV", "FGTB"],
         ["CP", "Indexation", "CBA"],
