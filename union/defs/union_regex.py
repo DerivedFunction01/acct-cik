@@ -72,6 +72,7 @@ WORKER_TERMS = [
             r"Port",
             r"Plant",
             r"Warehouse",
+            r"Postal",
         ],
         r"[Ww]orkers?",
         sep_prefix=r"\s*",
