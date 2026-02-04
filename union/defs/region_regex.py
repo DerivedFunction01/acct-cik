@@ -1228,7 +1228,6 @@ EUROPE = {
         "Isle of Man",
         ["isle of man", "manx"],
         Region.EUROPE,
-        [Location("Douglas", ["douglas"])],
         code="IM",
     ),
     Nation(
@@ -1242,7 +1241,6 @@ EUROPE = {
         "Monaco",
         ["monaco", "monegasque"],
         Region.EUROPE,
-        [Location("Monte Carlo", ["monte carlo"])],
         code="MC",
     ),
 }
