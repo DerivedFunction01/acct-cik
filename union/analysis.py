@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, Dict, Any, Optional, Tuple, Union
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from extraction import (
     NEGATION_REGEX,
@@ -1549,6 +1549,7 @@ class Entry:
     is_negated: bool = False
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
+    related_geo_codes: List[str] = field(default_factory=list)
 
 
 class Tracker:
@@ -1711,6 +1712,8 @@ class Tracker:
             scope = Scope.SEGMENT
             key = f"{country_code}::{union_name}"
 
+        related_codes = [c["code"] for c in countries if c.get("code")]
+
         self.entries.append(Entry(
             covered_count=covered_count,
             not_covered_count=not_covered_count,
@@ -1723,7 +1726,8 @@ class Tracker:
             is_explicit=is_explicit,
             is_negated=is_negated,
             scope=scope,
-            sent_idx=sentence_index
+            sent_idx=sentence_index,
+            related_geo_codes=related_codes
         ))
 
     def _get_tolerance(self, entries: List[Entry], base_threshold: float = 0.05) -> float:
@@ -1950,6 +1954,52 @@ class Tracker:
                     target.percentage = round(raw_pct, 2)
                 self.resolution_log.append(f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}")
 
+    def _resolve_aggregates(self):
+        """
+        Propagates coverage from AGGREGATE entries to their constituent countries
+        if those countries lack specific data.
+        """
+        for e in list(self.entries):
+            if e.scope == Scope.AGGREGATE and e.related_geo_codes:
+                pct = e.percentage
+                
+                # Try to derive percentage from counts if missing
+                if pct is None and e.covered_count is not None:
+                    denom = e.total_count
+                    if not denom:
+                        # Try summing known totals of constituents
+                        denom = sum(self.country_totals.get(c, 0) for c in e.related_geo_codes)
+                    
+                    if denom and denom > 0:
+                        pct = (e.covered_count / denom) * 100.0
+                
+                if pct is not None:
+                    for code in e.related_geo_codes:
+                        targets = [t for t in self.entries if t.scope == Scope.COUNTRY and t.key == code]
+                        
+                        if not targets:
+                            known_total = self.country_totals.get(code)
+                            new_entry = Entry(
+                                scope=Scope.COUNTRY,
+                                key=code,
+                                total_count=known_total,
+                                is_explicit=False
+                            )
+                            self.entries.append(new_entry)
+                            targets = [new_entry]
+                            self.resolution_log.append(f"Injected placeholder for {code} during aggregate resolution")
+
+                        for t in targets:
+                            # Only overwrite if no specific data
+                            if t.percentage is None and t.covered_count is None and not t.is_negated:
+                                t.percentage = pct
+                                t.is_qualitative = e.is_qualitative
+                                self.resolution_log.append(f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}")
+                                
+                                # Calculate count if total is known
+                                if t.total_count:
+                                    t.covered_count = round((pct / 100.0) * t.total_count)
+
     def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
         """
         Resolves gaps for geographic constituents (e.g. Countries in a Region).
@@ -2119,6 +2169,8 @@ class Tracker:
         """
         # 0. Resolve Domestic
         self._resolve_domestic()
+        # 0.5 Resolve Aggregates (Propagate down)
+        self._resolve_aggregates()
         # 1. Resolve Countries
         for country_code, census_total in self.country_totals.items():
             self._resolve_single_country(country_code, census_total)
