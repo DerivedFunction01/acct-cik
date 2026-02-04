@@ -147,19 +147,19 @@ XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
 ITEM_1_START_PATTERN = re.compile(
-    r"^\s*(?:ITEM\s+)?1[.\s]+(?:BUSINESS|DESCRIPTION OF BUSINESS|OPERATIONS)",
+    r"(?:Item\s+1\.?)(?:\s+Business)?",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
-    r"^\s*(?:ITEM\s+)?1A[.\s]+(?:RISK FACTORS|RISKS?)", re.MULTILINE | re.IGNORECASE
+    r"(?:Item\s+1A\.?)(?:\s+Risk)?", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_1B_START_PATTERN = re.compile(
-    r"^\s*(?:ITEM\s+)?1B[.\s]", re.MULTILINE | re.IGNORECASE
+    r"(?:Item\s+1B\.?)", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_2_START_PATTERN = re.compile(
-    r"^\s*(?:ITEM\s+)?2[.\s]", re.MULTILINE | re.IGNORECASE
+    r"(?:Item\s+2\.?)", re.MULTILINE | re.IGNORECASE
 )
 
 ANNUAL_REPORT_PATTERN = re.compile(
