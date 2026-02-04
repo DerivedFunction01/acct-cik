@@ -282,7 +282,7 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
     + RELATIONSHIP_NEUTRAL_TERMS
 )
 
-BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations", "closely", "publically", "disclose"]
+BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations", "closely", "publically", "disclose", "disclosure", "believe(?:s|d)?"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
 
