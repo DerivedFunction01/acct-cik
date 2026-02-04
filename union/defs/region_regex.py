@@ -1304,25 +1304,34 @@ ASIA_PACIFIC = {
         "Thailand",
         ["thailand", "thai"],
         Region.ASIA_PACIFIC,
-        [Location("Bangkok", ["bangkok"]), Location("Rayong", ["rayong"]),
-         Location("Chonburi", ["chonburi"]),
+        [
+            Location("Bangkok", ["bangkok"]),
+            Location("Rayong", ["rayong"]),
+            Location("Chonburi", ["chonburi"]),
             Location("Ayutthaya", ["ayutthaya"]),
-            ],
+        ],
         code="TH",
     ),
     Nation(
         "Philippines",
         ["philippines", "philippine", "filipino"],
         Region.ASIA_PACIFIC,
-        [Location("Manila", ["manila"]), Location("Cebu", ["cebu"]), 
-         Location("Davao", ["davao"])],
+        [
+            Location("Manila", ["manila"]),
+            Location("Cebu", ["cebu"]),
+            Location("Davao", ["davao"]),
+        ],
         code="PH",
     ),
     Nation(
         "Indonesia",
         ["indonesia", "indonesian"],
         Region.ASIA_PACIFIC,
-        [Location("Jakarta", ["jakarta"]), Location("Surabaya", ["surabaya"]),Location("Bandung", ["bandung"]), Location("Medan", ["medan"])
+        [
+            Location("Jakarta", ["jakarta"]),
+            Location("Surabaya", ["surabaya"]),
+            Location("Bandung", ["bandung"]),
+            Location("Medan", ["medan"]),
         ],
         code="ID",
     ),
@@ -1330,17 +1339,24 @@ ASIA_PACIFIC = {
         "New Zealand",
         ["new zealand", "nz"],
         Region.ASIA_PACIFIC,
-        [Location("Auckland", ["auckland"]), Location("Wellington", ["wellington"]),Location("Christchurch", ["christchurch"]),
-                    Location("Dunedin", ["dunedin"]), Location("Hamilton", ["hamilton, nz"]),
-                    
-                    ],
+        [
+            Location("Auckland", ["auckland"]),
+            Location("Wellington", ["wellington"]),
+            Location("Christchurch", ["christchurch"]),
+            Location("Dunedin", ["dunedin"]),
+            Location("Hamilton", ["hamilton, nz"]),
+        ],
         code="NZ",
     ),
     Nation(
         "Pakistan",
         ["pakistan", "pakistani"],
         Region.ASIA_PACIFIC,
-        [Location("Karachi", ["karachi"]), Location("Lahore", ["lahore"]),Location("Islamabad", ["islamabad"]), Location("Faisalabad", ["faisalabad"])
+        [
+            Location("Karachi", ["karachi"]),
+            Location("Lahore", ["lahore"]),
+            Location("Islamabad", ["islamabad"]),
+            Location("Faisalabad", ["faisalabad"]),
         ],
         code="PK",
     ),
@@ -1348,7 +1364,12 @@ ASIA_PACIFIC = {
         "Bangladesh",
         ["bangladesh", "bangladeshi"],
         Region.ASIA_PACIFIC,
-        [Location("Dhaka", ["dhaka"]), Location("Chittagong", ["chittagong"]),Location("Khulna", ["khulna"]), Location("Sylhet", ["sylhet"])],
+        [
+            Location("Dhaka", ["dhaka"]),
+            Location("Chittagong", ["chittagong"]),
+            Location("Khulna", ["khulna"]),
+            Location("Sylhet", ["sylhet"]),
+        ],
         code="BD",
     ),
     Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
@@ -1385,9 +1406,17 @@ LATIN_AMERICA = {
         [
             "CTM",
             "Confederation of Mexican Workers",
+            "UNT",
+            "CROC",
+            "Sindicato de Trabajadores",
         ],
         [
             "Maquiladora",
+            "PTU",
+            "Participación de los Trabajadores en las Utilidades",
+            "Contrato Colectivo de Trabajo",
+            "CCT",
+            "Ley Federal del Trabajo",
         ],
         code="MX",
     ),
@@ -1398,14 +1427,23 @@ LATIN_AMERICA = {
         [
             Location("Sao Paulo", ["sao paulo"]),
             Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
+            Location("Sao Bernardo do Campo", ["sao bernardo do campo"]),  # Auto Hub
+            Location("Curitiba", ["curitiba"]),
+            Location("Belo Horizonte", ["belo horizonte"]),
         ],
         [
             "CUT",
             "Unified Workers' Central",
             "Força Sindical",
+            "UGT Brazil",
         ],
         [
             "Dissídio",
+            "CLT",
+            "Consolidação das Leis do Trabalho",
+            "Acordo Coletivo",
+            "Convenção Coletiva",
+            "Contribuição sindical",
         ],
         code="BR",
     ),
@@ -1415,6 +1453,21 @@ LATIN_AMERICA = {
         Region.LATIN_AMERICA,
         [
             Location("Buenos Aires", ["buenos aires"]),
+            Location("Cordoba", ["cordoba"]),  # Major Industrial/Auto
+            Location("Rosario", ["rosario"]),
+            Location("Pacheco", ["pacheco"]),  # Ford/VW Plants
+        ],
+        [
+            "CGT",
+            "General Confederation of Labour",
+            "CTA",
+            "SMATA",
+            "UOM",
+        ],
+        [
+            "Convenio Colectivo",
+            "Paritarias",
+            "Conflictividad laboral",
         ],
         code="AR",
     ),
@@ -1424,7 +1477,11 @@ LATIN_AMERICA = {
         Region.LATIN_AMERICA,
         [
             Location("Santiago", ["santiago"]),
+            Location("Antofagasta", ["antofagasta"]),  # Mining hub
+            Location("Valparaiso", ["valparaiso"]),
         ],
+        ["CUT Chile", "Central Unitaria de Trabajadores"],
+        ["Negociación colectiva", "Código del Trabajo"],
         code="CL",
     ),
     Nation(
@@ -1433,12 +1490,33 @@ LATIN_AMERICA = {
         Region.LATIN_AMERICA,
         [
             Location("Bogota", ["bogota"]),
+            Location("Medellin", ["medellin"]),
+            Location("Cali", ["cali"]),
         ],
+        ["CUT Colombia", "CTC", "CGT Colombia"],
         code="CO",
     ),
-    Nation("Peru", ["peru", "peruvian"], Region.LATIN_AMERICA, code="PE"),
-    Nation("Venezuela", ["venezuela", "venezuelan"], Region.LATIN_AMERICA, code="VE"),
-    Nation("Ecuador", ["ecuador", "ecuadorian"], Region.LATIN_AMERICA, code="EC"),
+    Nation(
+        "Peru",
+        ["peru", "peruvian"],
+        Region.LATIN_AMERICA,
+        [Location("Lima", ["lima"])],
+        code="PE",
+    ),
+    Nation(
+        "Venezuela",
+        ["venezuela", "venezuelan"],
+        Region.LATIN_AMERICA,
+        [Location("Caracas", ["caracas"])],
+        code="VE",
+    ),
+    Nation(
+        "Ecuador",
+        ["ecuador", "ecuadorian"],
+        Region.LATIN_AMERICA,
+        [Location("Quito", ["quito"]), Location("Guayaquil", ["guayaquil"])],
+        code="EC",
+    ),
     Nation("Guatemala", ["guatemala", "guatemalan"], Region.LATIN_AMERICA, code="GT"),
     Nation(
         "Dominican Republic",
@@ -1453,10 +1531,7 @@ LATIN_AMERICA = {
     Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
     Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
     Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA, code="PY"),
-    Nation("Suriname", ["suriname", "surinamese"], Region.LATIN_AMERICA, code="SR"),
-    Nation("Guyana", ["guyana", "guyanese"], Region.LATIN_AMERICA, code="GY"),
 }
-
 MIDDLE_EAST_AFRICA = {
     Nation(
         "Middle East",
@@ -1472,6 +1547,8 @@ MIDDLE_EAST_AFRICA = {
         [
             Location("Dubai", ["dubai"]),
             Location("Abu Dhabi", ["abu dhabi"]),
+            Location("Sharjah", ["sharjah"]),
+            Location("Jebel Ali", ["jebel ali"]),  # Major Port/Free Zone
         ],
         code="AE",
     ),
@@ -1481,6 +1558,10 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Riyadh", ["riyadh"]),
+            Location("Jeddah", ["jeddah"]),
+            Location("Dammam", ["dammam"]),
+            Location("Khobar", ["khobar"]),
+            Location("Dhahran", ["dhahran"]),  # Aramco/Industrial hub
         ],
         code="SA",
     ),
@@ -1491,10 +1572,15 @@ MIDDLE_EAST_AFRICA = {
         [
             Location("Tel Aviv", ["tel aviv"]),
             Location("Jerusalem", ["jerusalem"]),
+            Location("Beer Sheva", ["beer sheva"]),  # Major Industrial/Port
+            Location("Netanya", ["netanya"]),
+            Location("Ashdod", ["ashdod"]),
+            Location("Haifa", ["haifa"]),  # Major Industrial/Port
         ],
+        ["Histadrut", "General Federation of Labour in Israel"],
+        [],
         code="IL",
     ),
-    Nation("Kuwait", ["kuwait", "kuwaiti"], Region.MIDDLE_EAST_AFRICA, code="KW"),
     Nation(
         "South Africa",
         ["south africa", "south african"],
@@ -1502,6 +1588,9 @@ MIDDLE_EAST_AFRICA = {
         [
             Location("Johannesburg", ["johannesburg", "joburg"]),
             Location("Cape Town", ["cape town"]),
+            Location("Durban", ["durban"]),  # Major Port
+            Location("Port Elizabeth", ["port elizabeth", "gqeberha"]),  # Auto Hub
+            Location("Pretoria", ["pretoria"]),
         ],
         [
             "COSATU",
@@ -1510,6 +1599,11 @@ MIDDLE_EAST_AFRICA = {
             "Association of Mineworkers and Construction Union",
             "NUMSA",
             "National Union of Metalworkers of South Africa",
+            "FEDUSA",
+        ],
+        [
+            "LRA",
+            "NEDLAC",
         ],
         code="ZA",
     ),
@@ -1519,8 +1613,40 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Lagos", ["lagos"]),
+            Location("Abuja", ["abuja"]),
+            Location("Port Harcourt", ["port harcourt"]),  # Oil/Gas Hub
         ],
+        ["NLC", "Nigeria Labour Congress", "TUC Nigeria"],
         code="NG",
+    ),
+    Nation(
+        "Morocco",
+        ["morocco", "moroccan"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Casablanca", ["casablanca"]),
+            Location("Rabat", ["rabat"]),
+            Location("Marrakech", ["marrakech"]),
+            Location("Tangier", ["tangier", "tanger"]),  # Major Port/Auto
+        ],
+        [
+            "Union Marocaine du Travail",
+            "Confédération Démocratique du Travail",
+        ],
+        code="MA",
+    ),
+    Nation(
+        "Egypt",
+        ["egypt", "egyptian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Cairo", ["cairo"]),
+            Location("Alexandria", ["alexandria"]),
+            Location("Giza", ["giza"]),
+            Location("Suez", ["suez"]),
+        ],
+        ["ETUF", "Egyptian Trade Union Federation"],
+        code="EG",
     ),
     Nation(
         "Kenya",
@@ -1528,79 +1654,152 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Nairobi", ["nairobi"]),
+            Location("Mombasa", ["mombasa"]),
+            Location("Kisumu", ["kisumu"]),
+            Location("Nakuru", ["nakuru"]),
         ],
         code="KE",
     ),
-    Nation("Tanzania", ["tanzania", "tanzanian"], Region.MIDDLE_EAST_AFRICA, code="TZ"),
     Nation(
-        "Egypt",
-        ["egypt", "egyptian"],
+        "Ghana",
+        ["ghana", "ghanaian"],
         Region.MIDDLE_EAST_AFRICA,
         [
-            Location("Cairo", ["cairo"]),
+            Location("Accra", ["accra"]),
+            Location("Kumasi", ["kumasi"]),
+            Location("Tema", ["tema"]),
         ],
-        code="EG",
-    ),
-    Nation("Ethiopia", ["ethiopia", "ethiopian"], Region.MIDDLE_EAST_AFRICA, code="ET"),
-    Nation("Ghana", ["ghana", "ghanaian"], Region.MIDDLE_EAST_AFRICA, code="GH"),
-    Nation(
-        "Morocco",
-        ["morocco", "moroccan"],
-        Region.MIDDLE_EAST_AFRICA,
-        [],
-        [
-            "UMT",
-            "Union Marocaine du Travail",
-            "CDT",
-            "Confédération Démocratique du Travail",
-        ],
-        code="MA",
+        ["TUC Ghana"],
+        code="GH",
     ),
     Nation(
         "Tunisia",
         ["tunisia", "tunisian"],
         Region.MIDDLE_EAST_AFRICA,
-        [],
         [
-            "UGTT",
-            "Union Générale Tunisienne du Travail",
+            Location("Tunis", ["tunis"]),
+            Location("Sfax", ["sfax"]),
+            Location("Sousse", ["sousse"]),
+            Location("Kairouan", ["kairouan"]),
+            Location("Bizerte", ["bizerte"]),
         ],
+        ["UGTT"],
         code="TN",
     ),
-    Nation("Algeria", ["algeria", "algerian"], Region.MIDDLE_EAST_AFRICA, code="DZ"),
-    Nation("Qatar", ["qatar", "qatari"], Region.MIDDLE_EAST_AFRICA, code="QA"),
-    Nation("Syria", ["syria", "syrian"], Region.MIDDLE_EAST_AFRICA, code="SY"),
-    Nation("Yemen", ["yemen", "yemeni"], Region.MIDDLE_EAST_AFRICA, code="YE"),
-    Nation("Jordan", ["jordan", "jordanian"], Region.MIDDLE_EAST_AFRICA, code="JO"),
-    Nation("Lebanon", ["lebanon", "lebanese"], Region.MIDDLE_EAST_AFRICA, code="LB"),
-    Nation("Oman", ["oman", "omanese"], Region.MIDDLE_EAST_AFRICA, code="OM"),
     Nation(
-        "Palestine", ["palestine", "palestinian"], Region.MIDDLE_EAST_AFRICA, code="PS"
-    ),
-    Nation("Iraq", ["iraq", "iraqi"], Region.MIDDLE_EAST_AFRICA, code="IQ"),
-    Nation("Libya", ["libya", "libyan"], Region.MIDDLE_EAST_AFRICA, code="LY"),
-    Nation("Sudan", ["sudan", "sudanese"], Region.MIDDLE_EAST_AFRICA, code="SD"),
-    Nation("Somalia", ["somalia", "somalian"], Region.MIDDLE_EAST_AFRICA, code="SO"),
-    Nation("Eritrea", ["eritrea", "eritrean"], Region.MIDDLE_EAST_AFRICA, code="ER"),
-    Nation(
-        "Djibouti", ["djibouti", "djiboutian"], Region.MIDDLE_EAST_AFRICA, code="DJ"
-    ),
-    Nation(
-        "Mauritania",
-        ["mauritania", "mauritanian"],
+        "Kuwait",
+        ["kuwait", "kuwaiti"],
         Region.MIDDLE_EAST_AFRICA,
-        code="MR",
+        [
+            Location("Kuwait City", ["kuwait city"]),
+            Location("Al Ahmadi", ["al ahmadi", "ahmadi"]),
+            Location("Hawalli", ["hawalli"]),
+            Location("As Salimiyah", ["salimiyah", "salmiya"]),
+        ],
+        code="KW",
     ),
-    Nation("Mali", ["mali", "malian"], Region.MIDDLE_EAST_AFRICA, code="ML"),
-    Nation("Niger", ["niger", "nigerian"], Region.MIDDLE_EAST_AFRICA, code="NE"),
-    Nation("Senegal", ["senegal", "senegalese"], Region.MIDDLE_EAST_AFRICA, code="SN"),
-    Nation("Chad", ["chad", "chadian"], Region.MIDDLE_EAST_AFRICA, code="TD"),
-    Nation("Liberia", ["liberia", "liberian"], Region.MIDDLE_EAST_AFRICA, code="LR"),
     Nation(
-        "Sierra Leone",
-        ["sierra leone", "sierraleonean"],
+        "Tanzania",
+        ["tanzania", "tanzanian"],
         Region.MIDDLE_EAST_AFRICA,
-        code="SL",
+        [
+            Location("Dar es Salaam", ["dar es salaam", "dar"]),
+            Location("Mwanza", ["mwanza"]),
+            Location("Dodoma", ["dodoma"]),
+            Location("Arusha", ["arusha"]),
+            Location("Mbeya", ["mbeya"]),
+        ],
+        code="TZ",
+    ),
+    Nation(
+        "Ethiopia",
+        ["ethiopia", "ethiopian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Addis Ababa", ["addis ababa", "addis"]),
+            Location("Dire Dawa", ["dire dawa"]),
+            Location("Mekelle", ["mekelle", "mekele"]),
+            Location("Gondar", ["gondar"]),
+            Location("Adama", ["adama"]),
+        ],
+        code="ET",
+    ),
+    Nation(
+        "Algeria",
+        ["algeria", "algerian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Algiers", ["algiers"]),
+            Location("Oran", ["oran", "wahran"]),
+            Location("Constantine", ["constantine"]),
+            Location("Annaba", ["annaba"]),
+            Location("Blida", ["blida"]),
+        ],
+        code="DZ",
+    ),
+    Nation(
+        "Qatar",
+        ["qatar", "qatari"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Doha", ["doha"]),
+            Location("Al Rayyan", ["al rayyan", "rayyan"]),
+            Location("Al Wakrah", ["al wakrah", "wakrah"]),
+            Location("Al Khor", ["al khor"]),
+        ],
+        code="QA",
+    ),
+    Nation(
+        "Oman",
+        ["oman", "omanese"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Muscat", ["muscat"]),
+            Location("Seeb", ["seeb", "as seeb"]),
+            Location("Salalah", ["salalah"]),
+            Location("Sohar", ["sohar"]),
+            Location("Bawshar", ["bawshar"]),
+        ],
+        code="OM",
+    ),
+    Nation(
+        "Jordan",
+        ["jordan", "jordanian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Amman", ["amman"]),
+            Location("Zarqa", ["zarqa"]),
+            Location("Irbid", ["irbid"]),
+            Location("Russeifa", ["russeifa", "rusaifa"]),
+            Location("Aqaba", ["aqaba"]),
+        ],
+        code="JO",
+    ),
+    Nation(
+        "Lebanon",
+        ["lebanon", "lebanese"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Beirut", ["beirut"]),
+            Location("Tripoli", ["tripoli"]),
+            Location("Sidon", ["sidon"]),
+            Location("Tyre", ["tyre", "sour"]),
+            Location("Nabatieh", ["nabatieh"]),
+        ],
+        code="LB",
+    ),
+    Nation(
+        "Iraq",
+        ["iraq", "iraqi"],
+        Region.MIDDLE_EAST_AFRICA,
+        [
+            Location("Baghdad", ["baghdad"]),
+            Location("Mosul", ["mosul"]),
+            Location("Basra", ["basra", "basrah"]),
+            Location("Erbil", ["erbil", "arbil"]),
+            Location("Kirkuk", ["kirkuk"]),
+        ],
+        code="IQ",
     ),
 }
 
