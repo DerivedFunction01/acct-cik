@@ -1370,6 +1370,18 @@ def determine_geo_context(
                 "note": f"Inferred from language term '{m.text}' ({m.geo_code})",
             }
 
+    # 2.5 Global Modifiers (Stop Inheritance)
+    # If the sentence contains modifiers that imply a global/consolidated scope,
+    # treat it as International and do NOT inherit from previous context.
+    strong_global_modifiers = {"global", "international"}
+    if any(m.lower() in strong_global_modifiers for m in analysis.total_modifiers):
+        return {
+            "region": Region.INTERNATIONAL.value,
+            "countries": [],
+            "specificity": Specificity.IMPLICIT.value,
+            "note": "Inferred from global modifier",
+        }
+
     # 3. Inheritance (Lowest Priority)
     if last_context:
         # Create a copy of the last context but mark as inherited
