@@ -886,7 +886,6 @@ EUROPE = {
         [
             "Comité Social et Économique",
             "CSE",
-            "Convention collective",
             "Accord de branche",
             "Accord d'entreprise",
             "Délégués syndicaux",
