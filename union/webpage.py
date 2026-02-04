@@ -167,6 +167,11 @@ FISCAL_YEAR_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 
+JURISDICTION_PATTERN = re.compile(r"\bJurisdiction\s+of\s+incorporation\s+or\s+organization\b", re.IGNORECASE | re.MULTILINE)
+OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b", re.IGNORECASE | re.MULTILINE)
+HEADQUARTERED_PATTERN = re.compile(r"\bheadquartered\s+in\b", re.IGNORECASE | re.MULTILINE)
+
+HOME_COUNTRY_PATTERNS = [JURISDICTION_PATTERN, OFFICE_PATTERN, HEADQUARTERED_PATTERN]
 # %%
 # =============================================================================
 # LOAD DATA
