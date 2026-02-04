@@ -1321,7 +1321,8 @@ def determine_geo_context(
 
                 if m.geo_code in REGION_CODES:
                     # It is a region entity
-                    r_obj = {"name": m.country, "code": m.geo_code, "countries": []}
+                    # Use region enum value for consistency with Tracker keys
+                    r_obj = {"name": m.region.value, "code": m.geo_code, "countries": []}
                     regions_list.append(r_obj)
                     found_regions_map[m.geo_code] = (r_obj, m.region)
                 else:
@@ -1713,6 +1714,8 @@ class Tracker:
             key = f"{country_code}::{union_name}"
 
         related_codes = [c["code"] for c in countries if c.get("code")]
+        if "regions" in geo_context:
+            related_codes.extend([r["name"] for r in geo_context["regions"] if r.get("name")])
 
         self.entries.append(Entry(
             covered_count=covered_count,
@@ -1840,11 +1843,11 @@ class Tracker:
                     is_subset_inference = True
                 elif e.not_covered_count is not None and self._matches_census(e.not_covered_count, e.total_count):
                     is_subset_inference = True
-                
+
                 if is_subset_inference:
                     old_total = e.total_count
                     e.total_count = census_total
-                    
+
                     # Recalculate the other side
                     if e.covered_count is not None:
                         e.not_covered_count = census_total - e.covered_count
@@ -1852,7 +1855,7 @@ class Tracker:
                     elif e.not_covered_count is not None:
                         e.covered_count = census_total - e.not_covered_count
                         e.percentage = round((e.covered_count / census_total) * 100.0, 2)
-                    
+
                     self.resolution_log.append(f"Upgraded implicit total for {name} ({e.key}) from {old_total} to {census_total} (Census Match)")
 
     def _resolve_gap_list(self, name: str, census_total: float, entries: List[Entry]):
@@ -1868,6 +1871,13 @@ class Tracker:
             if e.covered_count is None and e.percentage is not None:
                 # Apply if total is unknown OR matches the census (i.e. it's a country-wide rate)
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
+                    # Safety: Don't assume a segment covers the entire census, unless we only have a single segment (and generic Entry for that specific country, since we inject a placeholder entry for mentioned countries).
+                    if e.scope == Scope.SEGMENT and e.total_count is None:
+                        segment_count = sum(
+                            1 for entry in entries if entry.scope == Scope.SEGMENT
+                        )
+                        if segment_count > 1:
+                            continue
                     e.covered_count = round((e.percentage / 100.0) * census_total)
                     e.total_count = census_total
                     self.resolution_log.append(f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}")
@@ -1962,32 +1972,40 @@ class Tracker:
         for e in list(self.entries):
             if e.scope == Scope.AGGREGATE and e.related_geo_codes:
                 pct = e.percentage
-                
+
                 # Try to derive percentage from counts if missing
                 if pct is None and e.covered_count is not None:
                     denom = e.total_count
                     if not denom:
                         # Try summing known totals of constituents
                         denom = sum(self.country_totals.get(c, 0) for c in e.related_geo_codes)
-                    
+
                     if denom and denom > 0:
                         pct = (e.covered_count / denom) * 100.0
-                
+
                 if pct is not None:
                     for code in e.related_geo_codes:
-                        targets = [t for t in self.entries if t.scope == Scope.COUNTRY and t.key == code]
-                        
+                        targets = [t for t in self.entries if t.key == code]
+
                         if not targets:
-                            known_total = self.country_totals.get(code)
+                            # Determine if key is a Region Name
+                            is_region = any(r.value == code for r in Region)
+                            scope = Scope.REGION if is_region else Scope.COUNTRY
+
+                            if scope == Scope.REGION:
+                                known_total = self.region_totals.get(code)
+                            else:
+                                known_total = self.country_totals.get(code)
+
                             new_entry = Entry(
-                                scope=Scope.COUNTRY,
+                                scope=scope,
                                 key=code,
                                 total_count=known_total,
                                 is_explicit=False
                             )
                             self.entries.append(new_entry)
                             targets = [new_entry]
-                            self.resolution_log.append(f"Injected placeholder for {code} during aggregate resolution")
+                            self.resolution_log.append(f"Injected placeholder for {code} ({scope.value}) during aggregate resolution")
 
                         for t in targets:
                             # Only overwrite if no specific data
@@ -1995,7 +2013,7 @@ class Tracker:
                                 t.percentage = pct
                                 t.is_qualitative = e.is_qualitative
                                 self.resolution_log.append(f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}")
-                                
+
                                 # Calculate count if total is known
                                 if t.total_count:
                                     t.covered_count = round((pct / 100.0) * t.total_count)
@@ -2025,6 +2043,12 @@ class Tracker:
         # 2. Solve for single unknown
         if len(unknowns) == 1 and known_sum < region_total:
             target = unknowns[0]
+
+            # Validation: Ensure we don't assign a regional gap to a segment
+            if target.scope == Scope.SEGMENT:
+                self.resolution_log.append(f"Skipped GEO GAP for {name}: Target {target.key} is a SEGMENT.")
+                return
+
             gap = region_total - known_sum
 
             # Sanity check: Gap should be positive and reasonable
@@ -2708,8 +2732,8 @@ class UnionAnalyzer:
         counts = [
             m
             for m in analysis._matches
-            if m["type"] == MatchType.WORKER_COUNT
-            or (m["type"] == MatchType.NUMBER and m["val"])
+            if (m["type"] == MatchType.WORKER_COUNT
+            or m["type"] == MatchType.NUMBER)
         ]
         if not counts:
             return {}, None
