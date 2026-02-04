@@ -1343,6 +1343,25 @@ def determine_geo_context(
         lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
         if lang_matches:
             m = lang_matches[0]
+
+            # Try to resolve against last_context if available
+            if last_context and last_context.get("countries") and m.geo_code:
+                allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
+                # Find first country in last_context that matches the language
+                matching_country = next(
+                    (c for c in last_context["countries"] if c["code"] in allowed_codes),
+                    None,
+                )
+                if matching_country:
+                    region_name = _CODE_TO_REGION.get(matching_country["code"], Region.UNKNOWN.value)
+                    return {
+                        "region": region_name,
+                        "countries": [matching_country],
+                        "specificity": Specificity.INFERRED_LANG.value,
+                        "union_name_indicator": m.text,
+                        "note": f"Resolved language term '{m.text}' to {matching_country['name']} from context",
+                    }
+
             return {
                 "region": Region.INTERNATIONAL.value,  # Broad region
                 "countries": [],  # No specific country known
