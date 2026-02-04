@@ -94,6 +94,7 @@ class MinimalTextCleaner:
         (re.compile(r"\bmail\s+orders?\b", re.IGNORECASE), "delivery"),
         (re.compile(r"\bmoney\s+orders?\b", re.IGNORECASE), "payment"),
         (re.compile(r"\bstanding\s+orders?\b", re.IGNORECASE), "instruction"),
+        (re.compile(r"\bpolice\s+orders?\b", re.IGNORECASE), "police report"),
     ]
 
     # Bullet and Dashed Patterns
