@@ -157,7 +157,7 @@ UNION_DENOMINATOR_REGEX = build_regex(
             DENOMINATOR_PREFIX,
             DENOMINATOR_NOUNS,
             DENOMINATOR_COVERAGE_TERMS,
-            sep_prefix=r"\s+" + DENOMINATOR_GAP,
+            sep_prefix=r"\s+",
             sep_suffix=r"\s+",
         ),
     ]
