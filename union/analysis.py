@@ -524,7 +524,7 @@ class SimpleCoverageAnalyzer:
         if (
             not analysis.percentages
             and not effective_counts
-            and analysis.negation_terms
+            and analysis.has_remaining_other
         ):
             data.update(
                 {

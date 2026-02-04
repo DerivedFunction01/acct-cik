@@ -125,40 +125,6 @@ attract talent and maintain customer relationships, particularly among customers
 
 """
 
-"""
-
-## Breakdown of True Unionization Rate
-
-**Covered (Unionized) Employees:**
-- UAW (U.S. manufacturing): 11,644
-- Teamsters (U.S. logistics): 920
-- ALPA (U.S. pilots): 500
-- France (Comité Social): 3,000
-- Germany/IG Metall (Hamburg): 2,470
-- Mexico (Sindicato): 270
-- **Total covered: 18,804**
-
-**Not Covered (Non-Union) Employees:**
-- U.S. non-union: 44,256
-- U.S. senior managers: 200
-- Germany/Works Council only (Munich): 1,500
-- Japan (Shunto, non-union): 3,200
-- China (ACFTU, zero formal bargaining): 10,000
-- India (non-unionized): 20,000
-- Brazil (low formal membership): 1,100
-- **Total not covered: 80,256**
-
-**Global Workforce Total: 99,060**
-
-**Global Unionization Rate: 18,804 ÷ 99,060 = 18.98% ≈ 19%**
-
-**By Region:**
-- **U.S.**: 13,064 / 57,520 = 22.7%
-- **Europe**: 5,470 / 7,100 = 77.0%
-- **Latin America**: 270 / 2,900 = 9.3%
-- **Asia-Pacific**: 0 / 33,200 = 0.0%
-"""
-
 
 if __name__ == "__main__":
     # Test setup
