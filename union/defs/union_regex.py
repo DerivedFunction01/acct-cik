@@ -1,3 +1,4 @@
+#%%
 """
 - collective + bargain
 - bargaining + (agreement, contracts)
@@ -146,7 +147,7 @@ DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
 COLLECTIVE_BARGAIN = build_alternation([
-    build_compound([CORE.COLLECTIVE], [CORE.BARGAIN, CORE.LABOR], sep_prefix=r"[\s-]+"),
+    build_compound([CORE.COLLECTIVE, r"industry(?:[- ]wide)?"], [CORE.BARGAIN, CORE.LABOR], sep_prefix=r"[\s-]+"),
     build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+")]
 )
 UNION_PHRASES = [
@@ -172,6 +173,7 @@ MEMBERSHIP_PHRASES = [
     CORE.UNIONIZE,
     COLLECTIVE_BARGAIN,
     build_compound([CORE.LABOR, CORE.UNION], [r"representations?", r"affiliations?"]),
+    build_compound([r"worker", r"employee"], [r"representations?"]),
     r"(?:union\s+)?memberships?",
     r"affiliations?",
 ]
@@ -339,7 +341,7 @@ NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 # Negation patterns
 NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
-
+#%%
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")
     examples = [
