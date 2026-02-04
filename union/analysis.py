@@ -1,8 +1,7 @@
 from enum import Enum
 from typing import List, Dict, Any, Optional, Tuple, Union
-import statistics
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from extraction import (
     NEGATION_REGEX,
@@ -11,7 +10,6 @@ from extraction import (
     UnionExtractor,
     SentenceAnalysis,
     MatchType,
-    REMAIN_REGEX,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
 )
@@ -1548,16 +1546,24 @@ class Tracker:
                     mentioned_in_region[r_name] = set()
                 mentioned_in_region[r_name].add(code)
 
+        # 0. Global -> Region (if singular)
+        active_regions = set(self.region_totals.keys()) | set(mentioned_in_region.keys())
+        if self.global_total > 0 and len(active_regions) == 1:
+            target_region = list(active_regions)[0]
+            current_r_total = self.region_totals.get(target_region, 0.0)
+            if self.global_total > current_r_total:
+                self.region_totals[target_region] = self.global_total
+                self.resolution_log.append(
+                    f"Updated region '{target_region}' from {current_r_total} to {self.global_total} based on global total (single region context)."
+                )
+
         # Aggregate countries to regions
         region_aggs = {}
-        countries_in_region = {}
+        # countries_in_region = {}
         for code, count in self.country_totals.items():
             region_name = _CODE_TO_REGION.get(code)
             if region_name:
                 region_aggs[region_name] = region_aggs.get(region_name, 0.0) + count
-                if region_name not in countries_in_region:
-                    countries_in_region[region_name] = []
-                countries_in_region[region_name].append(code)
 
         # Update region totals if sum of countries is greater
         for r_name, agg_count in region_aggs.items():
@@ -1569,11 +1575,9 @@ class Tracker:
                 )
 
         # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
-        for r_name, codes in countries_in_region.items():
-            all_mentioned = mentioned_in_region.get(r_name, set())
-
-            if len(codes) == 1 and len(all_mentioned) == 1:
-                code = codes[0]
+        for r_name, codes in mentioned_in_region.items():
+            if len(codes) == 1:
+                code = list(codes)[0]
                 r_total = self.region_totals.get(r_name, 0.0)
                 c_total = self.country_totals.get(code, 0.0)
                 if r_total > c_total:
