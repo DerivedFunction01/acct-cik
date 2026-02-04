@@ -21,6 +21,7 @@ from defs.regex_lib import build_alternation, build_compound, build_regex
 class CORE(Enum):
     UNION = r"Union(?:i(?:z|s)ed|i(?:z|s)ation|s)?"
     UNIONIZE = r"Unioni(?:z|s)(?:ation|ed)"
+    ATWILL = r"At[- ]will"
     NONUNION = r"(?:non|un|not)[- ]?union(?:i(?:z|s)ed|s)?"
     REUNIONIZE = r"Re[- ]?unioni(?:z|s)(?:ations?|ed?)"
     COLLECTIVE = r"Collectives?"
@@ -339,7 +340,7 @@ SUPPLIER_TERMS = [
 SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
 
 NON_COVERAGE_PHRASES = [
-    r"at[- ]will",
+    CORE.ATWILL,
     r"operate(?:s|d)?\s+outside",
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",

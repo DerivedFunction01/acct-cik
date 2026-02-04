@@ -4,11 +4,28 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN2, build_alternation, build_regex, build_compound, to_build_alternation
+from defs.regex_lib import (
+    SENTENCE_SPLIT_PATTERN2,
+    build_alternation,
+    build_regex,
+    build_compound,
+    to_build_alternation,
+)
 from defs.union_regex import (
-    GAP, UNION_REGEX, RISK_REGEX, DYNAMIC_UNION_REGEX, WORKER_TERMS, 
-    NON_COVERAGE_REGEX, NON_UNION_REGEX, RELATIONSHIP_REGEX, RELATIONSHIP_QUALITY_REGEX
-    , SUPPLIER_REGEX, COVERAGE_REGEX, BOILERPLATE_REGEX, PERSONNEL_EVENT_REGEX
+    CORE,
+    GAP,
+    UNION_REGEX,
+    RISK_REGEX,
+    DYNAMIC_UNION_REGEX,
+    WORKER_TERMS,
+    NON_COVERAGE_REGEX,
+    NON_UNION_REGEX,
+    RELATIONSHIP_REGEX,
+    RELATIONSHIP_QUALITY_REGEX,
+    SUPPLIER_REGEX,
+    COVERAGE_REGEX,
+    BOILERPLATE_REGEX,
+    PERSONNEL_EVENT_REGEX,
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource
 
@@ -16,50 +33,68 @@ from defs.region_regex import Region, RegionMatcher, GeoSource
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
-RATIO_REGEX = re.compile(r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b", re.IGNORECASE)
+RATIO_REGEX = re.compile(
+    r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b",
+    re.IGNORECASE,
+)
 RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
 
 # --- Temporal Regexes ---
-CONDITIONAL_REGEX = build_regex([
-    r"if", r"could", r"may", r"might", r"potential", r"possible", r"can"
-])
+CONDITIONAL_REGEX = build_regex(
+    [r"if", r"could", r"may", r"might", r"potential", r"possible", r"can"]
+)
 
-CURRENT_REGEX = build_regex([
-    r"current(?:ly)?", r"present", r"now", r"today",
-    r"this\s+(?:fiscal|reporting)\s+(?:year|period)"
-])
+CURRENT_REGEX = build_regex(
+    [
+        r"current(?:ly)?",
+        r"present",
+        r"now",
+        r"today",
+        r"this\s+(?:fiscal|reporting)\s+(?:year|period)",
+    ]
+)
 
-HISTORICAL_REGEX = build_regex([
-    r"historical(?:ly)?", r"previously", r"prior\s+to",
-    r"(?:last|prior|past|previous|preceding)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
-])
+HISTORICAL_REGEX = build_regex(
+    [
+        r"historical(?:ly)?",
+        r"previously",
+        r"prior\s+to",
+        r"(?:last|prior|past|previous|preceding)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)",
+    ]
+)
 
-FUTURE_REGEX = build_regex([
-    r"in\s+the\s+future",
-    r"(?:future|next|upcoming)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)"
-])
+FUTURE_REGEX = build_regex(
+    [
+        r"in\s+the\s+future",
+        r"(?:future|next|upcoming)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)",
+    ]
+)
 
-NEGATION_REGEX = build_regex([
-    r"no", r"not", r"nor", r"without", r"neither", r"none", r"never"
-])
+NEGATION_REGEX = build_regex(
+    [r"no", r"not", r"nor", r"without", r"neither", r"none", r"never"]
+)
 
-REMAIN_REGEX = build_regex([
-    r"remaining", r"rest", r"other"
-])
+REMAIN_REGEX = build_regex([r"remaining", r"rest", r"other"])
 
 
-OF_REGEX = build_regex([
-    r"(?:out\s+)?of"
-])
-OR_REGEX = build_regex([
-    r"or"
-])
+OF_REGEX = build_regex([r"(?:out\s+)?of"])
+OR_REGEX = build_regex([r"or"])
 
-TOTAL_MODIFIER_REGEX = build_regex([
-    r"total", r"global", r"worldwide", r"aggregate", r"consolidated", 
-    r"entire", r"overall", r"combined", r"full", r"whole",
-    r"employ(?:s|ed|ees?)?",
-])
+TOTAL_MODIFIER_REGEX = build_regex(
+    [
+        r"total",
+        r"global",
+        r"worldwide",
+        r"aggregate",
+        r"consolidated",
+        r"entire",
+        r"overall",
+        r"combined",
+        r"full",
+        r"whole",
+        r"employ(?:s|ed|ees?)?",
+    ]
+)
 
 QUALITATIVE_MULTIPLIERS = [
     (build_regex([r"almost", r"nearly", r"virtually"]), 0.95),
@@ -79,12 +114,36 @@ WORKER_COUNT_REGEX = build_regex(
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 
+DENOMINATOR_PREFIX = [r"(?:out\s+)?of"]
+DENOMINATOR_ADJECTIVES = [
+    CORE.UNION,
+    r"represented",
+    r"covered",
+    r"bargaining",
+    CORE.NONUNION,
+    CORE.ATWILL,
+    r"unrepresented",
+]
+DENOMINATOR_NOUNS = [worker_term_pattern, r"population", r"unit"]
+DENOMINATOR_GAP = r"(?:[\w-]+\s+){0,2}"
+
 UNION_DENOMINATOR_REGEX = build_regex(
     [
-        rf"(?:out\s+)?of\s+(?:[\w-]+\s+){{0,2}}(?:union(?:ized)?|represented|covered|bargaining)\s+(?:[\w-]+\s+){{0,2}}(?:{worker_term_pattern}|population|unit)",
-        r"(?:out\s+)?of\s+(?:our\s+|the\s+)?(?:union|bargaining\s+unit)",
+        build_compound(
+            DENOMINATOR_PREFIX,
+            DENOMINATOR_ADJECTIVES,
+            DENOMINATOR_NOUNS,
+            sep_prefix=r"\s+" + DENOMINATOR_GAP,
+            sep_suffix=r"\s+" + DENOMINATOR_GAP,
+        ),
+        build_compound(
+            DENOMINATOR_PREFIX,
+            [r"union", r"bargaining\s+unit"],
+            sep_prefix=r"\s+(?:our\s+|the\s+)?",
+        ),
     ]
 )
+
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -111,6 +170,7 @@ class MatchType(Enum):
     RESPECTIVELY = "RESPECTIVELY"
     REMAINING_OTHER = "REMAINING_OTHER"
 
+
 @dataclass
 class GeoMatch:
     text: str
@@ -119,6 +179,7 @@ class GeoMatch:
     city: Optional[str] = None
     geo_code: Optional[str] = None
     source_type: GeoSource = GeoSource.EXPLICIT
+
 
 @dataclass
 class SentenceAnalysis:
@@ -140,7 +201,7 @@ class SentenceAnalysis:
     qualitative_membership_terms: List[str] = field(default_factory=list)
     total_modifiers: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
-    
+
     # Temporal / Conditional flags
     has_conditional: bool = False
     has_current: bool = False
@@ -152,8 +213,9 @@ class SentenceAnalysis:
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
-    
+
     is_relevant: bool = False
+
 
 @dataclass
 class QualitativeTerm:
@@ -177,7 +239,7 @@ class QualitativeTerm:
     requires_suffix: bool = (
         False  # True if suffix is mandatory (e.g., "portion" needed)
     )
-    is_all: bool = False # True if the meaning is 100%
+    is_all: bool = False  # True if the meaning is 100%
 
     prefix_gap: Optional[str] = "[- ]"
     suffix_gap: Optional[str] = "[- ]"
@@ -202,7 +264,9 @@ class QualitativeTerm:
         """Get the appropriate percentage based on negation."""
         return self.negated_pct if is_negated else self.positive_pct
 
+
 from defs.union_regex import MEMBERSHIP_PHRASES
+
 QUALITATIVE_MEMBERSHIP = [
     # ===== 95% TIER (Mandatory/Widespread) =====
     QualitativeTerm(
@@ -683,11 +747,11 @@ QUALITATIVE_TERMS_AMB = [
     ),
     QualitativeTerm(
         core_terms=["certain", "several", "some", "few", "multiple", "various"],
-        suffix_terms=WORKER_TERMS, # certain employees, several employees
+        suffix_terms=WORKER_TERMS,  # certain employees, several employees
         positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
-        suffix_gap=GAP # Gap
+        suffix_gap=GAP,  # Gap
     ),
     QualitativeTerm(
         core_terms=["number", "quantity"],
@@ -714,6 +778,7 @@ for term in QUALITATIVE_MEMBERSHIP:
     COMPILED_QUALITATIVE_MEMBERSHIP_PATTERNS.append(
         {"regex": regex, "term": term, "pattern_str": pattern_str}
     )
+
 
 class UnionExtractor:
     def __init__(self):
@@ -755,52 +820,64 @@ class UnionExtractor:
                         continue
 
                 # Record match
-                analysis._matches.append({
-                    'type': type_name,
-                    'val': extracted,
-                    'span': (start, end),
-                    'text': val
-                })
+                analysis._matches.append(
+                    {
+                        "type": type_name,
+                        "val": extracted,
+                        "span": (start, end),
+                        "text": val,
+                    }
+                )
 
                 if side_effect:
                     side_effect(m, extracted)
 
                 # Mask with spaces
                 for i in range(start, end):
-                    chars[i] = ' '
+                    chars[i] = " "
 
             working_text = "".join(chars)
 
         # 1. Extract Percentages
         process_matches(
-            PERCENT_REGEX, MatchType.PERCENT,
+            PERCENT_REGEX,
+            MatchType.PERCENT,
             lambda m: float(m.group(1)),
-            lambda m, val: analysis.percentages.append(val)
+            lambda m, val: analysis.percentages.append(val),
         )
 
         # 2. Extract Years
         process_matches(
-            YEAR_TOKEN_REGEX, MatchType.YEAR,
+            YEAR_TOKEN_REGEX,
+            MatchType.YEAR,
             lambda m: int(m.group(1)),
-            lambda m, val: analysis.years.append(val)
+            lambda m, val: analysis.years.append(val),
         )
 
         # 3. Extract Specific Unions (Highest Priority for Unions)
         # These are explicit names like "UAW", "IG Metall" defined in region_regex
         if self.matcher.specific_union_regex:
+
             def specific_union_side_effect(m, val):
                 analysis.union_terms.append(val)
                 lower_term = val.lower()
                 if lower_term in self.matcher.union_map:
                     region, country, code = self.matcher.union_map[lower_term]
-                    analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, geo_code=code, source_type=GeoSource.SPECIFIC_UNION
-                    ))
+                    analysis.geo_matches.append(
+                        GeoMatch(
+                            text=val,
+                            region=region,
+                            country=country,
+                            geo_code=code,
+                            source_type=GeoSource.SPECIFIC_UNION,
+                        )
+                    )
 
             process_matches(
-                self.matcher.specific_union_regex, MatchType.SPECIFIC_UNION,
+                self.matcher.specific_union_regex,
+                MatchType.SPECIFIC_UNION,
                 lambda m: m.group(0),
-                specific_union_side_effect
+                specific_union_side_effect,
             )
 
         # 4. Extract Dynamic Union Names (Pattern-based)
@@ -809,182 +886,235 @@ class UnionExtractor:
             lower_term = val.lower()
             if lower_term in self.matcher.union_map:
                 region, country, code = self.matcher.union_map[lower_term]
-                analysis.geo_matches.append(GeoMatch(
-                    text=val, region=region, country=country, geo_code=code, source_type=GeoSource.INFERRED_UNION
-                ))
+                analysis.geo_matches.append(
+                    GeoMatch(
+                        text=val,
+                        region=region,
+                        country=country,
+                        geo_code=code,
+                        source_type=GeoSource.INFERRED_UNION,
+                    )
+                )
 
         process_matches(
-            DYNAMIC_UNION_REGEX, MatchType.UNION_NAME,
+            DYNAMIC_UNION_REGEX,
+            MatchType.UNION_NAME,
             lambda m: m.group(0),
-            dynamic_union_side_effect
+            dynamic_union_side_effect,
         )
+
+        # 4.5 Check for Union Denominator with specific/dynamic union names replaced
+        if not analysis.has_union_denominator:
+            # Gather all union matches found so far (SPECIFIC_UNION and UNION_NAME)
+            union_matches = [
+                m
+                for m in analysis._matches
+                if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+            ]
+
+            if union_matches:
+                # Sort by start index descending to replace from end to start
+                union_matches.sort(key=lambda x: x["span"][0], reverse=True)
+                temp_text = text
+                for m in union_matches:
+                    start, end = m["span"]
+                    temp_text = temp_text[:start] + "union" + temp_text[end:]
+
+                if UNION_DENOMINATOR_REGEX.search(temp_text):
+                    analysis.has_union_denominator = True
 
         # 5. Extract Non-Union Terms (Specific negation)
         process_matches(
-            NON_UNION_REGEX, MatchType.NON_UNION,
+            NON_UNION_REGEX,
+            MatchType.NON_UNION,
             lambda m: m.group(0),
-            lambda m, val: analysis.negation_terms.append(val)
+            lambda m, val: analysis.negation_terms.append(val),
         )
 
         # 5b. Extract Non-Coverage Terms (at-will, unrepresented, non-union)
         process_matches(
-            NON_COVERAGE_REGEX, MatchType.NON_COVERAGE,
+            NON_COVERAGE_REGEX,
+            MatchType.NON_COVERAGE,
             lambda m: m.group(0),
-            lambda m, val: analysis.negation_terms.append(val) # Treat as negation term for general logic
+            lambda m, val: analysis.negation_terms.append(
+                val
+            ),  # Treat as negation term for general logic
         )
 
         # 6. Extract Risk Terms
         process_matches(
-            RISK_REGEX, MatchType.RISK_TERM,
+            RISK_REGEX,
+            MatchType.RISK_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.risk_terms.append(val)
+            lambda m, val: analysis.risk_terms.append(val),
         )
 
         # 7. Extract Union Terms (Generic)
         process_matches(
-            UNION_REGEX, MatchType.UNION_TERM,
+            UNION_REGEX,
+            MatchType.UNION_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.union_terms.append(val)
+            lambda m, val: analysis.union_terms.append(val),
         )
 
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regex:
+
             def geo_side_effect(m, val):
                 phrase = val.lower()
                 if phrase in self.matcher.location_map:
                     region, country, city, code = self.matcher.location_map[phrase]
-                    analysis.geo_matches.append(GeoMatch(
-                        text=val, region=region, country=country, city=city, geo_code=code, source_type=GeoSource.EXPLICIT
-                    ))
+                    analysis.geo_matches.append(
+                        GeoMatch(
+                            text=val,
+                            region=region,
+                            country=country,
+                            city=city,
+                            geo_code=code,
+                            source_type=GeoSource.EXPLICIT,
+                        )
+                    )
 
             process_matches(
-                self.matcher.location_regex, MatchType.GEO,
+                self.matcher.location_regex,
+                MatchType.GEO,
                 lambda m: m.group(0),
-                geo_side_effect
+                geo_side_effect,
             )
 
         # 10. Extract Ratios (Before Numbers)
         process_matches(
-            RATIO_REGEX, MatchType.RATIO,
+            RATIO_REGEX,
+            MatchType.RATIO,
             lambda m: (float(m.group(1)), float(m.group(2))),
-            lambda m, val: analysis.ratios.append(val)
+            lambda m, val: analysis.ratios.append(val),
         )
 
         # 11. Extract Worker Counts (Specific Numbers)
         process_matches(
-            WORKER_COUNT_REGEX, MatchType.WORKER_COUNT,
+            WORKER_COUNT_REGEX,
+            MatchType.WORKER_COUNT,
             lambda m: float(next(g for g in m.groups() if g is not None)),
-            lambda m, val: analysis.worker_counts.append(val)
+            lambda m, val: analysis.worker_counts.append(val),
         )
 
         # 12. Extract Worker Terms (Generic)
         process_matches(
-            WORKER_TERM_REGEX, MatchType.WORKER_TERM,
+            WORKER_TERM_REGEX,
+            MatchType.WORKER_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.worker_terms.append(val)
+            lambda m, val: analysis.worker_terms.append(val),
         )
 
         # 13. Extract Numbers (Generic - lowest priority)
         process_matches(
-            NUMBER_REGEX, MatchType.NUMBER,
+            NUMBER_REGEX,
+            MatchType.NUMBER,
             lambda m: float(m.group(0)),
-            lambda m, val: analysis.numbers.append(val)
+            lambda m, val: analysis.numbers.append(val),
         )
 
         # 14. Extract Relationship Terms (e.g. "employee relations")
         process_matches(
-            RELATIONSHIP_REGEX, MatchType.RELATIONSHIP_TERM,
+            RELATIONSHIP_REGEX,
+            MatchType.RELATIONSHIP_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.relationship_terms.append(val)
+            lambda m, val: analysis.relationship_terms.append(val),
         )
 
         # 15. Extract Relationship Quality (e.g. "good", "strained")
         process_matches(
-            RELATIONSHIP_QUALITY_REGEX, MatchType.RELATIONSHIP_QUALITY,
+            RELATIONSHIP_QUALITY_REGEX,
+            MatchType.RELATIONSHIP_QUALITY,
             lambda m: m.group(0),
-            lambda m, val: analysis.relationship_quality_terms.append(val)
+            lambda m, val: analysis.relationship_quality_terms.append(val),
         )
 
         # 16. Extract Supplier Terms (Third Party Risk)
         process_matches(
-            SUPPLIER_REGEX, MatchType.SUPPLIER_TERM,
+            SUPPLIER_REGEX,
+            MatchType.SUPPLIER_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.supplier_terms.append(val)
+            lambda m, val: analysis.supplier_terms.append(val),
         )
 
         # 17. Extract Coverage Terms (e.g. "represented", "covered")
         process_matches(
-            COVERAGE_REGEX, MatchType.COVERAGE_TERM,
+            COVERAGE_REGEX,
+            MatchType.COVERAGE_TERM,
             lambda m: m.group(0),
-            lambda m, val: analysis.coverage_terms.append(val)
+            lambda m, val: analysis.coverage_terms.append(val),
         )
 
         # 18. Extract Qualitative Terms
         for item in COMPILED_QUALITATIVE_PATTERNS:
+
             def qual_side_effect(m, val):
                 analysis.qualitative_terms.append(val)
                 if analysis._matches:
-                    analysis._matches[-1]['term_obj'] = item['term']
-                    analysis._matches[-1]['pattern_str'] = item['pattern_str']
+                    analysis._matches[-1]["term_obj"] = item["term"]
+                    analysis._matches[-1]["pattern_str"] = item["pattern_str"]
 
             process_matches(
-                item['regex'], MatchType.QUALITATIVE_TERM,
+                item["regex"],
+                MatchType.QUALITATIVE_TERM,
                 lambda m: m.group(0),
-                qual_side_effect
+                qual_side_effect,
             )
 
         # 18b. Extract Qualitative Membership Terms
         for item in COMPILED_QUALITATIVE_MEMBERSHIP_PATTERNS:
+
             def qual_mem_side_effect(m, val):
                 analysis.qualitative_membership_terms.append(val)
                 if analysis._matches:
-                    analysis._matches[-1]['term_obj'] = item['term']
-                    analysis._matches[-1]['pattern_str'] = item['pattern_str']
+                    analysis._matches[-1]["term_obj"] = item["term"]
+                    analysis._matches[-1]["pattern_str"] = item["pattern_str"]
 
             process_matches(
-                item['regex'], MatchType.QUALITATIVE_MEMBERSHIP,
+                item["regex"],
+                MatchType.QUALITATIVE_MEMBERSHIP,
                 lambda m: m.group(0),
-                qual_mem_side_effect
+                qual_mem_side_effect,
             )
 
         # 19. Extract Total Modifiers
         process_matches(
-            TOTAL_MODIFIER_REGEX, MatchType.TOTAL_MODIFIER,
+            TOTAL_MODIFIER_REGEX,
+            MatchType.TOTAL_MODIFIER,
             lambda m: m.group(0),
-            lambda m, val: analysis.total_modifiers.append(val)
+            lambda m, val: analysis.total_modifiers.append(val),
         )
 
         # 20. Extract Respectively
         process_matches(
-            RESPECTIVELY_REGEX, MatchType.RESPECTIVELY,
-            lambda m: m.group(0),
-            None
+            RESPECTIVELY_REGEX, MatchType.RESPECTIVELY, lambda m: m.group(0), None
         )
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms
         has_union_keywords = bool(
-            analysis.union_terms 
-            or analysis.coverage_terms 
+            analysis.union_terms
+            or analysis.coverage_terms
             or analysis.risk_terms
             or analysis.qualitative_membership_terms
             or analysis.relationship_terms
         )
-        
+
         # 2. Geographic matches derived from Union names
         has_union_geo = any(
             m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
             for m in analysis.geo_matches
         )
-        
+
         # 3. Negation (often used for "non-union", "not covered")
         has_negation = bool(analysis.negation_terms)
-        
+
         # 4. Quantitative Coverage (Percentage/Ratio + Worker Context)
         # We check if there's a percentage/ratio AND (worker terms OR worker counts)
         has_quant = bool(analysis.percentages or analysis.ratios or analysis.numbers)
         has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
-        
+
         analysis.is_relevant = (
             has_union_keywords
             or has_union_geo
@@ -997,11 +1127,16 @@ class UnionExtractor:
         if analysis.is_relevant:
             # Personnel: Exclude if no union terms and matches personnel event
             if not analysis.union_terms and PERSONNEL_EVENT_REGEX.search(text):
-                 analysis.is_relevant = False
-             
-             #Boilerplate: Exclude if no quantitative data and matches boilerplate
+                analysis.is_relevant = False
+
+            # Boilerplate: Exclude if no quantitative data and matches boilerplate
             elif BOILERPLATE_REGEX.search(text):
-                has_data = bool(analysis.percentages or analysis.ratios or analysis.worker_counts or analysis.numbers)
+                has_data = bool(
+                    analysis.percentages
+                    or analysis.ratios
+                    or analysis.worker_counts
+                    or analysis.numbers
+                )
                 if not has_data:
                     analysis.is_relevant = False
         return analysis
@@ -1011,7 +1146,7 @@ class UnionExtractor:
         final_parts = []
         for p in parts:
             # Secondary split by semicolon to handle compound sentences like "Chile...; Colombia..."
-            sub_parts = p.split(';')
+            sub_parts = p.split(";")
             for sp in sub_parts:
                 if sp.strip():
                     final_parts.append(sp.strip())
