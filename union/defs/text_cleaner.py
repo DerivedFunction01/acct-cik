@@ -80,6 +80,20 @@ class MinimalTextCleaner:
         (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
         (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
         (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
+        (re.compile(r"\bexecutive\s+orders?\b", re.IGNORECASE), "decree"),
+        (re.compile(r"\bcourt\s+orders?\b", re.IGNORECASE), "decree"),
+        (re.compile(r"\bpurchase\s+orders?\b", re.IGNORECASE), "PO"),
+        (re.compile(r"\btask\s+orders?\b", re.IGNORECASE), "task"),
+        (re.compile(r"\bchange\s+orders?\b", re.IGNORECASE), "amendment"),
+        (re.compile(r"\bstop\s+work\s+orders?\b", re.IGNORECASE), "halt"),
+        (re.compile(r"\bconsent\s+orders?\b", re.IGNORECASE), "decree"),
+        (re.compile(r"\brestraining\s+orders?\b", re.IGNORECASE), "decree"),
+        (re.compile(r"\border\s+of\s+operations?\b", re.IGNORECASE), "sequence"),
+        (re.compile(r"\border\s+of\s+business\b", re.IGNORECASE), "agenda"),
+        (re.compile(r"\border\s+of\s+magnitude\b", re.IGNORECASE), "magnitude"),
+        (re.compile(r"\bmail\s+orders?\b", re.IGNORECASE), "delivery"),
+        (re.compile(r"\bmoney\s+orders?\b", re.IGNORECASE), "payment"),
+        (re.compile(r"\bstanding\s+orders?\b", re.IGNORECASE), "instruction"),
     ]
 
     # Bullet and Dashed Patterns
