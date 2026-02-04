@@ -2704,12 +2704,12 @@ class UnionAnalyzer:
         mapped_counts = {}
         sentence_total = None
 
-        # Include numbers > 5 to catch cases like "1000" (number) -> "Germany" (geo)
+        # Include numbers to catch cases like "1000" (number) -> "Germany" (geo)
         counts = [
             m
             for m in analysis._matches
             if m["type"] == MatchType.WORKER_COUNT
-            or (m["type"] == MatchType.NUMBER and m["val"] > 5)
+            or (m["type"] == MatchType.NUMBER and m["val"])
         ]
         if not counts:
             return {}, None
