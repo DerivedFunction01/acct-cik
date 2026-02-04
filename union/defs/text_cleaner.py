@@ -74,6 +74,12 @@ class MinimalTextCleaner:
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "some"),
+        (re.compile(r"\bUS\s+GAAP\b", re.IGNORECASE), "GAAP"),
+        (re.compile(r"\bUS\s+Dollars?\b", re.IGNORECASE), "USD"),
+        (re.compile(r"\bUS\s+Treasur(?:y|ies)\b", re.IGNORECASE), "Treasury"),
+        (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
+        (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
+        (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
     ]
 
     # Bullet and Dashed Patterns
