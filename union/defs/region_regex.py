@@ -68,11 +68,9 @@ NORTH_AMERICA = {
             "bible belt",
             "tri-state area",
             "the states",
-            "washington",
             "capitol hill",
             "silicon valley",
             "twin cities",
-            "domestic",
             add_restrictions(
                 r"american?", lookbehinds=[r"central", r"latin", r"south"]
             ),
@@ -146,7 +144,7 @@ NORTH_AMERICA = {
                 [
                     Location("Cleveland", ["cleveland"]),
                     Location("Columbus", ["columbus"]),
-                    Location("Toledo", ["toledo"]),
+                    Location("Toledo", ["toledo, oh", "toledo, ohio"]),
                     Location("Marysville", ["marysville"]),
                 ],
             ),
@@ -189,10 +187,10 @@ NORTH_AMERICA = {
                 "Alabama",
                 ["alabama", "al"],
                 [
-                    Location("Birmingham", ["birmingham"]),
+                    Location("Birmingham", ["birmingham, al", "birmingham, alabama"]),
                     Location("Huntsville", ["huntsville"]),
                     Location("Tuscaloosa", ["tuscaloosa"]),
-                    Location("Lincoln", ["lincoln"]),
+                    Location("Lincoln", ["lincoln, al", "lincoln, alabama"]),
                 ],
             ),
             Location(
@@ -252,7 +250,7 @@ NORTH_AMERICA = {
                 ["delaware"],
                 [
                     Location("Wilmington", ["wilmington"]),
-                    Location("Dover", ["dover"]),
+                    Location("Dover", ["dover, de", "dover, delaware"]),
                     Location("Newark", ["newark"]),
                 ],
             ),
@@ -262,7 +260,7 @@ NORTH_AMERICA = {
                 [
                     Location("Atlanta", ["atlanta"]),
                     Location("Savannah", ["savannah"]),
-                    Location("Augusta", ["augusta"]),
+                    Location("Augusta", ["augusta, ga", "augusta, georgia"]),
                 ],
             ),
             Location(
@@ -592,13 +590,13 @@ NORTH_AMERICA = {
             Location("Alberta", ["alberta", "calgary", "edmonton"]),
             Location("British Columbia", ["british columbia", "bc"]),
             Location("Winnipeg", ["winnipeg"]),
-            Location("Windsor", ["windsor"]),
+            Location("Windsor", ["windsor, on", "windsor, ontario", "windsor, canada"]),
             Location("Oshawa", ["oshawa"]),
             Location("Oakville", ["oakville"]),
             Location("Brampton", ["brampton"]),
-            Location("Cambridge", ["cambridge"]),
+            Location("Cambridge", ["cambridge, on", "cambridge, ontario", "cambridge, canada"]),
             Location("Ingersoll", ["ingersoll"]),
-            Location("Hamilton", ["hamilton"]),
+            Location("Hamilton", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]),
             Location("St. Catharines", ["st. catharines"]),
         ],
         [
@@ -616,7 +614,7 @@ NORTH_AMERICA = {
     ),
     Nation(
         "North America (Domestic)",
-        ["north america", "north american", "domestic"],
+        ["north america", "north american"],
         Region.NORTH_AMERICA,
         code="NA",
     ),
@@ -1641,7 +1639,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Cairo", ["cairo"]),
-            Location("Alexandria", ["alexandria"]),
+            Location("Alexandria", ["alexandria, egypt"]),
             Location("Giza", ["giza"]),
             Location("Suez", ["suez"]),
         ],
@@ -1781,7 +1779,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Beirut", ["beirut"]),
-            Location("Tripoli", ["tripoli"]),
+            Location("Tripoli", ["tripoli, lebanon"]),
             Location("Sidon", ["sidon"]),
             Location("Tyre", ["tyre", "sour"]),
             Location("Nabatieh", ["nabatieh"]),
