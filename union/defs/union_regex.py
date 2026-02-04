@@ -1,4 +1,4 @@
-#%%
+# %%
 """
 - collective + bargain
 - bargaining + (agreement, contracts)
@@ -25,6 +25,7 @@ class CORE(Enum):
     REUNIONIZE = r"Re[- ]?unioni(?:z|s)(?:ations?|ed?)"
     COLLECTIVE = r"Collectives?"
     BARGAIN = r"Bargain(?:ing|s)?"
+    NEGOTIATE = r"Negotiat(?:e|es|ed|ing|ions?)?"
     LABOR = r"Labo(?:u)?rs?"
     ORGANIZED = r"Organized?"
     STRIKE = r"Strikes?"
@@ -146,9 +147,18 @@ DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
-COLLECTIVE_BARGAIN = build_alternation([
-    build_compound([CORE.COLLECTIVE, r"industry(?:[- ]wide)?"], [CORE.BARGAIN, CORE.LABOR], sep_prefix=r"[\s-]+"),
-    build_compound([CORE.BARGAIN], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+")]
+COLLECTIVE_BARGAIN = build_alternation(
+    [
+        build_compound(
+            [CORE.COLLECTIVE, CORE.LABOR],
+            [CORE.BARGAIN, CORE.LABOR, CORE.NEGOTIATE],
+            sep_prefix=r"[\s-]+",
+        ),
+        build_compound(
+            [CORE.BARGAIN, CORE.NEGOTIATE], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"
+        ),
+        build_compound([r"industry(?:[- ]wide)?"], [CORE.BARGAIN])
+    ]
 )
 UNION_PHRASES = [
     # collective + bargain + agreement
@@ -191,6 +201,7 @@ class RISK_TERMS:
                 CORE.DISPUTE,
                 r"campaigns?",
                 CORE.DISAGREEMENT,
+                CORE.NEGOTIATE,
                 r"drives?",
                 r"efforts?",
                 r"strikes?",
@@ -200,7 +211,7 @@ class RISK_TERMS:
         ),
         # Collective bargaining disputes
         build_compound(
-            [CORE.COLLECTIVE, CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]
+            [CORE.COLLECTIVE, CORE.BARGAIN, CORE.NEGOTIATE], [CORE.DISPUTE, CORE.DISAGREEMENT]
         ),
     ]
 
@@ -341,7 +352,7 @@ NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 # Negation patterns
 NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
-#%%
+# %%
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")
     examples = [
