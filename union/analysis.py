@@ -2046,6 +2046,11 @@ class Tracker:
 
         # Condition: No countries mentioned OR only US mentioned
         if not valid_countries or valid_countries == {'US'}:
+            # Inherit global total if we are defaulting to US and have no specific data
+            if self.global_total > 0 and self.country_totals.get("US", 0) == 0:
+                self.country_totals["US"] = self.global_total
+                self.resolution_log.append(f"Inherited Global Total {self.global_total} to 'US' (Default Domestic)")
+
             for e in self.entries:
                 if e.key == Region.DOMESTIC.value:
                     e.key = "US"
