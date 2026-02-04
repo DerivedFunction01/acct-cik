@@ -1066,7 +1066,7 @@ EUROPE = {
             Location("Waterford", ["waterford"]),
         ],
         ["ICTU", "SIPTU"],
-        ["Industrial Relations Act"],
+        [],
         code="IE",
     ),
     Nation(
@@ -1259,7 +1259,7 @@ ASIA_PACIFIC = {
         Region.ASIA_PACIFIC,
         [Location("Singapore", ["singapore"])],
         ["NTUC", "National Trades Union Congress"],
-        ["Tripartism", "Industrial Relations Act"],
+        [],
         code="SG",
     ),
     Nation(
