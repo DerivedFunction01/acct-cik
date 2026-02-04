@@ -1434,7 +1434,7 @@ def extract_accession_info(url: str) -> Optional[dict]:
     Extracts accession number, CIK, and year from an SEC EDGAR URL.
     Returns None if not a valid EDGAR URL or accession not found.
     """
-    if "Archives/edgar/data" not in url:
+    if not isinstance(url, str) or "Archives/edgar/data" not in url:
         return None
 
     parts = url.split("/")
