@@ -69,7 +69,7 @@ QUALITATIVE_MULTIPLIERS = [
 ]
 
 # Worker Count Pattern: Number + (optional gap) + Worker Term
-worker_term_pattern = build_alternation(WORKER_TERMS + ["managers?", "officers?"])
+worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?"])
 WORKER_COUNT_REGEX = build_regex(
     [
         rf"employ(?:ed|s)?\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
@@ -78,6 +78,13 @@ WORKER_COUNT_REGEX = build_regex(
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
+
+UNION_DENOMINATOR_REGEX = build_regex(
+    [
+        rf"(?:out\s+)?of\s+(?:[\w-]+\s+){{0,2}}(?:union(?:ized)?|represented|covered|bargaining)\s+(?:[\w-]+\s+){{0,2}}(?:{worker_term_pattern}|population|unit)",
+        r"(?:out\s+)?of\s+(?:our\s+|the\s+)?(?:union|bargaining\s+unit)",
+    ]
+)
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -141,6 +148,7 @@ class SentenceAnalysis:
     has_future: bool = False
     has_respectively: bool = False
     has_remaining_other: bool = False
+    has_union_denominator: bool = False
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -723,6 +731,7 @@ class UnionExtractor:
         analysis.has_future = bool(FUTURE_REGEX.search(text))
         analysis.has_respectively = bool(RESPECTIVELY_REGEX.search(text))
         analysis.has_remaining_other = bool(REMAIN_REGEX.search(text))
+        analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
 
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None):

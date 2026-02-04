@@ -577,6 +577,33 @@ class SimpleCoverageAnalyzer:
         data["employee_count_total"]
         return data
 
+class UnionDenominatorAnalyzer:
+    """
+    Analyzes sentences where the union population is the denominator.
+    These are often contextual statements about negotiations or relationships
+    rather than broad coverage data.
+    """
+    def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
+        """
+        Creates a skeleton dictionary for union denominator sentences.
+        This is treated as a special type of coverage data for context.
+        """
+        return {
+            "type": CoverageType.UNION_CONTEXT.value,
+            "note": "Union is denominator. Parsed for context.",
+            "percentages": analysis.percentages,
+            "counts": get_effective_counts(analysis),
+            "relationship_status": determine_relationship_status(analysis),
+            "risk_terms": analysis.risk_terms,
+            # Standard coverage fields are null
+            "percentage": None,
+            "employee_count_covered": None,
+            "employee_count_not_covered": None,
+            "employee_count_total": None,
+            "negated": bool(analysis.negation_terms),
+            "negation_type": None,
+            "qualitative_bounds": None,
+        }
 
 def get_external_worker_count(
     region: str, countries: List[Dict[str, str]]
@@ -2329,6 +2356,7 @@ class UnionAnalyzer:
     def __init__(self):
         self.extractor = UnionExtractor()
         self.simple_analyzer = SimpleCoverageAnalyzer()
+        self.denominator_analyzer = UnionDenominatorAnalyzer()
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
 
@@ -3091,7 +3119,9 @@ class UnionAnalyzer:
         """
         data = {}
 
-        if is_simple_scenario(analysis):
+        if analysis.has_union_denominator:
+            return self.denominator_analyzer.analyze(analysis)
+        elif is_simple_scenario(analysis):
             data = self.simple_analyzer.analyze(analysis)
         else:
             data = self._analyze_complex_coverage(analysis, inherited_total_count)
