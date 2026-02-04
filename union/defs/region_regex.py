@@ -639,7 +639,7 @@ EUROPE = {
         [
             Location("London", ["london"]),
             Location("Birmingham", ["birmingham"]),
-            Location("Manchester", ["manchester"]),            
+            Location("Manchester", ["manchester"]),
             Location("Leeds", ["leeds"]),
             Location("Glasgow", ["glasgow"]),
             Location("Liverpool", ["liverpool"]),
@@ -658,7 +658,6 @@ EUROPE = {
             Location("Ellesmere Port", ["ellesmere port"]),
             Location("Halewood", ["halewood"]),
             Location("Burnaston", ["burnaston"]),
-            
         ],
         [
             "Unite the Union",
@@ -673,7 +672,11 @@ EUROPE = {
         ],
         code="GB",
     ),
-    Nation("Norway", ["norway", "norwegian"], Region.EUROPE, [
+    Nation(
+        "Norway",
+        ["norway", "norwegian"],
+        Region.EUROPE,
+        [
             Location("Oslo", ["oslo"]),
             Location("Bergen", ["bergen"]),
             Location("Stavanger", ["stavanger"]),
@@ -683,7 +686,9 @@ EUROPE = {
             Location("Kristiansand", ["kristiansand"]),
             Location("Sandnes", ["sandnes"]),
             Location("Tromso", ["tromso", "tromsø"]),
-        ],code="NO"),
+        ],
+        code="NO",
+    ),
     Nation(
         "Sweden",
         ["sweden", "swedish"],
@@ -953,6 +958,10 @@ EUROPE = {
             Location("Zaragoza", ["zaragoza"]),
             Location("Vigo", ["vigo"]),
             Location("Bilbao", ["bilbao"]),
+            Location("Seville", ["seville", "sevilla"]),
+            Location("Valladolid", ["valladolid"]),
+            Location("Pamplona", ["pamplona"]),
+            Location("Martorell", ["martorell"]),  # SEAT
         ],
         [
             "CCOO",
@@ -1127,7 +1136,6 @@ EUROPE = {
         code="UA",
     ),
 }
-
 ASIA_PACIFIC = {
     Nation(
         "Asia",
@@ -1144,6 +1152,7 @@ ASIA_PACIFIC = {
             Location("Osaka", ["osaka"]),
             Location("Nagoya", ["nagoya"]),
             Location("Yokohama", ["yokohama"]),
+            Location("Toyota City", ["toyota city"]),  # Major Auto Hub
         ],
         [
             "Rengo",
@@ -1154,6 +1163,7 @@ ASIA_PACIFIC = {
         ],
         [
             "Shunto",
+            "Karoshi",
         ],
         code="JP",
     ),
@@ -1165,7 +1175,7 @@ ASIA_PACIFIC = {
             Location("Seoul", ["seoul"]),
             Location("Busan", ["busan", "pusan"]),
             Location("Incheon", ["incheon"]),
-            Location("Ulsan", ["ulsan"]),
+            Location("Ulsan", ["ulsan"]),  # Hyundai / Major Industrial Hub
         ],
         [
             "KCTU",
@@ -1173,18 +1183,11 @@ ASIA_PACIFIC = {
             "FKTU",
             "Federation of Korean Trade Unions",
         ],
-        code="KR",
-    ),
-    Nation("Singapore", ["singapore", "singaporean"], Region.ASIA_PACIFIC, code="SG"),
-    Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
-    Nation(
-        "Taiwan",
-        ["taiwan", "taiwanese"],
-        Region.ASIA_PACIFIC,
         [
-            Location("Taipei", ["taipei"]),
+            "Labor-Management Council",
+            "Chaebol",
         ],
-        code="TW",
+        code="KR",
     ),
     Nation(
         "China",
@@ -1198,55 +1201,12 @@ ASIA_PACIFIC = {
             Location("Tianjin", ["tianjin"]),
             Location("Chongqing", ["chongqing"]),
             Location("Wuhan", ["wuhan"]),
+            Location("Suzhou", ["suzhou"]),
+            Location("Chengdu", ["chengdu"]),
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
+        [],
         code="CN",
-    ),
-    Nation(
-        "Thailand",
-        ["thailand", "thai"],
-        Region.ASIA_PACIFIC,
-        [
-            Location("Bangkok", ["bangkok"]),
-        ],
-        code="TH",
-    ),
-    Nation(
-        "Malaysia",
-        ["malaysia", "malaysian"],
-        Region.ASIA_PACIFIC,
-        [
-            Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
-        ],
-        code="MY",
-    ),
-    Nation(
-        "Philippines",
-        ["philippines", "philippine", "filipino"],
-        Region.ASIA_PACIFIC,
-        [
-            Location("Manila", ["manila"]),
-        ],
-        code="PH",
-    ),
-    Nation(
-        "Vietnam",
-        ["vietnam", "vietnamese"],
-        Region.ASIA_PACIFIC,
-        [
-            Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
-            Location("Hanoi", ["hanoi"]),
-        ],
-        code="VN",
-    ),
-    Nation(
-        "Indonesia",
-        ["indonesia", "indonesian"],
-        Region.ASIA_PACIFIC,
-        [
-            Location("Jakarta", ["jakarta"]),
-        ],
-        code="ID",
     ),
     Nation(
         "India",
@@ -1256,10 +1216,24 @@ ASIA_PACIFIC = {
             Location("Mumbai", ["mumbai", "bombay"]),
             Location("Bangalore", ["bangalore", "bengaluru"]),
             Location("New Delhi", ["new delhi", "delhi"]),
+            Location("Chennai", ["chennai", "madras"]),  # Detroit of South Asia
+            Location("Hyderabad", ["hyderabad"]),
+            Location("Pune", ["pune"]),  # Auto Hub
+        ],
+        [
+            "CITU",
+            "AITUC",
+            "INTUC",
+            "BMS",
+            "Bharatiya Mazdoor Sangh",
+        ],
+        [
+            "Standing Orders",
+            "Industrial Disputes Act",
+            "Trade Unions Act",
         ],
         code="IN",
     ),
-    Nation("Pakistan", ["pakistan", "pakistani"], Region.ASIA_PACIFIC, code="PK"),
     Nation(
         "Australia",
         ["australia", "australian"],
@@ -1267,28 +1241,118 @@ ASIA_PACIFIC = {
         [
             Location("Sydney", ["sydney"]),
             Location("Melbourne", ["melbourne"]),
+            Location("Brisbane", ["brisbane"]),
+            Location("Perth", ["perth"]),
         ],
         [
             "ACTU",
             "Australian Council of Trade Unions",
             "CFMEU",
-            "Construction, Forestry, Maritime, Mining and Energy Union",
             "AWU",
+            "Construction, Forestry, Maritime, Mining and Energy Union",
             "Australian Workers' Union",
+            "SDA",
         ],
+        [],
         code="AU",
+    ),
+    Nation(
+        "Singapore",
+        ["singapore", "singaporean"],
+        Region.ASIA_PACIFIC,
+        [Location("Singapore", ["singapore"])],
+        ["NTUC", "National Trades Union Congress"],
+        ["Tripartism", "Industrial Relations Act"],
+        code="SG",
+    ),
+    Nation(
+        "Vietnam",
+        ["vietnam", "vietnamese"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
+            Location("Hanoi", ["hanoi"]),
+            Location("Haiphong", ["haiphong"]),  # Major Port
+        ],
+        ["VGCL", "Vietnam General Confederation of Labour"],
+        code="VN",
+    ),
+    Nation(
+        "Malaysia",
+        ["malaysia", "malaysian"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Kuala Lumpur", ["kuala lumpur", "kl"]),
+            Location("Johor", ["johor"]),
+            Location("Penang", ["penang"]),  # Tech Hub
+        ],
+        ["MTUC", "Malaysian Trades Union Congress"],
+        code="MY",
+    ),
+    Nation(
+        "Taiwan",
+        ["taiwan", "taiwanese"],
+        Region.ASIA_PACIFIC,
+        [
+            Location("Taipei", ["taipei"]),
+            Location("Hsinchu", ["hsinchu"]),
+            Location("Kaohsiung", ["kaohsiung"]),
+        ],
+        code="TW",
+    ),
+    Nation(
+        "Thailand",
+        ["thailand", "thai"],
+        Region.ASIA_PACIFIC,
+        [Location("Bangkok", ["bangkok"]), Location("Rayong", ["rayong"]),
+         Location("Chonburi", ["chonburi"]),
+            Location("Ayutthaya", ["ayutthaya"]),
+            ],
+        code="TH",
+    ),
+    Nation(
+        "Philippines",
+        ["philippines", "philippine", "filipino"],
+        Region.ASIA_PACIFIC,
+        [Location("Manila", ["manila"]), Location("Cebu", ["cebu"]), 
+         Location("Davao", ["davao"])],
+        code="PH",
+    ),
+    Nation(
+        "Indonesia",
+        ["indonesia", "indonesian"],
+        Region.ASIA_PACIFIC,
+        [Location("Jakarta", ["jakarta"]), Location("Surabaya", ["surabaya"]),Location("Bandung", ["bandung"]), Location("Medan", ["medan"])
+        ],
+        code="ID",
     ),
     Nation(
         "New Zealand",
         ["new zealand", "nz"],
         Region.ASIA_PACIFIC,
-        [
-            Location("Auckland", ["auckland"]),
-        ],
+        [Location("Auckland", ["auckland"]), Location("Wellington", ["wellington"]),Location("Christchurch", ["christchurch"]),
+                    Location("Dunedin", ["dunedin"]), Location("Hamilton", ["hamilton, nz"]),
+                    
+                    ],
         code="NZ",
     ),
+    Nation(
+        "Pakistan",
+        ["pakistan", "pakistani"],
+        Region.ASIA_PACIFIC,
+        [Location("Karachi", ["karachi"]), Location("Lahore", ["lahore"]),Location("Islamabad", ["islamabad"]), Location("Faisalabad", ["faisalabad"])
+        ],
+        code="PK",
+    ),
+    Nation(
+        "Bangladesh",
+        ["bangladesh", "bangladeshi"],
+        Region.ASIA_PACIFIC,
+        [Location("Dhaka", ["dhaka"]), Location("Chittagong", ["chittagong"]),Location("Khulna", ["khulna"]), Location("Sylhet", ["sylhet"])],
+        code="BD",
+    ),
+    Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
-    Nation("Bangladesh", ["bangladesh", "bangladeshi"], Region.ASIA_PACIFIC, code="BD"),
 }
 
 LATIN_AMERICA = {
@@ -1558,7 +1622,7 @@ INTERNATIONAL = {
         code="INT",
     ),
     Nation(
-        "International Spanish",
+        "Spanish",
         [],
         Region.INTERNATIONAL,
         [],
@@ -1584,7 +1648,7 @@ INTERNATIONAL = {
         code="INT_ES",
     ),
     Nation(
-        "International Portuguese",
+        "Portuguese",
         [],
         Region.INTERNATIONAL,
         [],
@@ -1609,7 +1673,7 @@ INTERNATIONAL = {
         code="INT_PT",
     ),
     Nation(
-        "International French",
+        "Francophone",
         [],
         Region.INTERNATIONAL,
         [],
