@@ -41,6 +41,10 @@ class CORE(Enum):
     ALLIANCE = r"Alliances?"
     SOCIETY = r"Societ(?:y|ies)"
     UNITED = r"United"
+    ORDER = r"Orders?"
+    FRATERNAL = r"Fraternal"
+    BENEVOLENT = r"Benevolent"
+    LODGE = r"Lodges?"
 
 
 WORKER_TERMS = [
@@ -82,6 +86,9 @@ WORKER_TERMS = [
     r"Carpenters?",
     r"Plumbers?",
     r"Longshore(?:m[ae]n)",
+    r"Patrolm[ae]n(?:'s)?",
+    r"Sheriffs?(?:'s)?",
+    r"Police",
     r"Teamsters?",
     r"Actors?",
     r"Writers?",
@@ -135,6 +142,10 @@ UNION_TERMS = [
     CORE.ALLIANCE,
     CORE.SOCIETY,
     CORE.UNITED,
+    CORE.ORDER,
+    CORE.FRATERNAL,
+    CORE.BENEVOLENT,
+    CORE.LODGE,
 ]
 
 _CORE_DYNAMIC_PATTERN = build_alternation(
