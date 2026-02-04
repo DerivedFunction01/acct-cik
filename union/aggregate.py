@@ -36,6 +36,7 @@ def process_row(row):
         "has_item1a": False,
         "union_rate": None,
         "secondary_rate": None,
+        "measured_coverage": None,
         "pct_north_america": None,
         "pct_europe": None,
         "pct_asia": None,
@@ -64,6 +65,7 @@ def process_row(row):
                 if summary:
                     res["union_rate"] = summary.get("likely_percentage")
                     res["secondary_rate"] = summary.get("secondary_percentage")
+                    res["measured_coverage"] = summary.get("measured_population_coverage")
                     
                     # Extract Region Data
                     regions_pct = summary.get("derived_regional_coverage", {})
@@ -115,6 +117,7 @@ def main():
             has_item1a BOOLEAN,
             union_rate REAL,
             secondary_rate REAL,
+            measured_coverage REAL,
             pct_north_america REAL,
             pct_europe REAL,
             pct_asia REAL,
@@ -155,6 +158,7 @@ def main():
             res["has_item1a"],
             res["union_rate"],
             res["secondary_rate"],
+            res["measured_coverage"],
             res["pct_north_america"],
             res["pct_europe"],
             res["pct_asia"],
@@ -167,7 +171,7 @@ def main():
         if len(batch) >= 1000:
             c.executemany(f"""
                 INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, batch)
             count = len(batch)
@@ -177,7 +181,7 @@ def main():
     if batch:
         c.executemany(f"""
             INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
             )
         """, batch)
         count = len(batch)

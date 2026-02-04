@@ -1946,6 +1946,7 @@ class Tracker:
             "derived_regional_coverage": {},
             "global_covered_count": 0.0,
             "global_total_count": 0.0,
+            "measured_population_coverage": None,
             "_logs": [],  # New key to store logs
             "resolution": self.resolution_log,
         }
@@ -2105,6 +2106,11 @@ class Tracker:
         log("\n[STEP 3] Finalizing Global Metrics...")
         metrics["global_covered_count"] = bottom_up_covered
         metrics["global_total_count"] = bottom_up_total
+        
+        if self.global_total > 0:
+            metrics["measured_population_coverage"] = round((bottom_up_total / self.global_total) * 100.0, 2)
+            log(f"  Measured population coverage: {metrics['measured_population_coverage']}% ({bottom_up_total}/{self.global_total})")
+
         log(f"  Bottom-up aggregated totals: {bottom_up_covered}/{bottom_up_total}")
 
         # Priority: Bottom-up > Explicit Global Entry
@@ -2150,6 +2156,7 @@ class Tracker:
         log("FINAL METRICS:")
         log(f"  likely_percentage: {metrics['likely_percentage']}")
         log(f"  secondary_percentage: {metrics['secondary_percentage']}")
+        log(f"  measured_population_coverage: {metrics['measured_population_coverage']}")
         log(f"  global_covered_count: {metrics['global_covered_count']}")
         log(f"  global_total_count: {metrics['global_total_count']}")
         log(f"  derived_regional_coverage: {metrics['derived_regional_coverage']}")

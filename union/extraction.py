@@ -279,6 +279,36 @@ QUALITATIVE_MEMBERSHIP = [
         upper_bound=5.0,
     ),
 ]
+QUALITATIVE_ALL_TERMS = [
+    # ===== 95% TIER (Substantially All) =====
+    QualitativeTerm(
+        core_terms=["all"],
+        prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
+        positive_pct=95.0,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=90.0,
+        upper_bound=99.9,
+    ),
+    # ===== 100% TIER (All/Entirety) =====
+    QualitativeTerm(
+        core_terms=["all"],
+        suffix_terms=["of", "are", "were"],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=True,
+        lower_bound=100.0,
+        upper_bound=100.0,
+    ),
+    QualitativeTerm(
+        core_terms=["entirety"],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=100.0,
+        upper_bound=100.0,
+    ),
+]
 
 QUALITATIVE_TERMS = [
     # ===== 75% TIER (Vast Majority) =====
@@ -631,7 +661,7 @@ QUALITATIVE_TERMS_AMB = [
 ]
 
 COMPILED_QUALITATIVE_PATTERNS = []
-for term in QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
+for term in QUALITATIVE_ALL_TERMS + QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
     pattern_str = term.build_pattern()
     regex = build_regex([pattern_str])
     COMPILED_QUALITATIVE_PATTERNS.append(
