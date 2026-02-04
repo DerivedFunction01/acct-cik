@@ -169,6 +169,7 @@ class QualitativeTerm:
     requires_suffix: bool = (
         False  # True if suffix is mandatory (e.g., "portion" needed)
     )
+    is_all: bool = False # True if the meaning is 100%
 
     prefix_gap: Optional[str] = "[- ]"
     suffix_gap: Optional[str] = "[- ]"
@@ -195,6 +196,16 @@ class QualitativeTerm:
 
 from defs.union_regex import MEMBERSHIP_PHRASES
 QUALITATIVE_MEMBERSHIP = [
+    # ===== 95% TIER (Mandatory/Widespread) =====
+    QualitativeTerm(
+        core_terms=MEMBERSHIP_PHRASES,
+        prefix_terms=["mandatory", "widespread", "comprehensive"],
+        positive_pct=95.0,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=90.0,
+        upper_bound=100.0,
+    ),
     # ===== 85% TIER (Substantial/Heavy) =====
     QualitativeTerm(
         core_terms=MEMBERSHIP_PHRASES,
@@ -279,18 +290,9 @@ QUALITATIVE_MEMBERSHIP = [
         upper_bound=5.0,
     ),
 ]
+
+# Triggers only when needed as last resort, to avoid converting 100% x COUNT -> Qualitative.value
 QUALITATIVE_ALL_TERMS = [
-    # ===== 95% TIER (Substantially All) =====
-    QualitativeTerm(
-        core_terms=["all"],
-        prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
-        positive_pct=95.0,
-        negated_pct=None,
-        requires_suffix=False,
-        lower_bound=90.0,
-        upper_bound=99.9,
-    ),
-    # ===== 100% TIER (All/Entirety) =====
     QualitativeTerm(
         core_terms=["all"],
         suffix_terms=["of", "are", "were"],
@@ -299,6 +301,7 @@ QUALITATIVE_ALL_TERMS = [
         requires_suffix=True,
         lower_bound=100.0,
         upper_bound=100.0,
+        is_all=True,
     ),
     QualitativeTerm(
         core_terms=["entirety"],
@@ -307,10 +310,20 @@ QUALITATIVE_ALL_TERMS = [
         requires_suffix=False,
         lower_bound=100.0,
         upper_bound=100.0,
+        is_all=True,
     ),
 ]
-
 QUALITATIVE_TERMS = [
+    # ===== 95% TIER (Substantially All) =====
+    QualitativeTerm(
+        core_terms=["all", r"(?:the\s+)entire(?:ty)?"],
+        prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
+        positive_pct=95.0,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=90.0,
+        upper_bound=99.9,
+    ),
     # ===== 75% TIER (Vast Majority) =====
     QualitativeTerm(
         core_terms=["majority", "bulk"],
@@ -661,7 +674,7 @@ QUALITATIVE_TERMS_AMB = [
 ]
 
 COMPILED_QUALITATIVE_PATTERNS = []
-for term in QUALITATIVE_ALL_TERMS + QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
+for term in QUALITATIVE_TERMS + QUALITATIVE_TERMS_AMB:
     pattern_str = term.build_pattern()
     regex = build_regex([pattern_str])
     COMPILED_QUALITATIVE_PATTERNS.append(

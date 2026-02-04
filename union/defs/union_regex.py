@@ -43,7 +43,7 @@ class CORE(Enum):
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
-    r"Laborers?",
+    r"Labo(?:u)?rers?",
     r"Staff",
     r"Personnel",
     r"Workforces?",
@@ -103,7 +103,7 @@ NOUNS = [
     r"whom?",
     r"the(?:m|y)",
 ]
-SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?", r"memberships?"]
+SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?", r"memberships?", r"representations?"]
 
 SUFFIX_ORGS = [
     r"organizations?",
@@ -171,9 +171,9 @@ UNION_PHRASES = [
 MEMBERSHIP_PHRASES = [
     CORE.UNIONIZE,
     COLLECTIVE_BARGAIN,
-    r"representation",
+    build_compound([CORE.LABOR, CORE.UNION], [r"representations?", r"affiliations?"]),
     r"(?:union\s+)?memberships?",
-    r"affiliation",
+    r"affiliations?",
 ]
 
 

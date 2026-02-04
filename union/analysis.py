@@ -149,6 +149,45 @@ def check_local_union(
     return check_local_regex(match_span, text, regexes, backward, forward)
 
 
+def apply_coverage_logic(
+    data: Dict[str, Any],
+    total: float,
+    subset: float,
+    is_negated: bool,
+    notes: Optional[List[str]] = None,
+    note_fmt: str = "",
+):
+    """
+    Helper to set covered/not_covered/total counts based on negation status.
+    Calculates the 'other' portion (total - subset) and assigns fields.
+    """
+    other = total - subset
+    data["employee_count_total"] = total
+
+    if is_negated:
+        data["employee_count_not_covered"] = subset
+        data["employee_count_covered"] = other
+        data["negated"] = True
+        data["negation_type"] = NegationType.NOT_COVERED.value
+        status = "not covered"
+        other_status = "covered"
+    else:
+        data["employee_count_covered"] = subset
+        data["employee_count_not_covered"] = other
+        status = "covered"
+        other_status = "not covered"
+
+    if notes is not None and note_fmt:
+        msg = note_fmt.format(
+            status=status,
+            subset=subset,
+            total=total,
+            other=other,
+            other_status=other_status
+        )
+        notes.append(msg)
+
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -226,35 +265,28 @@ class SimpleCoverageAnalyzer:
             is_negated = True
 
         if is_count_total:
-            data["employee_count_total"] = count
             ratio = round((pct / 100.0) * count)
-            other = count - ratio
-
-            if is_negated:
-                data["employee_count_not_covered"] = ratio
-                data["employee_count_covered"] = other
-                data["negated"] = True
-                notes.append(f"Count (total): {count}. {ratio} not covered (negated).")
-            else:
-                data["employee_count_covered"] = ratio
-                data["employee_count_not_covered"] = other
-                notes.append(f"Count (total): {count}. {ratio} covered.")
+            
+            apply_coverage_logic(
+                data,
+                total=count,
+                subset=ratio,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt="Count (total): {total}. {subset} {status}." + (" (negated)" if is_negated else "")
+            )
         else:
             # Count is the subset (Covered or Not Covered)
             total = round(count / (pct / 100.0)) if pct > 0 else count
-            other = total - count
-            data["employee_count_total"] = total
-
-            if is_negated:
-                data["employee_count_not_covered"] = count
-                data["employee_count_covered"] = other
-                data["negated"] = True
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Count (not covered): {count}. Inferred total {total}.")
-            else:
-                data["employee_count_covered"] = count
-                data["employee_count_not_covered"] = other
-                notes.append(f"Count (covered): {count}. Inferred total {total}.")
+            
+            apply_coverage_logic(
+                data,
+                total=total,
+                subset=count,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt="Count ({status}): {subset}. Inferred total {total}."
+            )
 
     def _handle_two_counts(
         self,
@@ -305,8 +337,6 @@ class SimpleCoverageAnalyzer:
 
         if is_subset:
             total, part = max(c1, c2), min(c1, c2)
-            data["employee_count_total"] = total
-            other = total - part
             assert m1 and m2
             # Check if 'part' is associated with union
             part_match = m1 if m1["val"] == part else m2
@@ -322,41 +352,33 @@ class SimpleCoverageAnalyzer:
                         ):
                             is_negated = True
 
-                    if is_negated:
-                        data["employee_count_not_covered"] = part
-                        data["employee_count_covered"] = other
-                        data["negated"] = True
-                        data["negation_type"] = NegationType.NOT_COVERED.value
-                        notes.append(
-                            f"Count (not covered): {part} of {total}. Inferred {other} covered."
-                        )
-                    else:
-                        data["employee_count_covered"] = part
-                        data["employee_count_not_covered"] = other
-                        notes.append(
-                            f"Count (covered): {part} of {total}. Inferred {other} not covered."
-                        )
+                    apply_coverage_logic(
+                        data,
+                        total=total,
+                        subset=part,
+                        is_negated=is_negated,
+                        notes=notes,
+                        note_fmt="Count ({status}): {subset} of {total}. Inferred {other} {other_status}."
+                    )
                 else:
                     # Part is not near union term -> Assume it's just a subset (e.g. "20 in marketing")
                     # Record total only
+                    data["employee_count_total"] = total
                     notes.append(
                         f"Count (total): {total}. Subset {part} not associated with union."
                     )
         else:
             total = c1 + c2
-            data["employee_count_total"] = total
-            if analysis.negation_terms:
-                data.update(
-                    {
-                        "employee_count_not_covered": total,
-                        "negated": True,
-                        "negation_type": NegationType.NOT_COVERED.value,
-                    }
-                )
-                notes.append(f"Count (not covered): {c1} + {c2} = {total}")
-            else:
-                data["employee_count_covered"] = total
-                notes.append(f"Count (covered): {c1} + {c2} = {total}")
+            apply_coverage_logic(
+                data,
+                total=total,
+                subset=total,
+                is_negated=bool(analysis.negation_terms),
+                notes=notes,
+                note_fmt="Count ({status}): {subset} (Sum of {other} + {subset} is wrong here, logic handled sum)"
+            )
+            # Fix note for sum case
+            notes[-1] = f"Count ({'not covered' if analysis.negation_terms else 'covered'}): {c1} + {c2} = {total}"
 
         if data.get("employee_count_total", 0) > 0:
             covered = data.get("employee_count_covered", 0) or 0
@@ -421,7 +443,10 @@ class SimpleCoverageAnalyzer:
                     pct = term.get_percentage(is_negated=is_term_negated)
                     if pct is not None:
                         data["percentage"] = pct
-                        data["type"] = CoverageType.QUALITATIVE.value
+                        if term.is_all and not is_term_negated:
+                            data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                        else:
+                            data["type"] = CoverageType.QUALITATIVE.value
                         if term.lower_bound is not None and term.upper_bound is not None and (term.is_absolute or not is_term_negated):
                             data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
 
@@ -431,46 +456,38 @@ class SimpleCoverageAnalyzer:
                         )
 
                         ratio = round((pct / 100.0) * count)
-                        if has_status_negation:
-                            data["employee_count_not_covered"] = ratio
-                            data["employee_count_covered"] = count - ratio
-                            data["negated"] = True
-                            data["negation_type"] = NegationType.NOT_COVERED.value
-                            data["note"] = (
-                                f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} not covered (negated)"
-                            )
-                        else:
-                            data["employee_count_covered"] = ratio
-                            data["employee_count_not_covered"] = count - ratio
-                            data["note"] = (
-                                f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} covered"
-                            )
+                        apply_coverage_logic(
+                            data,
+                            total=count,
+                            subset=ratio,
+                            is_negated=has_status_negation,
+                            notes=notes,
+                            note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}" + (" (negated)" if has_status_negation else "")
+                        )
                 else:
                     data["type"] = CoverageType.CALCULATED.value
                     data["employee_count_total"] = count
                     notes.append(f"Count (total): {count} (qualitative term present)")
 
             elif is_associated:
-                if analysis.negation_terms:
-                    data.update(
-                        {
-                            "employee_count_not_covered": count,
-                            "negated": True,
-                            "negation_type": NegationType.NOT_COVERED.value,
-                        }
-                    )
-                    notes.append(f"Count (not covered): {count}")
-                else:
-                    data["employee_count_covered"] = count
-                    notes.append(f"Count (covered): {count}")
+                apply_coverage_logic(
+                    data,
+                    total=count,
+                    subset=count,
+                    is_negated=bool(analysis.negation_terms),
+                    notes=notes,
+                    note_fmt="Count ({status}): {subset}"
+                )
                 data["type"] = CoverageType.CALCULATED.value
-                data["employee_count_total"] = count
             elif analysis.negation_terms: # single count ..... are nonunion at this stage.
-                data["employee_count_total"] = count
-                data["employee_count_not_covered"] = count
-                data["negated"] = True
-                data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Count (not covered): {count}")
+                apply_coverage_logic(
+                    data,
+                    total=count,
+                    subset=count,
+                    is_negated=True,
+                    notes=notes,
+                    note_fmt="Count ({status}): {subset}"
+                )
             else:
                 data["employee_count_total"] = count
                 notes.append(f"Count (total): {count} (no union association)")
@@ -794,18 +811,14 @@ class ComplexCoverageAnalyzer:
                             ):
                                 is_negated = True
 
-                        if is_negated:
-                            self.data["employee_count_not_covered"] = round(avg)
-                            self.data["negated"] = True
-                            self.data["negation_type"] = NegationType.NOT_COVERED.value
-                            self.data["note"] = (
-                                f"Averaged from range {c1} to {c2} (not covered)"
-                            )
-                        else:
-                            self.data["employee_count_covered"] = round(avg)
-                            self.data["note"] = (
-                                f"Averaged from range {c1} to {c2} (covered)"
-                            )
+                        apply_coverage_logic(
+                            self.data,
+                            total=round(avg),
+                            subset=round(avg),
+                            is_negated=is_negated,
+                            notes=None
+                        )
+                        self.data["note"] = f"Averaged from range {c1} to {c2} ({'not covered' if is_negated else 'covered'})"
                     else:
                         self.data["employee_count_total"] = round(avg)
                         self.data["note"] = (
@@ -847,47 +860,38 @@ class ComplexCoverageAnalyzer:
 
         # Check 1: small / large ~= pct
         if abs(ratio_subset_total - pct) < 2.0:
-            self.data["employee_count_total"] = large
-            if is_negated:
-                self.data["employee_count_not_covered"] = small
-                self.data["employee_count_covered"] = large - small
-                self.data["negated"] = True
-                self.data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Match: {small}/{large} ~= {pct}% (Negated). Total {large}.")
-            else:
-                self.data["employee_count_covered"] = small
-                self.data["employee_count_not_covered"] = large - small
-                notes.append(f"Match: {small}/{large} ~= {pct}%. Total {large}.")
+            apply_coverage_logic(
+                self.data,
+                total=large,
+                subset=small,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt="Match: {subset}/{total} ~= " + f"{pct}%" + (" (Negated)" if is_negated else "") + ". Total {total}."
+            )
             matched = True
 
         # Check 2: small / (small+large) ~= pct
         elif abs(ratio_part_sum - pct) < 2.0:
-            self.data["employee_count_total"] = total_sum
-            if is_negated:
-                self.data["employee_count_not_covered"] = small
-                self.data["employee_count_covered"] = large
-                self.data["negated"] = True
-                self.data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Match: {small}/({small}+{large}) ~= {pct}% (Negated). Total {total_sum}.")
-            else:
-                self.data["employee_count_covered"] = small
-                self.data["employee_count_not_covered"] = large
-                notes.append(f"Match: {small}/({small}+{large}) ~= {pct}%. Total {total_sum}.")
+            apply_coverage_logic(
+                self.data,
+                total=total_sum,
+                subset=small,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt="Match: {subset}/({subset}+{other}) ~= " + f"{pct}%" + (" (Negated)" if is_negated else "") + ". Total {total}."
+            )
             matched = True
 
         # Check 3: large / (small+large) ~= pct
         elif abs(ratio_large_sum - pct) < 2.0:
-            self.data["employee_count_total"] = total_sum
-            if is_negated:
-                self.data["employee_count_not_covered"] = large
-                self.data["employee_count_covered"] = small
-                self.data["negated"] = True
-                self.data["negation_type"] = NegationType.NOT_COVERED.value
-                notes.append(f"Match: {large}/({small}+{large}) ~= {pct}% (Negated). Total {total_sum}.")
-            else:
-                self.data["employee_count_covered"] = large
-                self.data["employee_count_not_covered"] = small
-                notes.append(f"Match: {large}/({small}+{large}) ~= {pct}%. Total {total_sum}.")
+            apply_coverage_logic(
+                self.data,
+                total=total_sum,
+                subset=large,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt="Match: {subset}/({other}+{subset}) ~= " + f"{pct}%" + (" (Negated)" if is_negated else "") + ". Total {total}."
+            )
             matched = True
 
         if matched:
@@ -2817,7 +2821,10 @@ class UnionAnalyzer:
                         pct = term.get_percentage(is_negated=is_locally_negated)
                         if pct is not None:
                             data["percentage"] = pct
-                            data["type"] = CoverageType.QUALITATIVE.value
+                            if term.is_all and not is_locally_negated:
+                                data["type"] = CoverageType.EXPLICIT_PERCENT.value
+                            else:
+                                data["type"] = CoverageType.QUALITATIVE.value
                             data["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
                             if not is_locally_negated and term.lower_bound is not None and term.upper_bound is not None:
                                 data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
