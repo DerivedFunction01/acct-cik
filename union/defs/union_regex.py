@@ -41,7 +41,7 @@ class CORE(Enum):
     ALLIANCE = r"Alliances?"
     SOCIETY = r"Societ(?:y|ies)"
     UNITED = r"United"
-    ORDER = r"Orders?"
+    ORDER = r"Order\s+of"
     FRATERNAL = r"Fraternal"
     BENEVOLENT = r"Benevolent"
     LODGE = r"Lodges?"
