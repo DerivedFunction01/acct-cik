@@ -69,7 +69,7 @@ QUALITATIVE_MULTIPLIERS = [
 ]
 
 # Worker Count Pattern: Number + (optional gap) + Worker Term
-worker_term_pattern = build_alternation(WORKER_TERMS)
+worker_term_pattern = build_alternation(WORKER_TERMS + ["managers?", "officers?"])
 WORKER_COUNT_REGEX = build_regex(
     [
         rf"employ(?:ed|s)?\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
@@ -627,6 +627,24 @@ QUALITATIVE_TERMS = [
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=5.0,
+    ),
+    QualitativeTerm(
+        core_terms=["nonexistent"],
+        prefix_terms=["virtually", "substantially", "practically", "almost", "nearly"],
+        positive_pct=0,
+        negated_pct=None,  # "not nonexistent" is vague
+        requires_suffix=False,
+        lower_bound=0,
+        upper_bound=1.0,
+    ),
+    QualitativeTerm(
+        core_terms=["nonexistent"],
+        prefix_terms=[],
+        positive_pct=0,
+        negated_pct=None,  # "not nonexistent" is vague
+        requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=0,
     ),
 ]
 
