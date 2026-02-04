@@ -2108,7 +2108,7 @@ def process_producer_consumer_adaptive():
 
 
 def rate_adjuster_worker(
-    rate_limiter, fetch_metrics, metrics_lock, stop_event, target_rate, raw_queue=None
+    rate_limiter: ThreadSafeRateLimiter, fetch_metrics, metrics_lock, stop_event, target_rate, raw_queue=None
 ):
     """
     BACKGROUND THREAD: Continuously monitors fetch rate and adjusts sleep dynamically.

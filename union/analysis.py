@@ -2555,6 +2555,17 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = idx
                 tracker.register_mentions(geo_context)
 
+            # Try to resolve specific counts to geography (e.g. "200 in China")
+            mapped_counts, _ = self._resolve_counts_to_geography(analysis)
+            if mapped_counts:
+                for code, val in mapped_counts.items():
+                    r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+                    specific_ctx = {
+                        "region": r_name,
+                        "countries": [{"code": code, "name": code}]
+                    }
+                    tracker.update(val, specific_ctx)
+
             effective_counts = get_effective_counts(analysis)
             if effective_counts:
                 # Determine if this count is an explicit total
