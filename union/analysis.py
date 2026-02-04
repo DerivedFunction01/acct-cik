@@ -1128,7 +1128,9 @@ class ComplexCoverageAnalyzer:
             if count_assignments[i]["type"] is not None and count_assignments[i - 1]["type"] is None:
                 if is_connected(i, i - 1):
                     count_assignments[i - 1]["type"] = count_assignments[i]["type"]
-
+                    
+        self.data["_count_assignments"] = count_assignments
+        
         for p in percents:
             ptype = get_nearest_type_in_segment(p["span"])
             adj_val, note = apply_qualitative_multipliers(
@@ -2337,6 +2339,87 @@ class UnionAnalyzer:
         """
         return determine_geo_context(analysis, last_context, current_idx, last_idx)
 
+    def _map_assignments_to_geo(self, analysis: SentenceAnalysis, assignments: List[Dict]) -> List[Dict]:
+        """
+        Maps count assignments to explicit geographic entities in the sentence.
+        """
+        geo_match_objs = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
+        raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
+        
+        aligned_geos = []
+        # Align matches (assuming order preservation)
+        if len(geo_match_objs) == len(raw_geo_matches):
+            for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                aligned_geos.append({"obj": obj, "span": raw["span"]})
+        else:
+            return []
+
+        # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
+        # If we have equal number of assignments and locations, assume 1-to-1 mapping in order
+        if len(assignments) == len(aligned_geos):
+            # Sort both by position
+            s_assign = sorted(assignments, key=lambda x: x["match"]["span"][0])
+            s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
+            splits = []
+            for item, g in zip(s_assign, s_geos):
+                obj = g["obj"]
+                splits.append({
+                    "val": item["match"]["val"],
+                    "type": item["type"],
+                    "region": obj.region.value,
+                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                    "note": f"Mapped to {obj.country}"
+                })
+            return splits
+
+        # 2. Greedy Proximity Mapping (Fallback)
+        pairs = []
+        for i, item in enumerate(assignments):
+            c_span = item["match"]["span"]
+            c_mid = (c_span[0] + c_span[1]) / 2
+            
+            for j, g in enumerate(aligned_geos):
+                g_mid = (g["span"][0] + g["span"][1]) / 2
+                dist = abs(c_mid - g_mid)
+                pairs.append({
+                    "dist": dist,
+                    "assign_idx": i,
+                    "geo_idx": j
+                })
+        
+        pairs.sort(key=lambda x: x["dist"])
+        
+        used_assign = set()
+        used_geo = set()
+        mapping = {} # assign_idx -> geo_idx
+        
+        # Allow reuse if we have more assignments than locations (e.g. "20 union, 30 non-union in China")
+        allow_reuse = len(assignments) > len(aligned_geos)
+
+        for p in pairs:
+            if p["assign_idx"] not in used_assign:
+                if allow_reuse or p["geo_idx"] not in used_geo:
+                    if p["dist"] < 150:
+                        mapping[p["assign_idx"]] = p["geo_idx"]
+                        used_assign.add(p["assign_idx"])
+                        used_geo.add(p["geo_idx"])
+        
+        splits = []
+        # Process assignments in original order to preserve logic
+        for i, item in enumerate(assignments):
+            if i in mapping:
+                g = aligned_geos[mapping[i]]
+                obj = g["obj"]
+                splits.append({
+                    "val": item["match"]["val"],
+                    "type": item["type"],
+                    "region": obj.region.value,
+                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                    "note": f"Mapped to {obj.country}"
+                })
+        
+        return splits
+
     def analyze_paragraph(
         self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -2876,17 +2959,82 @@ class UnionAnalyzer:
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
 
-            # 8. Construct Result
-            item = {
-                "sentence": sent,
-                "keyword_matched": analysis.union_terms or None,
-                "geographic_context": geo_context,
-                "coverage_data": coverage_data,
-                "lookup_totals": effective_totals.copy(),
-                "census_note": census_update_note,
-                "sentence_index": current_idx,
-            }
-            results.append(item)
+            # 8. Construct Result (Handle Splits)
+            split_items = []
+            # Remove internal key to prevent JSON serialization errors (contains MatchType)
+            assignments = coverage_data.pop("_count_assignments", None)
+
+            if assignments:
+                relevant_assignments = [a for a in assignments if a["type"] in ("covered", "not_covered")]
+                
+                # Only split if we have multiple relevant counts and multiple explicit geos
+                if len(relevant_assignments) > 1:
+                    splits = self._map_assignments_to_geo(analysis, relevant_assignments)
+                    if len(splits) > 1:
+                        for s in splits:
+                            new_geo_context = {
+                                "region": s["region"],
+                                "countries": s["countries"],
+                                "specificity": Specificity.EXPLICIT.value,
+                                "explicit_countries": [c["name"] for c in s["countries"]],
+                                "regions": [],
+                                "unusual_union_region_combo": False,
+                                "union_names_mentioned": None,
+                                "note": None
+                            }
+                            
+                            new_cov_data = {
+                                "percentage": None,
+                                "employee_count_covered": None,
+                                "employee_count_not_covered": None,
+                                "employee_count_total": None,
+                                "negated": False,
+                                "negation_type": None,
+                                "type": CoverageType.CALCULATED.value,
+                                "qualitative_bounds": None,
+                                "note": f"Split from list | {s['note']}",
+                                "temporal_scope": coverage_data.get("temporal_scope", "CURRENT")
+                            }
+                            
+                            if s["type"] == "covered":
+                                new_cov_data["employee_count_covered"] = s["val"]
+                            elif s["type"] == "not_covered":
+                                new_cov_data["employee_count_not_covered"] = s["val"]
+                                new_cov_data["negated"] = True
+                                new_cov_data["negation_type"] = NegationType.NOT_COVERED.value
+                            
+                            # Try to find total
+                            c_code = s["countries"][0]["code"]
+                            c_total = effective_totals.get(c_code)
+                            if c_total and c_total >= s["val"]:
+                                new_cov_data["employee_count_total"] = c_total
+                                if s["type"] == "covered":
+                                    new_cov_data["percentage"] = round((s["val"]/c_total)*100, 2)
+                            
+                            split_item = {
+                                "sentence": sent,
+                                "keyword_matched": analysis.union_terms or None,
+                                "geographic_context": new_geo_context,
+                                "coverage_data": new_cov_data,
+                                "lookup_totals": effective_totals.copy(),
+                                "census_note": census_update_note,
+                                "sentence_index": current_idx,
+                            }
+                            split_items.append(split_item)
+
+            if split_items:
+                results.extend(split_items)
+            else:
+                item = {
+                    "sentence": sent,
+                    "keyword_matched": analysis.union_terms or None,
+                    "geographic_context": geo_context,
+                    "coverage_data": coverage_data,
+                    "lookup_totals": effective_totals.copy(),
+                    "census_note": census_update_note,
+                    "sentence_index": current_idx,
+                }
+                results.append(item)
 
         merged_results = self._merge_continuation_items(results)
 
