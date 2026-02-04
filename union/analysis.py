@@ -577,6 +577,7 @@ class SimpleCoverageAnalyzer:
             self._handle_remaining(analysis, effective_counts, data, notes)
             if not data.get("type") == CoverageType.REMAINING.value:
                 self._handle_qualitative_zero(analysis, effective_counts, data, notes)
+            
 
         data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
         data["employee_count_total"]
@@ -1547,7 +1548,11 @@ class Tracker:
                 mentioned_in_region[r_name].add(code)
 
         # 0. Global -> Region (if singular)
-        active_regions = set(self.region_totals.keys()) | set(mentioned_in_region.keys())
+        active_regions = set()
+        for r in set(self.region_totals.keys()) | set(mentioned_in_region.keys()):
+            if r not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+                active_regions.add(r)
+
         if self.global_total > 0 and len(active_regions) == 1:
             target_region = list(active_regions)[0]
             current_r_total = self.region_totals.get(target_region, 0.0)
