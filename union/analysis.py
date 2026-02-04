@@ -2051,17 +2051,17 @@ class Tracker:
                 self.country_totals["US"] = self.global_total
                 self.resolution_log.append(f"Inherited Global Total {self.global_total} to 'US' (Default Domestic)")
 
-            for e in self.entries:
+            for idx, e in enumerate(self.entries):
                 if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value]:
-                    e.key = "US"
+                    e.key = f"US::Segment_{idx}"
                     e.scope = Scope.SEGMENT
-                    self.resolution_log.append("Resolved 'Domestic' to 'US' (Default)")
+                    self.resolution_log.append("Resolved 'Domestic'/'Unknown' to 'US' (Default)")
 
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
         """
-        # 3. Resolve Domestic
+        # 0. Resolve Domestic
         self._resolve_domestic()
         # 1. Resolve Countries
         for country_code, census_total in self.country_totals.items():
