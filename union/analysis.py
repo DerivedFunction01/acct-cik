@@ -2728,31 +2728,54 @@ class UnionAnalyzer:
                 key = obj.geo_code
                 if obj.geo_code in REGION_CODES:
                     key = obj.region.value
-                geo_entries.append({"code": key, "span": raw["span"]})
+                geo_entries.append({"code": key, "span": raw["span"], "region_enum": obj.region})
 
-        # 1. "Respectively" Logic
-        if analysis.has_respectively and len(counts) == len(geo_entries):
+        parts = counts
+        
+        # 1. Identify Total (Denominator)
+        if len(counts) > 1:
+            vals = [c["val"] for c in counts]
+            max_val = max(vals)
+            sum_val = sum(vals)
+            others_sum = sum_val - max_val
+            
+            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
+            is_len_mismatch = len(counts) == len(geo_entries) + 1
+            
+            # Extract total if length mismatch suggests it (N+1 counts for N regions)
+            # OR if sum match occurs AND we don't have a perfect 1-to-1 alignment already
+            if is_len_mismatch or (is_sum_match and len(counts) != len(geo_entries)):
+                sentence_total = max_val
+                # Remove ONE instance of max_val from parts
+                for i, c in enumerate(parts):
+                    if c["val"] == max_val:
+                        parts = parts[:i] + parts[i+1:]
+                        break
+
+        # 1.5 Filter Generic Regions if Mismatch
+        if len(parts) < len(geo_entries):
+            generics = (Region.INTERNATIONAL, Region.DOMESTIC, Region.UNKNOWN)
+            non_generic_entries = [g for g in geo_entries if g["region_enum"] not in generics]
+            
+            if len(parts) == len(non_generic_entries):
+                geo_entries = non_generic_entries
+            elif len(parts) == len(geo_entries) - 1:
+                for i, g in enumerate(geo_entries):
+                    if g["region_enum"] in generics:
+                        geo_entries.pop(i)
+                        break
+
+        # 2. Parallel Structure / Respectively Logic (on parts)
+        # If counts match regions 1-to-1, assume parallel ordering (works for interleaved and lists)
+        if len(parts) == len(geo_entries):
             # Sort both by position
-            s_counts = sorted(counts, key=lambda x: x["span"][0])
+            s_counts = sorted(parts, key=lambda x: x["span"][0])
             s_geos = sorted(geo_entries, key=lambda x: x["span"][0])
             for c, g in zip(s_counts, s_geos):
                 mapped_counts[g["code"]] = c["val"]
-            return mapped_counts, None
+            return mapped_counts, sentence_total
 
-        # 2. Summation Check (Total vs Parts)
-        vals = [c["val"] for c in counts]
-        max_val = max(vals)
-        sum_val = sum(vals)
-        others_sum = sum_val - max_val
-
-        parts = counts
-        if len(counts) > 1 and others_sum > 0:
-            # If sum of others is close to max (within 10%), treat max as total
-            if abs(max_val - others_sum) / max_val < 0.10:
-                sentence_total = max_val
-                parts = [c for c in counts if c["val"] != max_val]
-
-        # 3. Proximity Mapping (Greedy)
+        # 3. Proximity Mapping (Greedy) (on parts)
         if geo_entries:
             pairs = []
             for c in parts:
