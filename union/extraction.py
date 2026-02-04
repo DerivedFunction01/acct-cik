@@ -133,7 +133,7 @@ DENOMINATOR_COVERAGE_TERMS = [
     r"under",
     r"affiliated",
 ]
-
+# Capture 18% of our unionized workers, 20% of the employees represented
 UNION_DENOMINATOR_REGEX = build_regex(
     [
         build_compound(
@@ -148,12 +148,13 @@ UNION_DENOMINATOR_REGEX = build_regex(
             [r"union", r"bargaining\s+unit"],
             sep_prefix=r"\s+(?:our\s+|the\s+)?",
         ),
+        # Strict: Do not match (18% of the workers are covered/represented)
         build_compound(
             DENOMINATOR_PREFIX,
             DENOMINATOR_NOUNS,
             build_compound(
                 [r"(?:not\s+)?"],
-                [r"subject\s+to", r"covered", r"represented", r"under", r"affiliated"],
+                DENOMINATOR_COVERAGE_TERMS,
             ),
             sep_prefix=r"\s+" + DENOMINATOR_GAP,
             sep_suffix=r"\s+",
