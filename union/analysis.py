@@ -1576,17 +1576,21 @@ class Tracker:
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
+        codes = {c.get("code") for c in countries}
+
         # 1. Global Update
-        if (
-            region in (Region.INTERNATIONAL.value, Region.UNKNOWN.value)
-        ):
+        if "GLO" in codes or (region == Region.UNKNOWN.value and not codes):
             self.global_total = max(self.global_total, count)
 
         # 2. Regional Update
-        if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
-            current = self.region_totals.get(region, 0)
-            if count > current:
-                self.region_totals[region] = count
+        if region and region not in (Region.UNKNOWN.value,):
+            # If International Region, only update if it's NOT Global code
+            if region == Region.INTERNATIONAL.value and "GLO" in codes:
+                pass
+            else:
+                current = self.region_totals.get(region, 0)
+                if count > current:
+                    self.region_totals[region] = count
 
         # 3. Country Update
         if len(countries) == 1:
@@ -1692,11 +1696,20 @@ class Tracker:
         scope = Scope.GLOBAL
         key = scope.value
 
+        codes = [c.get("code") for c in countries]
+
         if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
             scope = Scope.REGION
             key = region
+        elif region == Region.INTERNATIONAL.value:
+            if "GLO" in codes:
+                scope = Scope.GLOBAL
+                key = Scope.GLOBAL.value
+            else:
+                scope = Scope.REGION
+                key = region
         elif region == Region.UNKNOWN.value:
-            key =  Region.DOMESTIC.value
+            key = "Domestic" if "DOM" in codes else Region.DOMESTIC.value
             scope = Scope.REGION
 
         if len(countries) == 1:
@@ -2182,10 +2195,20 @@ class Tracker:
                 self.resolution_log.append(f"Inherited Global Total {self.global_total} to 'US' (Default Domestic)")
 
             for idx, e in enumerate(self.entries):
-                if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value]:
+                if e.key in [Region.DOMESTIC.value, Region.UNKNOWN.value, "DOM", "Domestic"]:
                     e.key = "US"
                     e.scope = Scope.COUNTRY
                     self.resolution_log.append("Resolved 'Domestic'/'Unknown' to 'US' (Default)")
+                elif e.scope == Scope.SEGMENT and e.key and (e.key.startswith("DOM::") or e.key.startswith("Domestic::")):
+                    suffix = e.key.split("::", 1)[1]
+                    e.key = f"US::{suffix}"
+                    self.resolution_log.append("Resolved Domestic Segment to 'US::...' (Default)")
+
+            # Remap Totals
+            if "DOM" in self.country_totals:
+                val = self.country_totals.pop("DOM")
+                self.country_totals["US"] = max(self.country_totals.get("US", 0), val)
+                self.resolution_log.append(f"Remapped country total DOM ({val}) to US")
 
     def resolve_coverage(self):
         """

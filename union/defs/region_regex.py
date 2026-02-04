@@ -1806,7 +1806,15 @@ MIDDLE_EAST_AFRICA = {
 INTERNATIONAL = {
     Nation(
         "International",
-        ["international", "foreign", "overseas", "global", "worldwide"],
+        ["international", "foreign", "overseas"],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        code="INT",
+    ),
+    Nation(
+        "Global",
+        ["global", "worldwide", "consolidated"],
         Region.INTERNATIONAL,
         [],
         [
@@ -1818,7 +1826,7 @@ INTERNATIONAL = {
             "PSI",
             "Public Services International",
         ],
-        code="INT",
+        code="GLO",
     ),
     Nation(
         "Spanish",
@@ -1900,7 +1908,8 @@ INTERNATIONAL = {
         [],
         [],
         [],
-    )
+        code="DOM",
+    ),
 }
 
 INT_LANGUAGE_MAP = {
@@ -1932,6 +1941,7 @@ REGION_CODES = {
     "MEA",
     "AFRICA",
     "INT",
+    "DOM",
     "INT_ES",
     "INT_PT",
     "INT_FR",
