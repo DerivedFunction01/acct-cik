@@ -613,7 +613,7 @@ NORTH_AMERICA = {
         code="CA",
     ),
     Nation(
-        "North America (Domestic)",
+        "North America",
         ["north america", "north american"],
         Region.NORTH_AMERICA,
         code="NA",
