@@ -2295,6 +2295,33 @@ class Tracker:
             
         # 3. Resolve International Gap
         self._resolve_international_gap()
+    
+    def _check_contradictions(self):
+        """
+        Checks for logical contradictions in the tracked data.
+        """
+        # 1. Internal Arithmetic (Parts vs Total)
+        for e in self.entries:
+            if e.total_count and e.covered_count is not None and e.not_covered_count is not None:
+                parts_sum = e.covered_count + e.not_covered_count
+                if parts_sum > e.total_count * 1.05: # 5% tolerance
+                    self.resolution_log.append(f"Contradiction (Arithmetic): {e.key} parts ({parts_sum}) exceed total ({e.total_count})")
+            
+            # Percentage vs Count consistency
+            if e.total_count and e.percentage is not None and e.covered_count is not None:
+                implied = (e.percentage / 100.0) * e.total_count
+                # Check for deviation > 10% of total (for significant populations)
+                if e.total_count > 50 and abs(implied - e.covered_count) > (e.total_count * 0.10):
+                    self.resolution_log.append(f"Contradiction (Math): {e.key} percentage ({e.percentage}%) implies {implied:.0f}, but count is {e.covered_count}")
+
+        # 2. Hierarchical Mismatches (Countries > Region)
+        for region_name, r_total in self.region_totals.items():
+            c_sum = sum(
+                c_total for c_code, c_total in self.country_totals.items()
+                if _CODE_TO_REGION.get(c_code) == region_name
+            )
+            if c_sum > r_total * 1.05:
+                 self.resolution_log.append(f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})")
 
     def calculate_metrics(self) -> Dict[str, Any]:
         metrics = {
