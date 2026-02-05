@@ -860,12 +860,12 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
-        personnel_event_pattern = build_alternation(PERSONNEL_EVENT_TERMS)
+        personnel_event_pattern = build_alternation(PERSONNEL_EVENT_TERMS +[ r"former", r"previous", r"past"])
 
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
-            rf"(?:\s+[\w-]+){{0,5}}\s+"  # up to N filler words
+            rf"(?:\s+[\w-]+){{0,8}}\s+"  # up to N filler words
             rf"{number_range}\b",
             re.IGNORECASE,
         )
@@ -873,7 +873,7 @@ class ContextualNumberCleaner:
         # 100 layoffs, etc
         self.personnel_event_reverse_regex = re.compile(
             rf"\b{number_range}"
-            rf"(?:\s+[\w-]+){{0,5}}\s+"  # up to N filler words
+            rf"(?:\s+[\w-]+){{0,8}}\s+"  # up to N filler words
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
@@ -923,7 +923,7 @@ class ContextualNumberCleaner:
         self.subset_event_regex = re.compile(
             rf"\b(of\s+(?:which|whom|those)|includ(?:ing|es?)|compris(?:ing|es?))\s+"
             rf"{number_range}"
-            rf"([,\s]+(?:[\w-]+\s*){{0,15}}?)"
+            rf"([,\s]+(?:[\w,-]+\s*){{0,15}}?)"
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
