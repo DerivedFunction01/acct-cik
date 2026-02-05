@@ -46,11 +46,9 @@ CONDITIONAL_REGEX = build_regex(
 
 CURRENT_REGEX = build_regex(
     [
-        r"current(?:ly)?",
-        r"present",
+        r"currently",
         r"now",
-        r"today",
-        r"this\s+(?:fiscal|reporting)\s+(?:year|period)",
+        r"(?:this|current)\s+(?:fiscal|reporting)\s+(?:year|period)",
     ]
 )
 

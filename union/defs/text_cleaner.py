@@ -440,9 +440,17 @@ class MinimalTextCleaner:
 
     EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
     exhibit_pattern = re.compile(
-        rf"\b{EXHIBIT_FRAGMENT}\b" r"(?:\s*No\.?)?" r"\s*\d(?:[\d\.\-]*\d)?\b",
+        rf"\b{EXHIBIT_FRAGMENT}\b"
+        r"(?:\s*No\.?)?"
+        r"\s*\d(?:[\d\.\-]*\d)?"
+        r"(?:\s*(?:,?\s*(?:and|or|&)|,|to|through|-)\s*\d(?:[\d\.\-]*\d)?)*"
+        r"\b",
         re.IGNORECASE,
     )
+
+    # Page artifact pattern (e.g. "2 <PAGE> 7")
+    # Limit to 1-3 digits to avoid matching years (e.g. 2000 <PAGE>)
+    page_pattern = re.compile(r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE)
 
     # Regex for acronyms with dots (2-5 letters) e.g. U.S., U.S.A.
     acronym_pattern = re.compile(r"\b(?:[A-Z]\.){2,5}")
@@ -678,6 +686,7 @@ class MinimalTextCleaner:
 
             # NEW: Remove bullets and Cleanup references
             paragraph = self.exhibit_pattern.sub(" ", paragraph)
+            paragraph = self.page_pattern.sub(" ", paragraph)
             paragraph = self.bullet_pattern.sub(" ", paragraph)
 
             # 4b. Date and Year Removal
@@ -1629,6 +1638,16 @@ def create_test_cases() -> List[TestCase]:
             input_text="Word . Word , word .. word ,, word . . word",
             validations=[
                 (TestType.EXACT, "Word. Word, word. word, word. word", None),
+            ],
+        ),
+        # Test 30: Page Artifact Removal
+        TestCase(
+            name="Page Artifact Removal",
+            input_text="End of page. 2 <PAGE> 7 Start of next page.",
+            validations=[
+                (TestType.NOT_CONTAINS, "<PAGE>", None),
+                (TestType.NOT_CONTAINS, "2", None),
+                (TestType.NOT_CONTAINS, "7", None),
             ],
         ),
     ]

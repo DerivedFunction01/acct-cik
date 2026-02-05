@@ -7,7 +7,7 @@ import queue
 import string
 import sys
 
-from union.defs.regex_lib import build_regex
+from defs.regex_lib import build_regex
 
 
 # Increase recursion limit to handle deeply nested HTML structures
@@ -125,11 +125,12 @@ FILING_TYPES = {
 }
 
 
-CRUNCHED_TEXT_PATTERNS = [
+CLEANUP_PATTERNS = [
     (re.compile(r"([a-z])([A-Z])"), r"\1 \2"),
     (re.compile(r"([a-zA-Z])(\d+)"), r"\1 \2"),
     (re.compile(r"(\d+)([a-zA-Z])"), r"\1 \2"),
     (re.compile(r"([a-zA-Z0-9])(\$)"), r"\1 \2"),
+    (re.compile(r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE), r""),
 ]
 
 
@@ -138,7 +139,7 @@ TABLE_HINT_PATTERN = re.compile(
     r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE
 )
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
-WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)\n(?!\n)")
+WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
 SPACE_PATTERN = re.compile(r"\s+")
 DOC_PATTERN = re.compile(r"<document>\s*(.*?)\s*</document>", re.DOTALL | re.IGNORECASE)
 HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
@@ -958,7 +959,7 @@ def extract_content(data: str, asHTML=True) -> str:
                 )
         text = "".join(processed_parts)
 
-    for pattern, replacement in CRUNCHED_TEXT_PATTERNS:
+    for pattern, replacement in CLEANUP_PATTERNS:
         text = pattern.sub(replacement, text)
 
     text = normalize_unicode(text)
