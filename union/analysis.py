@@ -577,13 +577,13 @@ class SimpleCoverageAnalyzer:
         data["employee_count_total"]
         return data
 
-class UnionDenominatorAnalyzer:
+class UnionExtraAnalyzer:
     """
     Analyzes sentences where the union population is the denominator.
     These are often contextual statements about negotiations or relationships
     rather than broad coverage data.
     """
-    def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
+    def analyze_denominator(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         """
         Creates a skeleton dictionary for union denominator sentences.
         This is treated as a special type of coverage data for context.
@@ -604,6 +604,43 @@ class UnionDenominatorAnalyzer:
             "negation_type": None,
             "qualitative_bounds": None,
         }
+    def create_risk_item(self, sentence: str, analysis: SentenceAnalysis, is_historical: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Creates a risk item dictionary if relevant terms are found.
+        """
+        is_conditional = analysis.has_conditional
+        is_future = analysis.has_future
+
+        temporal_scope = TemporalScope.CURRENT.value
+        if is_historical:
+            temporal_scope = TemporalScope.HISTORICAL.value
+        elif is_future:
+            temporal_scope = TemporalScope.FUTURE.value
+        elif is_conditional:
+            temporal_scope = TemporalScope.CONDITIONAL.value
+
+        # Return something if there is something to return (Union terms OR Risk terms)
+        if not (analysis.union_terms or analysis.risk_terms):
+            return {}
+
+        return {
+            "type": (
+                RiskType.UNION_RISK.value
+                if analysis.union_terms
+                else RiskType.LABOR_RISK.value
+            ),
+            "sentence": sentence,
+            "labor_keywords": analysis.union_terms,
+            "risk_keywords": analysis.risk_terms,
+            "third_party": analysis.supplier_terms,
+            "specific_to_unions": bool(analysis.union_terms),
+            "union_mention": analysis.union_terms,
+            "temporal_scope": temporal_scope,
+            "conditional": is_conditional,
+            "note": None,
+        }
+
 
 def get_external_worker_count(
     region: str, countries: List[Dict[str, str]]
@@ -612,46 +649,6 @@ def get_external_worker_count(
     Placeholder: Connect to external DB to get worker counts for a region/country.
     """
     return None
-
-
-def create_risk_item(
-    sentence: str, analysis: SentenceAnalysis, is_historical: bool = False
-) -> Dict[str, Any]:
-    """
-    Creates a risk item dictionary if relevant terms are found.
-    """
-    is_conditional = analysis.has_conditional
-    is_future = analysis.has_future
-
-    temporal_scope = TemporalScope.CURRENT.value
-    if is_historical:
-        temporal_scope = TemporalScope.HISTORICAL.value
-    elif is_future:
-        temporal_scope = TemporalScope.FUTURE.value
-    elif is_conditional:
-        temporal_scope = TemporalScope.CONDITIONAL.value
-
-    # Return something if there is something to return (Union terms OR Risk terms)
-    if not (analysis.union_terms or analysis.risk_terms):
-        return {}
-
-    return {
-        "type": (
-            RiskType.UNION_RISK.value
-            if analysis.union_terms
-            else RiskType.LABOR_RISK.value
-        ),
-        "sentence": sentence,
-        "labor_keywords": analysis.union_terms,
-        "risk_keywords": analysis.risk_terms,
-        "third_party": analysis.supplier_terms,
-        "specific_to_unions": bool(analysis.union_terms),
-        "union_mention": analysis.union_terms,
-        "temporal_scope": temporal_scope,
-        "conditional": is_conditional,
-        "note": None,
-    }
-
 
 def apply_qualitative_multipliers(
     raw_pct: float, span: Tuple[int, int], text: str, apply: bool = False
@@ -2531,7 +2528,7 @@ class UnionAnalyzer:
     def __init__(self, domestic_country_code: str = "US"):
         self.extractor = UnionExtractor()
         self.simple_analyzer = SimpleCoverageAnalyzer()
-        self.denominator_analyzer = UnionDenominatorAnalyzer()
+        self.extra_analyzer = UnionExtraAnalyzer()
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
         self.domestic_country_code = domestic_country_code
@@ -3107,6 +3104,18 @@ class UnionAnalyzer:
             ) and not analysis.has_current:
                 is_historical = True
 
+            if is_historical:
+                for k in range(idx, len(analyzed_sentences)):
+                    r_analysis = analyzed_sentences[k]
+                    r_sent = sentences[k]
+                    risk_item = self.extra_analyzer.create_risk_item(
+                        r_sent, r_analysis, is_historical=True
+                    )
+                    if risk_item:
+                        risk_item["sentence_index"] = start_index + k
+                        results.append(risk_item)
+                break
+
             # 2. Update Context (Worker Counts)
             effective_counts = get_effective_counts(analysis)
             if effective_counts and not is_historical:
@@ -3319,7 +3328,7 @@ class UnionAnalyzer:
         data = {}
 
         if analysis.has_union_denominator:
-            return self.denominator_analyzer.analyze(analysis)
+            return self.extra_analyzer.analyze_denominator(analysis)
         elif is_simple_scenario(analysis):
             data = self.simple_analyzer.analyze(analysis)
         else:
@@ -3413,7 +3422,7 @@ class UnionAnalyzer:
                 or analysis.relationship_quality_terms
                 or analysis.relationship_terms
             ):
-                result = create_risk_item(sent, analysis, is_historical=is_historical)
+                result = self.extra_analyzer.create_risk_item(sent, analysis, is_historical=is_historical)
                 if result:
                     results.append(result)
         return results
