@@ -112,7 +112,7 @@ def get_system_config():
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
-from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES
+from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES, REGION_CODES
 
 FILING_TYPES = {
     "10-K",
@@ -161,6 +161,38 @@ ITEM_2_START_PATTERN = re.compile(
     r"\b(?:Item\s+2\b\.?)", re.MULTILINE | re.IGNORECASE
 )
 
+# 20-F Patterns
+ITEM_3_START_PATTERN = re.compile(
+    r"\b(?:Item\s+3\b\.?)(?:\s+Key\s+Information)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+ITEM_4_START_PATTERN = re.compile(
+    r"\b(?:Item\s+4\b\.?)(?:\s+Information)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+ITEM_4A_START_PATTERN = re.compile(
+    r"\b(?:Item\s+4A\b\.?)(?:\s+Unresolved)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+ITEM_5_START_PATTERN = re.compile(
+    r"\b(?:Item\s+5\b\.?)(?:\s+Operating)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# 40-F Patterns (Canadian AIF)
+ITEM_40F_BUSINESS_PATTERN = re.compile(
+    r"\b(?:General\s+Development\s+of\s+(?:the\s+)?Business|Description\s+of\s+(?:the\s+)?Business)\b",
+    re.MULTILINE | re.IGNORECASE
+)
+ITEM_40F_RISK_PATTERN = re.compile(
+    r"\b(?:Risk\s+Factors)\b",
+    re.MULTILINE | re.IGNORECASE
+)
+ITEM_40F_STOP_PATTERN = re.compile(
+    r"\b(?:Dividends|Description\s+of\s+Capital\s+Structure|Market\s+for\s+Securities|Directors\s+and\s+Officers|Legal\s+Proceedings)\b",
+    re.MULTILINE | re.IGNORECASE
+)
+
 ANNUAL_REPORT_PATTERN = re.compile(
     r"ANNUAL\s+REPORT\s+PURSUANT\s+TO\s+SECTION\s+13\s+OR\s+15\s*\(d\)", 
     re.IGNORECASE | re.MULTILINE
@@ -172,10 +204,20 @@ FISCAL_YEAR_PATTERN = re.compile(
 
 JURISDICTION_PATTERN = re.compile(r"\bJurisdiction\s+of\s+incorporation\s+or\s+organization\b", re.IGNORECASE | re.MULTILINE)
 OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b", re.IGNORECASE | re.MULTILINE)
-HEADQUARTERED_PATTERN = build_regex([r"home\s+country", r"headquartered\s+in"])
 FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
 FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
-HOME_COUNTRY_PATTERNS = [JURISDICTION_PATTERN, OFFICE_PATTERN, HEADQUARTERED_PATTERN]
+
+HOME_COUNTRY_PATTERNS = [
+    (JURISDICTION_PATTERN, 5.0),
+    (build_regex([r"home\s+country"]), 4.0),
+    (build_regex([r"headquartered\s+in"]), 3.0),
+    (build_regex([r"domiciled?"]), 3.0),
+    (build_regex([r"principal\s+place\s+of\s+business"]), 3.0),
+    (build_regex([r"corporate\s+headquarters"]), 2.5),
+    (OFFICE_PATTERN, 2.0),
+    (build_regex([r"executive\s+offices"]), 1.5),
+    (build_regex([r"registered\s+office"]), 1.0),
+]
 # %%
 # =============================================================================
 # LOAD DATA
@@ -964,12 +1006,14 @@ def fetch_url(
         return None
 
 
-def _find_country_near_match(text: str, match: re.Match, matcher: RegionMatcher, ignore_us: bool = False) -> Optional[str]:
-    """Helper to find a country code near a regex match."""
+def _collect_candidates_near_match(text: str, match: re.Match, matcher: RegionMatcher, ignore_us: bool = False) -> List[Tuple[str, int]]:
+    """Helper to find country codes near a regex match with distances."""
     # Look at the text surrounding the match (before and after)
     start_search = max(0, match.start() - 200)
     end_search = min(len(text), match.end() + 200)
     snippet = text[start_search:end_search]
+    
+    candidates = []
     
     if matcher.location_regex:
         # Find all location matches in the snippet
@@ -979,9 +1023,6 @@ def _find_country_near_match(text: str, match: re.Match, matcher: RegionMatcher,
             # Find the match closest to the label
             label_start = match.start() - start_search
             label_end = match.end() - start_search
-            
-            best_code = None
-            min_dist = float("inf")
             
             for m in loc_matches:
                 m_start, m_end = m.span()
@@ -993,18 +1034,15 @@ def _find_country_near_match(text: str, match: re.Match, matcher: RegionMatcher,
                     dist = m_start - label_end
                 else:
                     dist = 0
-                    
-                if dist < min_dist:
-                    term = m.group(0).lower()
-                    if term in matcher.location_map:
-                        code = matcher.location_map[term][3]
-                        if ignore_us and code == "US":
-                            continue
-                        min_dist = dist
-                        best_code = code
-                        
-            return best_code
-    return None
+                
+                term = m.group(0).lower()
+                if term in matcher.location_map:
+                    code = matcher.location_map[term][3]
+                    if ignore_us and code == "US":
+                        continue
+                    candidates.append((code, dist))
+            
+    return candidates
 
 
 def extract_home_country(text: str) -> str:
@@ -1024,38 +1062,39 @@ def extract_home_country(text: str) -> str:
         return "US"
         
     matcher = RegionMatcher()
-    
-    def get_code(pattern):
-        m = pattern.search(header)
-        if m:
-            return _find_country_near_match(header, m, matcher, ignore_us=True)
-        return None
+    candidate_scores = {}
 
-    juris_code = get_code(JURISDICTION_PATTERN)
-    office_code = get_code(OFFICE_PATTERN)
-    hq_code = get_code(HEADQUARTERED_PATTERN)
+    for pattern, weight in HOME_COUNTRY_PATTERNS:
+        for m in pattern.finditer(header):
+            candidates = _collect_candidates_near_match(header, m, matcher, ignore_us=True)
+            for code, dist in candidates:
+                # Score formula: Weight * (100 / (100 + dist))
+                # Closer matches get higher score.
+                score = weight * (100 / (100 + dist))
+                
+                # Penalize regions (we prefer specific countries)
+                if code in REGION_CODES:
+                    score *= 0.1
+                
+                candidate_scores[code] = candidate_scores.get(code, 0.0) + score
+
+    if not candidate_scores:
+        return "INT"
+
+    # Sort by score
+    sorted_candidates = sorted(candidate_scores.items(), key=lambda x: x[1], reverse=True)
     
-    # Priority 1: Non-Tax Haven Jurisdiction
-    if juris_code and juris_code not in TAX_HAVEN_CODES and juris_code != "INT":
-        return juris_code
-        
-    # Priority 2: Non-Tax Haven Office/HQ
-    if office_code and office_code not in TAX_HAVEN_CODES and office_code != "INT":
-        return office_code
-    if hq_code and hq_code not in TAX_HAVEN_CODES and hq_code != "INT":
-        return hq_code
-        
-    # Priority 3: Tax Haven Jurisdiction (if that's all we have)
-    if juris_code and juris_code != "INT":
-        return juris_code
-        
-    # Priority 4: Tax Haven Office/HQ
-    if office_code and office_code != "INT":
-        return office_code
-    if hq_code and hq_code != "INT":
-        return hq_code
+    best_code, best_score = sorted_candidates[0]
+    
+    # If best is a tax haven, see if we have a strong operational alternative
+    if best_code in TAX_HAVEN_CODES:
+        for code, score in sorted_candidates[1:]:
+            if code not in TAX_HAVEN_CODES and code != "INT":
+                # If alternative is at least 40% as strong as the tax haven match
+                if score > best_score * 0.4:
+                    return code
                     
-    return "INT" # Default for foreign filings if country not found
+    return best_code
 
 
 def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[str]:
@@ -1103,23 +1142,44 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
     return None
 
 
-def filter_for_item1(content: str) -> Tuple[str, str]:
+def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
     """
     Filters content using updated Strict/Soft regex logic.
 
-    1. CAPTURE: ITEM 1 AND ITEM 1A
-    2. RETURNS: 1st element: ITEM 1, 2nd element: ITEM 1A
+    1. CAPTURE: ITEM 1 AND ITEM 1A (or Item 4 and Item 3 for 20-F, or Business/Risk for 40-F)
+    2. RETURNS: 1st element: ITEM 1 (Business), 2nd element: ITEM 1A (Risk)
     """
     matches = []
-    for m in ITEM_1_START_PATTERN.finditer(content):
-        matches.append((m.start(), '1'))
-    for m in ITEM_1A_START_PATTERN.finditer(content):
-        matches.append((m.start(), '1A'))
-    for m in ITEM_1B_START_PATTERN.finditer(content):
-        matches.append((m.start(), '1B'))
-    for m in ITEM_2_START_PATTERN.finditer(content):
-        matches.append((m.start(), '2'))
     
+    if is_40f:
+        # 40-F Logic: Business, Risk, and Stop patterns
+        for m in ITEM_40F_BUSINESS_PATTERN.finditer(content):
+            matches.append((m.start(), '40F_B'))
+        for m in ITEM_40F_RISK_PATTERN.finditer(content):
+            matches.append((m.start(), '40F_R'))
+        for m in ITEM_40F_STOP_PATTERN.finditer(content):
+            matches.append((m.start(), '40F_S'))
+    elif is_20f:
+        # 20-F Logic: Item 4 is Business, Item 3 is Risk
+        for m in ITEM_3_START_PATTERN.finditer(content):
+            matches.append((m.start(), '3'))
+        for m in ITEM_4_START_PATTERN.finditer(content):
+            matches.append((m.start(), '4'))
+        for m in ITEM_4A_START_PATTERN.finditer(content):
+            matches.append((m.start(), '4A'))
+        for m in ITEM_5_START_PATTERN.finditer(content):
+            matches.append((m.start(), '5'))
+    else:
+        # 10-K Logic
+        for m in ITEM_1_START_PATTERN.finditer(content):
+            matches.append((m.start(), '1'))
+        for m in ITEM_1A_START_PATTERN.finditer(content):
+            matches.append((m.start(), '1A'))
+        for m in ITEM_1B_START_PATTERN.finditer(content):
+            matches.append((m.start(), '1B'))
+        for m in ITEM_2_START_PATTERN.finditer(content):
+            matches.append((m.start(), '2'))
+
     if not matches:
         return "", ""
 
@@ -1136,12 +1196,27 @@ def filter_for_item1(content: str) -> Tuple[str, str]:
             
         text_block = content[start:end]
         
-        if label == '1':
-            if len(text_block) > len(item1):
-                item1 = text_block
-        elif label == '1A':
-            if len(text_block) > len(item1a):
-                item1a = text_block
+        if is_40f:
+            if label == '40F_B': # Business
+                if len(text_block) > len(item1):
+                    item1 = text_block
+            elif label == '40F_R': # Risk
+                if len(text_block) > len(item1a):
+                    item1a = text_block
+        elif is_20f:
+            if label == '4': # Business
+                if len(text_block) > len(item1):
+                    item1 = text_block
+            elif label == '3': # Risk
+                if len(text_block) > len(item1a):
+                    item1a = text_block
+        else:
+            if label == '1':
+                if len(text_block) > len(item1):
+                    item1 = text_block
+            elif label == '1A':
+                if len(text_block) > len(item1a):
+                    item1a = text_block
                 
     return item1, item1a
 
@@ -1672,6 +1747,10 @@ def should_retry_with_plaintext(
         accession = info["accession"]
         cik_part = info["cik"]
 
+        # Detect 20-F
+        is_20f = bool(FILING_20F.search(raw_text[:10000]))
+        is_40f = bool(FILING_40F.search(raw_text[:10000]))
+
         # Construct plain text URL filename to check against current URL
         accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
         txt_filename = f"{accession_dashed}.txt"
@@ -1685,7 +1764,7 @@ def should_retry_with_plaintext(
         has_valid_content = False
         
         for doc in docs:
-            i1, i1a = filter_for_item1(doc)
+            i1, i1a = filter_for_item1(doc, is_20f=is_20f, is_40f=is_40f)
             # Retry if either is too short (Item 1 < 1000 or Item 1A < 50)
             if len(i1) > 1000 and len(i1a) > 50:
                 has_valid_content = True
@@ -1823,6 +1902,10 @@ def parse_content(data):
                     "home_country": "US",
                 }
             )
+            
+        # Detect 20-F from the raw text header (first 10k chars)
+        is_20f = bool(FILING_20F.search(raw_text[:10000]))
+        is_40f = bool(FILING_40F.search(raw_text[:10000]))
 
         # 2. Filter each document for keywords and aggregate results
         item1_matches = []
@@ -1840,7 +1923,7 @@ def parse_content(data):
 
             try:
                 # Filter this document for keywords (CPU-intensive)
-                item1, item1a = filter_for_item1(content)
+                item1, item1a = filter_for_item1(content, is_20f=is_20f, is_40f=is_40f)
 
                 if item1:
                     debug_print(
