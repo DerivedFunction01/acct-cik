@@ -7,6 +7,8 @@ import queue
 import string
 import sys
 
+from union.defs.regex_lib import build_regex
+
 
 # Increase recursion limit to handle deeply nested HTML structures
 # Default is usually 1000, increase to 5000 for robust handling
@@ -110,7 +112,7 @@ def get_system_config():
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
-from defs.region_regex import RegionMatcher
+from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES
 
 FILING_TYPES = {
     "10-K",
@@ -170,7 +172,7 @@ FISCAL_YEAR_PATTERN = re.compile(
 
 JURISDICTION_PATTERN = re.compile(r"\bJurisdiction\s+of\s+incorporation\s+or\s+organization\b", re.IGNORECASE | re.MULTILINE)
 OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b", re.IGNORECASE | re.MULTILINE)
-HEADQUARTERED_PATTERN = re.compile(r"\bheadquartered\s+in\b", re.IGNORECASE | re.MULTILINE)
+HEADQUARTERED_PATTERN = build_regex([r"home\s+country", r"headquartered\s+in"])
 FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
 FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
 HOME_COUNTRY_PATTERNS = [JURISDICTION_PATTERN, OFFICE_PATTERN, HEADQUARTERED_PATTERN]
@@ -962,6 +964,49 @@ def fetch_url(
         return None
 
 
+def _find_country_near_match(text: str, match: re.Match, matcher: RegionMatcher, ignore_us: bool = False) -> Optional[str]:
+    """Helper to find a country code near a regex match."""
+    # Look at the text surrounding the match (before and after)
+    start_search = max(0, match.start() - 200)
+    end_search = min(len(text), match.end() + 200)
+    snippet = text[start_search:end_search]
+    
+    if matcher.location_regex:
+        # Find all location matches in the snippet
+        loc_matches = list(matcher.location_regex.finditer(snippet))
+        
+        if loc_matches:
+            # Find the match closest to the label
+            label_start = match.start() - start_search
+            label_end = match.end() - start_search
+            
+            best_code = None
+            min_dist = float("inf")
+            
+            for m in loc_matches:
+                m_start, m_end = m.span()
+                
+                # Calculate distance to the label
+                if m_end <= label_start:
+                    dist = label_start - m_end
+                elif m_start >= label_end:
+                    dist = m_start - label_end
+                else:
+                    dist = 0
+                    
+                if dist < min_dist:
+                    term = m.group(0).lower()
+                    if term in matcher.location_map:
+                        code = matcher.location_map[term][3]
+                        if ignore_us and code == "US":
+                            continue
+                        min_dist = dist
+                        best_code = code
+                        
+            return best_code
+    return None
+
+
 def extract_home_country(text: str) -> str:
     """
     Determines the home country from the document text.
@@ -971,27 +1016,44 @@ def extract_home_country(text: str) -> str:
     header = text[:10000]
     
     # Check for foreign filing markers
-    is_foreign = False
-    if FILING_20F.search(header) or FILING_40F.search(header):
-        is_foreign = True
+    if FILING_40F.search(header):
+        return "CA"
         
-    if not is_foreign:
+    is_20f = FILING_20F.search(header)
+    if not is_20f:
         return "US"
         
-    # Attempt to extract jurisdiction
-    match = JURISDICTION_PATTERN.search(header)
-    if match:
-        # Look at the text immediately following the match
-        snippet = header[match.end():match.end()+200]
+    matcher = RegionMatcher()
+    
+    def get_code(pattern):
+        m = pattern.search(header)
+        if m:
+            return _find_country_near_match(header, m, matcher, ignore_us=True)
+        return None
+
+    juris_code = get_code(JURISDICTION_PATTERN)
+    office_code = get_code(OFFICE_PATTERN)
+    hq_code = get_code(HEADQUARTERED_PATTERN)
+    
+    # Priority 1: Non-Tax Haven Jurisdiction
+    if juris_code and juris_code not in TAX_HAVEN_CODES and juris_code != "INT":
+        return juris_code
         
-        matcher = RegionMatcher()
-        if matcher.location_regex:
-            m = matcher.location_regex.search(snippet)
-            if m:
-                term = m.group(0).lower()
-                if term in matcher.location_map:
-                    # location_map maps term -> (Region, Country, City, Code)
-                    return matcher.location_map[term][3]
+    # Priority 2: Non-Tax Haven Office/HQ
+    if office_code and office_code not in TAX_HAVEN_CODES and office_code != "INT":
+        return office_code
+    if hq_code and hq_code not in TAX_HAVEN_CODES and hq_code != "INT":
+        return hq_code
+        
+    # Priority 3: Tax Haven Jurisdiction (if that's all we have)
+    if juris_code and juris_code != "INT":
+        return juris_code
+        
+    # Priority 4: Tax Haven Office/HQ
+    if office_code and office_code != "INT":
+        return office_code
+    if hq_code and hq_code != "INT":
+        return hq_code
                     
     return "INT" # Default for foreign filings if country not found
 
