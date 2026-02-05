@@ -918,6 +918,16 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # 5. Subset Event Pattern (e.g. "of which 257 ... were on layoff")
+        # Preserves the context ("of which", gap text, event) while removing the number.
+        self.subset_event_regex = re.compile(
+            rf"\b(of\s+(?:which|whom|those)|includ(?:ing|es?)|compris(?:ing|es?))\s+"
+            rf"{number_range}"
+            rf"([,\s]+(?:[\w-]+\s*){{0,15}}?)"
+            rf"({personnel_event_pattern})\b",
+            re.IGNORECASE,
+        )
+
     def clean(self, text: str) -> str:
         if not text:
             return ""
@@ -926,6 +936,7 @@ class ContextualNumberCleaner:
         texts = []
         for paragraph in paragraphs:
             paragraph = self.asset_regex.sub(r" \1 ", paragraph)
+            paragraph = self.subset_event_regex.sub(r" \1\2\3 ", paragraph)
             paragraph = self.change_pre_regex.sub(r" \1 ", paragraph)
             paragraph = self.change_post_regex.sub(r" \1 ", paragraph)
             paragraph = self.personnel_event_regex.sub(r" \1 ", paragraph)
@@ -1648,6 +1659,16 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "<PAGE>", None),
                 (TestType.NOT_CONTAINS, "2", None),
                 (TestType.NOT_CONTAINS, "7", None),
+            ],
+        ),
+        # Test 31: Subset Event Removal
+        TestCase(
+            name="Subset Event Removal",
+            input_text="We have 300 employees, of which 50 were on temporary layoff.",
+            validations=[
+                (TestType.NOT_CONTAINS, "50", None),
+                (TestType.CONTAINS, "of which", None),
+                (TestType.CONTAINS, "layoff", None),
             ],
         ),
     ]
