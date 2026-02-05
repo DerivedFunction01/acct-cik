@@ -2080,6 +2080,18 @@ INTERNATIONAL = {
         code="INT_DE",
     ),
     Nation(
+        "Dutch",
+        [],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        [
+            "Arbeid", "Staking", "Vakbonden", "CAO", "Ondernemingsraad",
+            "Medezeggenschap", "Metaal", "Bouw", "Zorg",
+        ],
+        code="INT_NL",
+    ),
+    Nation(
         Region.DOMESTIC.value,
         ["domestic", "domestically"],
         Region.UNKNOWN,
@@ -2097,6 +2109,7 @@ INT_LANGUAGE_MAP = {
     "INT_FR": {"FR", "BE", "CH", "CA"},
     "INT_IT": {"IT", "CH", "SM", "VA"},
     "INT_DE": {"DE", "AT", "CH", "LI", "LU"},
+    "INT_NL": {"NL", "BE", "SR"},
 }
 
 # Worker terms, Union terms, gap
@@ -2105,9 +2118,9 @@ INT_UNION_MAP = {
         [
             "Trabalhadores", "Trabajadores", "Operários", "Obreros", "Empregados", "Empleados", "Funcionários", "Personal",
             "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios",
-            "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Textiles", "Mineiros", "Mineros",
+            "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Mineiros", "Mineros",
             "Automotivos", "Automotrices", "Construção", "Construcción", "Comércio", "Comercio", "Transportes", "Transporte", "Correios", "Correos",
-            "Metal", "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía"
+            "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía"
         ],
         ["Sindicato", "Federação", "Federación", "Confederação", "Confederación", "União", "Unión", "Central", "Associação", "Asociación"],
         r"(?:\s+(?:del|do|da|de|e|y|para|los|las|la|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",
@@ -2145,6 +2158,15 @@ INT_UNION_MAP = {
         ["Gewerkschaft", "Bund", "Verband", "Vereinigung", "Industriegewerkschaft", "IG"],
         r"(?:\s+(?:der|des|dem|den|für|im|in|und|&|[A-Z][\w-]*)){0,3}\s+",
     ),
+    "INT_NL": (
+        [
+            "Werknemers", "Arbeiders", "Personeel", "Medewerkers", "Bedienden",
+            "Metaal", "Bouw", "Vervoer", "Spoorwegen", "Havens", "Chemie", "Onderwijs", "Zorg",
+            "Politie", "Banken", "Verzekeringen", "Textiel", "Voeding", "Landbouw",
+        ],
+        ["Vakbond", "Bond", "Unie", "Federatie", "Vereniging", "Centrale", "Vakcentrale", "Vakbeweging"],
+        r"(?:\s+(?:van|de|het|en|voor|in|op|&|[A-Z][\w-]*)){0,3}\s+",
+    ),
 }
 REGION_CODES = {
     "NA",
@@ -2159,6 +2181,7 @@ REGION_CODES = {
     "INT_FR",
     "INT_IT",
     "INT_DE",
+    "INT_NL",
 }
 TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
