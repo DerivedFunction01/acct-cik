@@ -868,6 +868,46 @@ class ContextualNumberCleaner:
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
+        
+        # 4. Time/Duration Patterns
+        time_units = [
+            r"years?",
+            r"months?",
+            r"weeks?",
+            r"days?",
+            r"quarters?",
+            r"hr",
+            r"hours?",
+            r"annum",
+            r"annual",
+        ]
+        time_unit_pattern = build_alternation(time_units)
+        
+        duration_context = [
+            r"extensions?",
+            r"contracts?",
+            r"agreements?",
+            r"periods?",
+            r"terms?",
+            r"durations?",
+            r"renewals?",
+            r"plans?",
+            r"increas(?:e|es)?",
+            r"decreas(?:e|es)?",
+            r"pay",
+            r"wages?",
+            r"salary",
+            r"rates?",
+            r"formula",
+            r"basis",
+        ]
+        duration_context_pattern = build_alternation(duration_context)
+
+        # Matches: "3 year [contract]", "3-year [extension]", "0.25 per [hour]"
+        self.duration_regex = re.compile(
+            rf"\b{number_range}\s*(?:[-]|per)?\s*{time_unit_pattern}\s+({duration_context_pattern})\b",
+            re.IGNORECASE,
+        )
 
     def clean(self, text: str) -> str:
         if not text:
@@ -881,6 +921,7 @@ class ContextualNumberCleaner:
             paragraph = self.change_post_regex.sub(r" \1 ", paragraph)
             paragraph = self.personnel_event_regex.sub(r" \1 ", paragraph)
             paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
+            paragraph = self.duration_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
