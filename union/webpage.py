@@ -1765,10 +1765,6 @@ def parse_multi_document_content(raw_text: str) -> List[str]:
 
         if not doc_content:
             continue
-        
-        # Quick check: does it even mention item1 and item 1a?
-        if not ITEM_1_START_PATTERN.search(doc_content) and not ITEM_1A_START_PATTERN.search(doc_content):
-            continue
 
         # Detect if this document is HTML (only check for html/body tags)
         is_html = bool(HTML_REGEX.search(doc_content))
