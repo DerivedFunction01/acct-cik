@@ -90,14 +90,13 @@ NORTH_AMERICA = {
                 ["california", "ca", "cal"],
                 [
                     Location("San Francisco", ["san francisco", "sf", "bay area"]),
-                    Location("Los Angeles", ["los angeles", "la"]),                    
+                    Location("Los Angeles", ["los angeles", "la"]),
                     Location("San Diego", ["san diego"]),
                     Location("San Jose", ["san jose"]),
-                    Location("Fremont", ["fremont"]),                    
+                    Location("Fremont", ["fremont"]),
                     Location("Irvine", ["irvine"]),
                     Location("Sacramento", ["sacramento"]),
                     Location("Palo Alto", ["palo alto"]),
-                    
                 ],
             ),
             Location(
@@ -105,7 +104,7 @@ NORTH_AMERICA = {
                 ["texas", "tx"],
                 [
                     Location("Houston", ["houston"]),
-                    Location("Dallas", ["dallas"]),                    
+                    Location("Dallas", ["dallas"]),
                     Location("Austin", ["austin"]),
                     Location("San Antonio", ["san antonio"]),
                     Location("Fort Worth", ["fort worth"]),
@@ -113,19 +112,17 @@ NORTH_AMERICA = {
                     Location("El Paso", ["el paso"]),
                     Location("Laredo", ["laredo"]),
                     Location("Lubbock", ["lubbock"]),
-
                 ],
             ),
             Location(
                 "Illinois",
                 ["illinois", "il"],
                 [
-                    Location("Chicago", ["chicago"]),                    
+                    Location("Chicago", ["chicago"]),
                     Location("Springfield", ["springfield, il"]),
                     Location("Peoria", ["peoria"]),
                     Location("Rockford", ["rockford"]),
                     Location("Belvidere", ["belvidere"]),
-                    
                 ],
             ),
             Location(
@@ -134,23 +131,21 @@ NORTH_AMERICA = {
                 [
                     Location("Boston", ["boston"]),
                     Location("Worcester", ["worcester"]),
-                    Location("Cambridge", ["cambridge, ma" ]),
+                    Location("Cambridge", ["cambridge, ma"]),
                     Location("Springfield", ["springfield, ma"]),
                     Location("Lowell", ["lowell"]),
-                    
                 ],
             ),
             Location(
                 "Washington",
                 ["washington"],
                 [
-                    Location("Seattle", ["seattle"]),                    
+                    Location("Seattle", ["seattle"]),
                     Location("Spokane", ["spokane"]),
                     Location("Tacoma", ["tacoma"]),
                     Location("Bellevue", ["bellevue"]),
                     Location("Everett", ["everett"]),
                     Location("Renton", ["renton"]),
-                    
                 ],
             ),
             Location(
@@ -163,7 +158,6 @@ NORTH_AMERICA = {
                     Location("Jacksonville", ["jacksonville"]),
                     Location("Tallahassee", ["tallahassee"]),
                     Location("Fort Lauderdale", ["fort lauderdale"]),
-                    
                 ],
             ),
             Location(
@@ -192,13 +186,18 @@ NORTH_AMERICA = {
                 [
                     Location("Pittsburgh", ["pittsburgh"]),
                     Location("Philadelphia", ["philadelphia", "philly"]),
-                    Location("Erie", ["erie"]),                    
+                    Location("Erie", ["erie"]),
                     Location("Harrisburg", ["harrisburg"]),
                     Location("Allentown", ["allentown"]),
-                    Location("Scranton", ["scranton"]),                    
-                    Location("York", ["york, pa",]),
+                    Location("Scranton", ["scranton"]),
+                    Location(
+                        "York",
+                        [
+                            "york, pa",
+                        ],
+                    ),
                     Location("Reading", ["reading, pa"]),
-                    Location("Lancaster", ["lancaster, pa"]),                    
+                    Location("Lancaster", ["lancaster, pa"]),
                     Location("Bethlehem", ["bethlehem, pa", "bethlehem steel"]),
                     Location("Wilkes-Barre", ["wilkes-barre"]),
                 ],
@@ -209,12 +208,11 @@ NORTH_AMERICA = {
                 [
                     Location("Indianapolis", ["indianapolis"]),
                     Location("Lafayette", ["lafayette"]),
-                    Location("Princeton", ["princeton"]),                    
+                    Location("Princeton", ["princeton"]),
                     Location("Fort Wayne", ["fort wayne"]),
                     Location("South Bend", ["south bend"]),
                     Location("Evansville", ["evansville"]),
                     Location("Greensburg", ["greensburg, in"]),
-                    
                 ],
             ),
             Location(
@@ -224,7 +222,6 @@ NORTH_AMERICA = {
                     Location("Louisville", ["louisville"]),
                     Location("Georgetown", ["georgetown"]),
                     Location("Bowling Green", ["bowling green"]),
-                    
                 ],
             ),
             Location(
@@ -652,9 +649,14 @@ NORTH_AMERICA = {
             Location("Oshawa", ["oshawa"]),
             Location("Oakville", ["oakville"]),
             Location("Brampton", ["brampton"]),
-            Location("Cambridge", ["cambridge, on", "cambridge, ontario", "cambridge, canada"]),
+            Location(
+                "Cambridge",
+                ["cambridge, on", "cambridge, ontario", "cambridge, canada"],
+            ),
             Location("Ingersoll", ["ingersoll"]),
-            Location("Hamilton", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]),
+            Location(
+                "Hamilton", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]
+            ),
             Location("St. Catharines", ["st. catharines"]),
         ],
         [
@@ -667,6 +669,7 @@ NORTH_AMERICA = {
             "Confédération des syndicats nationaux",
             "FTQ",
             "Fédération des travailleurs et travailleuses du Québec",
+            "Le Syndicat des Travailleurs-euses de la Mine Meston",
         ],
         code="CA",
     ),

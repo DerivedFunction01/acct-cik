@@ -146,36 +146,36 @@ XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
 ITEM_1_START_PATTERN = re.compile(
-    r"\b(?:Item\s+1\b\.?)(?:\s+Business)?",
+    r"^\s*Item\s+1\b\.?(?:\s+Business)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
-    r"\b(?:Item\s+1A\b\.?)(?:\s+Risk)?", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+1A\b\.?(?:\s+Risk\s+Factors)?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_1B_START_PATTERN = re.compile(
-    r"\b(?:Item\s+1B\b\.?)", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+1B\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_2_START_PATTERN = re.compile(
-    r"\b(?:Item\s+2\b\.?)", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+2\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 # 20-F Patterns
 ITEM_3_START_PATTERN = re.compile(
-    r"\b(?:Item\s+3\b\.?)(?:\s+Key\s+Information)?",
+    r"^\s*Item\s+3\b\.?(?:\s+Key\s+Information)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_4_START_PATTERN = re.compile(
-    r"\b(?:Item\s+4\b\.?)(?:\s+Information)?",
+    r"^\s*Item\s+4\b\.?(?:\s+Information)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_4A_START_PATTERN = re.compile(
-    r"\b(?:Item\s+4A\b\.?)(?:\s+Unresolved)?",
+    r"^\s*Item\s+4A\b\.?(?:\s+Unresolved)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_5_START_PATTERN = re.compile(
-    r"\b(?:Item\s+5\b\.?)(?:\s+Operating)?",
+    r"^\s*Item\s+5\b\.?(?:\s+Operating)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 
@@ -198,7 +198,7 @@ ANNUAL_REPORT_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 FISCAL_YEAR_PATTERN = re.compile(
-    r"For\s+the\s+fiscal\s+year\s+ended\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})", 
+    r"(?:For\s+the\s+fiscal\s+)?year\s+ended\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})", 
     re.IGNORECASE | re.MULTILINE
 )
 
@@ -206,6 +206,11 @@ JURISDICTION_PATTERN = re.compile(r"\bJurisdiction\s+of\s+incorporation\s+or\s+o
 OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b", re.IGNORECASE | re.MULTILINE)
 FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
 FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
+PART_I_PATTERN = re.compile(r"^\s*Part\s+I\b(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE)
+FORWARD_LOOKING_PATTERN = re.compile(
+    r"^\s*(?:(?:special|cautionary)\s+(?:note|statement|notice)\s+(?:regarding|concerning|about)\s+)?forward[- ]looking\s+statements",
+    re.IGNORECASE | re.MULTILINE
+)
 
 HOME_COUNTRY_PATTERNS = [
     (JURISDICTION_PATTERN, 5.0),
@@ -1151,6 +1156,18 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     """
     matches = []
     
+    # Heuristic: Find start of Part I or Forward Looking Statements to skip ToC
+    search_start = 0
+    if not is_20f and not is_40f:
+        p1_match = PART_I_PATTERN.search(content)
+        if p1_match:
+            search_start = p1_match.start()
+        else:
+            fl_match = FORWARD_LOOKING_PATTERN.search(content)
+            # Only use if it appears early (e.g. first 20%) to avoid matching inside Item 7
+            if fl_match and fl_match.start() < len(content) * 0.2:
+                search_start = fl_match.end()
+
     if is_40f:
         # 40-F Logic: Business, Risk, and Stop patterns
         for m in ITEM_40F_BUSINESS_PATTERN.finditer(content):
@@ -1172,13 +1189,17 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     else:
         # 10-K Logic
         for m in ITEM_1_START_PATTERN.finditer(content):
-            matches.append((m.start(), '1'))
+            if m.start() >= search_start:
+                matches.append((m.start(), '1'))
         for m in ITEM_1A_START_PATTERN.finditer(content):
-            matches.append((m.start(), '1A'))
+            if m.start() >= search_start:
+                matches.append((m.start(), '1A'))
         for m in ITEM_1B_START_PATTERN.finditer(content):
-            matches.append((m.start(), '1B'))
+            if m.start() >= search_start:
+                matches.append((m.start(), '1B'))
         for m in ITEM_2_START_PATTERN.finditer(content):
-            matches.append((m.start(), '2'))
+            if m.start() >= search_start:
+                matches.append((m.start(), '2'))
 
     if not matches:
         return "", ""
