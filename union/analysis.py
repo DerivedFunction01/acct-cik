@@ -324,6 +324,17 @@ class SimpleCoverageAnalyzer:
                 m1["span"], analysis.text, OF_REGEX, backward=25, forward=0
             ):
                 is_subset = True
+            elif re.search(r"\band\b", text_between, re.IGNORECASE):
+                # Check for multiple specific unions to infer disjoint sets (Sum)
+                union_matches = [
+                    m for m in analysis._matches 
+                    if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+                ]
+                unique_unions = {m["val"].lower() for m in union_matches}
+                
+                if len(unique_unions) >= 2:
+                    is_subset = False
+                    notes.append("Logic: 'and' with multiple unions -> Sum")
 
         if is_subset:
             total, part = max(c1, c2), min(c1, c2)
