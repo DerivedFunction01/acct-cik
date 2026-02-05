@@ -670,6 +670,7 @@ NORTH_AMERICA = {
             "FTQ",
             "Fédération des travailleurs et travailleuses du Québec",
             "Le Syndicat des Travailleurs-euses de la Mine Meston",
+            "Metallurgistes Unis d'Amerique",
         ],
         code="CA",
     ),
