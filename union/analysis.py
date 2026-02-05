@@ -3074,17 +3074,10 @@ class UnionAnalyzer:
                         if w_curr and w_next:
                             generic_terms = {
                                 "employee",
-                                "employees",
                                 "worker",
-                                "workers",
                                 "laborer",
-                                "laborers",
-                                "staff",
                                 "personnel",
                                 "workforce",
-                                "workforces",
-                                "associate",
-                                "associates",
                             }
 
                             spec_curr = {
