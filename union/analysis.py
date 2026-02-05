@@ -324,8 +324,6 @@ class SimpleCoverageAnalyzer:
                 m1["span"], analysis.text, OF_REGEX, backward=25, forward=0
             ):
                 is_subset = True
-            elif re.search(r"\band\b", text_between, re.IGNORECASE):
-                is_subset = False
 
         if is_subset:
             total, part = max(c1, c2), min(c1, c2)
@@ -2795,6 +2793,19 @@ class UnionAnalyzer:
                     }
                     tracker.update(val, specific_ctx)
 
+            # Try to resolve counts to unions
+            union_counts, _ = self._resolve_counts_to_unions(analysis)
+            if union_counts:
+                for union_name, val in union_counts.items():
+                    lower_name = union_name.lower()
+                    if lower_name in self.matcher.union_map:
+                        region, country, code = self.matcher.union_map[lower_name]
+                        specific_ctx = {
+                            "region": region.value,
+                            "countries": [{"code": code, "name": country}]
+                        }
+                        tracker.update(val, specific_ctx)
+
             effective_counts = get_effective_counts(analysis)
             if effective_counts:
                 # Determine if this count is an explicit total
@@ -2913,6 +2924,81 @@ class UnionAnalyzer:
                     mapped_counts[g["code"]] = c["val"]
                     used_c.add(id(c))
                     used_g.add(g["code"])
+
+        return mapped_counts, sentence_total
+
+    def _resolve_counts_to_unions(
+        self, analysis: SentenceAnalysis
+    ) -> Tuple[Dict[str, float], Optional[float]]:
+        """
+        Intelligently maps worker counts to union entities within the sentence.
+        """
+        mapped_counts = {}
+        sentence_total = None
+
+        counts = [
+            m
+            for m in analysis._matches
+            if (m["type"] == MatchType.WORKER_COUNT
+            or m["type"] == MatchType.NUMBER)
+        ]
+        if not counts:
+            return {}, None
+
+        # Identify Union Matches
+        union_matches = [
+            m for m in analysis._matches 
+            if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+        ]
+        
+        if not union_matches:
+            return {}, None
+
+        parts = counts
+        
+        # 1. Identify Total (Denominator)
+        if len(counts) > 1:
+            vals = [c["val"] for c in counts]
+            max_val = max(vals)
+            sum_val = sum(vals)
+            others_sum = sum_val - max_val
+            
+            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
+            is_len_mismatch = len(counts) == len(union_matches) + 1
+            
+            if is_len_mismatch or (is_sum_match and len(counts) != len(union_matches)):
+                sentence_total = max_val
+                for i, c in enumerate(parts):
+                    if c["val"] == max_val:
+                        parts = parts[:i] + parts[i+1:]
+                        break
+
+        # 2. Parallel Structure
+        if len(parts) == len(union_matches):
+            s_counts = sorted(parts, key=lambda x: x["span"][0])
+            s_unions = sorted(union_matches, key=lambda x: x["span"][0])
+            for c, u in zip(s_counts, s_unions):
+                mapped_counts[u["text"]] = c["val"]
+            return mapped_counts, sentence_total
+
+        # 3. Proximity Mapping
+        if union_matches:
+            pairs = []
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                for u in union_matches:
+                    u_mid = (u["span"][0] + u["span"][1]) / 2
+                    dist = abs(c_mid - u_mid)
+                    pairs.append((dist, c, u))
+
+            pairs.sort(key=lambda x: x[0])
+            used_c, used_u = set(), set()
+
+            for dist, c, u in pairs:
+                if dist < 150 and id(c) not in used_c and id(u) not in used_u:
+                    mapped_counts[u["text"]] = c["val"]
+                    used_c.add(id(c))
+                    used_u.add(id(u))
 
         return mapped_counts, sentence_total
 
@@ -3146,28 +3232,47 @@ class UnionAnalyzer:
                 if range_avg:
                     current_val = range_avg
                     mapped_counts = {}
+                    union_counts = {}
                 else:
                     # Try intelligent mapping first
                     mapped_counts, sent_total = self._resolve_counts_to_geography(
                         analysis
                     )
+                    union_counts, _ = self._resolve_counts_to_unions(analysis)
                     current_val = max(effective_counts)
 
                 updates_found = []
 
-                if mapped_counts:
+                if mapped_counts or union_counts:
                     # Use specific mappings
-                    for code, count in mapped_counts.items():
-                        # Check if this is a source of the total (Update vs Previous)
-                        prev_val = previous_totals.get(code, 0) if previous_totals else 0
-                        curr_max = effective_totals.get(code, 0)
-                        if count > prev_val and count >= curr_max:
-                            updates_found.append(f"{code}: {count}")
+                    if mapped_counts:
+                        for code, count in mapped_counts.items():
+                            # Check if this is a source of the total (Update vs Previous)
+                            prev_val = previous_totals.get(code, 0) if previous_totals else 0
+                            curr_max = effective_totals.get(code, 0)
+                            if count > prev_val and count >= curr_max:
+                                updates_found.append(f"{code}: {count}")
 
-                        if count > local_totals.get(code, 0):
-                            local_totals[code] = count
-                        if count > effective_totals.get(code, 0):
-                            effective_totals[code] = count
+                            if count > local_totals.get(code, 0):
+                                local_totals[code] = count
+                            if count > effective_totals.get(code, 0):
+                                effective_totals[code] = count
+                    
+                    if union_counts:
+                        for union_name, count in union_counts.items():
+                            lower_name = union_name.lower()
+                            if lower_name in self.matcher.union_map:
+                                region, country, code = self.matcher.union_map[lower_name]
+                                
+                                prev_val = previous_totals.get(code, 0) if previous_totals else 0
+                                curr_max = effective_totals.get(code, 0)
+                                if count > prev_val and count >= curr_max:
+                                    updates_found.append(f"{code} (via {union_name}): {count}")
+
+                                if count > local_totals.get(code, 0):
+                                    local_totals[code] = count
+                                if count > effective_totals.get(code, 0):
+                                    effective_totals[code] = count
                 else:
                     # Fallback to applying max count (or range avg) to context
                     if geo_context["specificity"] in (
