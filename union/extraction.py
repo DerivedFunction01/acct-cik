@@ -26,6 +26,7 @@ from defs.union_regex import (
     COVERAGE_REGEX,
     BOILERPLATE_REGEX,
     PERSONNEL_EVENT_REGEX,
+    FOREIGN_DYNAMIC_PATTERNS,
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource
 
@@ -912,6 +913,22 @@ class UnionExtractor:
                         source_type=GeoSource.INFERRED_UNION,
                     )
                 )
+            else:
+                # Fallback: Check if it matches a known foreign dynamic pattern
+                # This maps "Sindicato de..." back to "INT_IBERIA", etc.
+                for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
+                    if pattern.fullmatch(val):
+                        # We found the language origin.
+                        # We don't know the specific country yet, but we have the language code.
+                        analysis.geo_matches.append(
+                            GeoMatch(
+                                text=val,
+                                region=Region.INTERNATIONAL, # Broad region, refined by analysis.py using code
+                                geo_code=code,
+                                source_type=GeoSource.INFERRED_UNION,
+                            )
+                        )
+                        break
 
         process_matches(
             DYNAMIC_UNION_REGEX,
