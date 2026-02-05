@@ -1989,55 +1989,19 @@ INTERNATIONAL = {
         code="GLO",
     ),
     Nation(
-        "Spanish",
+        "Iberian",
         [],
         Region.INTERNATIONAL,
         [],
         [],
         [
-            "Trabajo",
-            "Huelga",
-            "Gremios",
-            "Minería",
-            "Automóvil",
-            "Automotriz",
-            "Contrato Colectivo",
-            "Convenio Colectivo",
-            "Negociación colectiva",
-            "Aéreo",
-            "Metalúrgica",
-            "Química",
-            "Construcción",
-            "Transporte",
-            "Ferrocarril",
-            "Ferroviarios",
+            "Trabalho", "Trabajo", "Greve", "Huelga", "Gremios", "Mineração", "Minería",
+            "Automotivo", "Automóvil", "Automotriz", "Convenção Coletiva", "Contrato Colectivo",
+            "Convenio Colectivo", "Negociação coletiva", "Negociación colectiva", "Aéreo",
+            "Metalúrgica", "Metalúrgicos", "Química", "Construção", "Construcción",
+            "Transporte", "Bancários", "Petroleiros", "Ferroviários", "Ferrocarril", "Ferroviarios"
         ],
-        code="INT_ES",
-    ),
-    Nation(
-        "Portuguese",
-        [],
-        Region.INTERNATIONAL,
-        [],
-        [],
-        [
-            "Trabalho",
-            "Greve",
-            "Mineração",
-            "Automotivo",
-            "Convenção Coletiva",
-            "Negociação coletiva",
-            "Aéreo",
-            "Metalúrgica",
-            "Metalúrgicos",
-            "Química",
-            "Construção",
-            "Transporte",
-            "Bancários",
-            "Petroleiros",
-            "Ferroviários",
-        ],
-        code="INT_PT",
+        code="INT_IBERIA",
     ),
     Nation(
         "Francophone",
@@ -2073,25 +2037,36 @@ INTERNATIONAL = {
 }
 
 INT_LANGUAGE_MAP = {
-    "INT_PT": {"BR", "PT"},
-    "INT_ES": {
-        "ES",
-        "MX",
-        "AR",
-        "CL",
-        "CO",
-        "PE",
-        "VE",
-        "EC",
-        "GT",
-        "DO",
-        "CR",
-        "PA",
-        "UY",
-        "BO",
-        "PY",
+    "INT_IBERIA": {
+        "BR", "PT", "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", "GT", "DO", "CR", "PA", "UY", "BO", "PY"
     },
     "INT_FR": {"FR", "BE", "CH", "CA"},
+}
+
+# Worker terms, Union terms, gap
+INT_UNION_MAP = {
+    "INT_IBERIA": (
+        [
+            "Trabalhadores", "Trabajadores", "Operários", "Obreros", "Empregados", "Empleados", "Funcionários", "Personal",
+            "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios",
+            "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Textiles", "Mineiros", "Mineros",
+            "Automotivos", "Automotrices", "Construção", "Construcción", "Comércio", "Comercio", "Transportes", "Transporte", "Correios", "Correos",
+            "Metal", "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía"
+        ],
+        ["Sindicato", "Federação", "Federación", "Confederação", "Confederación", "União", "Unión", "Central", "Associação", "Asociación"],
+        r"(?:\s+(?:del|do|da|de|e|y|para|los|las|la|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",
+    ),
+    "INT_FR": (
+        [
+            "Travailleurs", "Salariés", "Employés", "Personnel", "Ouvriers",
+            "Métallurgistes", "Sidérurgistes", "Pétroliers", "Chimistes", "Bancaires",
+            "Cheminots", "Portuaires", "Agricoles", "Mineurs",
+            "Automobiles", "Construction", "Commerce", "Transports", "Postes",
+            "Métallurgie", "Sidérurgie", "Pétrole", "Gaz", "Charbon", "Mines", "Bâtiment", "Énergie",
+        ],
+        ["Syndicat", "Fédération", "Confédération", "Union", "Centrale", "Association"],
+        r"(?:\s+(?:du|de|des|et|pour|le|la|les|&|[A-Z][\w-]*)){0,3}\s+",
+    ),
 }
 REGION_CODES = {
     "NA",
@@ -2102,8 +2077,7 @@ REGION_CODES = {
     "AFRICA",
     "INT",
     "DOM",
-    "INT_ES",
-    "INT_PT",
+    "INT_IBERIA",
     "INT_FR",
 }
 TAX_HAVEN_CODES = {

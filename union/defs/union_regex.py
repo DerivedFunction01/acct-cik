@@ -16,6 +16,7 @@ Use enums to build core terms, then use another enum or function to build out th
 from enum import Enum
 import re
 from defs.regex_lib import build_alternation, build_compound, build_regex
+from defs.region_regex import INT_UNION_MAP
 
 
 class CORE(Enum):
@@ -149,12 +150,18 @@ UNION_TERMS = [
     CORE.LODGE,
 ]
 
+_foreign_dynamic = []
+for _, (workers, unions, gap) in INT_UNION_MAP.items():
+    if workers and unions:
+        _foreign_dynamic.append(build_compound(unions, workers, sep_prefix=gap))
+        _foreign_dynamic.append(build_compound(unions, unions, sep_prefix=gap))
+
 _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
         build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=GAP),
-    ]
+    ] + _foreign_dynamic
 )
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
