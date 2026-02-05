@@ -110,6 +110,7 @@ def get_system_config():
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
+from defs.region_regex import RegionMatcher
 
 FILING_TYPES = {
     "10-K",
@@ -170,7 +171,8 @@ FISCAL_YEAR_PATTERN = re.compile(
 JURISDICTION_PATTERN = re.compile(r"\bJurisdiction\s+of\s+incorporation\s+or\s+organization\b", re.IGNORECASE | re.MULTILINE)
 OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b", re.IGNORECASE | re.MULTILINE)
 HEADQUARTERED_PATTERN = re.compile(r"\bheadquartered\s+in\b", re.IGNORECASE | re.MULTILINE)
-
+FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
+FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
 HOME_COUNTRY_PATTERNS = [JURISDICTION_PATTERN, OFFICE_PATTERN, HEADQUARTERED_PATTERN]
 # %%
 # =============================================================================
@@ -229,7 +231,8 @@ def create_db():
                 accession TEXT PRIMARY KEY,
                 item1 TEXT,
                 item1a TEXT,
-                period_of_report TEXT
+                period_of_report TEXT,
+                home_country TEXT
             )
         """
         )
@@ -398,8 +401,8 @@ def save_process_result(df):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute(
-        "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)",
-        (df.accession, json.dumps(df.item1), json.dumps(df.item1a), df.get("period_of_report")),
+        "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, home_country) VALUES (?, ?, ?, ?, ?)",
+        (df.accession, json.dumps(df.item1), json.dumps(df.item1a), df.get("period_of_report"), df.get("home_country")),
     )
     conn.commit()
     conn.close()
@@ -412,9 +415,9 @@ def save_process_result_batch(batch_df):
     c = conn.cursor()
     # Use executemany logic via pandas to_sql or raw SQL
     try:
-        data = list(zip(batch_df.accession, batch_df.item1.apply(json.dumps), batch_df.item1a.apply(json.dumps), batch_df.period_of_report))
+        data = list(zip(batch_df.accession, batch_df.item1.apply(json.dumps), batch_df.item1a.apply(json.dumps), batch_df.period_of_report, batch_df.home_country))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, home_country) VALUES (?, ?, ?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
@@ -957,6 +960,40 @@ def fetch_url(
     except Exception as e:
         print(f"Error fetching {url}: {e}")
         return None
+
+
+def extract_home_country(text: str) -> str:
+    """
+    Determines the home country from the document text.
+    Defaults to 'US' unless 20-F/40-F is detected.
+    """
+    # Look at the first 10k characters which usually contains the cover page
+    header = text[:10000]
+    
+    # Check for foreign filing markers
+    is_foreign = False
+    if FILING_20F.search(header) or FILING_40F.search(header):
+        is_foreign = True
+        
+    if not is_foreign:
+        return "US"
+        
+    # Attempt to extract jurisdiction
+    match = JURISDICTION_PATTERN.search(header)
+    if match:
+        # Look at the text immediately following the match
+        snippet = header[match.end():match.end()+200]
+        
+        matcher = RegionMatcher()
+        if matcher.location_regex:
+            m = matcher.location_regex.search(snippet)
+            if m:
+                term = m.group(0).lower()
+                if term in matcher.location_map:
+                    # location_map maps term -> (Region, Country, City, Code)
+                    return matcher.location_map[term][3]
+                    
+    return "INT" # Default for foreign filings if country not found
 
 
 def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[str]:
@@ -1725,6 +1762,7 @@ def parse_content(data):
                     "item1": [],
                     "item1a": [],
                     "period_of_report": None,
+                    "home_country": "US",
                 }
             )
 
@@ -1765,6 +1803,11 @@ def parse_content(data):
                 print(f"  ⚠️  Error filtering document {doc_idx + 1} from {url}: {e}")
                 continue
 
+        # Determine home country from the first document (usually the main filing)
+        home_country = "US"
+        if parsed_documents:
+            home_country = extract_home_country(parsed_documents[0])
+
         # 3. If we found any matches across all documents, save the result
         result_row = pd.Series(
             {
@@ -1773,6 +1816,7 @@ def parse_content(data):
                 "item1": item1_matches,
                 "item1a": item1a_matches,
                 "period_of_report": detected_year,
+                "home_country": home_country,
             }
         )
         if item1_matches and item1a_matches:
@@ -2252,9 +2296,9 @@ def save_batch(conn, buffer):
     try:
         df_batch = pd.DataFrame(buffer)
         c = conn.cursor()
-        data = list(zip(df_batch.accession, df_batch.item1.apply(json.dumps), df_batch.item1a.apply(json.dumps), df_batch.period_of_report))
+        data = list(zip(df_batch.accession, df_batch.item1.apply(json.dumps), df_batch.item1a.apply(json.dumps), df_batch.period_of_report, df_batch.home_country))
         c.executemany(
-            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report) VALUES (?, ?, ?, ?)", data
+            "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, home_country) VALUES (?, ?, ?, ?, ?)", data
         )
         conn.commit()
     except Exception as e:
