@@ -132,7 +132,6 @@ CLEANUP_PATTERNS = [
     (re.compile(r"(\d+)([a-zA-Z])"), r"\1 \2"),
     (re.compile(r"([a-zA-Z0-9])(\$)"), r"\1 \2"),
     (re.compile(r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE), r""),
-    (re.compile(r"^\s*-{3,}\s*$", re.MULTILINE), r"\n\n"),
 ]
 
 
@@ -829,6 +828,7 @@ def _detect_by_border(filtered_trs: List, rows: List[List[str]]) -> int:
     # Fallback
     return 0
 
+underline_regex = re.compile(r"(?:^\s*-{3,}\s*$\n?)+", re.MULTILINE)
 
 def extract_content(data: str, asHTML=True) -> str:
     """
@@ -953,6 +953,7 @@ def extract_content(data: str, asHTML=True) -> str:
             if i % 2 == 1:
                 processed_parts.append(part)
             else:
+                part = underline_regex.sub("\n\n", part)
                 paragraphs = part.split("\n\n")
                 processed_paragraphs = [
                     WRAPPED_LINE_PATTERN.sub(" ", p).strip()
