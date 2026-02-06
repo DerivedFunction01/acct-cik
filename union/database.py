@@ -123,6 +123,7 @@ def execute_sql(sql: str, head: int = 0) -> pd.DataFrame | int:
     finally:
         conn.close()
 
+
 def extract_accession(url):
     if not isinstance(url, str):
         return None
@@ -132,6 +133,7 @@ def extract_accession(url):
     if match:
         return match.group(1)
     return None
+
 
 def import_report_data_from_csv():
     """
@@ -191,36 +193,45 @@ def import_report_data_from_csv():
 
         # 2. Import Report Data
         print("  -> Preparing report_data...")
-        
+
         # Ensure schema columns
         if "accession" not in df.columns:
             df["accession"] = df["url"].apply(extract_accession)
         else:
             # Ensure it is padded and cleaned if imported
-            df["accession"] = df["accession"].astype(str).str.replace(r'\.0$', '', regex=True)
-            df["accession"] = df["accession"].apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else None)
-        
+            df["accession"] = (
+                df["accession"].astype(str).str.replace(r"\.0$", "", regex=True)
+            )
+            df["accession"] = df["accession"].apply(
+                lambda x: (
+                    x.zfill(18) if x and x.lower() not in ("nan", "none", "") else None
+                )
+            )
+
         if "original_url" not in df.columns:
             df["original_url"] = df["url"]
-            
+
         # Select columns matching schema
         report_df = df[["cik", "year", "url", "accession", "original_url"]]
-        
+
         # Drop rows where essential info is missing
         report_df = report_df.dropna(subset=["cik", "year", "url"])
-        
+
         report_df.to_sql("report_data", conn, if_exists="replace", index=False)
-        
+
         # Re-create indexes
         conn.execute("CREATE INDEX IF NOT EXISTS url_idx ON report_data (url)")
-        conn.execute("CREATE INDEX IF NOT EXISTS report_acc_idx ON report_data (accession)")
-        
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS report_acc_idx ON report_data (accession)"
+        )
+
         print("✅ Import successful.")
     except Exception as e:
         print(f"  -> ❌ A database error occurred during import: {e}")
         conn.rollback()
     finally:
         conn.close()
+
 
 def export_data_to_csv():
     """
@@ -237,11 +248,22 @@ def export_data_to_csv():
         print("  -> Exporting report_data...")
         try:
             df_report = pd.read_sql("SELECT * FROM report_data", conn)
-            
+
             # Ensure accession is formatted correctly as string and 0-padded
             if "accession" in df_report.columns:
-                df_report["accession"] = df_report["accession"].astype(int)
-                df_report["accession"] = df_report["accession"].astype(str).apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else '')
+                # Fill NaN values first, then convert to string
+                df_report["accession"] = (
+                    df_report["accession"]
+                    .fillna("")
+                    .astype(str)
+                    .apply(
+                        lambda x: (
+                            x.zfill(18)
+                            if x and x not in ("nan", "none", "", "NaN")
+                            else ""
+                        )
+                    )
+                )
 
             df_report.to_csv(REPORT_CSV_PATH, index=False)
             print(f"     ✅ Saved {len(df_report)} rows to {REPORT_CSV_PATH}")
@@ -259,6 +281,7 @@ def export_data_to_csv():
 
     finally:
         conn.close()
+
 
 def save_db_to_drive():
     """
