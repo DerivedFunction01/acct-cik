@@ -825,6 +825,7 @@ def build_cp_context_terms() -> Tuple[List[str], List[str], List[str]]:
         rf"{_COMMODITY_NAMES}(?:(?:\s+\w+){{0,3}}{_RISK_ALTERNATION}|{suffix_alternation})",
         r"raw\s+material\s+costs?",
         r"fuel\s+surcharges?",
+        r"power purchase agreements?",  # raw string for regex
         # Financial Modifier + Specific Commodity
         # Matches: "Price of corn", "Hedging of oil", "Cost of gold"
         rf"{_RISK_ALTERNATION}(?:\s+\w+){{0,3}}{_COMMODITY_NAMES}",
@@ -962,7 +963,6 @@ def build_cp_regex() -> Tuple[re.Pattern, re.Pattern, re.Pattern]:
     _SOFT_SPECIFIC_PHRASES = _SPECIFIC_PHRASES + [
         r"(?:fixed[- ])?commodity(?:(?:\sfixed)?[- ]price)?\s+contracts?",
         r"fixed[- ]price purchase (?:commitments?|agreements?)",  # additional
-        r"power purchase agreements?",  # raw string for regex
         _FIXED_PRICE_PATTERN,
     ]
 
@@ -1005,7 +1005,7 @@ def run_tests():
     )
 
     test_cases = [
-        ("power purchase agreement", MatchLevel.STRICT),
+        ("power purchase agreement", MatchLevel.LOOSE),
         ("freight swap", MatchLevel.LOOSE),
         ("freight swap agreement", MatchLevel.STRICT),
         ("container freight derivative", MatchLevel.STRICT),
