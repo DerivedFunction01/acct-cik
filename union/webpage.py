@@ -8,8 +8,6 @@ import string
 import sys
 
 
-
-
 # Increase recursion limit to handle deeply nested HTML structures
 # Default is usually 1000, increase to 5000 for robust handling
 sys.setrecursionlimit(5000)
@@ -134,6 +132,7 @@ CLEANUP_PATTERNS = [
     (re.compile(r"(\d+)([a-zA-Z])"), r"\1 \2"),
     (re.compile(r"([a-zA-Z0-9])(\$)"), r"\1 \2"),
     (re.compile(r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE), r""),
+    (re.compile(r"^\s*-{3,}\s*$", re.MULTILINE), r"\n\n"),
 ]
 
 
