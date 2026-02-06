@@ -109,6 +109,7 @@ WORKER_COUNT_REGEX = build_regex(
         rf"employ(?:ed|s)?\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
         rf"(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){{0,3}}{worker_term_pattern}",
         rf"{worker_term_pattern}\s+(?:[\w-]+\s+){{0,3}}(\d+(?:\.\d+)?)",
+        rf"(\d+(?:\.\d+)?)\s+(?:in)",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
