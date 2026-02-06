@@ -16,6 +16,7 @@ IS_COLAB = Path(DRIVE_PATH).exists()
 
 DB_PATH = "web_data.db"
 REPORT_CSV_PATH = "report_data.csv"
+NAMES_CSV_PATH = "names_export.csv"
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -163,9 +164,22 @@ def import_report_data_from_csv():
     print(f"\n[3/3] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
     try:
-        # 1. Import Names if 'name' column exists
-        if "name" in df.columns:
-            print("  -> Importing names...")
+        # 1. Import Names
+        # Check for names_export.csv first
+        names_files = _ensure_file_is_local(NAMES_CSV_PATH)
+        if names_files:
+            print(f"  -> Found '{NAMES_CSV_PATH}'. Importing names from there...")
+            try:
+                names_df = pd.read_csv(names_files[0])
+                if "cik" in names_df.columns and "name" in names_df.columns:
+                    names_df = names_df[["cik", "name"]].dropna().drop_duplicates()
+                    names_df.to_sql("names", conn, if_exists="replace", index=False)
+                    conn.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
+                    print(f"     ✅ Imported {len(names_df)} names.")
+            except Exception as e:
+                print(f"     ❌ Error importing names from '{NAMES_CSV_PATH}': {e}")
+        elif "name" in df.columns:
+            print("  -> Importing names from report_data (fallback)...")
             names_df = df[["cik", "name"]].dropna().drop_duplicates()
             names_df.to_sql("names", conn, if_exists="replace", index=False)
             conn.execute("CREATE INDEX IF NOT EXISTS name_idx ON names (name)")
@@ -223,8 +237,8 @@ def export_data_to_csv():
         print("  -> Exporting names...")
         try:
             df_names = pd.read_sql("SELECT * FROM names", conn)
-            df_names.to_csv("names_export.csv", index=False)
-            print(f"     ✅ Saved {len(df_names)} rows to names_export.csv")
+            df_names.to_csv(NAMES_CSV_PATH, index=False)
+            print(f"     ✅ Saved {len(df_names)} rows to {NAMES_CSV_PATH}")
         except Exception as e:
             print(f"     ❌ Error exporting names: {e}")
 
