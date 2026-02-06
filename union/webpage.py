@@ -1150,9 +1150,10 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
 
 def filter_paragraphs_loose(text: str) -> List[str]:
     """
-    Splits text into paragraphs/tables and keeps only those matching LOOSE_FILTER_REGEX.
+    Splits text into paragraphs/tables and keeps those matching LOOSE_FILTER_REGEX,
+    plus one paragraph before and after for context.
     """
-    kept = []
+    blocks = []
     parts = TABLE_SPLIT_PATTERN.split(text)
     for part in parts:
         if not part.strip():
@@ -1160,15 +1161,24 @@ def filter_paragraphs_loose(text: str) -> List[str]:
         
         # Check if it's a table
         if part.strip().upper().startswith("<TABLE"):
-            if LOOSE_FILTER_REGEX.search(part):
-                kept.append(part)
+            blocks.append(part)
         else:
             # Split by double newlines for paragraphs
             paras = part.split('\n\n')
             for p in paras:
-                if p.strip() and LOOSE_FILTER_REGEX.search(p):
-                    kept.append(p.strip())
-    return kept
+                if p.strip():
+                    blocks.append(p.strip())
+    
+    indices_to_keep = set()
+    for i, block in enumerate(blocks):
+        if LOOSE_FILTER_REGEX.search(block):
+            indices_to_keep.add(i)
+            if i > 0:
+                indices_to_keep.add(i - 1)
+            if i < len(blocks) - 1:
+                indices_to_keep.add(i + 1)
+                
+    return [blocks[i] for i in sorted(indices_to_keep)]
 
 
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
