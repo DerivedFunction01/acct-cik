@@ -1214,6 +1214,39 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     return [blocks[i] for i in sorted(final_indices)]
 
 
+PATTERN_CONFIG = {
+    '10K': {
+        'patterns': [
+            (ITEM_1_START_PATTERN, '1'),
+            (ITEM_1A_START_PATTERN, '1A'),
+            (ITEM_1B_START_PATTERN, '1B'),
+            (ITEM_2_START_PATTERN, '2'),
+        ],
+        'business_label': '1',
+        'risk_label': '1A',
+    },
+    '20F': {
+        'patterns': [
+            (ITEM_3_START_PATTERN, '3'),
+            (ITEM_4_START_PATTERN, '4'),
+            (ITEM_4A_START_PATTERN, '4A'),
+            (ITEM_5_START_PATTERN, '5'),
+        ],
+        'business_label': '4',
+        'risk_label': '3',
+    },
+    '40F': {
+        'patterns': [
+            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
+            (ITEM_40F_RISK_PATTERN, '40F_R'),
+            (ITEM_40F_STOP_PATTERN, '40F_S'),
+        ],
+        'business_label': '40F_B',
+        'risk_label': '40F_R',
+    },
+}
+
+
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
     """
     Filters content using updated Strict/Soft regex logic.
@@ -1221,33 +1254,17 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     1. CAPTURE: ITEM 1 AND ITEM 1A (or Item 4 and Item 3 for 20-F, or Business/Risk for 40-F)
     2. RETURNS: 1st element: ITEM 1 (Business), 2nd element: ITEM 1A (Risk)
     """
-    # Define patterns and labels upfront
+    # Select config based on document type
     if is_40f:
-        patterns = [
-            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
-            (ITEM_40F_RISK_PATTERN, '40F_R'),
-            (ITEM_40F_STOP_PATTERN, '40F_S'),
-        ]
-        business_label = '40F_B'
-        risk_label = '40F_R'
+        config = PATTERN_CONFIG['40F']
     elif is_20f:
-        patterns = [
-            (ITEM_3_START_PATTERN, '3'),
-            (ITEM_4_START_PATTERN, '4'),
-            (ITEM_4A_START_PATTERN, '4A'),
-            (ITEM_5_START_PATTERN, '5'),
-        ]
-        business_label = '4'
-        risk_label = '3'
+        config = PATTERN_CONFIG['20F']
     else:
-        patterns = [
-            (ITEM_1_START_PATTERN, '1'),
-            (ITEM_1A_START_PATTERN, '1A'),
-            (ITEM_1B_START_PATTERN, '1B'),
-            (ITEM_2_START_PATTERN, '2'),
-        ]
-        business_label = '1'
-        risk_label = '1A'
+        config = PATTERN_CONFIG['10K']
+    
+    patterns = config['patterns']
+    business_label = config['business_label']
+    risk_label = config['risk_label']
     
     # Extract search boundaries
     search_start = 0
