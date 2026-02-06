@@ -143,6 +143,9 @@ TABLE_HINT_PATTERN = re.compile(
 LOOSE_TERMS = LABOR_TERMS.SPECIFIC_PHRASES + RISK_TERMS.PHRASES
 LOOSE_FILTER_REGEX = build_regex(LOOSE_TERMS)
 
+# Initialize RegionMatcher to access specific union regexes (e.g. "UAW", "IG Metall")
+REGION_MATCHER = RegionMatcher()
+
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
 SPACE_PATTERN = re.compile(r"\s+")
@@ -1174,7 +1177,12 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     
     indices_to_keep = set()
     for i, block in enumerate(blocks):
-        if LOOSE_FILTER_REGEX.search(block) or DYNAMIC_UNION_REGEX.search(block):
+        is_match = (
+            LOOSE_FILTER_REGEX.search(block) or 
+            DYNAMIC_UNION_REGEX.search(block) or
+            (REGION_MATCHER.specific_union_regex and REGION_MATCHER.specific_union_regex.search(block))
+        )
+        if is_match:
             indices_to_keep.add(i)
             if i > 0:
                 indices_to_keep.add(i - 1)
