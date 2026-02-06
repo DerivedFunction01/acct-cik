@@ -2596,66 +2596,35 @@ class UnionAnalyzer:
 
         return None
 
-    def _detect_summation_context(
-        self, analysis: SentenceAnalysis, counts: List[float]
-    ) -> Optional[float]:
+    def _detect_summation(self, analysis: SentenceAnalysis, counts: List[float]) -> Optional[float]:
         """
-        Detects if worker_counts should be summed based on distinct worker types.
-        e.g. "173 salaried employees and 112 hourly employees" -> 285
+        Detects if counts should be summed (e.g. "100 salaried and 50 hourly").
         """
-        if len(counts) < 2:
+        if not counts or len(counts) < 2:
+            return None
+        
+        # 1. Check if one number is the sum of the others (Explicit Total)
+        max_val = max(counts)
+        total_sum = sum(counts)
+        rest = total_sum - max_val
+        
+        # If max is roughly equal to the sum of the rest, then max is the total.
+        if max_val > 0 and abs(max_val - rest) / max_val < 0.05:
             return None
 
-        count_matches = [
-            m
-            for m in analysis._matches
-            if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
-            and m["val"] in counts
-        ]
-
-        type_matches = [
-            m for m in analysis._matches if m["type"] == MatchType.WORKER_TYPE
-        ]
-
-        if not type_matches:
-            return None
-
-        mapped_types = set()
-        used_counts = []
-
-        for cm in count_matches:
-            nearest = None
-            min_dist = 50  # Character window
-
-            c_span = cm["span"]
-            c_mid = (c_span[0] + c_span[1]) / 2
-
-            for tm in type_matches:
-                t_span = tm["span"]
-                t_mid = (t_span[0] + t_span[1]) / 2
-                dist = abs(c_mid - t_mid)
-
-                if dist < min_dist:
-                    min_dist = dist
-                    nearest = tm
-
-            if nearest:
-                mapped_types.add(nearest["val"].lower())
-                used_counts.append(cm["val"])
-
-        if len(used_counts) >= 2 and len(mapped_types) >= 2:
-            # Check for Total vs Parts hierarchy (Prevent Double Counting)
-            # e.g. "285 employees, 173 salaried, 112 hourly" -> 285 (Total)
-            vals = sorted(used_counts, reverse=True)
-            largest = vals[0]
-            rest = vals[1:]
-            sum_rest = sum(rest)
-
-            if len(vals) >= 3:
-                if abs(largest - sum_rest) <= 5 or (sum_rest > 0 and abs(largest - sum_rest) / sum_rest < 0.05):
-                    return largest
-            return sum(used_counts)
-
+        # 2. Check for "X and Y" pattern with worker types
+        if len(counts) == 2:
+            c1, c2 = counts[0], counts[1]
+            m1 = next((m for m in analysis._matches if m["val"] == c1 and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)), None)
+            m2 = next((m for m in analysis._matches if m["val"] == c2 and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m is not m1), None)
+            
+            if m1 and m2:
+                # Sort by position
+                if m1["span"][0] > m2["span"][0]:
+                    m1, m2 = m2, m1
+                if len(analysis.worker_types) > 1 or len(analysis.worker_terms) > 1:
+                    return c1 + c2
+                        
         return None
 
     def _determine_geo_context(
@@ -2922,12 +2891,12 @@ class UnionAnalyzer:
                 span = count_match["span"] if count_match else None
 
                 range_avg = self._detect_count_range(analysis, effective_counts)
-                sum_total = self._detect_summation_context(analysis, effective_counts)
+                summation = self._detect_summation(analysis, effective_counts)
 
-                if sum_total:
-                    final_count = max(sum_total, max_count)
-                elif range_avg:
+                if range_avg:
                     final_count = range_avg
+                elif summation:
+                    final_count = summation
                 else:
                     final_count = max_count
 
