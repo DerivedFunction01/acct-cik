@@ -199,13 +199,25 @@ def import_report_data_from_csv():
             df["accession"] = df["url"].apply(extract_accession)
         else:
             # Ensure it is padded and cleaned if imported
-            df["accession"] = (
-                df["accession"].astype(str).str.replace(r"\.0$", "", regex=True)
+            print(
+                f"     DEBUG: accession dtype before processing: {df['accession'].dtype}"
             )
+            print(
+                f"     DEBUG: First 5 accession values: {df['accession'].head().tolist()}"
+            )
+            print(
+                f"     DEBUG: Types of first 5 values: {[type(x).__name__ for x in df['accession'].head()]}"
+            )
+
             df["accession"] = df["accession"].apply(
-                lambda x: (
-                    x.zfill(18) if x and x.lower() not in ("nan", "none", "") else None
-                )
+                lambda x: str(int(x)).zfill(18) if pd.notna(x) and x != "" else None
+            )
+
+            print(
+                f"     DEBUG: accession dtype after processing: {df['accession'].dtype}"
+            )
+            print(
+                f"     DEBUG: First 5 accession values after: {df['accession'].head().tolist()}"
             )
 
         if "original_url" not in df.columns:
