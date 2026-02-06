@@ -500,7 +500,6 @@ TERMINATION_VERBS = [
     r"repudiat(?:e(?:d|s)?|ing)",
     # --- SAFEGUARDED SETTLEMENT (From previous turn) --- (settles annually, etc)
     add_restrictions(r"settl(?:es?|ed)", lookbehinds=SETTLEMENT_MODIFIERS, lookaheads=TERM_LOOKAHEADS + SETTLEMENT_MODIFIERS, lookahead_sep=r"\s+"),
-    r"sold",
     r"wind(?:ing)?\s+down",
     r"dispos(?:e(?:d|s)?|ing)",
     r"derecogni[sz](?:e|ed|ing)",
@@ -537,10 +536,7 @@ TERMINATION_NOUNS = [
     r"forfeiture",
     r"derecognition",
     r"wind(?:\s|\-)?down",
-    r"sale",
     r"disposition",
-    r"transfer",
-    r"assignment",
     r"relinquishment",
     r"voiding",
     r"divestiture",
