@@ -217,6 +217,7 @@ OFFICE_PATTERN = re.compile(r"\bAddress\s+of\s+principal\s+executive\s+offices\b
 FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
 FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
 PART_I_PATTERN = re.compile(r"^\s*Part\s+I\b(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE)
+PART_II_PATTERN = re.compile(r"^\s*Part\s+II\b(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE)
 FORWARD_LOOKING_PATTERN = re.compile(
     r"^\s*(?:(?:special|cautionary)\s+(?:note|statement|notice)\s+(?:regarding|concerning|about)\s+)?forward[- ]looking\s+statements",
     re.IGNORECASE | re.MULTILINE
@@ -1224,15 +1225,26 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     
     # Heuristic: Find start of Part I or Forward Looking Statements to skip ToC
     search_start = 0
+    search_end = len(content)
     if not is_20f and not is_40f:
         p1_match = PART_I_PATTERN.search(content)
+        fl_match = FORWARD_LOOKING_PATTERN.search(content)
+
         if p1_match:
             search_start = p1_match.start()
-        else:
-            fl_match = FORWARD_LOOKING_PATTERN.search(content)
+        elif fl_match and fl_match.start() < len(content) * 0.1:
             # Only use if it appears early to avoid matching inside Item 7
-            if fl_match and fl_match.start() < len(content) * 0.1:
-                search_start = fl_match.end()
+            search_start = fl_match.end()
+        
+        # Ensure Part II is after search_start AND after Forward Looking (if early)
+        p2_search_start = search_start
+        if fl_match and fl_match.start() < len(content) * 0.3:
+            if fl_match.end() > p2_search_start:
+                p2_search_start = fl_match.end()
+
+        p2_match = PART_II_PATTERN.search(content, p2_search_start)
+        if p2_match:
+            search_end = p2_match.start()
 
     if is_40f:
         # 40-F Logic: Business, Risk, and Stop patterns
@@ -1255,16 +1267,16 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     else:
         # 10-K Logic
         for m in ITEM_1_START_PATTERN.finditer(content):
-            if m.start() >= search_start:
+            if m.start() >= search_start and m.start() < search_end:
                 matches.append((m.start(), '1'))
         for m in ITEM_1A_START_PATTERN.finditer(content):
-            if m.start() >= search_start:
+            if m.start() >= search_start and m.start() < search_end:
                 matches.append((m.start(), '1A'))
         for m in ITEM_1B_START_PATTERN.finditer(content):
-            if m.start() >= search_start:
+            if m.start() >= search_start and m.start() < search_end:
                 matches.append((m.start(), '1B'))
         for m in ITEM_2_START_PATTERN.finditer(content):
-            if m.start() >= search_start:
+            if m.start() >= search_start and m.start() < search_end:
                 matches.append((m.start(), '2'))
 
     if not matches:
@@ -1277,7 +1289,7 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     
     # Greedy extraction: Find the longest block for Item 1 and Item 1A
     for i, (start, label) in enumerate(matches):
-        end = len(content)
+        end = search_end
         if i + 1 < len(matches):
             end = matches[i+1][0]
             
