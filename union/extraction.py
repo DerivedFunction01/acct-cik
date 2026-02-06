@@ -113,7 +113,9 @@ WORKER_COUNT_REGEX = build_regex(
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
-
+WORKER_TYPE_REGEX = build_regex(
+    [r"hourly", r"contracted", r"salar(?:y|ied)"]
+)
 DENOMINATOR_PREFIX = [r"(?:out\s+)?of"]
 DENOMINATOR_ADJECTIVES = [
     CORE.UNION,
