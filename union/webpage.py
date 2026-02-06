@@ -147,36 +147,36 @@ XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
 ITEM_1_START_PATTERN = re.compile(
-    r"^\s*Item\s+1\b\.?(?:\s+Business)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s*1\b(?!\s*[AB]\b)\.?(?:\s+Business)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
-    r"^\s*Item\s+1A\b\.?(?:\s+Risk\s+Factors)?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s*1\s*A\b\.?(?:\s+Risk\s+Factors)?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_1B_START_PATTERN = re.compile(
-    r"^\s*Item\s+1B\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s*1\s*B\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 ITEM_2_START_PATTERN = re.compile(
-    r"^\s*Item\s+2\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s*2\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
 )
 
 # 20-F Patterns
 ITEM_3_START_PATTERN = re.compile(
-    r"^\s*Item\s+3\b\.?(?:\s+Key\s+Information)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s*3\b\.?(?:\s+Key\s+Information)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_4_START_PATTERN = re.compile(
-    r"^\s*Item\s+4\b\.?(?:\s+Information)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s*4\b(?!\s*A\b)\.?(?:\s+Information)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_4A_START_PATTERN = re.compile(
-    r"^\s*Item\s+4A\b\.?(?:\s+Unresolved)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s*4\s*A\b\.?(?:\s+Unresolved)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_5_START_PATTERN = re.compile(
-    r"^\s*Item\s+5\b\.?(?:\s+Operating)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s*5\b\.?(?:\s+Operating)?(?!\s*[\.\-_]{3,})",
     re.MULTILINE | re.IGNORECASE,
 )
 
