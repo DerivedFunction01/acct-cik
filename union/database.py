@@ -251,18 +251,9 @@ def export_data_to_csv():
 
             # Ensure accession is formatted correctly as string and 0-padded
             if "accession" in df_report.columns:
-                # Fill NaN values first, then convert to string
-                df_report["accession"] = (
-                    df_report["accession"]
-                    .fillna("")
-                    .astype(str)
-                    .apply(
-                        lambda x: (
-                            x.zfill(18)
-                            if x and x not in ("nan", "none", "", "NaN")
-                            else ""
-                        )
-                    )
+                # Convert float to int (removes decimals), then to string with padding
+                df_report["accession"] = df_report["accession"].apply(
+                    lambda x: str(int(x)).zfill(18) if pd.notna(x) and x != "" else ""
                 )
 
             df_report.to_csv(REPORT_CSV_PATH, index=False)
