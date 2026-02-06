@@ -240,8 +240,8 @@ def export_data_to_csv():
             
             # Ensure accession is formatted correctly as string and 0-padded
             if "accession" in df_report.columns:
-                df_report["accession"] = df_report["accession"].astype(str).str.replace(r'\.0$', '', regex=True)
-                df_report["accession"] = df_report["accession"].apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else '')
+                df_report["accession"] = df_report["accession"].astype(int)
+                df_report["accession"] = df_report["accession"].astype(str).apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else '')
 
             df_report.to_csv(REPORT_CSV_PATH, index=False)
             print(f"     ✅ Saved {len(df_report)} rows to {REPORT_CSV_PATH}")
