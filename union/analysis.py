@@ -35,6 +35,11 @@ from defs.union_regex import (
     UNION_REGEX,
 )
 
+GENERIC_WORKER_TERMS = {
+    "employee", "worker", "laborer", "personnel", "workforce", 
+    "associate", "staff", "employees", "workers", "laborers", "associates"
+}
+
 
 def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
     """Combines worker_counts and relevant numbers (heuristic filter)."""
@@ -3078,6 +3083,44 @@ class UnionAnalyzer:
 
         return mapped_counts, sentence_total
 
+    def _resolve_counts_to_types(self, analysis: SentenceAnalysis) -> Dict[str, float]:
+        """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""
+        mapping = {}
+        counts = [m for m in analysis._matches if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)]
+        
+        # Include WORKER_TYPE
+        types = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TYPE]
+        
+        # Include specific WORKER_TERM (e.g. pilots, teachers)
+        terms = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TERM]
+        for t in terms:
+            val_lower = t["val"].lower()
+            if val_lower not in GENERIC_WORKER_TERMS and val_lower.rstrip("s") not in GENERIC_WORKER_TERMS:
+                types.append(t)
+        
+        if not counts or not types:
+            return {}
+            
+        used_c = set()
+        used_t = set()
+        pairs = []
+        for c in counts:
+            c_mid = (c["span"][0] + c["span"][1]) / 2
+            for t in types:
+                t_mid = (t["span"][0] + t["span"][1]) / 2
+                dist = abs(c_mid - t_mid)
+                pairs.append((dist, c, t))
+        
+        pairs.sort(key=lambda x: x[0])
+        
+        for dist, c, t in pairs:
+            if dist < 50 and id(c) not in used_c and id(t) not in used_t:
+                mapping[t["val"].lower()] = c["val"]
+                used_c.add(id(c))
+                used_t.add(id(t))
+                
+        return mapping
+
     def _merge_continuation_items(
         self, results: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -3096,6 +3139,7 @@ class UnionAnalyzer:
             if i + 1 < len(results):
                 next_item = results[i + 1]
                 if "geographic_context" not in next_item:
+                    merged_results.append(current)
                     continue
 
                 # Criteria: Next item inherits from Current, and Current has data
@@ -3148,23 +3192,15 @@ class UnionAnalyzer:
                         w_next = next_item.get("worker_terms", [])
 
                         if w_curr and w_next:
-                            generic_terms = {
-                                "employee",
-                                "worker",
-                                "laborer",
-                                "personnel",
-                                "workforce",
-                            }
-
                             spec_curr = {
                                 w.lower()
                                 for w in w_curr
-                                if w.lower() not in generic_terms
+                                if w.lower() not in GENERIC_WORKER_TERMS and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
                             }
                             spec_next = {
                                 w.lower()
                                 for w in w_next
-                                if w.lower() not in generic_terms
+                                if w.lower() not in GENERIC_WORKER_TERMS and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
                             }
 
                             if (
@@ -3195,6 +3231,44 @@ class UnionAnalyzer:
                         if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
                             c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
 
+                        # NEW: Type-based coverage inference
+                        # If next item indicates coverage (union terms) and specifies worker types
+                        
+                        # Gather targets from types and specific terms
+                        targets = set(next_item.get("worker_types", []))
+                        for w in next_item.get("worker_terms", []):
+                             if w.lower() not in GENERIC_WORKER_TERMS and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS:
+                                 targets.add(w)
+
+                        if next_item.get("keyword_matched") and targets:
+                            # Check if current item has counts for these types
+                            c_map = current.get("worker_type_map", {})
+                            
+                            matched_count = 0.0
+                            found_match = False
+                            
+                            for w_type in targets:
+                                w_type_lower = w_type.lower()
+                                if w_type_lower in c_map:
+                                    matched_count += c_map[w_type_lower]
+                                    found_match = True
+                            
+                            if found_match:
+                                target_field = "employee_count_not_covered" if n_data.get("negated") else "employee_count_covered"
+                                current_val = c_data.get(target_field) or 0.0
+                                c_data[target_field] = current_val + matched_count
+                                
+                                # Recalculate percentage if total exists
+                                if c_data.get("employee_count_total"):
+                                    cov = c_data.get("employee_count_covered") or 0.0
+                                    c_data["percentage"] = round((cov / c_data["employee_count_total"]) * 100, 2)
+                                    c_data["type"] = CoverageType.CALCULATED.value
+                                    c_data["note"] = (c_data.get("note") or "") + f" | Inferred coverage for {matched_count} (matched types)"
+
+                        # Add merge hint
+                        merge_note = f" [Merged with next sentence: '{next_item.get('sentence', '')[:30]}...']"
+                        c_data["note"] = (c_data.get("note") or "") + merge_note
+                        current["merged_sentence_index"] = next_item.get("sentence_index")
                         skip_indices.add(i + 1)
 
             merged_results.append(current)
@@ -3258,7 +3332,7 @@ class UnionAnalyzer:
                 years_indicate_past or analysis.has_historical
             ) and not analysis.has_current:
                 is_historical = True
-
+            print(analyzed_sentences[idx].text, is_historical)
             if is_historical:
                 for k in range(idx, len(analyzed_sentences)):
                     r_analysis = analyzed_sentences[k]
@@ -3285,10 +3359,13 @@ class UnionAnalyzer:
                 analysis, last_geo_context, current_idx, last_geo_sentence_idx
             )
 
-            if geo_context["specificity"] in (
-                Specificity.EXPLICIT.value,
-                Specificity.INFERRED_UNION.value,
-            ):
+            # Update context anchor if:
+            # 1. Strong Geography (Explicit/Inferred)
+            # 2. OR Strong Census (Has Counts) - allows inheriting from implicit totals
+            is_strong_geo = geo_context["specificity"] in (Specificity.EXPLICIT.value, Specificity.INFERRED_UNION.value)
+            has_counts = bool(effective_counts)
+
+            if is_strong_geo or has_counts:
                 last_geo_context = geo_context
                 last_geo_sentence_idx = current_idx
 
@@ -3407,6 +3484,9 @@ class UnionAnalyzer:
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
+            
+            # NEW: Resolve types
+            type_map = self._resolve_counts_to_types(analysis)
 
             # 8. Construct Result (Handle Splits)
             split_items = []
@@ -3468,6 +3548,8 @@ class UnionAnalyzer:
                                 "lookup_totals": effective_totals.copy(),
                                 "census_note": census_update_note,
                                 "sentence_index": current_idx,
+                                "worker_type_map": type_map,
+                                "worker_types": analysis.worker_types,
                             }
                             split_items.append(split_item)
 
@@ -3482,6 +3564,8 @@ class UnionAnalyzer:
                     "lookup_totals": effective_totals.copy(),
                     "census_note": census_update_note,
                     "sentence_index": current_idx,
+                    "worker_type_map": type_map,
+                    "worker_types": analysis.worker_types,
                 }
                 results.append(item)
 

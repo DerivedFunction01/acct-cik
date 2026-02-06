@@ -1188,7 +1188,7 @@ class UnionExtractor:
                 )
                 if not has_data:
                     analysis.is_relevant = False
-        print(analysis)
+        # print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
