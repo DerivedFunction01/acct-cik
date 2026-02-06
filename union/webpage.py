@@ -1189,9 +1189,10 @@ def filter_paragraphs_loose(text: str) -> List[str]:
 
     WINDOW = 5
     def is_spec_match(s: str) -> bool:
+        cleaned = WEB_CLEANER.clean(s)
         return (
-            bool(DYNAMIC_UNION_REGEX.search(s)) or
-            bool(region_regex and region_regex.search(s))
+            bool(DYNAMIC_UNION_REGEX.search(cleaned)) or
+            bool(region_regex and region_regex.search(cleaned))
         )
     
     
@@ -1217,6 +1218,15 @@ def filter_paragraphs_loose(text: str) -> List[str]:
             # If match found in chunk, keep the whole chunk
             for j in range(i, end_idx):
                 indices_to_keep.add(j)
+
+    if start_idx != -1:
+        # Check one block before start
+        if start_idx > 0 and is_spec_match(blocks[start_idx - 1]):
+            indices_to_keep.add(start_idx - 1)
+        # Check one block after end
+        if last_idx < len(blocks) and is_spec_match(blocks[last_idx]):
+            indices_to_keep.add(last_idx)
+
     # Add context (prev/next)
     final_indices = set()
     for i in indices_to_keep:
