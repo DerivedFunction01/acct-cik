@@ -1186,19 +1186,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
 
     # Sliding window / Chunking
     # Process in chunks to reduce regex overhead while avoiding massive string joins
-    region_regex =  RegionMatcher.specific_union_regex
-
     WINDOW = 5
-    def is_spec_match(s: str) -> bool:
-        cleaned = WEB_CLEANER.clean(s)
-        return (
-            bool(DYNAMIC_UNION_REGEX.search(cleaned)) or
-            bool(region_regex and region_regex.search(cleaned))
-        )
-    
-    
-    start_idx = -1 # Where the loose filter was triggered
-    last_idx = -1 # The final index where it is triggered
     # Optimization: Early exit if no matches on unions (there would be no specific ones if it doesn't match)
     if not LOOSE_FILTER_REGEX.search(WEB_CLEANER.clean(text)):
         return []
@@ -1213,20 +1201,9 @@ def filter_paragraphs_loose(text: str) -> List[str]:
         cleaned_chunk = WEB_CLEANER.clean(chunk_text)
         
         if LOOSE_FILTER_REGEX.search(cleaned_chunk):
-            if start_idx == -1:
-                start_idx = i 
-            last_idx = end_idx
             # If match found in chunk, keep the whole chunk
             for j in range(i, end_idx):
                 indices_to_keep.add(j)
-
-    if start_idx != -1:
-        # Check one block before start
-        if start_idx > 0 and is_spec_match(blocks[start_idx - 1]):
-            indices_to_keep.add(start_idx - 1)
-        # Check one block after end
-        if last_idx < len(blocks) and is_spec_match(blocks[last_idx]):
-            indices_to_keep.add(last_idx)
 
     # Add context (prev/next)
     final_indices = set()
