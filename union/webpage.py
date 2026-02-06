@@ -1109,41 +1109,44 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
     Validates that the document is an Annual Report (10-K).
     Checks that the year is within reasonable range of filing year (from accession).
     """
-    # Limit search to first N chars to avoid false positives later in text
-    CHAR_LIMIT = 7500
-    header_text = text[:CHAR_LIMIT] 
-    
-    # Check for 10-K header first
-    ar_match = ANNUAL_REPORT_PATTERN.search(header_text)
-    if not ar_match:
-        return None
+    try:
+        # Limit search to first N chars to avoid false positives later in text
+        CHAR_LIMIT = 7500
+        header_text = text[:CHAR_LIMIT] 
         
-    fy_match = FISCAL_YEAR_PATTERN.search(header_text)
-    if fy_match:
-        # Safety Check 1: Distance
-        # Ensure the fiscal year date is not too far from the "Annual Report" header
-        if abs(fy_match.start() - ar_match.end()) > 5000:
+        # Check for 10-K header first
+        ar_match = ANNUAL_REPORT_PATTERN.search(header_text)
+        if not ar_match:
             return None
-
-        date_str = fy_match.group(1)
-        # Try to extract just the year (last 4 digits)
-        year_match = re.search(r"\d{4}", date_str)
-        if year_match:
-            extracted_year = int(year_match.group(0))
             
-            # Safety Check 2: Year vs Accession
-            if accession and len(accession) == 18 and accession.isdigit():
-                try:
-                    filing_yy = int(accession[10:12])
-                    # Estimate filing year (EDGAR started ~1993)
-                    filing_year = (1900 + filing_yy) if filing_yy >= 90 else (2000 + filing_yy)
-                    
-                    # Allow extracted year to be within [filing_year - 2, filing_year + 1]
-                    if not (filing_year - 2 <= extracted_year <= filing_year + 1):
-                        return None
-                except ValueError:
-                    pass
-            return str(extracted_year)
+        fy_match = FISCAL_YEAR_PATTERN.search(header_text)
+        if fy_match:
+            # Safety Check 1: Distance
+            # Ensure the fiscal year date is not too far from the "Annual Report" header
+            if abs(fy_match.start() - ar_match.end()) > 5000:
+                return None
+
+            date_str = fy_match.group(1)
+            # Try to extract just the year (last 4 digits)
+            year_match = re.search(r"\d{4}", date_str)
+            if year_match:
+                extracted_year = int(year_match.group(0))
+                
+                # Safety Check 2: Year vs Accession
+                if accession and isinstance(accession, str) and len(accession) == 18 and accession.isdigit():
+                    try:
+                        filing_yy = int(accession[10:12])
+                        # Estimate filing year (EDGAR started ~1993)
+                        filing_year = (1900 + filing_yy) if filing_yy >= 90 else (2000 + filing_yy)
+                        
+                        # Allow extracted year to be within [filing_year - 2, filing_year + 1]
+                        if not (filing_year - 2 <= extracted_year <= filing_year + 1):
+                            return None
+                    except ValueError:
+                        pass
+                return str(extracted_year)
+    except Exception:
+        pass
         
     return None
 
@@ -1939,6 +1942,9 @@ def parse_content(data):
         return None
 
     url, accession, raw_text = data
+
+    if not isinstance(raw_text, str):
+        return None
 
     try:
         # 1. Parse multi-document content
