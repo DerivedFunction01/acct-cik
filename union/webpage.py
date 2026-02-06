@@ -113,6 +113,7 @@ def get_system_config():
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
 from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES, REGION_CODES
+from defs.union_regex import WORKER_TERMS, LABOR_TERMS, RISK_TERMS
 
 FILING_TYPES = {
     "10-K",
@@ -138,6 +139,10 @@ TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNOREC
 TABLE_HINT_PATTERN = re.compile(
     r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE
 )
+
+LOOSE_TERMS = WORKER_TERMS + LABOR_TERMS.SPECIFIC_PHRASES + RISK_TERMS.PHRASES
+LOOSE_FILTER_REGEX = build_regex(LOOSE_TERMS)
+
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
 SPACE_PATTERN = re.compile(r"\s+")
@@ -1143,6 +1148,29 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
     return None
 
 
+def filter_paragraphs_loose(text: str) -> List[str]:
+    """
+    Splits text into paragraphs/tables and keeps only those matching LOOSE_FILTER_REGEX.
+    """
+    kept = []
+    parts = TABLE_SPLIT_PATTERN.split(text)
+    for part in parts:
+        if not part.strip():
+            continue
+        
+        # Check if it's a table
+        if part.strip().upper().startswith("<TABLE"):
+            if LOOSE_FILTER_REGEX.search(part):
+                kept.append(part)
+        else:
+            # Split by double newlines for paragraphs
+            paras = part.split('\n\n')
+            for p in paras:
+                if p.strip() and LOOSE_FILTER_REGEX.search(p):
+                    kept.append(p.strip())
+    return kept
+
+
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
     """
     Filters content using updated Strict/Soft regex logic.
@@ -1943,17 +1971,21 @@ def parse_content(data):
                 item1, item1a = filter_for_item1(content, is_20f=is_20f, is_40f=is_40f)
 
                 if item1:
-                    debug_print(
-                        f"  Document {doc_idx + 1}: Found item 1"
-                    )
-                    item1_matches.append(item1)
+                    filtered = filter_paragraphs_loose(item1)
+                    if filtered:
+                        debug_print(
+                            f"  Document {doc_idx + 1}: Found item 1 ({len(filtered)} paragraphs)"
+                        )
+                        item1_matches.extend(filtered)
                 else:
                     debug_print(f"  Document {doc_idx + 1}: No matches found")
                 if item1a:
-                    debug_print(
-                        f"  Document {doc_idx + 1}: Found item 1a"
-                    )
-                    item1a_matches.append(item1a)
+                    filtered = filter_paragraphs_loose(item1a)
+                    if filtered:
+                        debug_print(
+                            f"  Document {doc_idx + 1}: Found item 1a ({len(filtered)} paragraphs)"
+                        )
+                        item1a_matches.extend(filtered)
                 else:
                     debug_print(f"  Document {doc_idx + 1}: No matches found")
 
