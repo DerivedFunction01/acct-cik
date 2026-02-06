@@ -313,11 +313,6 @@ def create_db():
             """)
         except sqlite3.OperationalError:
             pass
-        # WAL
-        try:
-            c.execute("ALTER TABLE webpage_result ADD COLUMN period_of_report TEXT")
-        except sqlite3.OperationalError:
-            pass
             
         conn.commit()
         c.execute("PRAGMA journal_mode=WAL")
