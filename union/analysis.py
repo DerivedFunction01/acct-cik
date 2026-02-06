@@ -602,16 +602,21 @@ class UnionExtraAnalyzer:
         Creates a skeleton dictionary for union denominator sentences.
         This is treated as a special type of coverage data for context.
         """
+        counts = get_effective_counts(analysis)
+        # If counts exist in a denominator sentence (e.g. "Of our 500 unionized employees..."),
+        # that count represents the unionized (covered) population.
+        covered_count = max(counts) if counts else None
+
         return {
             "type": CoverageType.UNION_CONTEXT.value,
             "note": "Union is denominator. Parsed for context.",
             "percentages": analysis.percentages,
-            "counts": get_effective_counts(analysis),
+            "counts": counts,
             "relationship_status": determine_relationship_status(analysis),
             "risk_terms": analysis.risk_terms,
             # Standard coverage fields are null
             "percentage": None,
-            "employee_count_covered": None,
+            "employee_count_covered": covered_count,
             "employee_count_not_covered": None,
             "employee_count_total": None,
             "negated": bool(analysis.negation_terms),
@@ -1460,7 +1465,7 @@ def determine_geo_context(
     if any(m.lower() in strong_global_modifiers for m in analysis.total_modifiers):
         return {
             "region": Region.INTERNATIONAL.value,
-            "countries": [],
+            "countries": [{"code": "GLO", "name": "Global"}],
             "specificity": Specificity.IMPLICIT.value,
             "note": "Inferred from global modifier",
         }
@@ -1621,6 +1626,11 @@ class Tracker:
                 if code == "DOM":
                     code = self.domestic_country_code
                 self.mentioned_countries.add(code)
+
+    def record_context(self, geo_context: Dict[str, Any], note: str):
+        """Records qualitative context that shouldn't affect calculations."""
+        region = geo_context.get("region", "Unknown")
+        self.resolution_log.append(f"Context ({region}): {note}")
 
     def resolve(self):
         """
@@ -2373,6 +2383,7 @@ class Tracker:
             log(f"\n  Processing Region: {r_name}")
             r_covered = 0.0
             r_total = 0.0
+            region_pure_pcts = []  # Store percentages found without counts
             has_data = False
 
             # A. Check Region-Level Entry
@@ -2416,11 +2427,24 @@ class Tracker:
                 ]
                 log(f"      Found {len(c_entries)} country entries")
 
+                # NEW: Find countries implied by segments that don't have explicit entries
+                existing_codes = {e.key for e in c_entries}
+                segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
+                for s in segment_entries:
+                    if s.key and "::" in s.key:
+                        code = s.key.split("::")[0]
+                        if code not in existing_codes and _CODE_TO_REGION.get(code) == r_name:
+                            # Create a dummy entry for iteration
+                            dummy = Entry(scope=Scope.COUNTRY, key=code)
+                            c_entries.append(dummy)
+                            existing_codes.add(code)
+
                 for c in c_entries:
                     log(f"        Processing country: {c.key}")
                     c_cov = 0.0
                     c_tot = 0.0
                     c_has_local_data = False
+                    c_pct_only = None
 
                     if c.covered_count is not None:
                         c_cov = c.covered_count
@@ -2461,6 +2485,26 @@ class Tracker:
                                 log(
                                     f"            → Aggregated segments: {seg_cov}/{seg_tot}"
                                 )
+                        
+                        # Fallback: Check for Segment Percentages if no counts
+                        if not c_has_local_data and segs:
+                            valid_seg_pcts = [s.percentage for s in segs if s.percentage is not None]
+                            if valid_seg_pcts:
+                                # If single segment or multiple, use the first/avg. 
+                                # For single segment (common case), this is accurate.
+                                if len(valid_seg_pcts) == 1:
+                                    c_pct_only = valid_seg_pcts[0]
+                                    log(f"            → Found segment percentage: {c_pct_only}%")
+                                else:
+                                    # Simple average for multiple unweighted segments
+                                    c_pct_only = sum(valid_seg_pcts) / len(valid_seg_pcts)
+                                    log(f"            → Found avg segment percentage: {c_pct_only:.2f}%")
+
+                    # If still no local data (counts), check if country itself has percentage
+                    if not c_has_local_data and c_pct_only is None:
+                        if c.percentage is not None:
+                            c_pct_only = c.percentage
+                            log(f"          → Found country percentage: {c_pct_only}%")
 
                     if c_has_local_data:
                         r_covered += c_cov
@@ -2469,6 +2513,15 @@ class Tracker:
                         log(
                             f"          ✓ Added to region total. Region now: {r_covered}/{r_total}"
                         )
+                    elif c_pct_only is not None:
+                        region_pure_pcts.append(c_pct_only)
+
+            # Try to derive region percentage from pure percentages if no counts found
+            if not has_data and region_pure_pcts:
+                # Average the percentages found in this region
+                avg_pct = sum(region_pure_pcts) / len(region_pure_pcts)
+                metrics["derived_regional_coverage"][r_name] = round(avg_pct, 2)
+                log(f"    ✓ Derived region {r_name} percentage from unweighted average of {len(region_pure_pcts)} entries: {avg_pct:.2f}%")
 
             # C. Update Metrics
             if has_data:
@@ -2551,6 +2604,19 @@ class Tracker:
                 (bottom_up_covered / self.global_total) * 100.0, 2
             )
             log(f"  ✓ Calculated using self.global_total: {metrics['likely_percentage']}%")
+
+        # 4. Fallback: No counts found, check derived regional data
+        if metrics["likely_percentage"] is None and bottom_up_total == 0:
+            # A. Prefer International/Global region if available
+            if Region.INTERNATIONAL.value in metrics["derived_regional_coverage"]:
+                metrics["likely_percentage"] = metrics["derived_regional_coverage"][Region.INTERNATIONAL.value]
+                log(f"  ✓ Fallback: Using International regional percentage: {metrics['likely_percentage']}%")
+            
+            # B. If only one region exists (e.g. Domestic/US), assume it represents the whole
+            elif len(metrics["derived_regional_coverage"]) == 1:
+                r_name = list(metrics["derived_regional_coverage"].keys())[0]
+                metrics["likely_percentage"] = metrics["derived_regional_coverage"][r_name]
+                log(f"  ✓ Fallback: Using single region ({r_name}) percentage: {metrics['likely_percentage']}%")
 
         log("\n" + "=" * 80)
         log("FINAL METRICS:")
@@ -2786,6 +2852,16 @@ class UnionAnalyzer:
             for item in results:
                 cov: Dict[str, Any] = item.get("coverage_data", {})
                 geo = item.get("geographic_context", {})
+
+                # Handle Union Context (Denominator) items
+                if cov.get("type") == CoverageType.UNION_CONTEXT.value:
+                    # If it has a count, treat it as a Covered Count record
+                    if cov.get("employee_count_covered"):
+                        pass # Proceed to record_coverage below
+                    else:
+                        # Otherwise, just log it as context and skip math
+                        tracker.record_context(geo, f"Union Denominator Statement: {item.get('sentence')}")
+                        continue
 
                 # Skip if no meaningful coverage data
                 if (
