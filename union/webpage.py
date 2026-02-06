@@ -1153,12 +1153,11 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
         
     return None
 
-KEEP_SIZE = 3
 def filter_paragraphs_loose(text: str) -> List[str]:
     """
     Splits text into paragraphs/tables and keeps those matching LOOSE_FILTER_REGEX,
     plus one paragraph before and after for context.
-    Uses divide-and-conquer to avoid running heavy regexes on every paragraph.
+    Uses a sliding window (chunking) approach to avoid heavy regex on full text.
     """
     
     blocks = []
@@ -1181,36 +1180,32 @@ def filter_paragraphs_loose(text: str) -> List[str]:
         return []
 
     indices_to_keep = set()
-    
-    # Pre-fetch specific union regex to avoid attribute lookup in loop
-    specific_union_regex = REGION_MATCHER.specific_union_regex
 
+    # Sliding window / Chunking
+    # Process in chunks to reduce regex overhead while avoiding massive string joins
+    region_regex =  RegionMatcher.specific_union_regex
+
+    WINDOW = 5
     def is_match(s: str) -> bool:
         return (
             bool(LOOSE_FILTER_REGEX.search(s)) or 
             bool(DYNAMIC_UNION_REGEX.search(s)) or
-            bool(specific_union_regex and specific_union_regex.search(s))
+            bool(region_regex and region_regex.search(s))
         )
 
-    def find_matches_recursive(start: int, end: int):
-        # Optimization: Check combined text
-        combined_text = " ".join(blocks[start:end])
+    # Optimization: Early exit if no matches in the entire text
+    if not is_match(text):
+        return []
+    
+    for i in range(0, len(blocks), WINDOW):
+        end_idx = min(i + WINDOW, len(blocks))
+        # Join chunk for single regex check
+        chunk_text = " ".join(blocks[i:end_idx])
         
-        if not is_match(combined_text):
-            return  # Prune this branch
-        
-        # Base case: reasonable size, stop recursing and keep everything
-        if end - start <= KEEP_SIZE:
-            for i in range(start, end):
-                indices_to_keep.add(i)
-            return
-
-        # Recurse
-        mid = (start + end) // 2
-        find_matches_recursive(start, mid)
-        find_matches_recursive(mid, end)
-
-    find_matches_recursive(0, len(blocks))
+        if is_match(chunk_text):
+            # If match found in chunk, keep the whole chunk
+            for j in range(i, end_idx):
+                indices_to_keep.add(j)
     
     # Add context (prev/next)
     final_indices = set()
