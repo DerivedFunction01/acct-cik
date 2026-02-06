@@ -41,13 +41,16 @@ def init_worker():
 def process_batch(rows: List[Tuple]) -> List[Tuple]:
     """
     Process a batch of rows.
-    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year, item1_percents, item1a_percents)
+    Row format: (accession, item1_json, item1a_json, period_of_report, home_country, company_name, report_year, item1_percents, item1a_percents)
     """
     results = []
     assert ANALYZER is not None
 
     for row in rows:
-        accession, item1_json, item1a_json, period, company_name, report_year, item1_percents, item1a_percents = row
+        accession, item1_json, item1a_json, period, home_country, company_name, report_year, item1_percents, item1a_percents = row
+        
+        # Set domestic country for this filing
+        ANALYZER.domestic_country_code = home_country if home_country else "US"
         
         # Determine year
         year = None
@@ -194,7 +197,7 @@ def main():
     
     # Query to fetch data
     query = """
-        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year, w.item1_percents, w.item1a_percents
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year, w.item1_percents, w.item1a_percents
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik

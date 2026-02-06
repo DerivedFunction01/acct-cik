@@ -209,11 +209,11 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 def process_batch(rows: List[Tuple]) -> List[Tuple]:
     """
     Process a batch of rows.
-    Row format: (accession, item1_json, item1a_json, period_of_report, company_name, report_year)
+    Row format: (accession, item1_json, item1a_json, period_of_report, home_country, company_name, report_year)
     """
     results = []
     for row in rows:
-        accession, item1_json, item1a_json, period, company_name, report_year = row
+        accession, item1_json, item1a_json, period, home_country, company_name, report_year = row
         
         # Determine year for cleaner
         year = None
@@ -241,6 +241,7 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
                 json.dumps(filtered_item1),
                 json.dumps(filtered_item1a),
                 period,
+                home_country,
                 json.dumps(percents_item1),
                 json.dumps(percents_item1a)
             ))
@@ -258,6 +259,7 @@ def create_target_db():
             item1 TEXT,
             item1a TEXT,
             period_of_report TEXT,
+            home_country TEXT,
             item1_percents TEXT,
             item1a_percents TEXT
         )
@@ -334,7 +336,7 @@ def main():
     # Update query to join with report_data and names
     # We use GROUP BY accession to handle potential duplicates in metadata tables
     query = """
-        SELECT w.accession, w.item1, w.item1a, w.period_of_report, n.name, r.year
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik
@@ -351,7 +353,7 @@ def main():
             tgt_conn = sqlite3.connect(TARGET_DB)
             tgt_c = tgt_conn.cursor()
             tgt_c.executemany(
-                "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO webpage_result (accession, item1, item1a, period_of_report, home_country, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?, ?)",
                 res_list
             )
             tgt_conn.commit()
