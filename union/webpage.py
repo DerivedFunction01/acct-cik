@@ -1173,6 +1173,9 @@ def filter_paragraphs_loose(text: str) -> List[str]:
         if part.strip().upper().startswith("<TABLE"):
             blocks.append(part)
         else:
+            part = WEB_CLEANER.clean(part)
+            if not LOOSE_FILTER_REGEX.search(part):
+                continue
             # Split by double newlines for paragraphs
             paras = part.split('\n\n')
             for p in paras:
@@ -1187,20 +1190,13 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     # Sliding window / Chunking
     # Process in chunks to reduce regex overhead while avoiding massive string joins
     WINDOW = 5
-    # Optimization: Early exit if no matches on unions (there would be no specific ones if it doesn't match)
-    if not LOOSE_FILTER_REGEX.search(WEB_CLEANER.clean(text)):
-        return []
-    
     
     for i in range(0, len(blocks), WINDOW):
         end_idx = min(i + WINDOW, len(blocks))
         # Join chunk for single regex check
         chunk_text = " ".join(blocks[i:end_idx])
         
-        # Clean false positives (e.g. "European Union") before checking
-        cleaned_chunk = WEB_CLEANER.clean(chunk_text)
-        
-        if LOOSE_FILTER_REGEX.search(cleaned_chunk):
+        if LOOSE_FILTER_REGEX.search(chunk_text):
             # If match found in chunk, keep the whole chunk
             for j in range(i, end_idx):
                 indices_to_keep.add(j)
