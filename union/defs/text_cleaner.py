@@ -29,8 +29,6 @@ class WebTextCleaner:
     false_positives = [
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
-        (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
-        (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
     ]
     
     def clean(self, text: str) -> str:
