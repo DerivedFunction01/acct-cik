@@ -1005,7 +1005,7 @@ class ConcisenessCleaner:
                 r"therein",
                 r"hereby",
                 r"whereby",
-                r"(?:hour|dai|week|year)ly",
+                r"(?:dai|week|year)ly",
                 r"productions?",
                 r"facilit(?:y|ies)",
                 r"places?",
