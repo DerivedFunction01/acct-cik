@@ -1230,8 +1230,8 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
             search_start = p1_match.start()
         else:
             fl_match = FORWARD_LOOKING_PATTERN.search(content)
-            # Only use if it appears early (e.g. first 20%) to avoid matching inside Item 7
-            if fl_match and fl_match.start() < len(content) * 0.2:
+            # Only use if it appears early to avoid matching inside Item 7
+            if fl_match and fl_match.start() < len(content) * 0.1:
                 search_start = fl_match.end()
 
     if is_40f:
