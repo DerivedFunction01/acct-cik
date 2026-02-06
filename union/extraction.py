@@ -410,11 +410,12 @@ QUALITATIVE_ALL_TERMS = [
         is_all=True,
     ),
     QualitativeTerm(
-        core_terms=["every", "all"],
+        core_terms=[r"every(?:[- ]?one)?", r"all"],
         suffix_terms=WORKER_TERMS,
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=True,
+        suffix_gap=GAP,
         lower_bound=100.0,
         upper_bound=100.0,
         is_all=True,
