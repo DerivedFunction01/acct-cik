@@ -151,7 +151,12 @@ def import_report_data_from_csv():
 
     print(f"\n[2/3] Reading data from '{csv_path}'...")
     try:
-        df = pd.read_csv(csv_path)
+        # Check columns first to enforce string dtype for accession to prevent precision loss
+        header = pd.read_csv(csv_path, nrows=0)
+        dtype_map = {}
+        if "accession" in header.columns:
+            dtype_map["accession"] = str
+        df = pd.read_csv(csv_path, dtype=dtype_map)
         print(f"  -> Found {len(df):,} records in CSV.")
     except Exception as e:
         print(f"  -> ❌ Error reading CSV file: {e}")
@@ -190,6 +195,10 @@ def import_report_data_from_csv():
         # Ensure schema columns
         if "accession" not in df.columns:
             df["accession"] = df["url"].apply(extract_accession)
+        else:
+            # Ensure it is padded and cleaned if imported
+            df["accession"] = df["accession"].astype(str).str.replace(r'\.0$', '', regex=True)
+            df["accession"] = df["accession"].apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else None)
         
         if "original_url" not in df.columns:
             df["original_url"] = df["url"]
@@ -228,6 +237,12 @@ def export_data_to_csv():
         print("  -> Exporting report_data...")
         try:
             df_report = pd.read_sql("SELECT * FROM report_data", conn)
+            
+            # Ensure accession is formatted correctly as string and 0-padded
+            if "accession" in df_report.columns:
+                df_report["accession"] = df_report["accession"].astype(str).str.replace(r'\.0$', '', regex=True)
+                df_report["accession"] = df_report["accession"].apply(lambda x: x.zfill(18) if x and x.lower() not in ('nan', 'none', '') else '')
+
             df_report.to_csv(REPORT_CSV_PATH, index=False)
             print(f"     ✅ Saved {len(df_report)} rows to {REPORT_CSV_PATH}")
         except Exception as e:
