@@ -7,8 +7,7 @@ import queue
 import string
 import sys
 
-from defs.regex_lib import build_regex
-from union.defs.text_cleaner import WebTextCleaner
+
 
 
 # Increase recursion limit to handle deeply nested HTML structures
@@ -115,6 +114,8 @@ def get_system_config():
 from defs.table_definitions import HTMLTableConverter
 from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES, REGION_CODES
 from defs.union_regex import LABOR_TERMS, RISK_TERMS, DYNAMIC_UNION_REGEX
+from defs.regex_lib import build_regex
+from defs.text_cleaner import WebTextCleaner
 
 FILING_TYPES = {
     "10-K",
