@@ -1247,6 +1247,39 @@ PATTERN_CONFIG = {
 }
 
 
+PATTERN_CONFIG = {
+    '10K': {
+        'patterns': [
+            (ITEM_1_START_PATTERN, '1'),
+            (ITEM_1A_START_PATTERN, '1A'),
+            (ITEM_1B_START_PATTERN, '1B'),
+            (ITEM_2_START_PATTERN, '2'),
+        ],
+        'business_label': '1',
+        'risk_label': '1A',
+    },
+    '20F': {
+        'patterns': [
+            (ITEM_3_START_PATTERN, '3'),
+            (ITEM_4_START_PATTERN, '4'),
+            (ITEM_4A_START_PATTERN, '4A'),
+            (ITEM_5_START_PATTERN, '5'),
+        ],
+        'business_label': '4',
+        'risk_label': '3',
+    },
+    '40F': {
+        'patterns': [
+            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
+            (ITEM_40F_RISK_PATTERN, '40F_R'),
+            (ITEM_40F_STOP_PATTERN, '40F_S'),
+        ],
+        'business_label': '40F_B',
+        'risk_label': '40F_R',
+    },
+}
+
+
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
     """
     Filters content using updated Strict/Soft regex logic.
@@ -1270,19 +1303,18 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     search_start = 0
     search_end = len(content)
     
-    if not is_20f and not is_40f:
-        p1_match = PART_I_PATTERN.search(content)
-        fl_match = FORWARD_LOOKING_PATTERN.search(content)
+    p1_match = PART_I_PATTERN.search(content)
+    fl_match = FORWARD_LOOKING_PATTERN.search(content)
 
-        if p1_match:
-            search_start = p1_match.start()
-        elif fl_match and fl_match.start() < len(content) * 0.1:
-            search_start = fl_match.end()
-        
-        p2_search_start = max(search_start, fl_match.end() if fl_match and fl_match.start() < len(content) * 0.3 else search_start)
-        p2_match = PART_II_PATTERN.search(content, p2_search_start)
-        if p2_match:
-            search_end = p2_match.start()
+    if p1_match:
+        search_start = p1_match.start()
+    elif fl_match and fl_match.start() < len(content) * 0.1:
+        search_start = fl_match.end()
+    
+    p2_search_start = max(search_start, fl_match.end() if fl_match and fl_match.start() < len(content) * 0.3 else search_start)
+    p2_match = PART_II_PATTERN.search(content, p2_search_start)
+    if p2_match:
+        search_end = p2_match.start()
     
     # Extract relevant content slice and cap size upfront
     relevant_content = content[search_start:search_end]
