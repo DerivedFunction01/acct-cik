@@ -1173,16 +1173,16 @@ def filter_paragraphs_loose(text: str) -> List[str]:
             for p in paras:
                 if p.strip():
                     blocks.append(p.strip())
-    
+
     if not blocks:
         return []
 
     indices_to_keep = set()
     WINDOW = 5
-    
+
     # Bidirectional scan
     left, right = 0, len(blocks) - 1
-    
+
     while left <= right:
         # Scan from left
         if left <= right:
@@ -1192,7 +1192,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
                 for j in range(left, end_idx):
                     indices_to_keep.add(j)
             left = end_idx
-        
+
         # Scan from right
         if left <= right:
             start_idx = max(right - WINDOW + 1, left)
@@ -1201,7 +1201,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
                 for j in range(start_idx, right + 1):
                     indices_to_keep.add(j)
             right = start_idx - 1
-    
+
     # Add context
     final_indices = set()
     for i in indices_to_keep:
@@ -1210,7 +1210,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
             final_indices.add(i - 1)
         if i < len(blocks) - 1:
             final_indices.add(i + 1)
-            
+
     return [blocks[i] for i in sorted(final_indices)]
 
 
@@ -1221,11 +1221,38 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     1. CAPTURE: ITEM 1 AND ITEM 1A (or Item 4 and Item 3 for 20-F, or Business/Risk for 40-F)
     2. RETURNS: 1st element: ITEM 1 (Business), 2nd element: ITEM 1A (Risk)
     """
-    matches = []
+    # Define patterns and labels upfront
+    if is_40f:
+        patterns = [
+            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
+            (ITEM_40F_RISK_PATTERN, '40F_R'),
+            (ITEM_40F_STOP_PATTERN, '40F_S'),
+        ]
+        business_label = '40F_B'
+        risk_label = '40F_R'
+    elif is_20f:
+        patterns = [
+            (ITEM_3_START_PATTERN, '3'),
+            (ITEM_4_START_PATTERN, '4'),
+            (ITEM_4A_START_PATTERN, '4A'),
+            (ITEM_5_START_PATTERN, '5'),
+        ]
+        business_label = '4'
+        risk_label = '3'
+    else:
+        patterns = [
+            (ITEM_1_START_PATTERN, '1'),
+            (ITEM_1A_START_PATTERN, '1A'),
+            (ITEM_1B_START_PATTERN, '1B'),
+            (ITEM_2_START_PATTERN, '2'),
+        ]
+        business_label = '1'
+        risk_label = '1A'
     
-    # Heuristic: Find start of Part I or Forward Looking Statements to skip ToC
+    # Extract search boundaries
     search_start = 0
     search_end = len(content)
+    
     if not is_20f and not is_40f:
         p1_match = PART_I_PATTERN.search(content)
         fl_match = FORWARD_LOOKING_PATTERN.search(content)
@@ -1233,90 +1260,47 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
         if p1_match:
             search_start = p1_match.start()
         elif fl_match and fl_match.start() < len(content) * 0.1:
-            # Only use if it appears early to avoid matching inside Item 7
             search_start = fl_match.end()
         
-        # Ensure Part II is after search_start AND after Forward Looking (if early)
-        p2_search_start = search_start
-        if fl_match and fl_match.start() < len(content) * 0.3:
-            if fl_match.end() > p2_search_start:
-                p2_search_start = fl_match.end()
-
+        p2_search_start = max(search_start, fl_match.end() if fl_match and fl_match.start() < len(content) * 0.3 else search_start)
         p2_match = PART_II_PATTERN.search(content, p2_search_start)
         if p2_match:
             search_end = p2_match.start()
-
-    if is_40f:
-        # 40-F Logic: Business, Risk, and Stop patterns
-        for m in ITEM_40F_BUSINESS_PATTERN.finditer(content):
-            matches.append((m.start(), '40F_B'))
-        for m in ITEM_40F_RISK_PATTERN.finditer(content):
-            matches.append((m.start(), '40F_R'))
-        for m in ITEM_40F_STOP_PATTERN.finditer(content):
-            matches.append((m.start(), '40F_S'))
-    elif is_20f:
-        # 20-F Logic: Item 4 is Business, Item 3 is Risk
-        for m in ITEM_3_START_PATTERN.finditer(content):
-            matches.append((m.start(), '3'))
-        for m in ITEM_4_START_PATTERN.finditer(content):
-            matches.append((m.start(), '4'))
-        for m in ITEM_4A_START_PATTERN.finditer(content):
-            matches.append((m.start(), '4A'))
-        for m in ITEM_5_START_PATTERN.finditer(content):
-            matches.append((m.start(), '5'))
-    else:
-        # 10-K Logic
-        for m in ITEM_1_START_PATTERN.finditer(content):
-            if m.start() >= search_start and m.start() < search_end:
-                matches.append((m.start(), '1'))
-        for m in ITEM_1A_START_PATTERN.finditer(content):
-            if m.start() >= search_start and m.start() < search_end:
-                matches.append((m.start(), '1A'))
-        for m in ITEM_1B_START_PATTERN.finditer(content):
-            if m.start() >= search_start and m.start() < search_end:
-                matches.append((m.start(), '1B'))
-        for m in ITEM_2_START_PATTERN.finditer(content):
-            if m.start() >= search_start and m.start() < search_end:
-                matches.append((m.start(), '2'))
-
+    
+    # Extract relevant content slice and cap size upfront
+    relevant_content = content[search_start:search_end]
+    MAX_BLOCK_SIZE = 500000
+    if len(relevant_content) > MAX_BLOCK_SIZE:
+        relevant_content = relevant_content[:MAX_BLOCK_SIZE]
+    
+    # Find all matches with their positions in the slice
+    matches = []
+    for pattern, label in patterns:
+        for m in pattern.finditer(relevant_content):
+            matches.append((m.start(), label))
+    
     if not matches:
         return "", ""
-
-    matches.sort(key=lambda x: x[0])
     
+    matches.sort()
+    
+    # Extract blocks based on sorted matches
     item1 = ""
     item1a = ""
     
-    # Greedy extraction: Find the longest block for Item 1 and Item 1A
     for i, (start, label) in enumerate(matches):
-        end = search_end
+        end = len(relevant_content)
         if i + 1 < len(matches):
-            end = matches[i+1][0]
-            
-        text_block = content[start:end]
+            end = matches[i + 1][0]
         
-        if is_40f:
-            if label == '40F_B': # Business
-                if len(text_block) > len(item1):
-                    item1 = text_block
-            elif label == '40F_R': # Risk
-                if len(text_block) > len(item1a):
-                    item1a = text_block
-        elif is_20f:
-            if label == '4': # Business
-                if len(text_block) > len(item1):
-                    item1 = text_block
-            elif label == '3': # Risk
-                if len(text_block) > len(item1a):
-                    item1a = text_block
-        else:
-            if label == '1':
-                if len(text_block) > len(item1):
-                    item1 = text_block
-            elif label == '1A':
-                if len(text_block) > len(item1a):
-                    item1a = text_block
-                
+        text_block = relevant_content[start:end]
+        
+        # Update item1 and item1a based on whichever is business/risk for this doc type
+        if label == business_label and len(text_block) > len(item1):
+            item1 = text_block
+        elif label == risk_label and len(text_block) > len(item1a):
+            item1a = text_block
+    
     return item1, item1a
 
 
