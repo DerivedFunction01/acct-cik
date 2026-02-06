@@ -27,7 +27,7 @@ def clean_spaces_and_punctuation(text: str) -> str:
 
 class WebTextCleaner:
     false_positives = [
-        (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
+        (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
     ]
     
