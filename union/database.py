@@ -228,8 +228,8 @@ def export_data_to_csv():
         print("  -> Exporting report_data...")
         try:
             df_report = pd.read_sql("SELECT * FROM report_data", conn)
-            df_report.to_csv("report_data_export.csv", index=False)
-            print(f"     ✅ Saved {len(df_report)} rows to report_data_export.csv")
+            df_report.to_csv(REPORT_CSV_PATH, index=False)
+            print(f"     ✅ Saved {len(df_report)} rows to {REPORT_CSV_PATH}")
         except Exception as e:
             print(f"     ❌ Error exporting report_data: {e}")
 
@@ -337,4 +337,4 @@ if __name__ == "__main__":
             print("Invalid choice. Please try again.")
         print("-" * 50)
 
-#%%
+# %%
