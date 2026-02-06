@@ -735,7 +735,7 @@ QUALITATIVE_TERMS = [
         upper_bound=1.0,
     ),
     QualitativeTerm(
-        core_terms=["nonexistent"],
+        core_terms=["nonexistent", "zero", "none"],
         prefix_terms=[],
         positive_pct=0,
         negated_pct=None,  # "not nonexistent" is vague
