@@ -1153,13 +1153,14 @@ def extract_fiscal_year(text: str, accession: Optional[str] = None) -> Optional[
         
     return None
 
-
+KEEP_SIZE = 3
 def filter_paragraphs_loose(text: str) -> List[str]:
     """
     Splits text into paragraphs/tables and keeps those matching LOOSE_FILTER_REGEX,
     plus one paragraph before and after for context.
     Uses divide-and-conquer to avoid running heavy regexes on every paragraph.
     """
+    
     blocks = []
     parts = TABLE_SPLIT_PATTERN.split(text)
     for part in parts:
@@ -1192,19 +1193,18 @@ def filter_paragraphs_loose(text: str) -> List[str]:
         )
 
     def find_matches_recursive(start: int, end: int):
-        # Base case: small chunk or single item
-        if end - start <= 5:
-            for i in range(start, end):
-                if is_match(blocks[i]):
-                    indices_to_keep.add(i)
-            return
-
         # Optimization: Check combined text
         combined_text = " ".join(blocks[start:end])
         
         if not is_match(combined_text):
             return  # Prune this branch
         
+        # Base case: reasonable size, stop recursing and keep everything
+        if end - start <= KEEP_SIZE:
+            for i in range(start, end):
+                indices_to_keep.add(i)
+            return
+
         # Recurse
         mid = (start + end) // 2
         find_matches_recursive(start, mid)
