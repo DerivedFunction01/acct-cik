@@ -468,6 +468,7 @@ class MinimalTextCleaner:
         "charts?",
         "summary",
         "items?",
+        "chapters?",
     ]
 
     EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
