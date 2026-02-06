@@ -190,6 +190,7 @@ class MatchType(Enum):
     TOTAL_MODIFIER = "TOTAL_MODIFIER"
     RESPECTIVELY = "RESPECTIVELY"
     REMAINING_OTHER = "REMAINING_OTHER"
+    WORKER_TYPE = "WORKER_TYPE"
 
 
 @dataclass
@@ -222,6 +223,7 @@ class SentenceAnalysis:
     qualitative_membership_terms: List[str] = field(default_factory=list)
     total_modifiers: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
+    worker_types: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1027,6 +1029,13 @@ class UnionExtractor:
             lambda m, val: analysis.ratios.append(val),
         )
 
+        # 11A: Extract Worker type
+        process_matches(
+            WORKER_TYPE_REGEX,
+            MatchType.WORKER_TYPE,
+            lambda m: m.group(0),
+            lambda m, val: analysis.worker_types.append(val),
+        )
         # 11. Extract Worker Counts (Specific Numbers)
         process_matches(
             WORKER_COUNT_REGEX,
@@ -1177,6 +1186,7 @@ class UnionExtractor:
                 )
                 if not has_data:
                     analysis.is_relevant = False
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
