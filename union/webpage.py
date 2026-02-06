@@ -140,7 +140,7 @@ TABLE_HINT_PATTERN = re.compile(
     r"\b(table|summary|following|below|presented|summarized|\:)\b", re.IGNORECASE
 )
 
-LOOSE_TERMS = WORKER_TERMS + LABOR_TERMS.SPECIFIC_PHRASES + RISK_TERMS.PHRASES
+LOOSE_TERMS = LABOR_TERMS.SPECIFIC_PHRASES + RISK_TERMS.PHRASES
 LOOSE_FILTER_REGEX = build_regex(LOOSE_TERMS)
 
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
