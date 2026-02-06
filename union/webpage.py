@@ -8,6 +8,7 @@ import string
 import sys
 
 from defs.regex_lib import build_regex
+from union.defs.text_cleaner import WebTextCleaner
 
 
 # Increase recursion limit to handle deeply nested HTML structures
@@ -145,6 +146,7 @@ LOOSE_FILTER_REGEX = build_regex(LOOSE_TERMS)
 
 # Initialize RegionMatcher to access specific union regexes (e.g. "UAW", "IG Metall")
 REGION_MATCHER = RegionMatcher()
+WEB_CLEANER = WebTextCleaner()
 
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
@@ -1186,27 +1188,35 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     region_regex =  RegionMatcher.specific_union_regex
 
     WINDOW = 5
-    def is_match(s: str) -> bool:
+    def is_spec_match(s: str) -> bool:
         return (
-            bool(LOOSE_FILTER_REGEX.search(s)) or 
             bool(DYNAMIC_UNION_REGEX.search(s)) or
             bool(region_regex and region_regex.search(s))
         )
-
-    # Optimization: Early exit if no matches in the entire text
-    if not is_match(text):
+    
+    
+    start_idx = -1 # Where the loose filter was triggered
+    last_idx = -1 # The final index where it is triggered
+    # Optimization: Early exit if no matches on unions (there would be no specific ones if it doesn't match)
+    if not LOOSE_FILTER_REGEX.search(WEB_CLEANER.clean(text)):
         return []
+    
     
     for i in range(0, len(blocks), WINDOW):
         end_idx = min(i + WINDOW, len(blocks))
         # Join chunk for single regex check
         chunk_text = " ".join(blocks[i:end_idx])
         
-        if is_match(chunk_text):
+        # Clean false positives (e.g. "European Union") before checking
+        cleaned_chunk = WEB_CLEANER.clean(chunk_text)
+        
+        if LOOSE_FILTER_REGEX.search(cleaned_chunk):
+            if start_idx == -1:
+                start_idx = i 
+            last_idx = end_idx
             # If match found in chunk, keep the whole chunk
             for j in range(i, end_idx):
                 indices_to_keep.add(j)
-    
     # Add context (prev/next)
     final_indices = set()
     for i in indices_to_keep:

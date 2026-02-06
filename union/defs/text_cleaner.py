@@ -25,6 +25,21 @@ def clean_spaces_and_punctuation(text: str) -> str:
     return text
 
 
+class WebTextCleaner:
+    false_positives = [
+        (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
+        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
+        (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
+        (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
+    ]
+    
+    def clean(self, text: str) -> str:
+        if not text:
+            return ""
+        for regex, replacement in self.false_positives:
+            text = regex.sub(replacement, text)
+        return text
+
 class MinimalTextCleaner:
     # Suffixes to strip from the passed company name
     name_suffixes = [
