@@ -171,8 +171,6 @@ _CORE_DYNAMIC_PATTERN = build_alternation(
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
-# Builds from foreign dynamic patterns
-FX_DYNAMIC_UNION_REGEX = build_regex(list(FOREIGN_DYNAMIC_PATTERNS.values()), ignore_case=False)
 
 COLLECTIVE_BARGAIN = build_alternation(
     [

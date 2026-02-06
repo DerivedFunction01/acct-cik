@@ -113,7 +113,7 @@ def get_system_config():
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
 from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES, REGION_CODES
-from defs.union_regex import LABOR_TERMS, RISK_TERMS, DYNAMIC_UNION_REGEX, FX_DYNAMIC_UNION_REGEX
+from defs.union_regex import LABOR_TERMS, RISK_TERMS, DYNAMIC_UNION_REGEX
 
 FILING_TYPES = {
     "10-K",
@@ -1171,7 +1171,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     
     indices_to_keep = set()
     for i, block in enumerate(blocks):
-        if LOOSE_FILTER_REGEX.search(block) or DYNAMIC_UNION_REGEX.search(block) or FX_DYNAMIC_UNION_REGEX.search(block):
+        if LOOSE_FILTER_REGEX.search(block) or DYNAMIC_UNION_REGEX.search(block):
             indices_to_keep.add(i)
             if i > 0:
                 indices_to_keep.add(i - 1)
