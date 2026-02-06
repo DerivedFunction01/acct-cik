@@ -159,7 +159,7 @@ SENTENCE_SPLIT_PATTERN2 = re.compile(
     r"(?<!\bp\.)"  # p. (page) - FIXED (Separated)
     r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
     r"(?<!\b[Ee]tc\.)"  # etc.
-    r"\s+(?=[A-Z0-9_])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
+    r"\s+(?=[A-Z0-9_<])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
 )
 
 YEAR_REGEX = re.compile(r"\b(19\d{2}|20\d{2})\b")
