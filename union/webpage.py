@@ -1158,6 +1158,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     """
     Splits text into paragraphs/tables and keeps those matching LOOSE_FILTER_REGEX,
     plus one paragraph before and after for context.
+    Uses divide-and-conquer to avoid running heavy regexes on every paragraph.
     """
     blocks = []
     parts = TABLE_SPLIT_PATTERN.split(text)
@@ -1175,21 +1176,52 @@ def filter_paragraphs_loose(text: str) -> List[str]:
                 if p.strip():
                     blocks.append(p.strip())
     
+    if not blocks:
+        return []
+
     indices_to_keep = set()
-    for i, block in enumerate(blocks):
-        is_match = (
-            LOOSE_FILTER_REGEX.search(block) or 
-            DYNAMIC_UNION_REGEX.search(block) or
-            (REGION_MATCHER.specific_union_regex and REGION_MATCHER.specific_union_regex.search(block))
+    
+    # Pre-fetch specific union regex to avoid attribute lookup in loop
+    specific_union_regex = REGION_MATCHER.specific_union_regex
+
+    def is_match(s: str) -> bool:
+        return (
+            bool(LOOSE_FILTER_REGEX.search(s)) or 
+            bool(DYNAMIC_UNION_REGEX.search(s)) or
+            bool(specific_union_regex and specific_union_regex.search(s))
         )
-        if is_match:
-            indices_to_keep.add(i)
-            if i > 0:
-                indices_to_keep.add(i - 1)
-            if i < len(blocks) - 1:
-                indices_to_keep.add(i + 1)
-                
-    return [blocks[i] for i in sorted(indices_to_keep)]
+
+    def find_matches_recursive(start: int, end: int):
+        # Base case: small chunk or single item
+        if end - start <= 5:
+            for i in range(start, end):
+                if is_match(blocks[i]):
+                    indices_to_keep.add(i)
+            return
+
+        # Optimization: Check combined text
+        combined_text = " ".join(blocks[start:end])
+        
+        if not is_match(combined_text):
+            return  # Prune this branch
+        
+        # Recurse
+        mid = (start + end) // 2
+        find_matches_recursive(start, mid)
+        find_matches_recursive(mid, end)
+
+    find_matches_recursive(0, len(blocks))
+    
+    # Add context (prev/next)
+    final_indices = set()
+    for i in indices_to_keep:
+        final_indices.add(i)
+        if i > 0:
+            final_indices.add(i - 1)
+        if i < len(blocks) - 1:
+            final_indices.add(i + 1)
+            
+    return [blocks[i] for i in sorted(final_indices)]
 
 
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
