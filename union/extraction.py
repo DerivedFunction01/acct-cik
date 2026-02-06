@@ -409,11 +409,21 @@ QUALITATIVE_ALL_TERMS = [
         upper_bound=100.0,
         is_all=True,
     ),
+    QualitativeTerm(
+        core_terms=["every", "all"],
+        suffix_terms=WORKER_TERMS,
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=True,
+        lower_bound=100.0,
+        upper_bound=100.0,
+        is_all=True,
+    ),
 ]
 QUALITATIVE_TERMS = [
     # ===== 95% TIER (Substantially All) =====
     QualitativeTerm(
-        core_terms=["all", r"(?:the\s+)entire(?:ty)?"],
+        core_terms=["all", r"(?:the\s+)entire(?:ty)?", r"every"],
         prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
         positive_pct=95.0,
         negated_pct=None,
