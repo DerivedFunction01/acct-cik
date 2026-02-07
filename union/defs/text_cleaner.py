@@ -859,7 +859,7 @@ class ContextualNumberCleaner:
         ]
 
         asset_pattern = build_alternation(asset_terms)
-        worker_pattern = build_alternation(WORKER_TERMS)
+        worker_pattern = build_alternation(WORKER_TERMS + [r"members?"])
 
         # Define number and range patterns
         num = r"\d+(?:\.\d+)?"
