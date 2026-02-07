@@ -110,6 +110,10 @@ WORKER_TERMS = [
     r"Boilermakers?",
     r"Millwrights?",
     r"Labor\s+[Ff]orce",
+    r"Members?" r"managers?",
+    r"Officers?",
+    r"Chefs?",
+    r"Cook(?:er)?s?",
 ]
 NOUNS = [
     r"whom?",
@@ -176,7 +180,7 @@ DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 # e.g. "Teachers, Instructors and " before "Writers Association"
 # Enforces that the terms are valid WORKER_TERMS to avoid capturing unrelated capitalized text.
 _worker_term_alt = build_alternation(WORKER_TERMS)
-_prefix_sep = r"(?:,\s+|\s+(?:and|&)\s+|\s+)"
+_prefix_sep = r"(?:,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+|\s+)"
 LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 
 COLLECTIVE_BARGAIN = build_alternation(
