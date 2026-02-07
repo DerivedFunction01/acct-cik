@@ -110,9 +110,6 @@ WORKER_TERMS = [
     r"Boilermakers?",
     r"Millwrights?",
     r"Labor\s+[Ff]orce",
-    r"Members?",
-    r"Managers?",
-    r"Officers?",
     r"Chefs?",
     r"Cook(?:er)?s?",
 ]
