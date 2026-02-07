@@ -855,7 +855,6 @@ class ContextualNumberCleaner:
             r"units?",
             r"products",
             r"disputes?",
-            r"unions?"
         ]
 
         asset_pattern = build_alternation(asset_terms)
