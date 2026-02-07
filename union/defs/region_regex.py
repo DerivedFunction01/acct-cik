@@ -1956,7 +1956,7 @@ MIDDLE_EAST_AFRICA = {
 INTERNATIONAL = {
     Nation(
         "International",
-        ["international", "foreign", "overseas"],
+        ["international", "foreign", "overseas", "internationally"],
         Region.INTERNATIONAL,
         [],
         [],
