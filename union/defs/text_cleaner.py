@@ -1035,22 +1035,13 @@ class ConcisenessCleaner:
 
         # Replacements (Long -> Short)
         self.replacements = [
-            (re.compile(r"\butiliz(?:e|es|ed|ing)\b", re.IGNORECASE), "use"),
-            (re.compile(r"\bcommenc(?:e|es|ed|ing)\b", re.IGNORECASE), "start"),
-            (re.compile(r"\bdemonstrat(?:e|es|ed|ing)\b", re.IGNORECASE), "show"),
-            (re.compile(r"\bupon\b", re.IGNORECASE), "on"),
-            (re.compile(r"\bregarding\b", re.IGNORECASE), "about"),
-            (re.compile(r"\bconsist(?:s|ed|ing)?\s+of\b", re.IGNORECASE), "are"),
-            (re.compile(r"\bcompris(?:e|es|ed|ing)(?:\s+of)?\b", re.IGNORECASE), "are"),
-            (re.compile(r"\bcomposed\s+of\b", re.IGNORECASE), "are"),
-            (re.compile(r"\bin\s+order\s+to\b", re.IGNORECASE), "to"),
-            (re.compile(r"\bwith\s+respect\s+to\b", re.IGNORECASE), "for"),
-            (re.compile(r"\bin\s+connection\s+with\b", re.IGNORECASE), "for"),
-            (re.compile(r"\bas\s+a\s+result\s+of\b", re.IGNORECASE), "because"),
-            (re.compile(r"\bdue\s+to\b", re.IGNORECASE), "because"),
-            (re.compile(r"\bin\s+the\s+event\s+of\b", re.IGNORECASE), "if"),
-            (re.compile(r"\bin\s+case\s+of\b", re.IGNORECASE), "if"),
-            (re.compile(r"\bsubsequent\s+to\b", re.IGNORECASE), "after"),
+            (
+                re.compile(
+                    r"\b(?:consist|compris|compos)(?:es?|s|ed|ing)?\s+of\b",
+                    re.IGNORECASE,
+                ),
+                "are",
+            ),
             (re.compile(r"\bUS GAAP\b", re.IGNORECASE), "standards"),
         ]
 
