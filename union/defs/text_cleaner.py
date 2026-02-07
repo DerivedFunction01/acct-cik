@@ -85,7 +85,7 @@ class MinimalTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
-        (re.compile(r"\binternational\b"), "foreign"),
+        (re.compile(r"\binternational\b"), "foreign"), # lowercase international -> foreign to prevent International Union matches
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
         (re.compile(r"\bUS\s+GAAP\b", re.IGNORECASE), "GAAP"),
