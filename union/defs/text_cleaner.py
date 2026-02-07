@@ -962,6 +962,20 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # 6. Union Identifiers (e.g. "Local 140", "District 65")
+        union_identifiers = [
+            r"locals?",
+            r"districts?",
+            r"regions?",
+            r"lodges?",
+            r"councils?",
+        ]
+        union_id_pattern = build_alternation(union_identifiers)
+        self.union_id_regex = re.compile(
+            rf"\b({union_id_pattern})\s+(?:(?:No\.|#)\s*)?{number_range}\b",
+            re.IGNORECASE,
+        )
+
     def clean(self, text: str) -> str:
         if not text:
             return ""
@@ -976,6 +990,7 @@ class ContextualNumberCleaner:
             paragraph = self.personnel_event_regex.sub(r" \1 ", paragraph)
             paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
             paragraph = self.duration_regex.sub(r" \1 ", paragraph)
+            paragraph = self.union_id_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
