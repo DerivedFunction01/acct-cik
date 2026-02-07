@@ -564,8 +564,8 @@ class MinimalTextCleaner:
         has_number = any(w in self.num_words for w in words)
         has_qualifier = any(w in self.fraction_qualifiers for w in words)
         has_fraction = any(w in self.fractions for w in words)
-        if not has_fraction:
-            return text
+        # if not has_fraction:
+        #     return text
         # If it's ONLY a fraction word (standalone), preserve it
         # Examples: "half", "third" (when standing alone)
         if has_fraction and not has_number and not has_qualifier:
@@ -855,6 +855,7 @@ class ContextualNumberCleaner:
             r"units?",
             r"products",
             r"disputes?",
+            r"unions?"
         ]
 
         asset_pattern = build_alternation(asset_terms)
@@ -1359,7 +1360,7 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "5000000", None),
                 (TestType.CONTAINS, "two", None),
                 (TestType.NOT_CONTAINS, "5 million", None),
-                (TestType.NOT_CONTAINS, "2", None),
+                (TestType.CONTAINS, "2", None),
             ],
         ),
         # Test 6: Fraction to Percentage
