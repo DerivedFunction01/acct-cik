@@ -691,7 +691,7 @@ class MinimalTextCleaner:
 
             # 2. False Positives
             for pat, repl in self.false_positives:
-                paragraph = pat.sub(repl, paragraph)
+                paragraph = pat.sub(repl.capitalize(), paragraph)
 
             # 3. Company Name
             if company_name:
