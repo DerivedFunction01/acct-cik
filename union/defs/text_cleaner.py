@@ -112,8 +112,6 @@ class MinimalTextCleaner:
         (re.compile(r"\bdept\.?\s+of\s+labor\b", re.IGNORECASE), "DOL"),
         (re.compile(r"\bdepartment\s+of\s+labor\b", re.IGNORECASE), "DOL"),
         (re.compile(r"\bnational\s+labor\s+relations\s+board\b", re.IGNORECASE), "NLRB"),
-        (re.compile(r"\bcentral\s+gas\b", re.IGNORECASE), "utility company"),
-        (re.compile(r"\bcentral\s+metal\b", re.IGNORECASE), "metal company"),
         (re.compile(r"\bunion\s+mines?\b", re.IGNORECASE), "mining company"),
         (re.compile(r"\bpurchase\s+orders?\b", re.IGNORECASE), "purchases"),
         (re.compile(r"\btask\s+orders?\b", re.IGNORECASE), "task"),
