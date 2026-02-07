@@ -877,6 +877,12 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # Extended pattern to prevent matching "5 union members" or "5 union-represented"
+        union_adj_blockers = build_alternation(WORKER_TERMS + [r"members?", r"represented", r"covered", r"based", r"affiliated"])
+        self.union_num_regex = re.compile(
+            rf"\b{number_range}\s+(unions?\b(?!(?:[\s-]+)(?:{union_adj_blockers})))",
+            re.IGNORECASE,
+        )
         change_pattern = build_alternation(CHANGE_TERMS)
 
         # Matches: "10% increase"
@@ -911,7 +917,7 @@ class ContextualNumberCleaner:
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
-        
+
         # 4. Time/Duration Patterns
         time_units = [
             r"years?",
@@ -925,7 +931,7 @@ class ContextualNumberCleaner:
             r"annual",
         ]
         time_unit_pattern = build_alternation(time_units)
-        
+
         duration_context = [
             r"extensions?",
             r"contracts?",
@@ -991,6 +997,7 @@ class ContextualNumberCleaner:
             paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
             paragraph = self.duration_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_id_regex.sub(r" \1 ", paragraph)
+            paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
