@@ -172,6 +172,13 @@ DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 
+# Regex to capture comma-separated worker titles preceding a union name
+# e.g. "Teachers, Instructors and " before "Writers Association"
+# Enforces that the terms are valid WORKER_TERMS to avoid capturing unrelated capitalized text.
+_worker_term_alt = build_alternation(WORKER_TERMS)
+_prefix_sep = r"(?:,\s+|\s+(?:and|&)\s+|\s+)"
+LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
+
 COLLECTIVE_BARGAIN = build_alternation(
     [
         build_compound(

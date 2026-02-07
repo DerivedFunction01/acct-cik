@@ -27,6 +27,7 @@ from defs.union_regex import (
     BOILERPLATE_REGEX,
     PERSONNEL_EVENT_REGEX,
     FOREIGN_DYNAMIC_PATTERNS,
+    LOOSE_TITLE_PREFIX_REGEX,
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource
 
@@ -835,7 +836,7 @@ class UnionExtractor:
         analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
 
-        def process_matches(pattern, type_name, extractor_func=None, side_effect=None):
+        def process_matches(pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False):
             nonlocal working_text
             current_iter_matches = list(pattern.finditer(working_text))
             if not current_iter_matches:
@@ -851,7 +852,12 @@ class UnionExtractor:
 
                 if extractor_func:
                     try:
-                        extracted = extractor_func(m)
+                        res = extractor_func(m)
+                        if isinstance(res, tuple) and len(res) == 3:
+                            extracted, new_start, new_end = res
+                            start, end = new_start, new_end
+                        else:
+                            extracted = res
                     except (ValueError, IndexError):
                         continue
 
@@ -871,8 +877,12 @@ class UnionExtractor:
                 # Mask with spaces
                 for i in range(start, end):
                     chars[i] = " "
+                
+                if update_working_text:
+                    working_text = "".join(chars)
 
-            working_text = "".join(chars)
+            if not update_working_text:
+                working_text = "".join(chars)
 
         # 1. Extract Percentages
         process_matches(
@@ -917,6 +927,23 @@ class UnionExtractor:
             )
 
         # 4. Extract Dynamic Union Names (Pattern-based)
+        def expand_dynamic_match(m):
+            val = m.group(0)
+            start, end = m.span()
+
+            # Look behind for loose prefix (e.g. "International Teachers, Instructors and ")
+            # We look at working_text which has previous matches masked, so we won't merge separate unions
+            lookbehind_limit = 150
+            search_start = max(0, start - lookbehind_limit)
+            pre_text = working_text[search_start:start]
+
+            prefix_match = LOOSE_TITLE_PREFIX_REGEX.search(pre_text)
+            if prefix_match:
+                prefix = prefix_match.group(0)
+                return prefix + val, start - len(prefix), end
+            
+            return val
+
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
             lower_term = val.lower()
@@ -951,8 +978,9 @@ class UnionExtractor:
         process_matches(
             DYNAMIC_UNION_REGEX,
             MatchType.UNION_NAME,
-            lambda m: m.group(0),
+            expand_dynamic_match,
             dynamic_union_side_effect,
+            update_working_text=True,
         )
 
         # 4.5 Check for Union Denominator with specific/dynamic union names replaced
