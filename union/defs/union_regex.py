@@ -15,7 +15,7 @@ Use enums to build core terms, then use another enum or function to build out th
 
 from enum import Enum
 import re
-from defs.regex_lib import build_alternation, build_compound, build_regex
+from defs.regex_lib import build_alternation, build_compound, build_regex, to_build_alternation
 from defs.region_regex import INT_UNION_MAP
 
 
@@ -177,7 +177,7 @@ DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 # Regex to capture comma-separated worker titles preceding a union name
 # e.g. "Teachers, Instructors and " before "Writers Association"
 # Enforces that the terms are valid WORKER_TERMS to avoid capturing unrelated capitalized text.
-_worker_term_alt = build_alternation(WORKER_TERMS)
+_worker_term_alt = to_build_alternation(set(WORKER_TERMS) - {r"Teamsters?"})
 _prefix_sep = r"(?:,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+|\s+)"
 LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 
