@@ -435,6 +435,7 @@ EXCLUSION_MAP = {
         r"equity\s+incentive\s+plans?",
         r"strike\s+prices?",
         r"exercise\s+prices?",
+        r"board\s+of\s+directors?"
     ]
 }
 
