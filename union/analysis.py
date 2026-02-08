@@ -3228,6 +3228,16 @@ class UnionAnalyzer:
                     # If both have a total, don't merge
                     if c_data["employee_count_total"] is not None and n_data["employee_count_total"] is not None:
                         should_merge = False
+                    
+                    # Don't merge if one talks about unionzation, the other is negation
+                    if should_merge:
+                        c_neg = c_data.get("negated", False)
+                        n_neg = n_data.get("negated", False)
+                        if c_neg != n_neg:
+                            c_has_pos = not c_neg and (c_data.get("percentage") is not None or c_data.get("employee_count_covered") is not None)
+                            n_has_pos = not n_neg and (n_data.get("percentage") is not None or n_data.get("employee_count_covered") is not None)
+                            if (c_neg and n_has_pos) or (n_neg and c_has_pos):
+                                should_merge = False
 
                     # 2. Subject Conflict Check (Specific Unions)
                     # Do not merge if both items mention different specific unions (e.g. UAW vs Teamsters)
