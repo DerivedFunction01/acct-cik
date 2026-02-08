@@ -9,7 +9,7 @@ from typing import List, Optional, Set, Tuple, Any
 from tqdm import tqdm
 
 # Import definitions
-from defs.union_regex import UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX
+from defs.union_regex import EXCLUSION_REGEX, UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX
 from defs.region_regex import (
     NORTH_AMERICA,
     EUROPE,
@@ -39,6 +39,9 @@ logging.basicConfig(
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
 RAW_PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
+
+# Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
+MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
 
 # =============================================================================
 # REGEX COMPILATION
@@ -115,6 +118,108 @@ def init_worker():
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
     CONCISENESS_CLEANER = ConcisenessCleaner()
 
+def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
+    # For plain text paragraph extraction, sometimes the text is merged accidentally, so we have a mega chunk
+    # This is usually for pre-2000 SEC filings, where headers are all caps, etc
+    """
+     There may be certain rules to look out for as candidates for splitting:
+     1. If the candidate paragraph is too large (> 1600 chars)
+     
+    """
+    output = []
+    def split_paragraph(p: str) -> List[str]:
+        # Split the current text chunk based on some rules
+        output = split_paragraph_simple(p)
+        output = remove_caps(output)
+        output = cleanup_loose_fragments(output)
+        return output
+    def remove_caps(paragraphs: List[str]) -> List[str]:
+        # Strip out ALL CAPS artifact headers (Good for 90% of cases, no need for perfection)
+        # 1. if it is a single word, it must be at least 5 chars long so that CFTC, SFAS doesn't count
+        # 2. Any other cases, we delete consecutive occureances of all caps, such as TEXT CORP. (MORE TEXT AS A HEADER);
+        # Bulleted patterns such as 1)/1. CAP HEADERS
+
+        cleaned_paragraphs = []
+        for p in paragraphs:            
+            words = p.split()
+            if not words:
+                continue
+
+            new_words = []
+            caps_run = []
+
+            def process_run(run):
+                if not run: return []
+                # Check if run should be removed
+                if len(run) >= 2:
+                    return [] # Remove
+                elif len(run) == 1:
+                    # Check length constraint
+                    w = run[0]
+                    if len(w) >= 5:
+                        return [] # Remove
+                    else:
+                        return run
+                return run
+
+            for w in words:
+                # Check if word is ALL CAPS (no lowercase)
+                if w.isupper():
+                    caps_run.append(w)
+                else:
+                    # End of run
+                    if caps_run:
+                        new_words.extend(process_run(caps_run))
+                        caps_run = []
+                    new_words.append(w)
+
+            # Process final run
+            if caps_run:
+                new_words.extend(process_run(caps_run))
+
+            # Reconstruct paragraph
+            cleaned_p = " ".join(new_words)
+            if cleaned_p.strip():
+                cleaned_paragraphs.append(cleaned_p)
+
+        return cleaned_paragraphs
+
+    def cleanup_loose_fragments(paragraphs: List[str]) -> List[str]:
+        # Clean up simple patterns, no need for massive rules here
+        # Remove stray bullet double dash patterns --: ex: 1. --; 2. --
+        output = []
+        for p in paragraphs:
+            p = re.sub(r"[0-9]\.\s+--", "", p)
+            output.append(p)
+        return output
+
+    def split_paragraph_simple(p: str) -> List[str]:
+        # Split the current text chunk based on some rules
+        # 1. end of sentence. ALL CAPS Capitalized Word ->   support companies. PRINCIPLES OF CONSOLIDATION The accompanying
+
+        # Insert a unique separator (e.g., \n\n) before the header
+        p_new = MEGA_SPLIT_REGEX.sub(r"\1\n\n\2", p)
+
+        return p_new.split("\n\n")
+
+    for paragraph in paragraphs:
+        # Split by tables first to protect them
+        parts = TABLE_SPLIT_PATTERN.split(paragraph)
+        for part in parts:
+            if not part.strip():
+                continue
+
+            # If it is a table, preserve it as is
+            if "<TABLE>" in part.upper():
+                output.append(part)
+                continue
+
+            if len(part) > 1600:
+                output.extend(split_paragraph(part))
+            else:
+                output.append(part)
+    return output
+
 def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
@@ -162,6 +267,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                     if line.strip():
                         raw_blocks.append(line.strip())
 
+    # Apply mega paragraph splitting and cleanup
+    raw_blocks = split_mega_paragraph(raw_blocks)
+
     filtered = []
     extracted_percents = []
     for block in raw_blocks:
@@ -186,7 +294,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
 
-        if not cleaned_block:
+        if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
             continue
 
         is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
