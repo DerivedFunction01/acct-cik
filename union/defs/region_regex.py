@@ -1744,6 +1744,13 @@ LATIN_AMERICA = {
         code="DO",
     ),
     Nation(
+        "Puerto Rico",
+        ["puerto rico", "puerto rican"],
+        Region.LATIN_AMERICA,
+        [Location("San Juan", ["san juan"])],
+        code="PR",
+    ),
+    Nation(
         "Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA, code="CR"
     ),
     Nation("Panama", ["panama", "panamanian"], Region.LATIN_AMERICA, code="PA"),
