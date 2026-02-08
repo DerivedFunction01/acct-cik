@@ -685,7 +685,7 @@ NORTH_AMERICA = {
 EUROPE = {
     Nation(
         "Europe",
-        ["europe", "eurozone", "eu", "european"],
+        ["europe", "eurozone", "eu", "european", "european union"],
         Region.EUROPE,
         [],
         [],
@@ -841,7 +841,7 @@ EUROPE = {
     ),
     Nation(
         "Russia",
-        ["russia", "russian"],
+        ["russia", "russian", "ussr", "soviet union"],
         Region.EUROPE,
         [
             Location("Moscow", ["moscow"]),
