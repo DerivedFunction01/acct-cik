@@ -119,19 +119,9 @@ class MinimalTextCleaner:
 
     # False Positives for Union/Labor context
     false_positives = [
-        (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "bank"),
-        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
-        (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
-        (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
-        (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
-        (re.compile(r"\bwestern\s+union\b", re.IGNORECASE), "money transfer"),
-        (re.compile(r"\bunion\s+pacific\b", re.IGNORECASE), "railroad"),
-        (re.compile(r"\bunion\s+carbide\b", re.IGNORECASE), "chemical company"),
-        (re.compile(r"\bunion\s+bank\b", re.IGNORECASE), "bank"),
-        (re.compile(r"\bunion\s+mines?\b", re.IGNORECASE), "mining company"),
-    ]
+    ] + WebTextCleaner.false_positives
 
     # Bullet and Dashed Patterns
     bullet_pattern = re.compile(
