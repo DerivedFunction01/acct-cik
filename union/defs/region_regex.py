@@ -1237,6 +1237,33 @@ EUROPE = {
         Region.EUROPE,
         code="MC",
     ),
+    Nation(
+        "Estonia",
+        ["estonia", "estonian"],
+        Region.EUROPE,
+        [Location("Tallinn", ["tallinn"])],
+        code="EE",
+    ),
+    Nation(
+        "Latvia",
+        ["latvia", "latvian"],
+        Region.EUROPE,
+        [Location("Riga", ["riga"])],
+        code="LV",
+    ),
+    Nation(
+        "Lithuania",
+        ["lithuania", "lithuanian"],
+        Region.EUROPE,
+        [Location("Vilnius", ["vilnius"]), Location("Kaunas", ["kaunas"])],
+        code="LT",
+    ),
+    Nation(
+        "Baltic States",
+        ["baltic states", "baltics"],
+        Region.EUROPE,
+        code="BALTIC",
+    ),
 }
 ASIA_PACIFIC = {
     Nation(
