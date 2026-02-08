@@ -85,7 +85,10 @@ class MinimalTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
-        (re.compile(r"\binternational\b"), "foreign"), # lowercase international -> foreign to prevent International Union matches
+        (
+            re.compile(r"\binternational\b"),
+            "foreign",
+        ),  # lowercase international -> foreign to prevent International Union matches
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
         (re.compile(r"\bUS\s+GAAP\b", re.IGNORECASE), "GAAP"),
@@ -104,6 +107,8 @@ class MinimalTextCleaner:
         (re.compile(r"\bunion\s+carbide\b", re.IGNORECASE), "chemical company"),
         (re.compile(r"\bunion\s+bank\b", re.IGNORECASE), "bank"),
         (re.compile(r"\bunion\s+mines?\b", re.IGNORECASE), "mining company"),
+        (re.compile(r"\bmonetary\s+unions?\b", re.IGNORECASE), "money"),
+        (re.compile(r"(?:non[- ]?)?union\s+fractures?\b", re.IGNORECASE), "fracture"),
         (re.compile(r"\border\s+of\s+business\b", re.IGNORECASE), "agenda"),
         (re.compile(r"\border\s+of\s+magnitude\b", re.IGNORECASE), "magnitude"),
         (re.compile(r"\bmail\s+orders?\b", re.IGNORECASE), "delivery"),
