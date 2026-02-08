@@ -14,8 +14,57 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 
 
 ITEM_1 = """
-The Company has 850 full-time and three part-time employees. The facility in Pennsylvania are unionized except for sales personnel. None of our other employees are subject to collective bargaining. Approximately 266 employees were represented by international or independent labor unions.
+ITEM 1. BUSINESS
 
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide.
+
+UNITED STATES OPERATIONS
+
+Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
+
+In our automobile manufacturing division, we employ 14,200 hourly production workers. Of these, 11,644 are represented by the United Auto Workers (UAW) under collective bargaining agreements. This represents 82% unionization in this division.
+
+Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
+
+We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
+
+Our corporate headquarters employs administrative, sales, and technical staff. A portion of these 50,000 corporate employees remain unionized, though the exact number is not material to our risk profile.
+
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+
+EUROPEAN OPERATIONS
+
+We maintain operations across Europe, employing approximately 6,000 workers.
+
+In France, we operate a manufacturing facility. French labor law requires substantial employee representation through works councils and collective agreements. We employ approximately 2,500 workers at this location, substantially all of whom participate in mandatory industry-wide bargaining.
+
+In Germany, we operate two principal locations employing 3,500 workers total. Our Hamburg plant employs 2,000 workers with IG Metall membership. Our Munich office employs 1,500 workers subject to German codetermination requirements.
+
+We maintain operations in the United Kingdom. A portion of our U.K. workforce is represented by trade unions, though specific unionization rates are not disclosed.
+
+LATIN AMERICAN OPERATIONS
+
+We employ approximately 3,000 workers across Latin America.
+
+In Mexico, we operate manufacturing facilities. We do not publicly disclose the unionization status of these operations due to local business practices.
+
+In Brazil, we employ approximately 1,200 workers. Our Brazilian operations are subject to annual industry-wide union negotiations, but exact unionization rates remain proprietary.
+
+ASIA-PACIFIC OPERATIONS
+
+We employ approximately 85,000 workers across Asia-Pacific, primarily in technology and manufacturing.
+
+In India, our Bangalore technology hub employs 45,000 software engineers and support staff. We do not currently have union representation at this facility.
+
+In China, we employ 20,000 workers across multiple manufacturing sites. These operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
+
+In Japan, we employ 12,000 workers. These employees participate in annual Shunto wage negotiations but remain entirely non-unionized in formal terms.
+
+In Southeast Asia (Thailand, Vietnam, Malaysia), we employ approximately 8,000 workers across manufacturing and logistics hubs. Union representation in this region is minimal to non-existent, though we continue to monitor labor developments.
+
+GLOBAL SUMMARY
+
+We do not provide a precise global unionization rate, as certain regional operations do not disclose specific metrics for competitive or operational reasons. We believe our diversified geographic footprint and largely non-unionized workforce provide flexibility for operational efficiency.
 """
 
 ITEM_1A = """
