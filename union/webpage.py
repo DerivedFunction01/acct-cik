@@ -155,52 +155,146 @@ HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
 XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
+
+# ============================================================================
+# 10-K PATTERNS
+# ============================================================================
 ITEM_1_START_PATTERN = re.compile(
-    r"^\s*Item\s*1\b(?!\s*[AB]\b)\.?(?:\s+Business)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s+1\b(?!\s*[AB])\.?\s*(?:Business)?",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
-    r"^\s*Item\s*1\s*A\b\.?(?:\s+Risk\s+Factors)?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+1\s*A\b\.?\s*(?:Risk\s+Factors)?",
+    re.MULTILINE | re.IGNORECASE,
 )
-
 ITEM_1B_START_PATTERN = re.compile(
-    r"^\s*Item\s*1\s*B\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+1\s*B\b\.?",
+    re.MULTILINE | re.IGNORECASE,
 )
-
 ITEM_2_START_PATTERN = re.compile(
-    r"^\s*Item\s*2\b\.?(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE
+    r"^\s*Item\s+2\b\.?",
+    re.MULTILINE | re.IGNORECASE,
 )
 
-# 20-F Patterns
+# ============================================================================
+# 20-F PATTERNS
+# ============================================================================
+# Item 3 = Business (In 20-F, Item 3 is "Key Information - Business Overview")
 ITEM_3_START_PATTERN = re.compile(
-    r"^\s*Item\s*3\b\.?(?:\s+Key\s+Information)?(?!\s*[\.\-_]{3,})",
+    r"^\s*Item\s+3\b\.?\s*(?:Key\s+Information)?",
     re.MULTILINE | re.IGNORECASE,
 )
-ITEM_4_START_PATTERN = re.compile(
-    r"^\s*Item\s*4\b(?!\s*A\b)\.?(?:\s+Information)?(?!\s*[\.\-_]{3,})",
-    re.MULTILINE | re.IGNORECASE,
-)
-ITEM_4A_START_PATTERN = re.compile(
-    r"^\s*Item\s*4\s*A\b\.?(?:\s+Unresolved)?(?!\s*[\.\-_]{3,})",
-    re.MULTILINE | re.IGNORECASE,
-)
-ITEM_5_START_PATTERN = re.compile(
-    r"^\s*Item\s*5\b\.?(?:\s+Operating)?(?!\s*[\.\-_]{3,})",
+# Item 3A or Item 3B could be subsections, but main business is Item 3
+ITEM_3A_START_PATTERN = re.compile(
+    r"^\s*Item\s+3\s*[AB]\b\.?",
     re.MULTILINE | re.IGNORECASE,
 )
 
-# 40-F Patterns (Canadian AIF)
+# Item 3D = Risk Factors (In 20-F, Item 3D is "Risk Factors")
+ITEM_3D_START_PATTERN = re.compile(
+    r"^\s*Item\s+3\s*D\b\.?\s*(?:Risk\s+Factors)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# Item 4 = Operating & Financial Review (use as fallback if Item 4A exists)
+ITEM_4_START_PATTERN = re.compile(
+    r"^\s*Item\s+4\b(?!\s*A)\.?\s*(?:Operating|Financial)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+# Item 4A = Financial Statements
+ITEM_4A_START_PATTERN = re.compile(
+    r"^\s*Item\s+4\s*A\b\.?\s*(?:Financial)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# Item 5 = Management
+ITEM_5_START_PATTERN = re.compile(
+    r"^\s*Item\s+5\b\.?\s*(?:Management)?",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# ============================================================================
+# 40-F PATTERNS
+# ============================================================================
+# In 40-F, sections are NOT numbered like Item 1, Item 2, etc.
+# Instead they use section names. These are the main sections:
+
+# "General Development of the Business" or "Description of the Business"
 ITEM_40F_BUSINESS_PATTERN = re.compile(
-    r"\b(?:General\s+Development\s+of\s+(?:the\s+)?Business|Description\s+of\s+(?:the\s+)?Business)\b",
-    re.MULTILINE | re.IGNORECASE
+    r"^\s*(?:General\s+Development\s+of\s+(?:the\s+)?Business|"
+    r"Description\s+of\s+(?:the\s+)?Business)",
+    re.MULTILINE | re.IGNORECASE,
 )
+
+# "Risk Factors"
 ITEM_40F_RISK_PATTERN = re.compile(
-    r"\b(?:Risk\s+Factors)\b",
-    re.MULTILINE | re.IGNORECASE
+    r"^\s*Risk\s+Factors",
+    re.MULTILINE | re.IGNORECASE,
 )
-ITEM_40F_STOP_PATTERN = re.compile(
-    r"\b(?:Dividends|Description\s+of\s+Capital\s+Structure|Market\s+for\s+Securities|Directors\s+and\s+Officers|Legal\s+Proceedings)\b",
-    re.MULTILINE | re.IGNORECASE
+
+# Use these as boundary markers to know when a section ends
+ITEM_40F_SECTION_BOUNDARIES = re.compile(
+    r"^\s*(?:"
+    r"Dividends|"
+    r"Description\s+of\s+Capital\s+Structure|"
+    r"Market\s+for\s+Securities|"
+    r"Directors(?:\s+and\s+Officers)?|"
+    r"Executive\s+Compensation|"
+    r"Legal\s+Proceedings|"
+    r"Transfer\s+Agent|"
+    r"Material\s+Contracts|"
+    r"Financial\s+Information"
+    r")",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+# ============================================================================
+# Pattern Configuration
+# ============================================================================
+PATTERN_CONFIG = {
+    "10K": {
+        "patterns": [
+            (ITEM_1_START_PATTERN, "1"),
+            (ITEM_1A_START_PATTERN, "1A"),
+            (ITEM_1B_START_PATTERN, "1B"),
+            (ITEM_2_START_PATTERN, "2"),
+        ],
+        "business_label": "1",
+        "risk_label": "1A",
+    },
+    "20F": {
+        "patterns": [
+            (ITEM_3_START_PATTERN, "3"),  # Business
+            (ITEM_3D_START_PATTERN, "3D"),  # Risk Factors
+            (ITEM_4_START_PATTERN, "4"),  # Operating & Financial
+            (ITEM_4A_START_PATTERN, "4A"),  # Financial Statements
+            (ITEM_5_START_PATTERN, "5"),  # Management
+        ],
+        "business_label": "3",  # Item 3 = Business in 20-F
+        "risk_label": "3D",  # Item 3D = Risk Factors in 20-F
+    },
+    "40F": {
+        "patterns": [
+            (ITEM_40F_BUSINESS_PATTERN, "40F_B"),
+            (ITEM_40F_RISK_PATTERN, "40F_R"),
+            (ITEM_40F_SECTION_BOUNDARIES, "40F_BOUNDARY"),
+        ],
+        "business_label": "40F_B",
+        "risk_label": "40F_R",
+    },
+}
+
+# ============================================================================
+# Common patterns for all document types
+# ============================================================================
+PART_I_PATTERN = re.compile(
+    r"^\s*(?:PART\s+I|Part\s+I)\b",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+PART_II_PATTERN = re.compile(
+    r"^\s*(?:PART\s+II|Part\s+II)\b",
+    re.MULTILINE | re.IGNORECASE,
 )
 
 ANNUAL_REPORT_PATTERN = re.compile(
@@ -1213,71 +1307,6 @@ def filter_paragraphs_loose(text: str) -> List[str]:
 
     return [blocks[i] for i in sorted(final_indices)]
 
-
-PATTERN_CONFIG = {
-    '10K': {
-        'patterns': [
-            (ITEM_1_START_PATTERN, '1'),
-            (ITEM_1A_START_PATTERN, '1A'),
-            (ITEM_1B_START_PATTERN, '1B'),
-            (ITEM_2_START_PATTERN, '2'),
-        ],
-        'business_label': '1',
-        'risk_label': '1A',
-    },
-    '20F': {
-        'patterns': [
-            (ITEM_3_START_PATTERN, '3'),
-            (ITEM_4_START_PATTERN, '4'),
-            (ITEM_4A_START_PATTERN, '4A'),
-            (ITEM_5_START_PATTERN, '5'),
-        ],
-        'business_label': '4',
-        'risk_label': '3',
-    },
-    '40F': {
-        'patterns': [
-            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
-            (ITEM_40F_RISK_PATTERN, '40F_R'),
-            (ITEM_40F_STOP_PATTERN, '40F_S'),
-        ],
-        'business_label': '40F_B',
-        'risk_label': '40F_R',
-    },
-}
-
-
-PATTERN_CONFIG = {
-    '10K': {
-        'patterns': [
-            (ITEM_1_START_PATTERN, '1'),
-            (ITEM_1A_START_PATTERN, '1A'),
-            (ITEM_1B_START_PATTERN, '1B'),
-            (ITEM_2_START_PATTERN, '2'),
-        ],
-        'business_label': '1',
-        'risk_label': '1A',
-    },
-    '20F': {
-        'patterns': [
-            (ITEM_3_START_PATTERN, '3'),
-            (ITEM_4_START_PATTERN, '4'),
-            (ITEM_4A_START_PATTERN, '4A'),
-            (ITEM_5_START_PATTERN, '5'),
-        ],
-        'business_label': '4',
-        'risk_label': '3',
-    },
-    '40F': {
-        'patterns': [
-            (ITEM_40F_BUSINESS_PATTERN, '40F_B'),
-            (ITEM_40F_RISK_PATTERN, '40F_R'),
-            (ITEM_40F_STOP_PATTERN, '40F_S'),
-        ],
-        'business_label': '40F_B',
-        'risk_label': '40F_R',
-    },
-}
 
 
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
