@@ -2,7 +2,13 @@ import re
 from typing import Any, Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_compound, build_regex, YEAR_REGEX
+from defs.regex_lib import (
+    SENTENCE_SPLIT_PATTERN,
+    build_alternation,
+    build_compound,
+    build_regex,
+    YEAR_REGEX,
+)
 from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
@@ -30,17 +36,42 @@ class WebTextCleaner:
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
-        (re.compile(r"(?:non[- ]?)?union\s+fractures?", re.IGNORECASE), "fracture"),
+        (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
+        (re.compile(r"\bUnion\s+of\s+south", re.IGNORECASE), "South"), # South africa, south america
+        (re.compile(r"(?:(?:non|delayed|bony)[- ]?)?union\s+fractures?", re.IGNORECASE), "fracture"),
         (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
-        (re.compile(r"(?:(?:western|pacific)\s+union|union\s+banks?)\b", re.IGNORECASE), "company"),
+        (
+            build_regex(
+                [
+                    build_compound(
+                        [r"union", r"pacific", r"western", r"first"],
+                        [
+                            r"union",
+                            r"pacific",
+                            r"carbide",
+                            r"banks?",
+                            r"mines?",
+                            r"company",
+                            r"corporation",
+                            r"oil",
+                            r"gas"
+                            r"trust",
+                            r"station",
+                        ],
+                    ),
+                ]
+            ),
+            "Company",
+        ),
     ]
-    
+
     def clean(self, text: str) -> str:
         if not text:
             return ""
         for regex, replacement in self.false_positives:
             text = regex.sub(replacement, text)
         return text
+
 
 class MinimalTextCleaner:
     # Suffixes to strip from the passed company name
@@ -453,7 +484,9 @@ class MinimalTextCleaner:
 
     # Page artifact pattern (e.g. "2 <PAGE> 7")
     # Limit to 1-3 digits to avoid matching years (e.g. 2000 <PAGE>)
-    page_pattern = re.compile(r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE)
+    page_pattern = re.compile(
+        r"(?:\b\d{1,3}\s*)?<PAGE>(?:\s*\d{1,3}\b)?", re.IGNORECASE
+    )
 
     # Regex for acronyms with dots (2-5 letters) e.g. U.S., U.S.A.
     acronym_pattern = re.compile(r"\b(?:[A-Z]\.){2,5}")
@@ -848,7 +881,10 @@ class ContextualNumberCleaner:
         )
 
         # Extended pattern to prevent matching "5 union members" or "5 union-represented"
-        union_adj_blockers = build_alternation(WORKER_TERMS + [r"members?", r"represented", r"covered", r"based", r"affiliated"])
+        union_adj_blockers = build_alternation(
+            WORKER_TERMS
+            + [r"members?", r"represented", r"covered", r"based", r"affiliated"]
+        )
         self.union_num_regex = re.compile(
             rf"\b{number_range}\s+(unions?\b(?!(?:[\s-]+)(?:{union_adj_blockers})))",
             re.IGNORECASE,
@@ -870,7 +906,9 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
-        personnel_event_pattern = build_alternation(PERSONNEL_EVENT_TERMS +[ r"former", r"previous", r"past"])
+        personnel_event_pattern = build_alternation(
+            PERSONNEL_EVENT_TERMS + [r"former", r"previous", r"past"]
+        )
 
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
@@ -1018,7 +1056,6 @@ class ConcisenessCleaner:
                 r"general(?:ly)?",
                 r"principally",
                 r"primarily",
-               
             ]
         )
 
@@ -1040,9 +1077,7 @@ class ConcisenessCleaner:
 
         self.replacements.append(
             (
-                re.compile(
-                    rf"\b{modifier_phrase}\s+((?:[Ll]abor\s+)?unions?)\b"
-                ),
+                re.compile(rf"\b{modifier_phrase}\s+((?:[Ll]abor\s+)?unions?)\b"),
                 r"\1",
             )
         )
