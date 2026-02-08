@@ -97,23 +97,12 @@ class MinimalTextCleaner:
         (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
         (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
         (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
-        (re.compile(r"\bexecutive\s+orders?\b", re.IGNORECASE), "decree"),
-        (re.compile(r"\bcourt\s+orders?\b", re.IGNORECASE), "decree"),
-        (re.compile(r"\btrade\s+associations?\b", re.IGNORECASE), "industry group"),
-        (re.compile(r"\bcustoms\s+unions?\b", re.IGNORECASE), "trade zone"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bwestern\s+union\b", re.IGNORECASE), "money transfer"),
         (re.compile(r"\bunion\s+pacific\b", re.IGNORECASE), "railroad"),
         (re.compile(r"\bunion\s+carbide\b", re.IGNORECASE), "chemical company"),
         (re.compile(r"\bunion\s+bank\b", re.IGNORECASE), "bank"),
         (re.compile(r"\bunion\s+mines?\b", re.IGNORECASE), "mining company"),
-        (re.compile(r"\bmonetary\s+unions?\b", re.IGNORECASE), "money"),
-        (re.compile(r"(?:non[- ]?)?union\s+fractures?\b", re.IGNORECASE), "fracture"),
-        (re.compile(r"\border\s+of\s+business\b", re.IGNORECASE), "agenda"),
-        (re.compile(r"\border\s+of\s+magnitude\b", re.IGNORECASE), "magnitude"),
-        (re.compile(r"\bmail\s+orders?\b", re.IGNORECASE), "delivery"),
-        (re.compile(r"\bmoney\s+orders?\b", re.IGNORECASE), "payment"),
-        (re.compile(r"\bpolice\s+orders?\b", re.IGNORECASE), "police report"),
     ]
 
     # Bullet and Dashed Patterns
