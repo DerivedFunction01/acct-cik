@@ -3210,6 +3210,7 @@ class UnionAnalyzer:
                     == current.get("sentence_index")
                     and not is_saturated
                     and not is_empty
+                    and not next_item.get("is_remaining", False)
                 ):
 
                     c_data = current["coverage_data"]
@@ -3604,6 +3605,7 @@ class UnionAnalyzer:
                                 "sentence_index": current_idx,
                                 "worker_type_map": type_map,
                                 "worker_types": analysis.worker_types,
+                                "is_remaining": analysis.has_remaining_other,
                             }
                             split_items.append(split_item)
 
@@ -3620,6 +3622,7 @@ class UnionAnalyzer:
                     "sentence_index": current_idx,
                     "worker_type_map": type_map,
                     "worker_types": analysis.worker_types,
+                    "is_remaining": analysis.has_remaining_other,
                 }
                 results.append(item)
 
