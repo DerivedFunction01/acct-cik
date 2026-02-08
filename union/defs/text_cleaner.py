@@ -30,6 +30,9 @@ class WebTextCleaner:
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
+        (re.compile(r"(?:non[- ]?)?union\s+fractures?", re.IGNORECASE), "fracture"),
+        (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
+        (re.compile(r"(?:(?:western|pacific)\s+union|union\s+banks?)\b", re.IGNORECASE), "company"),
     ]
     
     def clean(self, text: str) -> str:
