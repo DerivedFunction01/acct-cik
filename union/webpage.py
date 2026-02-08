@@ -1983,14 +1983,14 @@ def detect_filing_type(url: str, raw_text: str) -> Tuple[bool, bool, str, bool]:
     is_40f = False
 
     # Check URL first
-    if re.search(r"10.k", url, re.IGNORECASE):
+    if re.search(r"10.?k", url, re.IGNORECASE):
         home_country = "US"
         url_determined = True
-    elif re.search(r"40.f", url, re.IGNORECASE):
+    elif re.search(r"40.?f", url, re.IGNORECASE):
         home_country = "CA"
         url_determined = True
         is_40f = True
-    elif re.search(r"20.f", url, re.IGNORECASE):
+    elif re.search(r"20.?f", url, re.IGNORECASE):
         home_country = "INT"
         url_determined = True
         is_20f = True
