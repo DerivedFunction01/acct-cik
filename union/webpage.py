@@ -2112,42 +2112,46 @@ def parse_multi_document_content(raw_text: str) -> List[str]:
     if not raw_text:
         return []
 
-    # Split by <document> tags (exact match, no attributes)
-
-    documents = DOC_PATTERN.findall(raw_text)
-
-    if not documents:
-        # No document tags found, treat entire content as single document
-        documents = [raw_text]
-
     parsed_contents = []
 
-    for i, doc_content in enumerate(documents):
+    def process_doc(doc_content, index_label):
         doc_content = doc_content.strip()
-
         if not doc_content:
-            continue
+            return
 
         # Detect if this document is HTML (only check for html/body tags)
         is_html = bool(HTML_REGEX.search(doc_content))
 
         try:
             if is_html:
-                debug_print(f"  📄 Document {i+1}: Parsing as HTML")
+                debug_print(f"  📄 Document {index_label}: Parsing as HTML")
                 content = extract_content(doc_content, asHTML=True)
             elif XML_REGEX.search(doc_content):  # just check if the word "xml exists"
-                debug_print(f"  📄 Document {i+1}: Is XML, skipping")
-                continue
+                debug_print(f"  📄 Document {index_label}: Is XML, skipping")
+                return
             else:
-                debug_print(f"  📄 Document {i+1}: Parsing as plain text")
+                debug_print(f"  📄 Document {index_label}: Parsing as plain text")
                 content = extract_content(doc_content, asHTML=False)
 
             if content and len(content.strip()) > 0:
                 parsed_contents.append(content)
 
         except Exception as e:
-            print(f"  ⚠️  Error parsing document {i+1}: {e}")
-            continue
+            print(f"  ⚠️  Error parsing document {index_label}: {e}")
+
+    # Use finditer to avoid creating a list of all document strings in memory at once
+    # This significantly reduces memory usage for large text files
+    doc_iterator = DOC_PATTERN.finditer(raw_text)
+    found_docs = False
+
+    for i, match in enumerate(doc_iterator):
+        found_docs = True
+        # match.group(1) extracts the content inside the capturing group of DOC_PATTERN
+        process_doc(match.group(1), i + 1)
+
+    if not found_docs:
+        # No document tags found, treat entire content as single document
+        process_doc(raw_text, 1)
 
     return parsed_contents
 
