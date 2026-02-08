@@ -1184,7 +1184,7 @@ def extract_home_country(text: str) -> str:
     # If best is a tax haven, see if we have a strong operational alternative
     if best_code in TAX_HAVEN_CODES:
         for code, score in sorted_candidates[1:]:
-            if code not in TAX_HAVEN_CODES and code != "INT":
+            if code not in TAX_HAVEN_CODES and code != "INT" and code != "US":
                 # If alternative is at least 40% as strong as the tax haven match
                 if score > best_score * 0.4:
                     return code
@@ -2219,6 +2219,8 @@ def parse_content(data):
         if not url_determined:
             is_20f = bool(FILING_20F.search(raw_text[:10000]))
             is_40f = bool(FILING_40F.search(raw_text[:10000]))
+            if is_20f or is_40f:
+                url_determined = True # Stop parsing later
             if is_40f:
                 home_country = "CA"
 
