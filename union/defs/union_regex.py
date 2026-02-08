@@ -411,7 +411,6 @@ EXCLUSION_MAP = {
         r"blood",
         r"pain",
         r"infections?",
-        r"therap(?:y|ies)",
         r"muscles?",
         r"injur(?:y|ies)",
         r"knee",
