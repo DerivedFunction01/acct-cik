@@ -737,6 +737,7 @@ class ComplexCoverageAnalyzer:
     delimiter_regex = re.compile(
         r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
     )
+    subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those)\b", re.IGNORECASE)
 
     def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
         self.analysis = analysis
@@ -1115,7 +1116,7 @@ class ComplexCoverageAnalyzer:
             # Look ahead for "of whom", "of which" before the next count or end of sentence
             start = count_match["span"][1]
             window = self.analysis.text[start : start + 100]
-            return bool(re.search(r"\bof\s+(?:whom|which|these|those)\b", window, re.IGNORECASE))
+            return bool(self.subset_regex.search(window))
 
         def get_segment_range(span):
             mid = (span[0] + span[1]) / 2
