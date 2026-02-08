@@ -41,7 +41,7 @@ class WebTextCleaner:
         (re.compile(r"\bUnion\s+of\s+south\s+american?", re.IGNORECASE), "South America"), # South africa
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "Speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
-        (re.compile(r"(?:(?:non|delayed|bony)[- ]?)?union\s+fractures?", re.IGNORECASE), "fracture"),
+        (re.compile(r"(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)", re.IGNORECASE), "fracture"),
         (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
         (
             build_regex(
