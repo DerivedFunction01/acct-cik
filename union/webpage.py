@@ -2258,7 +2258,11 @@ def parse_content(data):
 
         # Determine home country from the first document (usually the main filing)
         home_country = "US"
-        if parsed_documents:
+        if re.search(r"10.k", url, re.IGNORECASE):
+            home_country = "US"
+        elif re.search(r"40.f", url, re.IGNORECASE):
+            home_country = "CA"
+        elif parsed_documents:
             home_country = extract_home_country(parsed_documents[0])
 
         # 3. If we found any matches across all documents, save the result
