@@ -1312,9 +1312,9 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
         search_start = fl_match.end()
     
     p2_search_start = max(search_start, fl_match.end() if fl_match and fl_match.start() < len(content) * 0.3 else search_start)
-    p2_match = PART_II_PATTERN.search(content, p2_search_start)
-    if p2_match:
-        search_end = p2_match.start()
+    p2_matches = list(PART_II_PATTERN.finditer(content, p2_search_start))
+    if p2_matches:
+        search_end = p2_matches[-1].start()
     
     # Extract relevant content slice and cap size upfront
     relevant_content = content[search_start:search_end]
