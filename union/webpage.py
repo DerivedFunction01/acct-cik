@@ -1329,8 +1329,8 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
         search_start = p1_match.start()
     
     if p2_matches:
-        # Use the first Part II as the end boundary
-        search_end = p2_matches[0].start()
+        # Use the last Part II as the end boundary
+        search_end = p2_matches[-1].start()
     else:
         # If no Part II found, cap at 75% of content (rough heuristic)
         search_end = int(len(content) * 0.75)
