@@ -287,15 +287,6 @@ PATTERN_CONFIG = {
 # ============================================================================
 # Common patterns for all document types
 # ============================================================================
-PART_I_PATTERN = re.compile(
-    r"^\s*(?:PART\s+I|Part\s+I)\b",
-    re.MULTILINE | re.IGNORECASE,
-)
-
-PART_II_PATTERN = re.compile(
-    r"^\s*(?:PART\s+II|Part\s+II)\b",
-    re.MULTILINE | re.IGNORECASE,
-)
 
 ANNUAL_REPORT_PATTERN = re.compile(
     r"ANNUAL\s+REPORT\s+PURSUANT\s+TO\s+SECTION\s+13\s+OR\s+15\s*\(d\)", 
