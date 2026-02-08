@@ -149,6 +149,7 @@ WEB_CLEANER = WebTextCleaner()
 
 # Pattern to find single newlines that are not preceded or followed by another newline (i.e., wrapped lines)
 WRAPPED_LINE_PATTERN = re.compile(r"(?<!\n)[ \t]*\n[ \t]*(?!\n)")
+PARAGRAPH_SPLIT_PATTERN = re.compile(r"\n\s*\n")
 SPACE_PATTERN = re.compile(r"\s+")
 DOC_PATTERN = re.compile(r"<document>\s*(.*?)\s*</document>", re.DOTALL | re.IGNORECASE)
 HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
@@ -1041,7 +1042,7 @@ def extract_content(data: str, asHTML=True) -> str:
                 processed_parts.append(part)
             else:
                 part = underline_regex.sub("\n\n", part)
-                paragraphs = part.split("\n\n")
+                paragraphs = PARAGRAPH_SPLIT_PATTERN.split(part)
                 processed_paragraphs = [
                     WRAPPED_LINE_PATTERN.sub(" ", p).strip()
                     for p in paragraphs
@@ -1251,7 +1252,7 @@ def filter_paragraphs_loose(text: str) -> List[str]:
             part = WEB_CLEANER.clean(part)
             if not LOOSE_FILTER_REGEX.search(part):
                 continue
-            paras = part.split('\n\n')
+            paras = PARAGRAPH_SPLIT_PATTERN.split(part)
             for p in paras:
                 if p.strip():
                     blocks.append(p.strip())
