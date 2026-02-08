@@ -1158,16 +1158,8 @@ def extract_home_country(text: str) -> str:
     Determines the home country from the document text.
     Defaults to 'US' unless 20-F/40-F is detected.
     """
-    # Look at the first 10k characters which usually contains the cover page
-    header = text[:10000]
-    
-    # Check for foreign filing markers
-    if FILING_40F.search(header):
-        return "CA"
-        
-    is_20f = FILING_20F.search(header)
-    if not is_20f:
-        return "US"
+    # Look at the first 500k characters which usually contains everything needed
+    header = text[:500000]
         
     matcher = RegionMatcher()
     candidate_scores = {}
@@ -2193,6 +2185,23 @@ def parse_content(data):
     if not isinstance(raw_text, str):
         return None
 
+    # Determine home country from URL patterns immediately
+    home_country = "US"
+    url_determined = False
+    is_20f = False
+    is_40f = False
+    if re.search(r"10.k", url, re.IGNORECASE):
+        home_country = "US"
+        url_determined = True
+    elif re.search(r"40.f", url, re.IGNORECASE):
+        home_country = "CA"
+        url_determined = True
+        is_40f = True
+    elif re.search(r"20.f", url, re.IGNORECASE):
+        home_country = "INT"
+        url_determined = True
+        is_20f = True
+
     try:
         # 1. Parse multi-document content
         # This splits by <document> tags and extracts/parses each document
@@ -2207,13 +2216,16 @@ def parse_content(data):
                     "item1": [],
                     "item1a": [],
                     "period_of_report": None,
-                    "home_country": "US",
+                    "home_country": home_country,
                 }
             )
             
-        # Detect 20-F from the raw text header (first 10k chars)
-        is_20f = bool(FILING_20F.search(raw_text[:10000]))
-        is_40f = bool(FILING_40F.search(raw_text[:10000]))
+        # Detect 20-F from the raw text header (first 10k chars) if not determined by URL
+        if not url_determined:
+            is_20f = bool(FILING_20F.search(raw_text[:10000]))
+            is_40f = bool(FILING_40F.search(raw_text[:10000]))
+            if is_40f:
+                home_country = "CA"
 
         # 2. Filter each document for keywords and aggregate results
         item1_matches = []
@@ -2257,12 +2269,8 @@ def parse_content(data):
                 continue
 
         # Determine home country from the first document (usually the main filing)
-        home_country = "US"
-        if re.search(r"10.k", url, re.IGNORECASE):
-            home_country = "US"
-        elif re.search(r"40.f", url, re.IGNORECASE):
-            home_country = "CA"
-        elif parsed_documents:
+        # Only if not already determined by URL
+        if (not url_determined and parsed_documents) or home_country == "INT":
             home_country = extract_home_country(parsed_documents[0])
 
         # 3. If we found any matches across all documents, save the result
