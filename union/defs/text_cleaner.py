@@ -37,14 +37,17 @@ class WebTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
-        (re.compile(r"\bUnion\s+of\s+south", re.IGNORECASE), "South"), # South africa, south america
+        (re.compile(r"\bUnion\s+of\s+south\s+africa", re.IGNORECASE), "South Africa"), # South africa
+        (re.compile(r"\bUnion\s+of\s+south\s+american?", re.IGNORECASE), "South America"), # South africa
+        (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "Speech"),
+        (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
         (re.compile(r"(?:(?:non|delayed|bony)[- ]?)?union\s+fractures?", re.IGNORECASE), "fracture"),
         (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
         (
             build_regex(
                 [
                     build_compound(
-                        [r"union", r"pacific", r"western", r"first"],
+                        [r"union", r"pacific", r"western", r"first", r"trans"],
                         [
                             r"union",
                             r"pacific",
