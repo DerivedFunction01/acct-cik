@@ -50,7 +50,7 @@ CURRENT_REGEX = build_regex(
     [
         r"currently",
         r"now",
-        r"(?:this|current)\s+(?:fiscal|reporting)\s+(?:year|period)",
+        r"(?:this|current)\s+(?:fiscal\s+|reporting\s+)?(?:year|period)",
     ]
 )
 
