@@ -1384,56 +1384,6 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     
     return business_section, risk_section
 
-
-# ============================================================================
-# ALTERNATIVE: If you want more robust 40-F parsing
-# ============================================================================
-def filter_for_item1_40f_strict(content: str) -> Tuple[str, str]:
-    """
-    Specialized 40-F parser that handles the non-numbered section format.
-    """
-    business_pattern = ITEM_40F_BUSINESS_PATTERN
-    risk_pattern = ITEM_40F_RISK_PATTERN
-    boundary_pattern = ITEM_40F_SECTION_BOUNDARIES
-    
-    # Find business section
-    business_match = business_pattern.search(content)
-    business_section = ""
-    
-    if business_match:
-        start = business_match.end()
-        
-        # Find what comes next: either Risk Factors or a boundary section
-        next_boundary = boundary_pattern.search(content, start)
-        next_risk = risk_pattern.search(content, start)
-        
-        # Determine where business section ends
-        end = len(content)
-        if next_risk and next_boundary:
-            end = min(next_risk.start(), next_boundary.start())
-        elif next_risk:
-            end = next_risk.start()
-        elif next_boundary:
-            end = next_boundary.start()
-        
-        business_section = content[start:end].strip()
-    
-    # Find risk section
-    risk_match = risk_pattern.search(content)
-    risk_section = ""
-    
-    if risk_match:
-        start = risk_match.end()
-        
-        # Risk section ends at next major section boundary
-        next_boundary = boundary_pattern.search(content, start)
-        end = next_boundary.start() if next_boundary else len(content)
-        
-        risk_section = content[start:end].strip()
-    
-    return business_section, risk_section
-
-
 def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
     return [f for f in filings if f.get("report_date", "").startswith(str(fyear))]
 
