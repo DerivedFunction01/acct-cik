@@ -1380,6 +1380,12 @@ ASIA_PACIFIC = {
             Location("Wuhan", ["wuhan"]),
             Location("Suzhou", ["suzhou"]),
             Location("Chengdu", ["chengdu"]),
+            Location("Hangzhou", ["hangzhou"]),
+            Location("Nanjing", ["nanjing"]),
+            Location("Ningbo", ["ningbo"]),
+            Location("Changchun", ["changchun"]),  # Major Auto Hub
+            Location("Fujian", ["fujian"]),  # Major Auto Hub
+            
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
         ["yuan", "renminbi", "rmb", "cny"],
