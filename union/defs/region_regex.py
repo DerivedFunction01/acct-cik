@@ -689,7 +689,7 @@ EUROPE = {
         Region.EUROPE,
         [],
         [],
-        [],
+        ["euro", "eur"],
         code="EU",
     ),
     Nation(
@@ -737,6 +737,7 @@ EUROPE = {
             "TSSA",
             "Transport Salaried Staffs' Association",
         ],
+        ["sterling", "gbp"],
         code="GB",
     ),
     Nation(
@@ -837,6 +838,8 @@ EUROPE = {
             Location("Bursa", ["bursa"]),  # Major automotive hub
             Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
+        [],
+        ["lira", "try"],
         code="TR",
     ),
     Nation(
@@ -852,6 +855,8 @@ EUROPE = {
             Location("Kaluga", ["kaluga"]),  # Automotive hub
             Location("Togliatti", ["togliatti", "tolyatti"]),  # AvtoVAZ
         ],
+        [],
+        ["ruble", "rub"],
         code="RU",
     ),
     Nation(
@@ -1070,7 +1075,7 @@ EUROPE = {
             Location("Lugano", ["lugano"]),
         ],
         ["Unia", "Syna"],
-        ["GAV", "CCT", "Arbeitsfrieden"],
+        ["GAV", "CCT", "Arbeitsfrieden", "chf"],
         code="CH",
     ),
     Nation(
@@ -1334,6 +1339,7 @@ ASIA_PACIFIC = {
         [
             "Shunto",
             "Karoshi",
+            "yen", "jpy",
         ],
         code="JP",
     ),
@@ -1356,6 +1362,7 @@ ASIA_PACIFIC = {
         [
             "Labor-Management Council",
             "Chaebol",
+            "krw",
         ],
         code="KR",
     ),
@@ -1375,7 +1382,7 @@ ASIA_PACIFIC = {
             Location("Chengdu", ["chengdu"]),
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
-        [],
+        ["yuan", "renminbi", "rmb", "cny"],
         code="CN",
     ),
     Nation(
@@ -1401,6 +1408,7 @@ ASIA_PACIFIC = {
             "Standing Orders",
             "Industrial Disputes Act",
             "Trade Unions Act",
+            "rupee", "inr", "lakh", "crore",
         ],
         code="IN",
     ),
@@ -1649,6 +1657,7 @@ LATIN_AMERICA = {
             "Acordo Coletivo",
             "Convenção Coletiva",
             "Contribuição sindical",
+            "reais", "brl",
         ],
         code="BR",
     ),
@@ -1796,6 +1805,8 @@ MIDDLE_EAST_AFRICA = {
             Location("Sharjah", ["sharjah"]),
             Location("Jebel Ali", ["jebel ali"]),  # Major Port/Free Zone
         ],
+        [],
+        ["dirham", "aed"],
         code="AE",
     ),
     Nation(
@@ -1809,6 +1820,8 @@ MIDDLE_EAST_AFRICA = {
             Location("Khobar", ["khobar"]),
             Location("Dhahran", ["dhahran"]),  # Aramco/Industrial hub
         ],
+        [],
+        ["riyal", "sar"],
         code="SA",
     ),
     Nation(
@@ -1824,7 +1837,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Haifa", ["haifa"]),  # Major Industrial/Port
         ],
         ["Histadrut", "General Federation of Labour in Israel"],
-        [],
+        ["shekel", "ils"],
         code="IL",
     ),
     Nation(
@@ -1850,6 +1863,7 @@ MIDDLE_EAST_AFRICA = {
         [
             "LRA",
             "NEDLAC",
+            "rand", "zar",
         ],
         code="ZA",
     ),

@@ -324,6 +324,7 @@ HOME_COUNTRY_PATTERNS = [
     (build_regex([r"domiciled?"]), 3.0),
     (build_regex([r"principal\s+place\s+of\s+business"]), 3.0),
     (build_regex([r"corporate\s+headquarters"]), 2.5),
+    (build_regex([r"reporting\s+currency"]), 2.0),
     (OFFICE_PATTERN, 2.0),
     (build_regex([r"executive\s+offices"]), 1.5),
     (build_regex([r"registered\s+office"]), 1.0),
