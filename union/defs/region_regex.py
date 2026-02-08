@@ -1264,6 +1264,47 @@ EUROPE = {
         Region.EUROPE,
         code="BALTIC",
     ),
+    Nation(
+        "Belarus",
+        ["belarus", "belarusian", "byelorussia"],
+        Region.EUROPE,
+        [Location("Minsk", ["minsk"])],
+        code="BY",
+    ),
+    Nation(
+        "Moldova",
+        ["moldova", "moldovan"],
+        Region.EUROPE,
+        [Location("Chisinau", ["chisinau", "kishinev"])],
+        code="MD",
+    ),
+    Nation(
+        "Armenia",
+        ["armenia", "armenian"],
+        Region.EUROPE,
+        [Location("Yerevan", ["yerevan"])],
+        code="AM",
+    ),
+    Nation(
+        "Azerbaijan",
+        ["azerbaijan", "azerbaijani", "azeri"],
+        Region.EUROPE,
+        [Location("Baku", ["baku"])],
+        code="AZ",
+    ),
+    Nation(
+        "Georgia (EU)",
+        ["republic of georgia", "georgian"],
+        Region.EUROPE,
+        [Location("Tbilisi", ["tbilisi"])],
+        code="GE",
+    ),
+    Nation(
+        "CIS",
+        ["cis", "commonwealth of independent states"],
+        Region.EUROPE,
+        code="CIS",
+    ),
 }
 ASIA_PACIFIC = {
     Nation(
@@ -1503,6 +1544,41 @@ ASIA_PACIFIC = {
     ),
     Nation("Hong Kong", ["hong kong", "hk"], Region.ASIA_PACIFIC, code="HK"),
     Nation("Fiji", ["fiji", "fijian"], Region.ASIA_PACIFIC, code="FJ"),
+    Nation(
+        "Kazakhstan",
+        ["kazakhstan", "kazakh"],
+        Region.ASIA_PACIFIC,
+        [Location("Almaty", ["almaty"]), Location("Astana", ["astana", "nur-sultan"])],
+        code="KZ",
+    ),
+    Nation(
+        "Uzbekistan",
+        ["uzbekistan", "uzbek"],
+        Region.ASIA_PACIFIC,
+        [Location("Tashkent", ["tashkent"])],
+        code="UZ",
+    ),
+    Nation(
+        "Turkmenistan",
+        ["turkmenistan", "turkmen"],
+        Region.ASIA_PACIFIC,
+        [Location("Ashgabat", ["ashgabat"])],
+        code="TM",
+    ),
+    Nation(
+        "Kyrgyzstan",
+        ["kyrgyzstan", "kyrgyz"],
+        Region.ASIA_PACIFIC,
+        [Location("Bishkek", ["bishkek"])],
+        code="KG",
+    ),
+    Nation(
+        "Tajikistan",
+        ["tajikistan", "tajik"],
+        Region.ASIA_PACIFIC,
+        [Location("Dushanbe", ["dushanbe"])],
+        code="TJ",
+    ),
 }
 
 LATIN_AMERICA = {
