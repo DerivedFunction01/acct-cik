@@ -184,12 +184,12 @@ LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 COLLECTIVE_BARGAIN = build_alternation(
     [
         build_compound(
-            [CORE.COLLECTIVE, CORE.LABOR],
+            [CORE.COLLECTIVE, CORE.LABOR, CORE.UNION],
             [CORE.BARGAIN, CORE.LABOR, CORE.NEGOTIATE],
             sep_prefix=r"[\s-]+",
         ),
         build_compound(
-            [CORE.BARGAIN, CORE.NEGOTIATE], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"
+            [CORE.BARGAIN, CORE.UNION], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"
         ),
         build_compound(
             [CORE.BARGAIN], [r"units?"], sep_prefix=r"[\s-]+"
