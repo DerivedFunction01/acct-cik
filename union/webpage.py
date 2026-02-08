@@ -1972,6 +1972,45 @@ def is_url_from_accession(url: str) -> bool:
     return filename == expected_filename
 
 
+def detect_filing_type(url: str, raw_text: str) -> Tuple[bool, bool, str, bool]:
+    """
+    Detects filing type (20-F, 40-F) and home country from URL and content.
+    Returns: (is_20f, is_40f, home_country, url_determined)
+    """
+    home_country = "US"
+    url_determined = False
+    is_20f = False
+    is_40f = False
+
+    # Check URL first
+    if re.search(r"10.k", url, re.IGNORECASE):
+        home_country = "US"
+        url_determined = True
+    elif re.search(r"40.f", url, re.IGNORECASE):
+        home_country = "CA"
+        url_determined = True
+        is_40f = True
+    elif re.search(r"20.f", url, re.IGNORECASE):
+        home_country = "INT"
+        url_determined = True
+        is_20f = True
+
+    # Fallback to text header if not determined by URL
+    if not url_determined:
+        header_text = raw_text[:10000]
+        is_20f = bool(FILING_20F.search(header_text))
+        is_40f = bool(FILING_40F.search(header_text))
+        
+        if is_20f:
+            home_country = "INT"
+            url_determined = True
+        elif is_40f:
+            home_country = "CA"
+            url_determined = True
+
+    return is_20f, is_40f, home_country, url_determined
+
+
 def should_retry_with_plaintext(
     url: str, raw_text: str, rate_limiter: Optional[ThreadSafeRateLimiter] = None
 ) -> Optional[tuple]:
@@ -1990,8 +2029,7 @@ def should_retry_with_plaintext(
         cik_part = info["cik"]
 
         # Detect 20-F
-        is_20f = bool(FILING_20F.search(raw_text[:10000]))
-        is_40f = bool(FILING_40F.search(raw_text[:10000]))
+        is_20f, is_40f, _, _ = detect_filing_type(url, raw_text)
 
         # Construct plain text URL filename to check against current URL
         accession_dashed = f"{accession[:10]}-{accession[10:12]}-{accession[12:]}"
@@ -2130,22 +2168,7 @@ def parse_content(data):
     if not isinstance(raw_text, str):
         return None
 
-    # Determine home country from URL patterns immediately
-    home_country = "US"
-    url_determined = False
-    is_20f = False
-    is_40f = False
-    if re.search(r"10.k", url, re.IGNORECASE):
-        home_country = "US"
-        url_determined = True
-    elif re.search(r"40.f", url, re.IGNORECASE):
-        home_country = "CA"
-        url_determined = True
-        is_40f = True
-    elif re.search(r"20.f", url, re.IGNORECASE):
-        home_country = "INT"
-        url_determined = True
-        is_20f = True
+    is_20f, is_40f, home_country, url_determined = detect_filing_type(url, raw_text)
 
     try:
         # 1. Parse multi-document content
@@ -2165,14 +2188,6 @@ def parse_content(data):
                 }
             )
             
-        # Detect 20-F from the raw text header (first 10k chars) if not determined by URL
-        if not url_determined:
-            is_20f = bool(FILING_20F.search(raw_text[:10000]))
-            is_40f = bool(FILING_40F.search(raw_text[:10000]))
-            if is_20f or is_40f:
-                url_determined = True # Stop parsing later
-            if is_40f:
-                home_country = "CA"
 
         # 2. Filter each document for keywords and aggregate results
         item1_matches = []
@@ -2217,7 +2232,7 @@ def parse_content(data):
 
         # Determine home country from the first document (usually the main filing)
         # Only if not already determined by URL
-        if (not url_determined and parsed_documents) or home_country == "INT":
+        if (not url_determined and parsed_documents) or (home_country == "INT" and parsed_documents):
             home_country = extract_home_country(parsed_documents[0])
 
         # 3. If we found any matches across all documents, save the result
