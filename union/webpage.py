@@ -2181,6 +2181,9 @@ def parse_content(data):
         # 1. Parse multi-document content
         # This splits by <document> tags and extracts/parses each document
         parsed_documents = parse_multi_document_content(raw_text)
+        
+        # Free memory for the large raw text string immediately
+        raw_text = None
 
         if not parsed_documents:
             debug_print(f"No documents parsed from {url}")
