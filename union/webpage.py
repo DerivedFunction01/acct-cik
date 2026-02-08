@@ -47,7 +47,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 MAX_LEN = 1000
 
-SEC_RATE = 7  # requests per second
+SEC_RATE = 10  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -59,8 +59,8 @@ DRIVE_SAVE_INTERVAL_RESULTS = 4000
 # =============================================================================
 # QUEUE FILLING CONFIGURATION
 # =============================================================================
-QUEUE_BATCH_SIZE = 10  # URLs to add per fill
-QUEUE_FILL_INTERVAL_SECONDS = 1  # Seconds between fills
+QUEUE_BATCH_SIZE = 100 # URLs to add per fill
+QUEUE_FILL_INTERVAL_SECONDS = 10  # Seconds between fills
 
 # =============================================================================
 # COLAB CONFIGURATION
