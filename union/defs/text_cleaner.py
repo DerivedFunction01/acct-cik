@@ -2,7 +2,7 @@ import re
 from typing import Any, Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_regex, YEAR_REGEX
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_alternation, build_compound, build_regex, YEAR_REGEX
 from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
@@ -1014,6 +1014,7 @@ class ConcisenessCleaner:
                 r"general(?:ly)?",
                 r"principally",
                 r"primarily",
+               
             ]
         )
 
@@ -1026,6 +1027,21 @@ class ConcisenessCleaner:
             (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
             (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
         ]
+
+        # Strip "international/national" from "labor unions" if union is lowercase
+        # e.g. "international and national labor unions" -> "labor unions"
+        modifiers = r"(?:(?:[Ii]nter)?[Nn]ational|(?:[Ii]n)?[Dd]ependent)"
+        conjunctions = r"(?:\s*(?:and|or|&|,)\s*)"
+        modifier_phrase = rf"{modifiers}(?:{conjunctions}{modifiers})*"
+
+        self.replacements.append(
+            (
+                re.compile(
+                    rf"\b{modifier_phrase}\s+((?:[Ll]abor\s+)?unions?)\b"
+                ),
+                r"\1",
+            )
+        )
 
         self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
         self.leading_symbols = re.compile(r"^[\s\-\*•·>_,;!.\?]+", re.UNICODE)
