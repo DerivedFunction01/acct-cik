@@ -3386,7 +3386,6 @@ class UnionAnalyzer:
                 years_indicate_past or analysis.has_historical
             ) and not analysis.has_current:
                 is_historical = True
-            print(analyzed_sentences[idx].text, is_historical)
             if is_historical:
                 for k in range(idx, len(analyzed_sentences)):
                     r_analysis = analyzed_sentences[k]
