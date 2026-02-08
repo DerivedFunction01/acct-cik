@@ -249,7 +249,7 @@ class RISK_TERMS:
         ),
         # Collective bargaining disputes
         build_compound(
-            [CORE.COLLECTIVE, CORE.BARGAIN, CORE.NEGOTIATE], [CORE.DISPUTE, CORE.DISAGREEMENT]
+            [CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]
         ),
     ]
 
