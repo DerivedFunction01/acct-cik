@@ -1849,19 +1849,21 @@ def sync_home_country():
     If URL contains '10.k' -> US.
     If URL contains '40.f' -> CA.
     Only checks rows where home_country is not already US or CA.
+    Also attempts to resolve Tax Haven countries using Company Name.
     """
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     
     try:
-        print("🔄 Syncing home country from URL patterns...")
+        print("🔄 Syncing home country from URL patterns and Company Names...")
         
         # Fetch data joined
         # User requested to check those whose home country is not US or Canada
         c.execute("""
-            SELECT w.accession, r.url, w.home_country
+            SELECT w.accession, r.url, w.home_country, n.name
             FROM webpage_result w
             JOIN report_data r ON w.accession = r.accession
+            LEFT JOIN names n ON r.cik = n.cik
             WHERE r.url IS NOT NULL AND r.url != ''
             AND (w.home_country IS NULL OR w.home_country NOT IN ('US', 'CA'))
         """)
@@ -1875,14 +1877,36 @@ def sync_home_country():
         us_pattern = re.compile(r"10.k", re.IGNORECASE)
         ca_pattern = re.compile(r"40.f", re.IGNORECASE)
         
-        for accession, url, current_country in rows:
+        for accession, url, current_country, company_name in rows:
             new_country = None
             
+            # 1. URL Pattern Check
             if us_pattern.search(url):
                 new_country = "US"
             elif ca_pattern.search(url):
                 new_country = "CA"
             
+            # 2. Tax Haven / Name Check
+            # If not resolved to US/CA, and current is Tax Haven/INT/None, try name
+            check_country = new_country if new_country else current_country
+            
+            if (not check_country) or (check_country in TAX_HAVEN_CODES) or (check_country == "INT"):
+                if company_name and REGION_MATCHER.location_regex:
+                    # Find all location matches
+                    matches = []
+                    for m in REGION_MATCHER.location_regex.finditer(company_name):
+                        term = m.group(0).lower()
+                        if term in REGION_MATCHER.location_map:
+                            # (Region, Country, City, Code)
+                            _, _, _, code = REGION_MATCHER.location_map[term]
+                            # We want a specific country code that is NOT a tax haven and NOT a region code
+                            if code and code not in TAX_HAVEN_CODES and code not in REGION_CODES:
+                                matches.append(code)
+                    
+                    if matches:
+                        # Use the first valid non-tax-haven country found
+                        new_country = matches[0]
+
             if new_country and new_country != current_country:
                 updates.append((new_country, accession))
         
