@@ -388,6 +388,37 @@ NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 # Negation patterns
 NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
+# Exclusion patterns to discard entire paragraphs
+EXCLUSION_MAP = {
+    "MONETARY": [
+        r"monetary\s+unions?",
+        r"currency\s+unions?",
+        r"customs\s+unions?",
+    ],
+
+    "MEDICAL": [
+        r"non[- ]?union\s+fractures?",
+        r"malunion",
+        r"bony\s+union",
+        r"clinical\s+union",
+    ],
+    "COMPENSATION": [
+        r"stock\s+options?",
+        r"restricted\s+stock\s+units?",
+        r"performance\s+shares?",
+        r"executive\s+officers?",
+        r"equity\s+incentive\s+plans?",
+        r"strike\s+prices?",
+        r"exercise\s+prices?",
+    ]
+}
+
+_exclusion_patterns = []
+for terms in EXCLUSION_MAP.values():
+    _exclusion_patterns.extend(terms)
+
+EXCLUSION_REGEX = build_regex(_exclusion_patterns)
+
 # %%
 def run_test():
     print(f"Testing DYNAMIC_UNION_REGEX pattern...")
