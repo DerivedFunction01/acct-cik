@@ -1308,13 +1308,12 @@ def filter_paragraphs_loose(text: str) -> List[str]:
     return [blocks[i] for i in sorted(final_indices)]
 
 
-
 def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -> Tuple[str, str]:
     """
-    Filters content using updated Strict/Soft regex logic.
-
-    1. CAPTURE: ITEM 1 AND ITEM 1A (or Item 4 and Item 3 for 20-F, or Business/Risk for 40-F)
-    2. RETURNS: 1st element: ITEM 1 (Business), 2nd element: ITEM 1A (Risk)
+    Filters content to extract Business and Risk Factors sections.
+    
+    Returns:
+        Tuple[str, str]: (business_section, risk_section)
     """
     # Select config based on document type
     if is_40f:
@@ -1328,58 +1327,123 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
     business_label = config['business_label']
     risk_label = config['risk_label']
     
-    # Extract search boundaries
+    # ========================================================================
+    # BOUNDARY DETECTION: Find where to search
+    # ========================================================================
     search_start = 0
     search_end = len(content)
     
+    # Find Part I/Part II boundaries
     p1_match = PART_I_PATTERN.search(content)
-    fl_match = FORWARD_LOOKING_PATTERN.search(content)
-
+    p2_matches = list(PART_II_PATTERN.finditer(content))
+    
     if p1_match:
         search_start = p1_match.start()
-    elif fl_match and fl_match.start() < len(content) * 0.1:
-        search_start = fl_match.end()
     
-    p2_search_start = max(search_start, fl_match.end() if fl_match and fl_match.start() < len(content) * 0.3 else search_start)
-    p2_matches = list(PART_II_PATTERN.finditer(content, p2_search_start))
     if p2_matches:
-        search_end = p2_matches[-1].start()
+        # Use the first Part II as the end boundary
+        search_end = p2_matches[0].start()
+    else:
+        # If no Part II found, cap at 75% of content (rough heuristic)
+        search_end = int(len(content) * 0.75)
     
-    # Extract relevant content slice and cap size upfront
-    relevant_content = content[search_start:search_end]
+    # Cap the search to avoid processing huge blocks
     MAX_BLOCK_SIZE = 500000
+    relevant_content = content[search_start:search_end]
     if len(relevant_content) > MAX_BLOCK_SIZE:
         relevant_content = relevant_content[:MAX_BLOCK_SIZE]
     
-    # Find all matches with their positions in the slice
+    # ========================================================================
+    # PATTERN MATCHING: Find all section starts
+    # ========================================================================
     matches = []
     for pattern, label in patterns:
         for m in pattern.finditer(relevant_content):
-            matches.append((m.start(), label))
+            # Skip boundary matches for 40-F (they're only for delimiting)
+            if label == '40F_BOUNDARY':
+                continue
+            matches.append((m.start(), m.end(), label))
     
     if not matches:
         return "", ""
     
-    matches.sort()
+    # Sort by position
+    matches.sort(key=lambda x: x[0])
     
-    # Extract blocks based on sorted matches
-    item1 = ""
-    item1a = ""
+    # ========================================================================
+    # BLOCK EXTRACTION: Extract content between section headers
+    # ========================================================================
+    business_section = ""
+    risk_section = ""
     
-    for i, (start, label) in enumerate(matches):
-        end = len(relevant_content)
+    for i, (start, header_end, label) in enumerate(matches):
+        # Determine block end: next section start or end of content
         if i + 1 < len(matches):
-            end = matches[i + 1][0]
+            block_end = matches[i + 1][0]
+        else:
+            block_end = len(relevant_content)
         
-        text_block = relevant_content[start:end]
+        # Extract content (skip the header itself, start from after header)
+        text_block = relevant_content[header_end:block_end].strip()
         
-        # Update item1 and item1a based on whichever is business/risk for this doc type
-        if label == business_label and len(text_block) > len(item1):
-            item1 = text_block
-        elif label == risk_label and len(text_block) > len(item1a):
-            item1a = text_block
+        # Store if this is business or risk (use longest match if duplicates)
+        if label == business_label:
+            if len(text_block) > len(business_section):
+                business_section = text_block
+        elif label == risk_label:
+            if len(text_block) > len(risk_section):
+                risk_section = text_block
     
-    return item1, item1a
+    return business_section, risk_section
+
+
+# ============================================================================
+# ALTERNATIVE: If you want more robust 40-F parsing
+# ============================================================================
+def filter_for_item1_40f_strict(content: str) -> Tuple[str, str]:
+    """
+    Specialized 40-F parser that handles the non-numbered section format.
+    """
+    business_pattern = ITEM_40F_BUSINESS_PATTERN
+    risk_pattern = ITEM_40F_RISK_PATTERN
+    boundary_pattern = ITEM_40F_SECTION_BOUNDARIES
+    
+    # Find business section
+    business_match = business_pattern.search(content)
+    business_section = ""
+    
+    if business_match:
+        start = business_match.end()
+        
+        # Find what comes next: either Risk Factors or a boundary section
+        next_boundary = boundary_pattern.search(content, start)
+        next_risk = risk_pattern.search(content, start)
+        
+        # Determine where business section ends
+        end = len(content)
+        if next_risk and next_boundary:
+            end = min(next_risk.start(), next_boundary.start())
+        elif next_risk:
+            end = next_risk.start()
+        elif next_boundary:
+            end = next_boundary.start()
+        
+        business_section = content[start:end].strip()
+    
+    # Find risk section
+    risk_match = risk_pattern.search(content)
+    risk_section = ""
+    
+    if risk_match:
+        start = risk_match.end()
+        
+        # Risk section ends at next major section boundary
+        next_boundary = boundary_pattern.search(content, start)
+        end = next_boundary.start() if next_boundary else len(content)
+        
+        risk_section = content[start:end].strip()
+    
+    return business_section, risk_section
 
 
 def filter_by_fyear(filings: list[dict], fyear: int) -> list[dict]:
