@@ -60,7 +60,9 @@ class WebTextCleaner:
                             r"gas"
                             r"trust",
                             r"station",
-                            r"electric"
+                            r"electric",
+                            r"college",
+                            r"university",
                         ],
                     ),
                 ]
