@@ -1294,7 +1294,7 @@ EUROPE = {
     ),
     Nation(
         "Georgia (EU)",
-        ["republic of georgia", "georgian"],
+        ["republic of georgia"],
         Region.EUROPE,
         [Location("Tbilisi", ["tbilisi"])],
         code="GE",
