@@ -2983,25 +2983,127 @@ class UnionAnalyzer:
 
                 tracker.update(final_count, geo_context)
 
-    def _resolve_counts_to_geography(
-        self, analysis: SentenceAnalysis
+    def _resolve_counts_generic(
+        self, 
+        analysis: SentenceAnalysis, 
+        entities: List[Dict[str, Any]]
     ) -> Tuple[Dict[str, float], Optional[float]]:
         """
-        Intelligently maps worker counts to geographic entities within the sentence.
+        Generic helper to map worker counts to a list of entities (regions or unions).
+        entities: List of dicts with keys 'key' (identifier), 'span' (tuple), and optional 'region_enum'.
         """
         mapped_counts = {}
         sentence_total = None
 
-        # Include numbers to catch cases like "1000" (number) -> "Germany" (geo)
         counts = [
             m
             for m in analysis._matches
             if (m["type"] == MatchType.WORKER_COUNT
             or m["type"] == MatchType.NUMBER)
         ]
-        if not counts:
+        if not counts or not entities:
             return {}, None
 
+        parts = counts
+        
+        # 1. Identify Total (Denominator)
+        if len(counts) > 1:
+            vals = [c["val"] for c in counts]
+            max_val = max(vals)
+            sum_val = sum(vals)
+            others_sum = sum_val - max_val
+            
+            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
+            is_len_mismatch = len(counts) == len(entities) + 1
+            
+            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
+            
+            if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
+                sentence_total = max_val
+                for i, c in enumerate(parts):
+                    if c["val"] == max_val:
+                        parts = parts[:i] + parts[i+1:]
+                        break
+
+        # 1.5 Filter Generic Regions if Mismatch (Specific to Geography)
+        if len(parts) < len(entities):
+            generics = (Region.INTERNATIONAL, Region.DOMESTIC, Region.UNKNOWN)
+            if any("region_enum" in e for e in entities):
+                 non_generic_entries = [g for g in entities if g.get("region_enum") not in generics]
+                 
+                 if len(parts) == len(non_generic_entries):
+                     entities = non_generic_entries
+                 elif len(parts) == len(entities) - 1:
+                     for i, g in enumerate(entities):
+                         if g.get("region_enum") in generics:
+                             entities = entities[:i] + entities[i+1:]
+                             break
+
+        # 1.6 Check for Shared Count (1 count, multiple entities) -> Split Evenly
+        if len(parts) == 1 and len(entities) > 1:
+            count_val = parts[0]["val"]
+            c_span = parts[0]["span"]
+            
+            sorted_entities = sorted(entities, key=lambda x: x["span"][0])
+            
+            is_list = True
+            for i in range(len(sorted_entities) - 1):
+                e1 = sorted_entities[i]
+                e2 = sorted_entities[i+1]
+                gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
+                if not re.match(r"^\s*(?:,|and|&)\s*$", gap_text, re.IGNORECASE) and not re.match(r"^\s*$", gap_text):
+                     if len(gap_text) > 15: 
+                         is_list = False
+                         break
+            
+            if is_list:
+                group_start = sorted_entities[0]["span"][0]
+                group_end = sorted_entities[-1]["span"][1]
+                
+                dist_before = group_start - c_span[1] if c_span[1] <= group_start else float('inf')
+                dist_after = c_span[0] - group_end if c_span[0] >= group_end else float('inf')
+                
+                if min(dist_before, dist_after) < 50:
+                    split_val = count_val / len(entities)
+                    for e in entities:
+                        mapped_counts[e["key"]] = split_val
+                    return mapped_counts, sentence_total
+
+        # 2. Parallel Structure
+        if len(parts) == len(entities):
+            s_counts = sorted(parts, key=lambda x: x["span"][0])
+            s_entities = sorted(entities, key=lambda x: x["span"][0])
+            for c, e in zip(s_counts, s_entities):
+                mapped_counts[e["key"]] = c["val"]
+            return mapped_counts, sentence_total
+
+        # 3. Proximity Mapping
+        if entities:
+            pairs = []
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                for e in entities:
+                    e_mid = (e["span"][0] + e["span"][1]) / 2
+                    dist = abs(c_mid - e_mid)
+                    pairs.append((dist, c, e))
+
+            pairs.sort(key=lambda x: x[0])
+            used_c, used_e = set(), set()
+
+            for dist, c, e in pairs:
+                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
+                    mapped_counts[e["key"]] = c["val"]
+                    used_c.add(id(c))
+                    used_e.add(e["key"])
+
+        return mapped_counts, sentence_total
+
+    def _resolve_counts_to_geography(
+        self, analysis: SentenceAnalysis
+    ) -> Tuple[Dict[str, float], Optional[float]]:
+        """
+        Intelligently maps worker counts to geographic entities within the sentence.
+        """
         # Correlate GeoMatches with Spans (Explicit only)
         geo_entries = []
         geo_match_objs = [
@@ -3016,76 +3118,9 @@ class UnionAnalyzer:
                 key = obj.geo_code
                 if obj.geo_code in REGION_CODES:
                     key = obj.region.value
-                geo_entries.append({"code": key, "span": raw["span"], "region_enum": obj.region})
+                geo_entries.append({"key": key, "span": raw["span"], "region_enum": obj.region})
 
-        parts = counts
-        
-        # 1. Identify Total (Denominator)
-        if len(counts) > 1:
-            vals = [c["val"] for c in counts]
-            max_val = max(vals)
-            sum_val = sum(vals)
-            others_sum = sum_val - max_val
-            
-            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
-            is_len_mismatch = len(counts) == len(geo_entries) + 1
-            
-            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
-            
-            # Extract total if length mismatch suggests it (N+1 counts for N regions)
-            # OR if sum match occurs AND we don't have a perfect 1-to-1 alignment already
-            # OR if explicit subset indicator is present
-            if is_len_mismatch or (is_sum_match and len(counts) != len(geo_entries)) or has_subset_indicator:
-                sentence_total = max_val
-                # Remove ONE instance of max_val from parts
-                for i, c in enumerate(parts):
-                    if c["val"] == max_val:
-                        parts = parts[:i] + parts[i+1:]
-                        break
-
-        # 1.5 Filter Generic Regions if Mismatch
-        if len(parts) < len(geo_entries):
-            generics = (Region.INTERNATIONAL, Region.DOMESTIC, Region.UNKNOWN)
-            non_generic_entries = [g for g in geo_entries if g["region_enum"] not in generics]
-            
-            if len(parts) == len(non_generic_entries):
-                geo_entries = non_generic_entries
-            elif len(parts) == len(geo_entries) - 1:
-                for i, g in enumerate(geo_entries):
-                    if g["region_enum"] in generics:
-                        geo_entries.pop(i)
-                        break
-
-        # 2. Parallel Structure / Respectively Logic (on parts)
-        # If counts match regions 1-to-1, assume parallel ordering (works for interleaved and lists)
-        if len(parts) == len(geo_entries):
-            # Sort both by position
-            s_counts = sorted(parts, key=lambda x: x["span"][0])
-            s_geos = sorted(geo_entries, key=lambda x: x["span"][0])
-            for c, g in zip(s_counts, s_geos):
-                mapped_counts[g["code"]] = c["val"]
-            return mapped_counts, sentence_total
-
-        # 3. Proximity Mapping (Greedy) (on parts)
-        if geo_entries:
-            pairs = []
-            for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
-                for g in geo_entries:
-                    g_mid = (g["span"][0] + g["span"][1]) / 2
-                    dist = abs(c_mid - g_mid)
-                    pairs.append((dist, c, g))
-
-            pairs.sort(key=lambda x: x[0])
-            used_c, used_g = set(), set()
-
-            for dist, c, g in pairs:
-                if dist < 150 and id(c) not in used_c and g["code"] not in used_g:
-                    mapped_counts[g["code"]] = c["val"]
-                    used_c.add(id(c))
-                    used_g.add(g["code"])
-
-        return mapped_counts, sentence_total
+        return self._resolve_counts_generic(analysis, geo_entries)
 
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
@@ -3093,76 +3128,14 @@ class UnionAnalyzer:
         """
         Intelligently maps worker counts to union entities within the sentence.
         """
-        mapped_counts = {}
-        sentence_total = None
-
-        counts = [
-            m
-            for m in analysis._matches
-            if (m["type"] == MatchType.WORKER_COUNT
-            or m["type"] == MatchType.NUMBER)
-        ]
-        if not counts:
-            return {}, None
-
         # Identify Union Matches
         union_matches = [
             m for m in analysis._matches 
             if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
         ]
         
-        if not union_matches:
-            return {}, None
-
-        parts = counts
-        
-        # 1. Identify Total (Denominator)
-        if len(counts) > 1:
-            vals = [c["val"] for c in counts]
-            max_val = max(vals)
-            sum_val = sum(vals)
-            others_sum = sum_val - max_val
-            
-            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
-            is_len_mismatch = len(counts) == len(union_matches) + 1
-
-            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
-            
-            if is_len_mismatch or (is_sum_match and len(counts) != len(union_matches)) or has_subset_indicator:
-                sentence_total = max_val
-                for i, c in enumerate(parts):
-                    if c["val"] == max_val:
-                        parts = parts[:i] + parts[i+1:]
-                        break
-
-        # 2. Parallel Structure
-        if len(parts) == len(union_matches):
-            s_counts = sorted(parts, key=lambda x: x["span"][0])
-            s_unions = sorted(union_matches, key=lambda x: x["span"][0])
-            for c, u in zip(s_counts, s_unions):
-                mapped_counts[u["text"]] = c["val"]
-            return mapped_counts, sentence_total
-
-        # 3. Proximity Mapping
-        if union_matches:
-            pairs = []
-            for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
-                for u in union_matches:
-                    u_mid = (u["span"][0] + u["span"][1]) / 2
-                    dist = abs(c_mid - u_mid)
-                    pairs.append((dist, c, u))
-
-            pairs.sort(key=lambda x: x[0])
-            used_c, used_u = set(), set()
-
-            for dist, c, u in pairs:
-                if dist < 150 and id(c) not in used_c and id(u) not in used_u:
-                    mapped_counts[u["text"]] = c["val"]
-                    used_c.add(id(c))
-                    used_u.add(id(u))
-
-        return mapped_counts, sentence_total
+        union_entries = [{"key": m["text"], "span": m["span"]} for m in union_matches]
+        return self._resolve_counts_generic(analysis, union_entries)
 
     def _resolve_counts_to_types(self, analysis: SentenceAnalysis) -> Dict[str, float]:
         """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""
