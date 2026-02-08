@@ -3030,9 +3030,12 @@ class UnionAnalyzer:
             is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
             is_len_mismatch = len(counts) == len(geo_entries) + 1
             
+            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
+            
             # Extract total if length mismatch suggests it (N+1 counts for N regions)
             # OR if sum match occurs AND we don't have a perfect 1-to-1 alignment already
-            if is_len_mismatch or (is_sum_match and len(counts) != len(geo_entries)):
+            # OR if explicit subset indicator is present
+            if is_len_mismatch or (is_sum_match and len(counts) != len(geo_entries)) or has_subset_indicator:
                 sentence_total = max_val
                 # Remove ONE instance of max_val from parts
                 for i, c in enumerate(parts):
@@ -3122,8 +3125,10 @@ class UnionAnalyzer:
             
             is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
             is_len_mismatch = len(counts) == len(union_matches) + 1
+
+            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
             
-            if is_len_mismatch or (is_sum_match and len(counts) != len(union_matches)):
+            if is_len_mismatch or (is_sum_match and len(counts) != len(union_matches)) or has_subset_indicator:
                 sentence_total = max_val
                 for i, c in enumerate(parts):
                     if c["val"] == max_val:
