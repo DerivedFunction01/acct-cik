@@ -1843,6 +1843,61 @@ def sync_fiscal_years():
     finally:
         conn.close()
 
+def sync_home_country():
+    """
+    Updates webpage_result.home_country based on URL patterns in report_data.
+    If URL contains '10.k' -> US.
+    If URL contains '40.f' -> CA.
+    Only checks rows where home_country is not already US or CA.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    try:
+        print("🔄 Syncing home country from URL patterns...")
+        
+        # Fetch data joined
+        # User requested to check those whose home country is not US or Canada
+        c.execute("""
+            SELECT w.accession, r.url, w.home_country
+            FROM webpage_result w
+            JOIN report_data r ON w.accession = r.accession
+            WHERE r.url IS NOT NULL AND r.url != ''
+            AND (w.home_country IS NULL OR w.home_country NOT IN ('US', 'CA'))
+        """)
+        
+        rows = c.fetchall()
+        updates = []
+        
+        # Regex patterns
+        # 10[char]k -> US
+        # 40[char]f -> CA
+        us_pattern = re.compile(r"10.k", re.IGNORECASE)
+        ca_pattern = re.compile(r"40.f", re.IGNORECASE)
+        
+        for accession, url, current_country in rows:
+            new_country = None
+            
+            if us_pattern.search(url):
+                new_country = "US"
+            elif ca_pattern.search(url):
+                new_country = "CA"
+            
+            if new_country and new_country != current_country:
+                updates.append((new_country, accession))
+        
+        if updates:
+            c.executemany("UPDATE webpage_result SET home_country = ? WHERE accession = ?", updates)
+            print(f"✅ Updated {len(updates)} rows in webpage_result with inferred home country.")
+        else:
+            print("✓ Home countries are already in sync.")
+            
+        conn.commit()
+    except Exception as e:
+        print(f"⚠️ Error syncing home countries: {e}")
+    finally:
+        conn.close()
+
 
 def is_url_from_accession(url: str) -> bool:
     """
@@ -2679,6 +2734,9 @@ if __name__ == "__main__":
     
     # Sync extracted years back to report_data
     sync_fiscal_years()
+    
+    # Sync home country from URL patterns
+    sync_home_country()
     
     print("\n" + "=" * 70)
     print("All done!")
