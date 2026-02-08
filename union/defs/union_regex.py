@@ -116,6 +116,7 @@ WORKER_TERMS = [
 NOUNS = [
     r"whom?",
     r"the(?:m|y)",
+    r"th(?:e|o)se"
 ]
 SUFFIX_AGREEMENTS = [r"agreements?", r"contracts?", r"arrangements?", r"memberships?", r"representations?"]
 

@@ -987,6 +987,10 @@ class ComplexCoverageAnalyzer:
         for i in range(len(boundaries) - 1):
             segments.append((boundaries[i], boundaries[i + 1]))
 
+        # Helper to find segment index
+        def get_seg_idx(pos):
+            return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
+
         # 2. Gather entities
         _counts = [
             m
@@ -1018,6 +1022,20 @@ class ComplexCoverageAnalyzer:
             for m in self.analysis._matches
             if m["type"] in (MatchType.WORKER_TERM, MatchType.TOTAL_MODIFIER)
         ]
+
+        # Check which segments have coverage terms
+        segments_with_context = set()
+        for m in positives + negatives:
+             mid = (m["span"][0] + m["span"][1]) / 2
+             s_idx = get_seg_idx(mid)
+             segments_with_context.add(s_idx)
+        
+        # If only one segment has union/coverage terms, apply them globally
+        is_global_context = len(segments_with_context) <= 1
+        
+        logic_notes = []
+        if is_global_context:
+            logic_notes.append("Global Context")
 
         # 3. Respectively Logic
         if self.analysis.has_respectively:
@@ -1081,6 +1099,24 @@ class ComplexCoverageAnalyzer:
                         )
                 return
 
+        # 3b. "Of Whom" / "Of Which" Logic (Subset Indicator)
+        # If we have counts followed by "of whom/which ... union", the counts are TOTAL.
+        # e.g. "10 employees, 0% of whom are union" -> 10 is Total.
+        subset_indicator_spans = []
+        for m in self.analysis._matches:
+            # Check for "of whom", "of which", "of these"
+            if m["type"] == MatchType.PERCENT:
+                # Look immediately before the percent for "of whom" pattern isn't captured by regex usually
+                # But we can check text between last count and this percent
+                pass
+        
+        # We'll check this dynamically during assignment
+        def is_followed_by_subset_indicator(count_match):
+            # Look ahead for "of whom", "of which" before the next count or end of sentence
+            start = count_match["span"][1]
+            window = self.analysis.text[start : start + 100]
+            return bool(re.search(r"\bof\s+(?:whom|which|these|those)\b", window, re.IGNORECASE))
+
         def get_segment_range(span):
             mid = (span[0] + span[1]) / 2
             for start, end in segments:
@@ -1089,22 +1125,29 @@ class ComplexCoverageAnalyzer:
             return 0, len(self.analysis.text)
 
         def get_nearest_type_in_segment(target_span):
+            nonlocal logic_notes
             seg_start, seg_end = get_segment_range(target_span)
             t_start, t_end = target_span
+
+            # If this count is followed by "of whom", it is explicitly a TOTAL (denominator)
+            if is_followed_by_subset_indicator({"span": target_span}):
+                logic_notes.append("Subset Indicator -> Total")
+                return "total"
 
             best_dist = float("inf")
             best_type = None
 
             candidates = []
-            # Filter candidates by segment
-            for p in positives:
-                if p["span"][0] >= seg_start and p["span"][1] <= seg_end:
+            # If global context, use all matches. Else filter by segment.
+            search_positives = positives if is_global_context else [p for p in positives if p["span"][0] >= seg_start and p["span"][1] <= seg_end]
+            search_negatives = negatives if is_global_context else [n for n in negatives if n["span"][0] >= seg_start and n["span"][1] <= seg_end]
+            search_totals = totals if is_global_context else [t for t in totals if t["span"][0] >= seg_start and t["span"][1] <= seg_end]
+
+            for p in search_positives:
                     candidates.append(("covered", p))
-            for n in negatives:
-                if n["span"][0] >= seg_start and n["span"][1] <= seg_end:
+            for n in search_negatives:
                     candidates.append(("not_covered", n))
-            for t in totals:
-                if t["span"][0] >= seg_start and t["span"][1] <= seg_end:
+            for t in search_totals:
                     candidates.append(("total", t))
 
             for c_type, m in candidates:
@@ -1128,11 +1171,7 @@ class ComplexCoverageAnalyzer:
         for c in _counts:
             # Find segment index
             c_mid = (c["span"][0] + c["span"][1]) / 2
-            seg_idx = -1
-            for idx, (start, end) in enumerate(segments):
-                if start <= c_mid < end:
-                    seg_idx = idx
-                    break
+            seg_idx = get_seg_idx(c_mid)
 
             # Get local type
             ctype = get_nearest_type_in_segment(c["span"])
@@ -1143,16 +1182,10 @@ class ComplexCoverageAnalyzer:
         count_assignments.sort(key=lambda x: x["match"]["span"][0])
 
         def is_connected(idx1, idx2):
+            if is_global_context:
+                return True
             if count_assignments[idx1]["seg_idx"] == count_assignments[idx2]["seg_idx"]:
                 return True
-            # Check delimiters between segments
-            start_seg = min(count_assignments[idx1]["seg_idx"], count_assignments[idx2]["seg_idx"])
-            end_seg = max(count_assignments[idx1]["seg_idx"], count_assignments[idx2]["seg_idx"])
-            
-            # If adjacent segments, check the delimiter
-            if end_seg == start_seg + 1:
-                delim_text = delimiters[start_seg].group(0).lower()
-                return "," in delim_text or "and" in delim_text or "&" in delim_text
             return False
 
         # Forward Propagation
@@ -1160,12 +1193,14 @@ class ComplexCoverageAnalyzer:
             if count_assignments[i]["type"] is not None and count_assignments[i + 1]["type"] is None:
                 if is_connected(i, i + 1):
                     count_assignments[i + 1]["type"] = count_assignments[i]["type"]
+                    logic_notes.append("Propagated Forward")
 
         # Backward Propagation
         for i in range(len(count_assignments) - 1, 0, -1):
             if count_assignments[i]["type"] is not None and count_assignments[i - 1]["type"] is None:
                 if is_connected(i, i - 1):
                     count_assignments[i - 1]["type"] = count_assignments[i]["type"]
+                    logic_notes.append("Propagated Backward")
                     
         self.data["_count_assignments"] = count_assignments
         
@@ -1212,6 +1247,15 @@ class ComplexCoverageAnalyzer:
                 self.data["employee_count_covered"]
                 + self.data["employee_count_not_covered"]
             )
+            
+        if logic_notes:
+            current_note = self.data["note"] or ""
+            sep = " | " if current_note else ""
+            unique_notes = []
+            for n in logic_notes:
+                if n not in unique_notes:
+                    unique_notes.append(n)
+            self.data["note"] = current_note + sep + "; ".join(unique_notes)
 
     def _handle_ratios(self):
         if self.analysis.ratios:
