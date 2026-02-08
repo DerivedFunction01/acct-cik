@@ -2007,6 +2007,9 @@ def detect_filing_type(url: str, raw_text: str) -> Tuple[bool, bool, str, bool]:
         elif is_40f:
             home_country = "CA"
             url_determined = True
+        else:
+            home_country = "US"
+            url_determined = True
 
     return is_20f, is_40f, home_country, url_determined
 
