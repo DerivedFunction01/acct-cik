@@ -2394,6 +2394,28 @@ class Tracker:
             if c_sum > r_total * 1.05:
                  self.resolution_log.append(f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})")
 
+    def validate(self):
+        """
+        Validates and repairs entries to ensure logical consistency.
+        """
+        for e in self.entries:
+            if e.total_count is not None:
+                # 1. Check Covered vs Total
+                if e.covered_count is not None and e.covered_count > e.total_count:
+                    self.resolution_log.append(f"Validation: Reduced covered for {e.key} from {e.covered_count} to {e.total_count} (Covered > Total)")
+                    e.covered_count = e.total_count
+                
+                # 1. Check not Covered vs Total
+                if e.not_covered_count is not None and e.not_covered_count > e.total_count:
+                    self.resolution_log.append(f"Validation: Reduced not covered for {e.key} from {e.not_covered_count} to {e.total_count} (Not Covered > Total)")
+                    e.not_covered_count = e.total_count
+                
+                # 2. Check Sum of Parts vs Total
+                parts_sum = (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
+                if parts_sum > e.total_count * 1.02:
+                    self.resolution_log.append(f"Validation: Bumped total for {e.key} from {e.total_count} to {parts_sum} (Parts > Total)")
+                    e.total_count = parts_sum
+
     def calculate_metrics(self) -> Dict[str, Any]:
         metrics = {
             "likely_percentage": None,
@@ -2405,6 +2427,9 @@ class Tracker:
             "_logs": [],  # New key to store logs
             "resolution": self.resolution_log,
         }
+
+        # Ensure data consistency before calculation
+        self.validate()
 
         def log(message: str):
             """Helper function to append logs to the metrics dict"""
