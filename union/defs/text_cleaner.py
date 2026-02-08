@@ -87,12 +87,6 @@ class MinimalTextCleaner:
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "student body"),
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
-        (re.compile(r"\bUS\s+GAAP\b", re.IGNORECASE), "GAAP"),
-        (re.compile(r"\bUS\s+Dollars?\b", re.IGNORECASE), "USD"),
-        (re.compile(r"\bUS\s+Treasur(?:y|ies)\b", re.IGNORECASE), "Treasury"),
-        (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
-        (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
-        (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bwestern\s+union\b", re.IGNORECASE), "money transfer"),
         (re.compile(r"\bunion\s+pacific\b", re.IGNORECASE), "railroad"),
@@ -1025,14 +1019,12 @@ class ConcisenessCleaner:
 
         # Replacements (Long -> Short)
         self.replacements = [
-            (
-                re.compile(
-                    r"\b(?:consist|compris|compos)(?:es?|s|ed|ing)?\s+of\b",
-                    re.IGNORECASE,
-                ),
-                "are",
-            ),
-            (re.compile(r"\bUS GAAP\b", re.IGNORECASE), "standards"),
+            (re.compile(r"\bUS\s+GAAP\b", re.IGNORECASE), "GAAP"),
+            (re.compile(r"\bUS\s+Dollars?\b", re.IGNORECASE), "USD"),
+            (re.compile(r"\bUS\s+Treasur(?:y|ies)\b", re.IGNORECASE), "Treasury"),
+            (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
+            (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
+            (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
         ]
 
         self.recap_pattern = re.compile(r"([.!?]\s+)([a-z])")
