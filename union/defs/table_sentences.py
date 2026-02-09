@@ -262,7 +262,7 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
     items = group.get("items", [])
     if not items: return None
 
-    verb = "was" if year and year < 2025 else "is"
+    verb = "was"
 
     # Helper to clean headers (deduplicated logic)
     def _clean_h(h):
