@@ -21,6 +21,7 @@ from defs.region_regex import (
 from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner
 from defs.table_processor import process_table
 from defs.table_sentences import generate_primitive_sentences
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 
 # =============================================================================
 # CONFIGURATION
@@ -302,10 +303,11 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         if not is_match and allow_risk:
             is_match = RISK_REGEX.search(cleaned_block)
 
+        matches = []
         if is_match:
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
-            matches = RAW_PERCENT_REGEX.findall(block)
+            matches.extend([RAW_PERCENT_REGEX.findall(sent) for sent in SENTENCE_SPLIT_PATTERN.split(block) if UNION_REGEX.search(sent)])
             for m in matches:
                 try:
                     extracted_percents.append(float(m))
