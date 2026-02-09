@@ -302,7 +302,7 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
                 intro_parts.append(f"In {year},")
             intro_parts.append(f"for {row_info['label']},")
             
-            return f"{' '.join(intro_parts)} {'; '.join(parts)}."
+            return f"{' '.join(intro_parts)} {', '.join(parts)}."
 
     
     # Construct Subject
