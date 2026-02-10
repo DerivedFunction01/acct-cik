@@ -294,7 +294,7 @@ ANNUAL_REPORT_PATTERN = re.compile(
     re.IGNORECASE | re.MULTILINE
 )
 FISCAL_YEAR_PATTERN = re.compile(
-    r"(?:For\s+the\s+fiscal\s+)?year\s+ended\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})", 
+    r"(?:For\s+the\s+fiscal\s+)?year\s+ended(?:\:)?\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4})", 
     re.IGNORECASE | re.MULTILINE
 )
 
