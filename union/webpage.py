@@ -1179,7 +1179,7 @@ def extract_home_country(text: str) -> str:
     best_code, best_score = sorted_candidates[0]
     
     # Special Rule: Resolve HK to CN if both are present
-    if best_code == "HK" and "CN" in candidate_scores:
+    if  "HK" in candidate_scores and "CN" in candidate_scores:
         return "CN"
     
     # If best is a tax haven, see if we have a strong operational alternative
