@@ -1195,8 +1195,8 @@ def extract_home_country(text: str) -> str:
     if best_code in TAX_HAVEN_CODES:
         for code, score in sorted_candidates[1:]:
             if code not in TAX_HAVEN_CODES and code != "INT" and code != "US":
-                # If alternative is at least 40% as strong as the tax haven match
-                if score > best_score * 0.4:
+                # If alternative is at least as strong as the tax haven match
+                if score > best_score * 0.2:
                     return code
                     
     return best_code
