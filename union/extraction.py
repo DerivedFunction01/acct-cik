@@ -1263,9 +1263,16 @@ class UnionExtractor:
                     m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                     for m in analysis._matches
                 )
+
+                # Filter ambiguous coverage terms that often appear with diversity (e.g. "representation", "members")
+                strong_coverage = [
+                    t for t in analysis.coverage_terms
+                    if not any(sub in t.lower() for sub in ["represent", "member"])
+                ]
+
                 if not (
                     analysis.union_terms
-                    or analysis.coverage_terms
+                    or strong_coverage
                     or has_union_geo
                     or has_union_negation
                 ):
