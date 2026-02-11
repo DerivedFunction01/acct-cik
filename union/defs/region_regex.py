@@ -692,11 +692,11 @@ NORTH_AMERICA = {
 EUROPE = {
     Nation(
         "Europe",
-        ["europe", "eurozone", "eu", "european", "european union"],
+        ["europe", "eurozone", "eu", "european", "european union", "euro", "eur"],
         Region.EUROPE,
         [],
         [],
-        ["euro", "eur"],
+        [],
         code="EU",
     ),
     Nation(
@@ -707,6 +707,7 @@ EUROPE = {
             "britain",
             "united kingdom",
             "england",
+            "sterling", "gbp",
             add_restrictions("british", lookaheads=[r"virgin", r"columbia"]),
         ],
         Region.EUROPE,
@@ -746,7 +747,7 @@ EUROPE = {
             "TSSA",
             "Transport Salaried Staffs' Association",
         ],
-        ["sterling", "gbp"],
+        [],
         code="GB",
     ),
     Nation(
@@ -838,7 +839,7 @@ EUROPE = {
     ),
     Nation(
         "Turkey",
-        ["turkey", "turkish"],
+        ["turkey", "turkish", "lira"],
         Region.EUROPE,
         [
             Location("Istanbul", ["istanbul"]),
@@ -848,12 +849,12 @@ EUROPE = {
             Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
         [],
-        ["lira", "try"],
+        [],
         code="TR",
     ),
     Nation(
         "Russia",
-        ["russia", "russian", "ussr", "soviet union"],
+        ["russia", "russian", "ussr", "soviet union", "ruble", "rub"],
         Region.EUROPE,
         [
             Location("Moscow", ["moscow"]),
@@ -865,7 +866,7 @@ EUROPE = {
             Location("Togliatti", ["togliatti", "tolyatti"]),  # AvtoVAZ
         ],
         [],
-        ["ruble", "rub"],
+        [],
         code="RU",
     ),
     Nation(
@@ -957,7 +958,6 @@ EUROPE = {
         ],
         [
             "Comité Social et Économique",
-            "CSE",
             "Accord de branche",
             "Accord d'entreprise",
             "Délégués syndicaux",
@@ -1072,7 +1072,7 @@ EUROPE = {
     # --- OTHER EUROPEAN NATIONS ---
     Nation(
         "Switzerland",
-        ["switzerland", "swiss"],
+        ["switzerland", "swiss", "chf"],
         Region.EUROPE,
         [
             Location("Zurich", ["zurich"]),
@@ -1084,7 +1084,7 @@ EUROPE = {
             Location("Lugano", ["lugano"]),
         ],
         ["Unia", "Syna"],
-        ["GAV", "CCT", "Arbeitsfrieden", "chf"],
+        ["GAV", "CCT", "Arbeitsfrieden"],
         code="CH",
     ),
     Nation(
@@ -1329,7 +1329,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "Japan",
-        ["japan", "japanese"],
+        ["japan", "japanese", "yen", "jpy"],
         Region.ASIA_PACIFIC,
         [
             Location("Tokyo", ["tokyo"]),
@@ -1348,13 +1348,12 @@ ASIA_PACIFIC = {
         [
             "Shunto",
             "Karoshi",
-            "yen", "jpy",
         ],
         code="JP",
     ),
     Nation(
         "South Korea",
-        ["south korea", "korea", "korean"],
+        ["south korea", "korea", "korean", "krw"],
         Region.ASIA_PACIFIC,
         [
             Location("Seoul", ["seoul"]),
@@ -1370,13 +1369,12 @@ ASIA_PACIFIC = {
         ],
         [
             "Chaebol",
-            "krw",
         ],
         code="KR",
     ),
     Nation(
         "China",
-        ["china", "chinese", "prc", "p.r.c.", "people's republic of china"],
+        ["china", "chinese", "prc", "p.r.c.", "people's republic of china", "yuan", "renminbi", "rmb", "cny"],
         Region.ASIA_PACIFIC,
         [
             Location("Shanghai", ["shanghai"]),
@@ -1396,12 +1394,12 @@ ASIA_PACIFIC = {
             
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
-        ["yuan", "renminbi", "rmb", "cny"],
+        [],
         code="CN",
     ),
     Nation(
         "India",
-        ["india", "indian"],
+        ["india", "indian", "rupee", "inr", "lakh", "crore"],
         Region.ASIA_PACIFIC,
         [
             Location("Mumbai", ["mumbai", "bombay"]),
@@ -1422,7 +1420,6 @@ ASIA_PACIFIC = {
             "Standing Orders",
             "Industrial Disputes Act",
             "Trade Unions Act",
-            "rupee", "inr", "lakh", "crore",
         ],
         code="IN",
     ),
@@ -1653,7 +1650,7 @@ LATIN_AMERICA = {
     ),
     Nation(
         "Brazil",
-        ["brazil", "brazilian"],
+        ["brazil", "brazilian", "reais", "brl"],
         Region.LATIN_AMERICA,
         [
             Location("Sao Paulo", ["sao paulo"]),
@@ -1675,7 +1672,6 @@ LATIN_AMERICA = {
             "Consolidação das Leis do Trabalho",
             "Acordo Coletivo",
             "Contribuição sindical",
-            "reais", "brl",
         ],
         code="BR",
     ),
@@ -1829,7 +1825,7 @@ MIDDLE_EAST_AFRICA = {
     Nation("Africa", ["africa", add_restrictions("african", lookaheads=[r"american"])], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
     Nation(
         "United Arab Emirates",
-        ["uae", "u.a.e.", "emirates"],
+        ["uae", "u.a.e.", "emirates", "dirham", "aed"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Dubai", ["dubai"]),
@@ -1838,12 +1834,12 @@ MIDDLE_EAST_AFRICA = {
             Location("Jebel Ali", ["jebel ali"]),  # Major Port/Free Zone
         ],
         [],
-        ["dirham", "aed"],
+        [],
         code="AE",
     ),
     Nation(
         "Saudi Arabia",
-        ["saudi arabia", "saudi"],
+        ["saudi arabia", "saudi", "riyal", "sar"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Riyadh", ["riyadh"]),
@@ -1853,12 +1849,12 @@ MIDDLE_EAST_AFRICA = {
             Location("Dhahran", ["dhahran"]),  # Aramco/Industrial hub
         ],
         [],
-        ["riyal", "sar"],
+        [],
         code="SA",
     ),
     Nation(
         "Israel",
-        ["israel", "israeli"],
+        ["israel", "israeli", "shekel", "ils"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Tel Aviv", ["tel aviv"]),
@@ -1869,12 +1865,12 @@ MIDDLE_EAST_AFRICA = {
             Location("Haifa", ["haifa"]),  # Major Industrial/Port
         ],
         ["Histadrut", "General Federation of Labour in Israel"],
-        ["shekel", "ils"],
+        [],
         code="IL",
     ),
     Nation(
         "South Africa",
-        ["south africa", "south african"],
+        ["south africa", "south african", "rand", "zar"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Johannesburg", ["johannesburg", "joburg"]),
@@ -1896,7 +1892,6 @@ MIDDLE_EAST_AFRICA = {
         [
             "LRA",
             "NEDLAC",
-            "rand", "zar",
         ],
         code="ZA",
     ),
