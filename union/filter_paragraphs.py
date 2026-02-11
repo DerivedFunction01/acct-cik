@@ -22,6 +22,7 @@ from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNum
 from defs.table_processor import process_table
 from defs.table_sentences import generate_primitive_sentences
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
+from extraction import UnionExtractor
 
 # =============================================================================
 # CONFIGURATION
@@ -109,15 +110,17 @@ CLEANER = None
 CURRENCY_REMOVER = None
 CONTEXTUAL_CLEANER = None
 CONCISENESS_CLEANER = None
+EXTRACTOR = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER, CONCISENESS_CLEANER
+    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER, CONCISENESS_CLEANER, EXTRACTOR
     FILTER_REGEX = compile_filtering_regex()
     CLEANER = MinimalTextCleaner()
     CURRENCY_REMOVER = CurrencyRemover()
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
     CONCISENESS_CLEANER = ConcisenessCleaner()
+    EXTRACTOR = UnionExtractor()
 
 def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
     # For plain text paragraph extraction, sometimes the text is merged accidentally, so we have a mega chunk
@@ -235,6 +238,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
     assert CURRENCY_REMOVER is not None
     assert CONTEXTUAL_CLEANER is not None
     assert CONCISENESS_CLEANER is not None
+    assert EXTRACTOR is not None
 
     # Flatten and split content
     raw_blocks = []
@@ -311,8 +315,15 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
             is_match = RISK_REGEX.search(cleaned_block)
 
         if is_match:
-            if prev_cleaned_block and not prev_was_match and re.search(r'\d', prev_cleaned_block):
-                cleaned_block = f"{prev_cleaned_block} {cleaned_block}"
+            if prev_cleaned_block and not prev_was_match:
+                # Analyze previous block to see if it contains relevant worker counts
+                prev_analysis = EXTRACTOR.analyze_sentence(prev_cleaned_block)
+                has_quant = bool(prev_analysis.percentages or prev_analysis.ratios or prev_analysis.numbers or prev_analysis.qualitative_terms)
+                has_worker_context = bool(prev_analysis.worker_terms or prev_analysis.worker_counts)
+                
+                # If previous block has worker counts or quantitative info with worker context, prepend it.
+                if bool(prev_analysis.worker_counts) or (has_quant and has_worker_context):
+                    cleaned_block = f"{prev_cleaned_block} {cleaned_block}"
 
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
