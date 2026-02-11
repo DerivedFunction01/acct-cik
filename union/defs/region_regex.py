@@ -1826,7 +1826,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         code="MEA",
     ),
-    Nation("Africa", ["africa", "african"], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
+    Nation("Africa", ["africa", add_restrictions("african", lookaheads=[r"american"])], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
     Nation(
         "United Arab Emirates",
         ["uae", "u.a.e.", "emirates"],

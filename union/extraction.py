@@ -169,6 +169,35 @@ UNION_DENOMINATOR_REGEX = build_regex(
     ]
 )
 
+DIVERSITY_REGEX = build_regex(
+    [
+        r"women",
+        r"females?",
+        r"males?",
+        r"gender",
+        r"diversity",
+        r"inclusion",
+        r"minorit(?:y|ies)",
+        r"ethnic(?:ity)?",
+        r"race",
+        r"racial",
+        r"veterans?",
+        r"disabilit(?:y|ies)",
+        r"disabled",
+        r"sexual\s+orientation",
+        r"people\s+of\s+color",
+        r"african\s+american",
+        r"hispanic",
+        r"latino",
+        r"asian",
+        r"white",
+        r"black",
+        r"indigenous",
+        r"lgbtq?",
+        r"underrepresented",
+    ]
+)
+
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -195,6 +224,7 @@ class MatchType(Enum):
     RESPECTIVELY = "RESPECTIVELY"
     REMAINING_OTHER = "REMAINING_OTHER"
     WORKER_TYPE = "WORKER_TYPE"
+    DIVERSITY_TERM = "DIVERSITY_TERM"
 
 
 @dataclass
@@ -228,6 +258,7 @@ class SentenceAnalysis:
     total_modifiers: List[str] = field(default_factory=list)
     geo_matches: List[GeoMatch] = field(default_factory=list)
     worker_types: List[str] = field(default_factory=list)
+    diversity_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1078,6 +1109,15 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.worker_types.append(val),
         )
+
+        # 11B: Extract Diversity Terms
+        process_matches(
+            DIVERSITY_REGEX,
+            MatchType.DIVERSITY_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.diversity_terms.append(val),
+        )
+
         # 11. Extract Worker Counts (Specific Numbers)
         process_matches(
             WORKER_COUNT_REGEX,
@@ -1216,6 +1256,20 @@ class UnionExtractor:
             # Personnel: Exclude if no union terms and matches personnel event
             if not analysis.union_terms and PERSONNEL_EVENT_REGEX.search(text):
                 analysis.is_relevant = False
+
+            # Diversity: Exclude if diversity terms are present and no explicit union indicators
+            elif analysis.diversity_terms:
+                has_union_negation = any(
+                    m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                    for m in analysis._matches
+                )
+                if not (
+                    analysis.union_terms
+                    or analysis.coverage_terms
+                    or has_union_geo
+                    or has_union_negation
+                ):
+                    analysis.is_relevant = False
 
             # Boilerplate: Exclude if no quantitative data and matches boilerplate
             elif BOILERPLATE_REGEX.search(text):
