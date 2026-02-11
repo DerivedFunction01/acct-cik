@@ -22,7 +22,7 @@ UNITED STATES OPERATIONS
 
 Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
 
-In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under collective bargaining agreements. This represents 82% unionization in this division.
+In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour. This represents 82% unionization in this division.
 
 Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
 
