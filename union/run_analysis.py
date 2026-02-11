@@ -177,8 +177,25 @@ def copy_metadata_tables():
             pass
         conn.close()
 
-def data_generator(source_db: str):
-    """Stream rows from source DB in batches."""
+def get_processed_accessions(target_db: str) -> set:
+    """Get all accessions already processed in target DB."""
+    if not Path(target_db).exists():
+        return set()
+    
+    try:
+        conn = sqlite3.connect(target_db, timeout=30.0)
+        c = conn.cursor()
+        c.execute("SELECT accession FROM analysis_result")
+        processed = {row[0] for row in c.fetchall()}
+        conn.close()
+        logging.info(f"Found {len(processed)} already processed accessions")
+        return processed
+    except sqlite3.OperationalError:
+        logging.info("Target DB not initialized yet")
+        return set()
+
+def data_generator(source_db: str, skip_accessions: set):
+    """Stream rows from source DB in batches, skipping already processed accessions."""
     conn = sqlite3.connect(source_db, timeout=30.0)
     cursor = conn.cursor()
     
@@ -194,12 +211,20 @@ def data_generator(source_db: str):
     """
     cursor.execute(query)
     
+    remaining = 0
     while True:
         rows = cursor.fetchmany(BATCH_SIZE)
         if not rows:
             break
-        yield rows, total_rows
+        
+        # Filter out already processed accessions
+        new_rows = [row for row in rows if row[0] not in skip_accessions]
+        remaining += len(new_rows)
+        
+        if new_rows:
+            yield new_rows, total_rows - len(skip_accessions)
     
+    logging.info(f"Total new rows to process: {remaining}")
     conn.close()
 
 def flush_buffer(tgt_conn: sqlite3.Connection, buffer: List[Tuple]):
@@ -229,11 +254,14 @@ def main():
     create_target_db()
     copy_metadata_tables()
     
+    # Get already processed accessions to skip them
+    processed_accessions = get_processed_accessions(TARGET_DB)
+    
     tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     tgt_conn.execute("PRAGMA journal_mode=WAL")
     tgt_conn.execute("PRAGMA synchronous=NORMAL")
     
-    data_gen = data_generator(SOURCE_DB)
+    data_gen = data_generator(SOURCE_DB, processed_accessions)
     total_rows = None
     
     with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
