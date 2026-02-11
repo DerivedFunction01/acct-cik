@@ -762,6 +762,9 @@ class ComplexCoverageAnalyzer:
         }
 
     def analyze(self) -> Dict[str, Any]:
+        if not has_union_context(self.analysis):
+            return self.data
+
         counts = get_effective_counts(self.analysis)
         # 0. Ranges (High priority)
         if self._handle_ranges(counts=counts):
