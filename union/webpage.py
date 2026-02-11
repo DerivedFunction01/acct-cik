@@ -156,7 +156,6 @@ HTML_REGEX = re.compile(r"<html", re.IGNORECASE)
 XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 
 
-
 # ============================================================================
 # 10-K PATTERNS
 # ============================================================================
@@ -320,6 +319,16 @@ HOME_COUNTRY_PATTERNS = [
     (OFFICE_PATTERN, 2.0),
     (build_regex([r"executive\s+offices"]), 1.5),
     (build_regex([r"registered\s+office"]), 1.0),
+    (
+        build_regex(
+            [
+                r"companies\s+act\s+2006",
+                r"laws\s+of\s+england\s+and\s+wales",
+                r"company\s+laws?",
+            ]
+        ),
+        4.0,
+    ),
 ]
 # %%
 # =============================================================================
