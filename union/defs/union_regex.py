@@ -227,7 +227,7 @@ MEMBERSHIP_PHRASES = [
 ]
 
 DIVERSITY_TERMS = [
-    r"women",
+    r"(?:wo)?m(?:e|a)n",
     r"females?",
     r"males?",
     r"gender",
@@ -251,7 +251,7 @@ DIVERSITY_TERMS = [
     r"indigenous",
     r"lgbtq?",
     r"underrepresented",
-    build_compound(r"gen(?:eration)?", [r"Z", r"X", r"Y", r"W"]),
+    build_compound(r"gen(?:eration|\.)?", [r"Z", r"X", r"Y", r"W"]),
     r"Millennials?",
     r"Baby\s+Boomers?",
     r"Traditionalists?",

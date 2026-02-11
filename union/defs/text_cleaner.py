@@ -1003,10 +1003,8 @@ class ContextualNumberCleaner:
         # 8. Diversity Percentages
         diversity_pattern = build_alternation(DIVERSITY_TERMS)
         
-        # Gap allowing for "of the total workforce which is" etc.
-        # Limit to ~12 words. Crucially, exclude "union" or "bargaining" to prevent 
         # stripping union stats that happen to be near diversity terms.
-        div_gap = r"(?:(?!union|bargaining)[^\d%]+\s+){0,12}"
+        div_gap = r"(?:[^\s\d%]+\s+){0,5}"
         
         # Matches: "20% [of workforce are] women"
         self.diversity_pre_regex = re.compile(
