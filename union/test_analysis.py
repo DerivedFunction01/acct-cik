@@ -16,13 +16,13 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 ITEM_1 = """
 ITEM 1. BUSINESS
 
-TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide.
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide. Of our workforce, less than 1% are Traditionalists (born before 1928), 12% are Baby Boomers (born 1928-1945), 37% are Generation X (born 1965-1980), 42% are Millennials (born 1981-1996) and less than 9% are Generation Z (born after 1997). 
 
 UNITED STATES OPERATIONS
 
 Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
 
-In our automobile manufacturing division, we employ 14,200 hourly production workers. Of these, 11,644 are represented by the United Auto Workers (UAW) under collective bargaining agreements. This represents 82% unionization in this division.
+In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under collective bargaining agreements. This represents 82% unionization in this division.
 
 Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
 
