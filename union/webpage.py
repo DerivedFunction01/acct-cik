@@ -2647,7 +2647,7 @@ def rate_adjuster_worker(
 
 
 def fetch_worker_adaptive(
-    url_queue, raw_queue, rate_limiter, stop_event, fetch_metrics, metrics_lock
+    url_queue, raw_queue, rate_limiter: ThreadSafeRateLimiter, stop_event, fetch_metrics, metrics_lock
 ):
     """
     PRODUCER: Downloads content and puts into raw_queue.
