@@ -309,42 +309,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     return filtered, extracted_percents
 
-def process_batch(rows: List[Tuple]) -> List[Tuple]:
-    """
-    Process a batch of rows.
-    Row format: (accession, item1_json, item1a_json, period_of_report, home_country, company_name, report_year)
-    """
-    results = []
-    for row in rows:
-        accession, item1_json, item1a_json, period, home_country, company_name, report_year = row
-
-        # Determine year for cleaner
-        year = None
-        year = int(period if period is not None else report_year)
-
-        try:
-            item1_list = json.loads(item1_json) if item1_json else []
-            item1a_list = json.loads(item1a_json) if item1a_json else []
-        except json.JSONDecodeError:
-            continue
-
-        filtered_item1, percents_item1 = filter_content(item1_list, company_name, year, allow_risk=False)
-        filtered_item1a, percents_item1a = filter_content(item1a_list, company_name, year, allow_risk=True)
-
-        # Only keep row if we have relevant content in either section
-        if filtered_item1 or filtered_item1a:
-            results.append((
-                accession,
-                json.dumps(filtered_item1),
-                json.dumps(filtered_item1a),
-                period,
-                home_country,
-                json.dumps(percents_item1),
-                json.dumps(percents_item1a)
-            ))
-
-    return results
-
 def create_target_db():
     conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     c = conn.cursor()
@@ -428,3 +392,149 @@ def get_processed_accessions(target_db: str) -> Set[str]:
     except sqlite3.OperationalError:
         logging.info("Target DB not initialized yet")
         return set()
+
+# =============================================================================
+# WORKER LOGIC
+# =============================================================================
+
+def process_row(row: Tuple) -> Optional[Tuple]:
+    """
+    Process a single row from the source database.
+    Row: (accession, item1_json, item1a_json, period, home_country, company_name, year)
+    """
+    accession, item1_json, item1a_json, period, home_country, company_name, year = row
+    
+    # Parse inputs
+    item1_list = []
+    if item1_json:
+        try:
+            item1_list = json.loads(item1_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+            
+    item1a_list = []
+    if item1a_json:
+        try:
+            item1a_list = json.loads(item1a_json)
+        except (json.JSONDecodeError, TypeError):
+            pass
+            
+    # Filter Content
+    # Item 1: Business Description (Strict filtering, no risk terms)
+    item1_filtered, item1_percents = filter_content(
+        item1_list, 
+        company_name=company_name, 
+        year=year, 
+        allow_risk=False
+    )
+    
+    # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
+    item1a_filtered, item1a_percents = filter_content(
+        item1a_list, 
+        company_name=company_name, 
+        year=year, 
+        allow_risk=True
+    )
+    
+    return (
+        accession,
+        json.dumps(item1_filtered),
+        json.dumps(item1a_filtered),
+        period,
+        home_country,
+        json.dumps(item1_percents),
+        json.dumps(item1a_percents)
+    )
+
+def data_generator(source_db: str, processed_accessions: Set[str], batch_size: int = BATCH_SIZE):
+    """Yields rows from source database that haven't been processed."""
+    conn = sqlite3.connect(source_db)
+    c = conn.cursor()
+    
+    # Join to get metadata (Company Name, Year) for filtering context
+    query = """
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year
+        FROM webpage_result w
+        LEFT JOIN report_data r ON w.accession = r.accession
+        LEFT JOIN names n ON r.cik = n.cik
+        WHERE w.item1 IS NOT NULL OR w.item1a IS NOT NULL
+    """
+    
+    c.execute(query)
+    
+    while True:
+        rows = c.fetchmany(batch_size)
+        if not rows:
+            break
+            
+        for row in rows:
+            if row[0] not in processed_accessions:
+                yield row
+                
+    conn.close()
+
+def flush_buffers(conn, buffer):
+    """Writes a batch of results to the target database."""
+    if not buffer:
+        return
+    
+    c = conn.cursor()
+    try:
+        c.execute("BEGIN TRANSACTION")
+        c.executemany(
+            """
+            INSERT OR REPLACE INTO webpage_result 
+            (accession, item1, item1a, period_of_report, home_country, item1_percents, item1a_percents)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            buffer
+        )
+        conn.commit()
+    except Exception as e:
+        logging.error(f"Write Error: {e}")
+        conn.rollback()
+
+# =============================================================================
+# MAIN EXECUTION
+# =============================================================================
+
+if __name__ == "__main__":
+    print(f"🚀 Starting Paragraph Filter ({NUM_WORKERS} workers)")
+    
+    # 1. Setup Target DB
+    create_target_db()
+    copy_metadata_tables()
+    processed = get_processed_accessions(TARGET_DB)
+    print(f"📋 Found {len(processed)} processed accessions.")
+    
+    # 2. Connect Writer DB
+    target_conn = sqlite3.connect(TARGET_DB, timeout=60.0)
+    target_conn.execute("PRAGMA journal_mode=WAL")
+    target_conn.execute("PRAGMA synchronous=NORMAL")
+    
+    # 3. Processing Loop
+    buffer = []
+    count = 0
+    
+    # Initialize worker pool with initializer to compile regexes
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
+        source_iter = data_generator(SOURCE_DB, processed)
+        
+        # Map processing function
+        results_iter = executor.map(process_row, source_iter, chunksize=20)
+        
+        for result in tqdm(results_iter, desc="Filtering"):
+            if result:
+                buffer.append(result)
+                count += 1
+                
+                if len(buffer) >= BATCH_SIZE:
+                    flush_buffers(target_conn, buffer)
+                    buffer = []
+                    
+    # 4. Final Flush
+    if buffer:
+        flush_buffers(target_conn, buffer)
+        
+    target_conn.close()
+    print(f"✅ Complete. Processed {count} documents.")
