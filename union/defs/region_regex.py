@@ -1037,7 +1037,6 @@ EUROPE = {
         ],
         [
             "Comité de Empresa",
-            "Delegados",
             "Estatuto de los Trabajadores",
         ],
         code="ES",
@@ -2147,6 +2146,7 @@ INTERNATIONAL = {
             "Trabalho",
             "Trabajo",
             "Greve",
+            "Delegados",
             "Huelga",
             "Gremios",
             "Mineração",
