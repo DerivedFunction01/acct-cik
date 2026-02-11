@@ -872,7 +872,7 @@ class ContextualNumberCleaner:
         # Matches: "100 [manufacturing] facilities"
         # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
         self.asset_regex = re.compile(
-            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))",
+            rf"\b{number_range}\s+((?:[\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))",
             re.IGNORECASE,
         )
 
@@ -895,9 +895,9 @@ class ContextualNumberCleaner:
         # Matches: "increase of approx 10%" or "increase by 10% to 30%"
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
-            rf"(?:\s+[\'\w-]+){{0,5}}\s+"  # allow N filler words
+            rf"(?:\s+[\w-]+){{0,5}}\s+"  # allow N filler words
             rf"((?:{percent_range}|{number_range}\b)\s+"
-            rf"(?:[\'\w-]+\s+){{0,4}})?"
+            rf"(?:[\w-]+\s+){{0,4}})?"
             rf"(?:{percent_range}|{number_range}\b)",
             re.IGNORECASE,
         )
@@ -909,7 +909,7 @@ class ContextualNumberCleaner:
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
-            rf"(?:\s+[\'\w-]+){{0,8}}\s+"  # up to N filler words
+            rf"(?:\s+[\w-]+){{0,8}}\s+"  # up to N filler words
             rf"{number_range}\b",
             re.IGNORECASE,
         )
@@ -917,7 +917,7 @@ class ContextualNumberCleaner:
         # 100 layoffs, etc
         self.personnel_event_reverse_regex = re.compile(
             rf"\b{number_range}"
-            rf"(?:\s+[\'\w-]+){{0,8}}\s+"  # up to N filler words
+            rf"(?:\s+[\w-]+){{0,8}}\s+"  # up to N filler words
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
@@ -1004,7 +1004,7 @@ class ContextualNumberCleaner:
         diversity_pattern = build_alternation(DIVERSITY_TERMS)
         
         # stripping union stats that happen to be near diversity terms.
-        div_gap = r"(?:[\'\w-]+\s+){0,8}"
+        div_gap = r"(?:[\w-]+\s+){0,8}"
         
         # Matches: "20% [of workforce are] women"
         self.diversity_pre_regex = re.compile(
