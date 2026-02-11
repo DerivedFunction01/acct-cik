@@ -1259,6 +1259,8 @@ class UnionExtractor:
 
             # Diversity: Exclude if diversity terms are present and no explicit union indicators
             elif analysis.diversity_terms:
+                if len(analysis.diversity_terms) > 1: # Red flag if more than 1 match
+                    analysis.is_relevant = False
                 has_union_negation = any(
                     m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                     for m in analysis._matches
