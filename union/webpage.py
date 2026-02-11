@@ -47,7 +47,7 @@ REPORT_CSV_PATH = "report_data.csv"
 DB_PATH = "web_data.db"
 MAX_LEN = 1000
 
-SEC_RATE = 8  # requests per second
+SEC_RATE = 10  # requests per second
 SEC_RATE_LIMIT = 1 / SEC_RATE  # requests per second
 CHUNK_SIZE = 100
 NUM_FETCHERS = 1
@@ -59,8 +59,8 @@ DRIVE_SAVE_INTERVAL_RESULTS = 4000
 # =============================================================================
 # QUEUE FILLING CONFIGURATION
 # =============================================================================
-QUEUE_BATCH_SIZE = 10 # URLs to add per fill
-QUEUE_FILL_INTERVAL_SECONDS = 1  # Seconds between fills
+QUEUE_BATCH_SIZE = 20 # URLs to add per fill
+QUEUE_FILL_INTERVAL_SECONDS = 2  # Seconds between fills
 
 # =============================================================================
 # COLAB CONFIGURATION
@@ -1713,7 +1713,7 @@ class ThreadSafeRateLimiter:
 
             elif current_rate < target_rate_adjusted * 0.95:  # Under target - TOO SLOW
                 # Fetching too slow - decrease sleep to speed up
-                if not self._recovery_mode and not inventory_full and self._rate_limit > 0.125:
+                if not self._recovery_mode and not inventory_full and self._rate_limit > SEC_RATE / 2:
                     decrease_factor = 0.98
                     self._rate_limit *= decrease_factor
 
@@ -2532,9 +2532,9 @@ def process_producer_consumer_adaptive():
                         pbar.write(
                             f"   URL Queue: {url_queue.qsize()}, Raw Queue: {raw_queue.qsize()}, Result Queue: {result_queue.qsize()}"
                         )
-                        if stalled_count > 600:
-                            pbar.write("⚠️  Force-exiting stalled pipeline...")
-                            break
+                        # if stalled_count > 600:
+                        #     pbar.write("⚠️  Force-exiting stalled pipeline...")
+                        #     break
                 else:
                     stalled_count = 0
 
