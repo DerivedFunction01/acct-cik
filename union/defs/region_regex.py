@@ -725,6 +725,8 @@ EUROPE = {
             Location("Ellesmere Port", ["ellesmere port"]),
             Location("Halewood", ["halewood"]),
             Location("Burnaston", ["burnaston"]),
+            Location("Wales", ["wales"]),
+            Location("Northern Ireland", ["northern ireland"]),
         ],
         [
             "Unite the Union",
@@ -1112,7 +1114,7 @@ EUROPE = {
     ),
     Nation(
         "Ireland",
-        ["ireland", "irish"],
+        [add_restrictions("ireland", lookbehinds=[r"northern"]), "irish"],
         Region.EUROPE,
         [
             Location("Dublin", ["dublin"]),
