@@ -1699,7 +1699,7 @@ class ThreadSafeRateLimiter:
 
             # --- Main Adjustment Logic (Performance-based) ---
             # This is key: adjust sleep based on ACTUAL vs TARGET fetch rate
-            if current_rate > target_rate_adjusted * 1.05:  # Over target - TOO FAST
+            if current_rate > target_rate_adjusted:  # Over target - TOO FAST
                 # Fetching too fast - increase sleep to slow down
                 increase_factor = (
                     1.0
@@ -1713,8 +1713,7 @@ class ThreadSafeRateLimiter:
 
             elif current_rate < target_rate_adjusted * 0.95:  # Under target - TOO SLOW
                 # Fetching too slow - decrease sleep to speed up
-                # NO LOWER BOUND - can go below initial rate if needed!
-                if not self._recovery_mode and not inventory_full:
+                if not self._recovery_mode and not inventory_full and self._rate_limit > 0.125:
                     decrease_factor = 0.98
                     self._rate_limit *= decrease_factor
 
