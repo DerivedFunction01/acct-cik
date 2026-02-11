@@ -306,7 +306,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                             extracted_percents.append(float(m))
                         except ValueError:
                             pass
-
     return filtered, extracted_percents
 
 def create_target_db():
