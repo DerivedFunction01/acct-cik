@@ -226,6 +226,36 @@ MEMBERSHIP_PHRASES = [
     r"affiliations?",
 ]
 
+DIVERSITY_TERMS = [
+    r"women",
+    r"females?",
+    r"males?",
+    r"gender",
+    r"diversity",
+    r"inclusion",
+    r"minorit(?:y|ies)",
+    r"ethnic(?:ity)?",
+    r"race",
+    r"racial",
+    r"veterans?",
+    r"disabilit(?:y|ies)",
+    r"disabled",
+    r"sexual\s+orientation",
+    r"people\s+of\s+color",
+    r"african\s+american",
+    r"hispanic",
+    r"latino",
+    r"asian",
+    r"white",
+    r"black",
+    r"indigenous",
+    r"lgbtq?",
+    r"underrepresented",
+    build_compound(r"gen(?:eration)?", [r"Z", r"X", r"Y", r"W"]),
+    r"Millennials?",
+    r"Baby\s+Boomers?",
+    r"Traditionalists?",
+]
 
 class LABOR_TERMS:
     SPECIFIC_PHRASES = UNION_PHRASES + [CORE.NONUNION.value]

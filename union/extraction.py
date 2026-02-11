@@ -28,6 +28,7 @@ from defs.union_regex import (
     PERSONNEL_EVENT_REGEX,
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
+    DIVERSITY_TERMS,
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource
 
@@ -169,38 +170,7 @@ UNION_DENOMINATOR_REGEX = build_regex(
     ]
 )
 
-DIVERSITY_REGEX = build_regex(
-    [
-        r"women",
-        r"females?",
-        r"males?",
-        r"gender",
-        r"diversity",
-        r"inclusion",
-        r"minorit(?:y|ies)",
-        r"ethnic(?:ity)?",
-        r"race",
-        r"racial",
-        r"veterans?",
-        r"disabilit(?:y|ies)",
-        r"disabled",
-        r"sexual\s+orientation",
-        r"people\s+of\s+color",
-        r"african\s+american",
-        r"hispanic",
-        r"latino",
-        r"asian",
-        r"white",
-        r"black",
-        r"indigenous",
-        r"lgbtq?",
-        r"underrepresented",
-        build_compound(r"gen(?:eration)?", [r"Z", r"X", r"Y", r"W"]),
-        r"Millennials?",
-        r"Baby\s+Boomers?",
-        r"Traditionalists?",
-    ]
-)
+DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
 
 
 class MatchType(Enum):

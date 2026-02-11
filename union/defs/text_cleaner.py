@@ -9,7 +9,7 @@ from defs.regex_lib import (
     build_regex,
     YEAR_REGEX,
 )
-from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS
+from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS, DIVERSITY_TERMS
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
@@ -1000,6 +1000,26 @@ class ContextualNumberCleaner:
             rf"{born_prefix}\s+{year_range}", re.IGNORECASE
         )
 
+        # 8. Diversity Percentages
+        diversity_pattern = build_alternation(DIVERSITY_TERMS)
+        
+        # Gap allowing for "of the total workforce which is" etc.
+        # Limit to ~12 words. Crucially, exclude "union" or "bargaining" to prevent 
+        # stripping union stats that happen to be near diversity terms.
+        div_gap = r"(?:(?!union|bargaining)[^\d%]+\s+){0,12}"
+        
+        # Matches: "20% [of workforce are] women"
+        self.diversity_pre_regex = re.compile(
+            rf"\b{percent_range}\s+({div_gap}{diversity_pattern})\b",
+            re.IGNORECASE
+        )
+        
+        # Matches: "women [comprise] 20%"
+        self.diversity_post_regex = re.compile(
+            rf"\b({diversity_pattern}{div_gap})\s+{percent_range}",
+            re.IGNORECASE
+        )
+
     def clean(self, text: str) -> str:
         if not text:
             return ""
@@ -1016,6 +1036,8 @@ class ContextualNumberCleaner:
             paragraph = self.duration_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_id_regex.sub(r" \1 ", paragraph)
             paragraph = self.birth_year_regex.sub(r" \1 ", paragraph)
+            paragraph = self.diversity_pre_regex.sub(r" \1 ", paragraph)
+            paragraph = self.diversity_post_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
