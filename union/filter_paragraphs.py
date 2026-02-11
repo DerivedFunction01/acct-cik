@@ -273,6 +273,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     filtered = []
     extracted_percents = []
+    prev_cleaned_block = None
+    prev_was_match = False
+
     for block in raw_blocks:
 
         # Clean the text to remove false positives (e.g. "Credit Union")
@@ -296,6 +299,10 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         cleaned_block = " ".join(cleaned_block.split())
 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
+            if not cleaned_block:
+                continue
+            prev_cleaned_block = None
+            prev_was_match = False
             continue
 
         is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
@@ -303,16 +310,24 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         if not is_match and allow_risk:
             is_match = RISK_REGEX.search(cleaned_block)
 
-        matches = []
         if is_match:
+            if prev_cleaned_block and not prev_was_match and re.search(r'\d', prev_cleaned_block):
+                cleaned_block = f"{prev_cleaned_block} {cleaned_block}"
+
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
-            matches.extend([RAW_PERCENT_REGEX.findall(sent) for sent in SENTENCE_SPLIT_PATTERN.split(block) if UNION_REGEX.search(sent)])
-            for m in matches:
-                try:
-                    extracted_percents.append(float(m))
-                except ValueError:
-                    pass
+            for sent in SENTENCE_SPLIT_PATTERN.split(block):
+                if UNION_REGEX.search(sent):
+                    for m in RAW_PERCENT_REGEX.findall(sent):
+                        try:
+                            extracted_percents.append(float(m))
+                        except ValueError:
+                            pass
+            prev_was_match = True
+        else:
+            prev_was_match = False
+
+        prev_cleaned_block = cleaned_block
 
     return filtered, extracted_percents
 
