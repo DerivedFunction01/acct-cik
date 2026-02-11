@@ -50,6 +50,7 @@ class WebTextCleaner:
                         [r"union", r"pacific", r"western", r"first", r"trans"],
                         [
                             r"union",
+                            r"fire",
                             r"pacific",
                             r"carbide",
                             r"banks?",
