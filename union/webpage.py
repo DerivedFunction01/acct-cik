@@ -59,8 +59,8 @@ DRIVE_SAVE_INTERVAL_RESULTS = 4000
 # =============================================================================
 # QUEUE FILLING CONFIGURATION
 # =============================================================================
-QUEUE_BATCH_SIZE = 20 # URLs to add per fill
-QUEUE_FILL_INTERVAL_SECONDS = 2  # Seconds between fills
+QUEUE_BATCH_SIZE = 10 # URLs to add per fill
+QUEUE_FILL_INTERVAL_SECONDS = 1  # Seconds between fills
 
 # =============================================================================
 # COLAB CONFIGURATION
