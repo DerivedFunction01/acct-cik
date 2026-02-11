@@ -132,7 +132,8 @@ class MinimalTextCleaner:
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
         r"(?:"
         # 1. Capture years/numbers with parentheses: (2023) -> STRIP
-        r"\(\d+\)|"
+        r"\(\d+\)|" 
+        r"-\d{3}-|"
         # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
         #    Uses negative lookahead to protect 19xx and 20xx
         r"(?!(?:19|20)\d{2})\d+(?:\.|\)|\:)|"
