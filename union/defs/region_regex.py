@@ -1100,7 +1100,7 @@ EUROPE = {
             Location("Bruges", ["bruges"]),
         ],
         ["ACV", "CSC", "ABVV", "FGTB"],
-        ["CP", "Indexation", "CBA"],
+        ["CBA"],
         code="BE",
     ),
     Nation(
