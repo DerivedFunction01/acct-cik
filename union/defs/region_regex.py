@@ -1140,7 +1140,7 @@ EUROPE = {
             Location("Aveiro", ["aveiro"]),  # Renault/Cacia
         ],
         ["CGTP", "UGT Portugal"],
-        ["Contratação coletiva", "Sindicato", "Greve"],  # Strike/CBA terms
+        [],  # Strike/CBA terms
         code="PT",
     ),
     Nation(
