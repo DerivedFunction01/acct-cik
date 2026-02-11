@@ -195,6 +195,10 @@ DIVERSITY_REGEX = build_regex(
         r"indigenous",
         r"lgbtq?",
         r"underrepresented",
+        build_compound(r"gen(?:eration)?", [r"Z", r"X", r"Y", r"W"]),
+        r"Millennials?",
+        r"Baby\s+Boomers?",
+        r"Traditionalists?",
     ]
 )
 
