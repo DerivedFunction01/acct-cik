@@ -611,7 +611,7 @@ NORTH_AMERICA = {
             "ILA",
             "International Longshoremen's Association",
             "ILWU",
-            "International Longshore and Warehouse Union",
+            r"International Longshore(?:mans'|men)? and Warehouse(?:mans'|men)? Union",
             "BCTGM",
             "Bakery, Confectionery, Tobacco Workers and Grain Millers",
             "AFSCME",
