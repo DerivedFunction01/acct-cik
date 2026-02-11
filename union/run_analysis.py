@@ -4,7 +4,7 @@ import re
 import logging
 import multiprocessing
 from pathlib import Path
-from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import ProcessPoolExecutor
 from typing import List, Optional, Tuple, Any
 from tqdm import tqdm
 
@@ -177,6 +177,50 @@ def copy_metadata_tables():
             pass
         conn.close()
 
+def data_generator(source_db: str):
+    """Stream rows from source DB in batches."""
+    conn = sqlite3.connect(source_db, timeout=30.0)
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT COUNT(*) FROM webpage_result")
+    total_rows = cursor.fetchone()[0]
+    
+    query = """
+        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year, w.item1_percents, w.item1a_percents
+        FROM webpage_result w
+        LEFT JOIN report_data r ON w.accession = r.accession
+        LEFT JOIN names n ON r.cik = n.cik
+        GROUP BY w.accession
+    """
+    cursor.execute(query)
+    
+    while True:
+        rows = cursor.fetchmany(BATCH_SIZE)
+        if not rows:
+            break
+        yield rows, total_rows
+    
+    conn.close()
+
+def flush_buffer(tgt_conn: sqlite3.Connection, buffer: List[Tuple]):
+    """Flush accumulated results to database with explicit transaction."""
+    if not buffer:
+        return
+    
+    c = tgt_conn.cursor()
+    try:
+        c.execute("BEGIN TRANSACTION")
+        c.executemany(
+            "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
+            buffer
+        )
+        tgt_conn.commit()
+        logging.debug(f"Flushed {len(buffer)} rows to database")
+    except sqlite3.OperationalError as e:
+        logging.error(f"Database write error: {e}")
+        tgt_conn.rollback()
+        raise
+
 def main():
     if not Path(SOURCE_DB).exists():
         logging.error(f"Source database {SOURCE_DB} not found.")
@@ -185,74 +229,42 @@ def main():
     create_target_db()
     copy_metadata_tables()
     
-    src_conn = sqlite3.connect(SOURCE_DB, timeout=30.0)
-    src_cursor = src_conn.cursor()
+    tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
+    tgt_conn.execute("PRAGMA journal_mode=WAL")
+    tgt_conn.execute("PRAGMA synchronous=NORMAL")
     
-    # Get total count for progress bar
-    try:
-        src_cursor.execute("SELECT COUNT(*) FROM webpage_result")
-        total_rows = src_cursor.fetchone()[0]
-    except sqlite3.OperationalError:
-        logging.error("Could not query webpage_result table. Is the DB initialized?")
-        return
-
-    logging.info(f"Total rows to process: {total_rows}")
-    
-    # Query to fetch data
-    query = """
-        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year, w.item1_percents, w.item1a_percents
-        FROM webpage_result w
-        LEFT JOIN report_data r ON w.accession = r.accession
-        LEFT JOIN names n ON r.cik = n.cik
-        GROUP BY w.accession
-    """
-    src_cursor.execute(query)
+    data_gen = data_generator(SOURCE_DB)
+    total_rows = None
     
     with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
-        batch_futures = {} # {future: batch_size}
+        buffer = []
         
-        def write_results(res_list):
-            if not res_list:
-                return
-            tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
-            tgt_c = tgt_conn.cursor()
-            try:
-                tgt_c.executemany(
-                    "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
-                    res_list
-                )
-                tgt_conn.commit()
-            except sqlite3.OperationalError as e:
-                logging.error(f"Database write error: {e}")
-                tgt_conn.rollback()
-            finally:
-                tgt_conn.close()
-
-        with tqdm(total=total_rows, unit="rows") as pbar:
-            while True:
-                rows = src_cursor.fetchmany(BATCH_SIZE)
-                if not rows:
-                    break
+        with tqdm(unit="rows") as pbar:
+            for batch_rows, total in data_gen:
+                if total_rows is None:
+                    total_rows = total
+                    pbar.total = total_rows
                 
-                future = executor.submit(process_batch, rows)
-                batch_futures[future] = len(rows)
+                # Submit batch for processing
+                futures = list(executor.map(process_batch, [batch_rows], chunksize=1))
                 
-                # Manage memory: if too many futures pending, wait for some to finish
-                if len(batch_futures) >= NUM_WORKERS * 2:
-                    done, _ = wait(batch_futures.keys(), return_when=FIRST_COMPLETED)
-                    for f in done:
-                        res = f.result()
-                        write_results(res)
-                        pbar.update(batch_futures[f])
-                        del batch_futures[f]
-            
-            # Process remaining futures
-            for f in list(batch_futures.keys()):
-                res = f.result()
-                write_results(res)
-                pbar.update(batch_futures[f])
+                # Collect results and add to buffer
+                for future in futures:
+                    results = future
+                    if results:
+                        buffer.extend(results)
+                        pbar.update(len(results))
+                    
+                    # Flush buffer when it reaches a threshold
+                    if len(buffer) >= BATCH_SIZE:
+                        flush_buffer(tgt_conn, buffer)
+                        buffer = []
+        
+        # Flush any remaining buffered results
+        if buffer:
+            flush_buffer(tgt_conn, buffer)
 
-    src_conn.close()
+    tgt_conn.close()
     logging.info(f"Analysis complete. Data saved to {TARGET_DB}")
 
 if __name__ == "__main__":
