@@ -526,11 +526,11 @@ if __name__ == "__main__":
         for result in tqdm(results_iter, total=len(source_data), desc="Filtering"):
             if result:
                 buffer.append(result)
-                count += 1
+            count += 1
                 
-                if len(buffer) >= BATCH_SIZE:
-                    flush_buffers(target_conn, buffer)
-                    buffer = []
+            if len(buffer) >= BATCH_SIZE:
+                flush_buffers(target_conn, buffer)
+                buffer = []
                     
     # 4. Final Flush
     if buffer:
