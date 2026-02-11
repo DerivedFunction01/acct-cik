@@ -72,6 +72,7 @@ NORTH_AMERICA = {
             "capitol hill",
             "silicon valley",
             "twin cities",
+            "appalachia",
             add_restrictions(
                 r"american?", lookbehinds=[r"central", r"latin", r"south"]
             ),
@@ -384,6 +385,7 @@ NORTH_AMERICA = {
                     Location("Minneapolis", ["minneapolis"]),
                     Location("Saint Paul", ["saint paul", "st. paul"]),
                     Location("Rochester", ["rochester mn"]),
+                    Location("Duluth", ["duluth", "iron range", "mesabi"]),
                 ],
             ),
             Location(
@@ -420,6 +422,7 @@ NORTH_AMERICA = {
                     Location("Las Vegas", ["las vegas", "vegas"]),
                     Location("Reno", ["reno"]),
                     Location("Henderson", ["henderson"]),
+                    Location("Elko", ["elko", "carlin trend", "gold strike"]),
                 ],
             ),
             Location(
@@ -564,6 +567,7 @@ NORTH_AMERICA = {
                     Location("Cheyenne", ["cheyenne"]),
                     Location("Casper", ["casper"]),
                     Location("Laramie", ["laramie"]),
+                    Location("Gillette", ["gillette", "powder river basin", "prb"]),
                 ],
             ),
         ],
@@ -658,6 +662,9 @@ NORTH_AMERICA = {
                 "Hamilton", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]
             ),
             Location("St. Catharines", ["st. catharines"]),
+            Location("Sudbury", ["sudbury"]),
+            Location("Fort McMurray", ["fort mcmurray", "athabasca"]),
+            Location("Saskatoon", ["saskatoon"]),
         ],
         [
             "Unifor",
@@ -1428,6 +1435,10 @@ ASIA_PACIFIC = {
             Location("Melbourne", ["melbourne"]),
             Location("Brisbane", ["brisbane"]),
             Location("Perth", ["perth"]),
+            Location("Pilbara", ["pilbara", "port hedland"]),
+            Location("Hunter Valley", ["hunter valley", "newcastle"]),
+            Location("Kalgoorlie", ["kalgoorlie", "super pit"]),
+            Location("Bowen Basin", ["bowen basin"]),
         ],
         [
             "ACTU",
@@ -1650,6 +1661,7 @@ LATIN_AMERICA = {
             Location("Sao Bernardo do Campo", ["sao bernardo do campo"]),  # Auto Hub
             Location("Curitiba", ["curitiba"]),
             Location("Belo Horizonte", ["belo horizonte"]),
+            Location("Parauapebas", ["parauapebas", "carajas", "carajás"]),
         ],
         [
             "CUT",
@@ -1698,6 +1710,9 @@ LATIN_AMERICA = {
             Location("Santiago", ["santiago"]),
             Location("Antofagasta", ["antofagasta"]),  # Mining hub
             Location("Valparaiso", ["valparaiso"]),
+            Location("Calama", ["calama", "chuquicamata"]),
+            Location("Copiapo", ["copiapo", "copiapó"]),
+            Location("Rancagua", ["rancagua", "el teniente"]),
         ],
         ["CUT Chile", "Central Unitaria de Trabajadores"],
         [ "Código del Trabajo"],
@@ -1719,7 +1734,11 @@ LATIN_AMERICA = {
         "Peru",
         ["peru", "peruvian"],
         Region.LATIN_AMERICA,
-        [Location("Lima", ["lima"])],
+        [
+            Location("Lima", ["lima"]),
+            Location("Arequipa", ["arequipa"]),
+            Location("Cajamarca", ["cajamarca", "yanacocha"]),
+        ],
         code="PE",
     ),
     Nation(
@@ -1863,6 +1882,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Durban", ["durban"]),  # Major Port
             Location("Port Elizabeth", ["port elizabeth", "gqeberha"]),  # Auto Hub
             Location("Pretoria", ["pretoria"]),
+            Location("Rustenburg", ["rustenburg", "marikana", "bushveld"]),
         ],
         [
             "COSATU",
@@ -2080,6 +2100,20 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         [Location("Port Louis", ["port louis"])],
         code="MU",
+    ),
+    Nation(
+        "Zambia",
+        ["zambia", "zambian"],
+        Region.MIDDLE_EAST_AFRICA,
+        [Location("Lusaka", ["lusaka"]), Location("Kitwe", ["kitwe", "copperbelt"])],
+        code="ZM",
+    ),
+    Nation(
+        "DRC",
+        ["democratic republic of the congo", "drc", "congo-kinshasa", "zaire"],
+        Region.MIDDLE_EAST_AFRICA,
+        [Location("Kinshasa", ["kinshasa"]), Location("Lubumbashi", ["lubumbashi"]), Location("Kolwezi", ["kolwezi"])],
+        code="CD",
     ),
 }
 
