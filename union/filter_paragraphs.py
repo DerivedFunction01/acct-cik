@@ -30,6 +30,7 @@ from extraction import UnionExtractor
 SOURCE_DB = "web_data.db"
 TARGET_DB = "filtered_union_data.db"
 BATCH_SIZE = 250
+CHUNK_SIZE = 20
 NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
 
 # Setup logging
@@ -321,7 +322,6 @@ def create_target_db():
             accession TEXT PRIMARY KEY,
             item1 TEXT,
             item1a TEXT,
-            period_of_report TEXT,
             home_country TEXT,
             item1_percents TEXT,
             item1a_percents TEXT
@@ -399,51 +399,58 @@ def get_processed_accessions(target_db: str) -> Set[str]:
 def process_row(row: Tuple) -> Optional[Tuple]:
     """
     Process a single row from the source database.
-    Row: (accession, item1_json, item1a_json, period, home_country, company_name, year)
+    Row: (accession, item1_json, item1a_json, home_country, company_name, year)
     """
-    accession, item1_json, item1a_json, period, home_country, company_name, year = row
-    
-    # Parse inputs
-    item1_list = []
-    if item1_json:
-        try:
-            item1_list = json.loads(item1_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
-            
-    item1a_list = []
-    if item1a_json:
-        try:
-            item1a_list = json.loads(item1a_json)
-        except (json.JSONDecodeError, TypeError):
-            pass
-            
-    # Filter Content
-    # Item 1: Business Description (Strict filtering, no risk terms)
-    item1_filtered, item1_percents = filter_content(
-        item1_list, 
-        company_name=company_name, 
-        year=year, 
-        allow_risk=False
-    )
-    
-    # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
-    item1a_filtered, item1a_percents = filter_content(
-        item1a_list, 
-        company_name=company_name, 
-        year=year, 
-        allow_risk=True
-    )
-    
-    return (
-        accession,
-        json.dumps(item1_filtered),
-        json.dumps(item1a_filtered),
-        period,
-        home_country,
-        json.dumps(item1_percents),
-        json.dumps(item1a_percents)
-    )
+    try:
+        accession, item1_json, item1a_json, home_country, company_name, year = row
+    except (ValueError, TypeError) as e:
+        logging.error(f"Error unpacking row: {e}")
+        return None
+
+    try:
+        # Parse inputs
+        item1_list = []
+        if item1_json:
+            try:
+                item1_list = json.loads(item1_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+                
+        item1a_list = []
+        if item1a_json:
+            try:
+                item1a_list = json.loads(item1a_json)
+            except (json.JSONDecodeError, TypeError):
+                pass
+                
+        # Filter Content
+        # Item 1: Business Description (Strict filtering, no risk terms)
+        item1_filtered, item1_percents = filter_content(
+            item1_list, 
+            company_name=company_name, 
+            year=year, 
+            allow_risk=False
+        )
+        
+        # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
+        item1a_filtered, item1a_percents = filter_content(
+            item1a_list, 
+            company_name=company_name, 
+            year=year, 
+            allow_risk=True
+        )
+        
+        return (
+            accession,
+            json.dumps(item1_filtered),
+            json.dumps(item1a_filtered),
+            home_country,
+            json.dumps(item1_percents),
+            json.dumps(item1a_percents)
+        )
+    except Exception as e:
+        logging.error(f"Error processing accession {accession}: {e}")
+        return None
 
 def data_generator(source_db: str, processed_accessions: Set[str], batch_size: int = BATCH_SIZE):
     """Yields rows from source database that haven't been processed."""
@@ -452,7 +459,7 @@ def data_generator(source_db: str, processed_accessions: Set[str], batch_size: i
     
     # Join to get metadata (Company Name, Year) for filtering context
     query = """
-        SELECT w.accession, w.item1, w.item1a, w.period_of_report, w.home_country, n.name, r.year
+        SELECT w.accession, w.item1, w.item1a, w.home_country, n.name, r.year
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik
@@ -482,14 +489,15 @@ def flush_buffers(conn, buffer):
         c.executemany(
             """
             INSERT OR REPLACE INTO webpage_result 
-            (accession, item1, item1a, period_of_report, home_country, item1_percents, item1a_percents)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (accession, item1, item1a, home_country, item1_percents, item1a_percents)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             buffer
         )
         conn.commit()
     except Exception as e:
         logging.error(f"Write Error: {e}")
+
         conn.rollback()
 
 # =============================================================================
@@ -520,7 +528,7 @@ if __name__ == "__main__":
         source_data = list(data_generator(SOURCE_DB, processed))
         
         # Map processing function
-        results_iter = executor.map(process_row, source_data, chunksize=20)
+        results_iter = executor.map(process_row, source_data, chunksize=CHUNK_SIZE)
         
         for result in tqdm(results_iter, total=len(source_data), desc="Filtering"):
             if result:
