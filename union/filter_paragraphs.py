@@ -19,7 +19,7 @@ from defs.region_regex import (
     INTERNATIONAL,
 )
 from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner
-from defs.table_processor import process_table
+from defs.table_processor import TABLE_TOK, process_table
 from defs.table_sentences import generate_primitive_sentences
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from extraction import UnionExtractor
@@ -258,7 +258,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                     processed = process_table(part.strip())
                     sentences = generate_primitive_sentences(processed)
                     if sentences:
-                        paragraph = " ".join(sentences)
+                        paragraph = f'{TABLE_TOK} {" ".join(sentences)}'
                         raw_blocks.append(paragraph)
                     else:
                         raw_blocks.append(strip_html_tags(part.strip()))
@@ -315,7 +315,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
             is_match = RISK_REGEX.search(cleaned_block)
 
         if is_match:
-            if prev_cleaned_block and not prev_was_match:
+            if prev_cleaned_block and TABLE_TOK in prev_cleaned_block and not prev_was_match:
                 # Analyze previous block to see if it contains relevant worker counts
                 prev_analysis = EXTRACTOR.analyze_sentence(prev_cleaned_block)
                 has_quant = bool(prev_analysis.percentages or prev_analysis.ratios or prev_analysis.numbers or prev_analysis.qualitative_terms)
