@@ -78,31 +78,26 @@ def get_all_specific_terms() -> Set[str]:
 
 def compile_filtering_regex() -> re.Pattern:
     """
-    Combines the generic UNION_REGEX with specific union names from regions.
+    Compiles a case-sensitive regex for specific union names and keywords from regions.
+    The generic UNION_REGEX (with its own flags) is used separately in filter_content.
     """
-    # 1. Get generic pattern from union_regex.py
-    generic_pattern = UNION_REGEX.pattern
-    
-    # 2. Get specific union names and keywords from region_regex.py
+    # Get specific union names and keywords from region_regex.py
     specific_terms = get_all_specific_terms()
     
     if not specific_terms:
-        return UNION_REGEX
+        # Return an empty pattern that never matches
+        return re.compile(r"(?!)")
         
     # Escape and sort by length (descending) to ensure longest match first
     # This prevents "UAW" matching inside "UAW-Ford" if that was a separate term, etc.
     sorted_terms = sorted(list(specific_terms), key=len, reverse=True)
     escaped_terms = [re.escape(u) for u in sorted_terms]
     
-    # Create a pattern for specific unions/keywords
-    # We use non-capturing group (?:...) joined by OR
+    # Create a pattern for specific unions/keywords (case-sensitive)
+    # We use non-capturing group (?:...) joined by OR, WITHOUT IGNORECASE flag
     specific_pattern = r"(?:" + "|".join(escaped_terms) + r")"
     
-    # Combine: (Generic)|(Specific)
-    # Note: UNION_REGEX likely already has flags, but we re-compile with IGNORECASE
-    combined_pattern = f"(?:{generic_pattern})|(?:{specific_pattern})"
-    
-    return re.compile(combined_pattern, re.IGNORECASE)
+    return re.compile(specific_pattern)  # No IGNORECASE flag
 
 # Global regex for workers
 FILTER_REGEX = None
@@ -303,7 +298,8 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
             continue
 
-        is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
+        # Check generic union regex (case-insensitive), specific terms (case-sensitive), or dynamic regex
+        is_match = UNION_REGEX.search(cleaned_block) or FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
 
         if not is_match and allow_risk:
             is_match = RISK_REGEX.search(cleaned_block)
