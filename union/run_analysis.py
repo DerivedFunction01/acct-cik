@@ -227,11 +227,13 @@ def data_generator(source_db: str, skip_accessions: set):
     logging.info(f"Total new rows to process: {remaining}")
     conn.close()
 
-def flush_buffer(tgt_conn: sqlite3.Connection, buffer: List[Tuple]):
+def flush_buffer(buffer: List[Tuple]):
     """Flush accumulated results to database with explicit transaction."""
     if not buffer:
         return
     
+    # Open fresh connection for each flush to avoid lock contention
+    tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     c = tgt_conn.cursor()
     try:
         c.execute("BEGIN TRANSACTION")
@@ -245,6 +247,8 @@ def flush_buffer(tgt_conn: sqlite3.Connection, buffer: List[Tuple]):
         logging.error(f"Database write error: {e}")
         tgt_conn.rollback()
         raise
+    finally:
+        tgt_conn.close()
 
 def main():
     if not Path(SOURCE_DB).exists():
@@ -256,10 +260,6 @@ def main():
     
     # Get already processed accessions to skip them
     processed_accessions = get_processed_accessions(TARGET_DB)
-    
-    tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
-    tgt_conn.execute("PRAGMA journal_mode=WAL")
-    tgt_conn.execute("PRAGMA synchronous=NORMAL")
     
     data_gen = data_generator(SOURCE_DB, processed_accessions)
     total_rows = None
@@ -285,14 +285,13 @@ def main():
                     
                     # Flush buffer when it reaches a threshold
                     if len(buffer) >= BATCH_SIZE:
-                        flush_buffer(tgt_conn, buffer)
+                        flush_buffer(buffer)
                         buffer = []
         
         # Flush any remaining buffered results
         if buffer:
-            flush_buffer(tgt_conn, buffer)
+            flush_buffer(buffer)
 
-    tgt_conn.close()
     logging.info(f"Analysis complete. Data saved to {TARGET_DB}")
 
 if __name__ == "__main__":
