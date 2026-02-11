@@ -986,6 +986,20 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # 7. Birth Year Patterns for Diversity Stats
+        year_token = r"<\d{4}>"
+        year_range = rf"{year_token}(?:\s*(?:-|–|—|to|and)\s*{year_token})?"
+        born_context = r"\b(born|b\.)\b"
+        born_qualifier = r"(?:before|after|between|from|at|since)?"
+
+        # Captures "born", "born before", "born between" to preserve it
+        born_prefix = rf"({born_context}(?:\s+{born_qualifier})?)"
+
+        # Matches: "born <1965> - <1980>", "born before <1946>", "born between <1981> and <1996>"
+        self.birth_year_regex = re.compile(
+            rf"{born_prefix}\s+{year_range}", re.IGNORECASE
+        )
+
     def clean(self, text: str) -> str:
         if not text:
             return ""
@@ -1001,6 +1015,7 @@ class ContextualNumberCleaner:
             paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
             paragraph = self.duration_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_id_regex.sub(r" \1 ", paragraph)
+            paragraph = self.birth_year_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
