@@ -29,7 +29,7 @@ from extraction import UnionExtractor
 # =============================================================================
 SOURCE_DB = "web_data.db"
 TARGET_DB = "filtered_union_data.db"
-BATCH_SIZE = 500
+BATCH_SIZE = 250
 NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
 
 # Setup logging
@@ -457,7 +457,6 @@ def data_generator(source_db: str, processed_accessions: Set[str], batch_size: i
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik
-        WHERE w.item1 IS NOT NULL OR w.item1a IS NOT NULL
     """
     
     c.execute(query)
@@ -518,12 +517,13 @@ if __name__ == "__main__":
     
     # Initialize worker pool with initializer to compile regexes
     with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker) as executor:
-        source_iter = data_generator(SOURCE_DB, processed)
+        # Load all data to memory to get total count for tqdm
+        source_data = list(data_generator(SOURCE_DB, processed))
         
         # Map processing function
-        results_iter = executor.map(process_row, source_iter, chunksize=20)
+        results_iter = executor.map(process_row, source_data, chunksize=20)
         
-        for result in tqdm(results_iter, desc="Filtering"):
+        for result in tqdm(results_iter, total=len(source_data), desc="Filtering"):
             if result:
                 buffer.append(result)
                 count += 1
