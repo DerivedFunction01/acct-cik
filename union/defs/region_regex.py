@@ -1362,7 +1362,6 @@ ASIA_PACIFIC = {
             "Federation of Korean Trade Unions",
         ],
         [
-            "Labor-Management Council",
             "Chaebol",
             "krw",
         ],
