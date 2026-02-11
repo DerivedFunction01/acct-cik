@@ -1947,6 +1947,9 @@ def sync_home_country():
                     if matches:
                         # Use the first valid non-tax-haven country found
                         new_country = matches[0]
+                    else:
+                        # No firm has domestic employees in Cayman Islands
+                        new_country = "INT"
 
             if new_country and new_country != current_country:
                 updates.append((new_country, accession))
