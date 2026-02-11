@@ -2317,10 +2317,10 @@ TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
     "BM",  # Bermuda
     "VG",  # British Virgin Islands
-    "LU",  # Luxembourg
-    "IE",  # Ireland
-    "NL",  # Netherlands
-    "CH",  # Switzerland
+    # "LU",  # Luxembourg
+    # "IE",  # Ireland
+    # "NL",  # Netherlands
+    # "CH",  # Switzerland
     "CY",  # Cyprus
     "MT",  # Malta
     "JE",  # Jersey
@@ -2333,8 +2333,8 @@ TAX_HAVEN_CODES = {
     "CW",  # Curacao
     "MU",  # Mauritius
     "PA",  # Panama
-    "HK",  # Hong Kong
-    "SG",  # Singapore
+    # "HK",  # Hong Kong
+    # "SG",  # Singapore
 }
 
 
