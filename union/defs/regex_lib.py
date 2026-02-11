@@ -64,7 +64,7 @@ def add_restrictions(
     return pattern
 
 
-def build_regex(keywords: list, ignore_case: bool = True, use_sep: bool = True) -> re.Pattern:
+def build_regex(keywords: list|set, ignore_case: bool = True, use_sep: bool = True) -> re.Pattern:
     """Build regex for that also builds the alternation."""
     # Add word boundaries (\b) around each keyword to prevent partial matches
     pattern = to_build_alternation(keywords)

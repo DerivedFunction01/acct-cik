@@ -21,7 +21,7 @@ from defs.region_regex import (
 from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner
 from defs.table_processor import TABLE_TOK, process_table
 from defs.table_sentences import generate_primitive_sentences
-from defs.regex_lib import SENTENCE_SPLIT_PATTERN
+from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex
 from extraction import UnionExtractor
 
 # =============================================================================
@@ -88,16 +88,8 @@ def compile_filtering_regex() -> re.Pattern:
         # Return an empty pattern that never matches
         return re.compile(r"(?!)")
         
-    # Escape and sort by length (descending) to ensure longest match first
-    # This prevents "UAW" matching inside "UAW-Ford" if that was a separate term, etc.
-    sorted_terms = sorted(list(specific_terms), key=len, reverse=True)
-    escaped_terms = [re.escape(u) for u in sorted_terms]
+    return build_regex(specific_terms, ignore_case=False)
     
-    # Create a pattern for specific unions/keywords (case-sensitive)
-    # We use non-capturing group (?:...) joined by OR, WITHOUT IGNORECASE flag
-    specific_pattern = r"(?:" + "|".join(escaped_terms) + r")"
-    
-    return re.compile(specific_pattern)  # No IGNORECASE flag
 
 # Global regex for workers
 FILTER_REGEX = None
