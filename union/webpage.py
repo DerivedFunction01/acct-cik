@@ -2532,9 +2532,9 @@ def process_producer_consumer_adaptive():
                         pbar.write(
                             f"   URL Queue: {url_queue.qsize()}, Raw Queue: {raw_queue.qsize()}, Result Queue: {result_queue.qsize()}"
                         )
-                        if stalled_count > 600:
-                            pbar.write("⚠️  Force-exiting stalled pipeline...")
-                            break
+                        # if stalled_count > 600:
+                        #     pbar.write("⚠️  Force-exiting stalled pipeline...")
+                        #     break
                 else:
                     stalled_count = 0
 
