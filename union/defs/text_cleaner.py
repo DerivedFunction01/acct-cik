@@ -974,7 +974,7 @@ class ContextualNumberCleaner:
         self.subset_event_regex = re.compile(
             rf"\b(of\s+(?:which|whom|those)|includ(?:ing|es?)|compris(?:ing|es?))\s+"
             rf"{number_range}"
-            rf"([,\s]+(?:[\'\w,-]+\s*){{0,15}}?)"
+            rf"([,\s]+(?:[\'\w-]+\s+){{0,15}})"
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
         )
