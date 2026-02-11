@@ -1911,21 +1911,9 @@ def sync_home_country():
         
         rows = c.fetchall()
         updates = []
-        
-        # Regex patterns
-        # 10[char]k -> US
-        # 40[char]f -> CA
-        us_pattern = re.compile(r"10.k", re.IGNORECASE)
-        ca_pattern = re.compile(r"40.f", re.IGNORECASE)
-        
+           
         for accession, url, current_country, company_name in rows:
             new_country = None
-            
-            # 1. URL Pattern Check
-            if us_pattern.search(url):
-                new_country = "US"
-            elif ca_pattern.search(url):
-                new_country = "CA"
             
             # 2. Tax Haven / Name Check
             # If not resolved to US/CA, and current is Tax Haven/INT/None, try name
