@@ -90,7 +90,7 @@ def compile_filtering_regex() -> re.Pattern:
         return re.compile(r"(?!)")
         
     return build_regex(specific_terms, ignore_case=False)
-    
+
 
 # Global regex for workers
 FILTER_REGEX = None
@@ -315,7 +315,6 @@ def create_target_db():
     # Enable WAL mode for better concurrency
     c.execute("PRAGMA journal_mode=WAL")
     c.execute("PRAGMA synchronous=NORMAL")
-    c.execute("DROP TABLE IF EXISTS webpage_result")
     # Replicate schema from webpage.py
     c.execute("""
         CREATE TABLE IF NOT EXISTS webpage_result (
@@ -415,14 +414,14 @@ def process_row(row: Tuple) -> Optional[Tuple]:
                 item1_list = json.loads(item1_json)
             except (json.JSONDecodeError, TypeError):
                 pass
-                
+
         item1a_list = []
         if item1a_json:
             try:
                 item1a_list = json.loads(item1a_json)
             except (json.JSONDecodeError, TypeError):
                 pass
-                
+
         # Filter Content
         # Item 1: Business Description (Strict filtering, no risk terms)
         item1_filtered, item1_percents = filter_content(
@@ -431,7 +430,7 @@ def process_row(row: Tuple) -> Optional[Tuple]:
             year=year, 
             allow_risk=False
         )
-        
+
         # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
         item1a_filtered, item1a_percents = filter_content(
             item1a_list, 
@@ -439,7 +438,7 @@ def process_row(row: Tuple) -> Optional[Tuple]:
             year=year, 
             allow_risk=True
         )
-        
+
         return (
             accession,
             json.dumps(item1_filtered),
@@ -450,7 +449,14 @@ def process_row(row: Tuple) -> Optional[Tuple]:
         )
     except Exception as e:
         logging.error(f"Error processing accession {accession}: {e}")
-        return None
+        return (
+            accession,
+            json.dumps(["ERROR"]),
+            json.dumps([]),
+            home_country,
+            json.dumps([]),
+            json.dumps([]),
+        )
 
 def data_generator(source_db: str, processed_accessions: Set[str], batch_size: int = BATCH_SIZE):
     """Yields rows from source database that haven't been processed."""
