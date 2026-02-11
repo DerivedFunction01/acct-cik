@@ -1175,7 +1175,7 @@ def extract_home_country(text: str) -> str:
                 
                 # Penalize regions (we prefer specific countries)
                 if code in REGION_CODES:
-                    score *= 0.1
+                    score *= 0.5
                 
                 candidate_scores[code] = candidate_scores.get(code, 0.0) + score
 
