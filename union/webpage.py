@@ -311,7 +311,7 @@ FORWARD_LOOKING_PATTERN = re.compile(
 HOME_COUNTRY_PATTERNS = [
     (JURISDICTION_PATTERN, 5.0),
     (build_regex([r"home\s+country"]), 4.0),
-    (build_regex([r"headquartered\s+in"]), 3.0),
+    (build_regex([r"(?:headquartered|incorporated)\s+in"]), 3.0),
     (build_regex([r"domiciled?"]), 3.0),
     (build_regex([r"principal\s+place\s+of\s+business"]), 3.0),
     (build_regex([r"corporate\s+headquarters"]), 2.5),
