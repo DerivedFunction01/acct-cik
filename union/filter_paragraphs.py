@@ -277,9 +277,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     filtered = []
     extracted_percents = []
-    prev_cleaned_block = None
-    prev_was_match = False
-
+    
     for block in raw_blocks:
 
         # Clean the text to remove false positives (e.g. "Credit Union")
@@ -303,10 +301,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         cleaned_block = " ".join(cleaned_block.split())
 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
-            if not cleaned_block:
-                continue
-            prev_cleaned_block = None
-            prev_was_match = False
             continue
 
         is_match = FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
@@ -315,16 +309,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
             is_match = RISK_REGEX.search(cleaned_block)
 
         if is_match:
-            if prev_cleaned_block and TABLE_TOK in prev_cleaned_block and not prev_was_match:
-                # Analyze previous block to see if it contains relevant worker counts
-                prev_analysis = EXTRACTOR.analyze_sentence(prev_cleaned_block)
-                has_quant = bool(prev_analysis.percentages or prev_analysis.ratios or prev_analysis.numbers or prev_analysis.qualitative_terms)
-                has_worker_context = bool(prev_analysis.worker_terms or prev_analysis.worker_counts)
-                
-                # If previous block has worker counts or quantitative info with worker context, prepend it.
-                if bool(prev_analysis.worker_counts) or (has_quant and has_worker_context):
-                    cleaned_block = f"{prev_cleaned_block} {cleaned_block}"
-
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
             for sent in SENTENCE_SPLIT_PATTERN.split(block):
@@ -334,11 +318,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                             extracted_percents.append(float(m))
                         except ValueError:
                             pass
-            prev_was_match = True
-        else:
-            prev_was_match = False
-
-        prev_cleaned_block = cleaned_block
 
     return filtered, extracted_percents
 
