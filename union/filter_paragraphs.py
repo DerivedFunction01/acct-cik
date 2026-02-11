@@ -329,26 +329,20 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
     results = []
     for row in rows:
         accession, item1_json, item1a_json, period, home_country, company_name, report_year = row
-        
+
         # Determine year for cleaner
         year = None
-        if report_year:
-            year = int(report_year)
-        elif period:
-             # Try to extract year from period string
-            m = re.search(r'\d{4}', str(period))
-            if m:
-                year = int(m.group(0))
-        
+        year = int(period if period is not None else report_year)
+
         try:
             item1_list = json.loads(item1_json) if item1_json else []
             item1a_list = json.loads(item1a_json) if item1a_json else []
         except json.JSONDecodeError:
             continue
-            
+
         filtered_item1, percents_item1 = filter_content(item1_list, company_name, year, allow_risk=False)
         filtered_item1a, percents_item1a = filter_content(item1a_list, company_name, year, allow_risk=True)
-        
+
         # Only keep row if we have relevant content in either section
         if filtered_item1 or filtered_item1a:
             results.append((
@@ -360,7 +354,7 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
                 json.dumps(percents_item1),
                 json.dumps(percents_item1a)
             ))
-            
+
     return results
 
 def create_target_db():
