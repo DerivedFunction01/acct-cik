@@ -130,12 +130,12 @@ REPRESENTATION_TERMS = [
     r"covered",  # removed by
 ]
 
-GAP = r"(?:\s+(?:of|the|for|&|[A-Z][\w-]*)){0,3}\s+"
+GAP = r"(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
 
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
-TITLE_PREFIX = r"(?:[A-Z][\w-]*\s+)*"
-TITLE_SUFFIX = r"(?:\s+[A-Z][\w-]*)*"
+TITLE_PREFIX = r"(?:[A-Z][\'\w-]*\s+)*"
+TITLE_SUFFIX = r"(?:\s+[A-Z][\'\w-]*)*"
 
 UNION_TERMS = [
     CORE.UNION,
