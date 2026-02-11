@@ -1662,7 +1662,6 @@ LATIN_AMERICA = {
             "CLT",
             "Consolidação das Leis do Trabalho",
             "Acordo Coletivo",
-            "Convenção Coletiva",
             "Contribuição sindical",
             "reais", "brl",
         ],
