@@ -497,7 +497,6 @@ def flush_buffers(conn, buffer):
         conn.commit()
     except Exception as e:
         logging.error(f"Write Error: {e}")
-
         conn.rollback()
 
 # =============================================================================
@@ -532,7 +531,12 @@ if __name__ == "__main__":
         
         for result in tqdm(results_iter, total=len(source_data), desc="Filtering"):
             if result:
-                buffer.append(result)
+                try:
+                    accession, item1, item1a, home_country, item1_percents, item1a_percents = result
+                    buffer.append(result)
+                except ValueError as e:
+                    logging.error(f"Error unpacking result: {e}")
+                    continue
             count += 1
                 
             if len(buffer) >= BATCH_SIZE:
