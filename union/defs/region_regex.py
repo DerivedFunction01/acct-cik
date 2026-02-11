@@ -1599,7 +1599,7 @@ ASIA_PACIFIC = {
 LATIN_AMERICA = {
     Nation(
         "Latin America",
-        ["latin america", "latam", "south america", "south american"],
+        [r"(?:latin|south)\s+america(?:s|n)?", "latam"],
         Region.LATIN_AMERICA,
         code="LATAM",
     ),
