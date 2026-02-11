@@ -1369,7 +1369,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "China",
-        ["china", "chinese", "prc", "p.r.c."],
+        ["china", "chinese", "prc", "p.r.c.", "people's republic of china"],
         Region.ASIA_PACIFIC,
         [
             Location("Shanghai", ["shanghai"]),
