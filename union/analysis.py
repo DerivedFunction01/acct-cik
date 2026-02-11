@@ -190,6 +190,22 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
+def has_union_context(analysis: SentenceAnalysis) -> bool:
+    """
+    Checks if the sentence contains explicit union context.
+    """
+    return (
+        bool(analysis.union_terms)
+        or bool(analysis.coverage_terms)
+        or bool(analysis.negation_terms)
+        or bool(analysis.qualitative_membership_terms)
+        or any(
+            m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
+            for m in analysis.geo_matches
+        )
+    )
+
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -554,16 +570,7 @@ class SimpleCoverageAnalyzer:
         }
 
         notes = []
-        has_union_context = (
-            bool(analysis.union_terms)
-            or bool(analysis.coverage_terms)
-            or bool(analysis.negation_terms)
-            or any(
-                m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
-                for m in analysis.geo_matches
-            )
-        )
-        if not has_union_context:
+        if not has_union_context(analysis):
             data["type"] = None
             return data
 
@@ -3739,6 +3746,11 @@ class UnionAnalyzer:
             ]
             if qual_matches:
                 match = qual_matches[0]
+
+                # Ensure we have union context before applying generic qualitative terms
+                if match["type"] == MatchType.QUALITATIVE_TERM and not has_union_context(analysis):
+                    return data
+
                 term = match.get("term_obj")
                 pattern_str = match.get("pattern_str", "")
 
