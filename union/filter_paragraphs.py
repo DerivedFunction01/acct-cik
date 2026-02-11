@@ -29,8 +29,8 @@ from extraction import UnionExtractor
 # =============================================================================
 SOURCE_DB = "web_data.db"
 TARGET_DB = "filtered_union_data.db"
-BATCH_SIZE = 250
-CHUNK_SIZE = 20
+BATCH_SIZE = 50
+CHUNK_SIZE = 10
 NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
 
 # Setup logging
