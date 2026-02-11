@@ -113,8 +113,11 @@ def process_batch(rows: List[Tuple]) -> List[Tuple]:
     return results
 
 def create_target_db():
-    conn = sqlite3.connect(TARGET_DB)
+    conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     c = conn.cursor()
+    # Enable WAL mode for better concurrency
+    c.execute("PRAGMA journal_mode=WAL")
+    c.execute("PRAGMA synchronous=NORMAL")
     c.execute("DROP TABLE IF EXISTS analysis_result")
     c.execute("""
         CREATE TABLE IF NOT EXISTS analysis_result (
@@ -135,7 +138,7 @@ def copy_metadata_tables():
     if not Path(SOURCE_DB).exists():
         return
 
-    conn = sqlite3.connect(TARGET_DB)
+    conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     c = conn.cursor()
     
     # Check if report_data already exists
@@ -182,7 +185,7 @@ def main():
     create_target_db()
     copy_metadata_tables()
     
-    src_conn = sqlite3.connect(SOURCE_DB)
+    src_conn = sqlite3.connect(SOURCE_DB, timeout=30.0)
     src_cursor = src_conn.cursor()
     
     # Get total count for progress bar
@@ -211,14 +214,19 @@ def main():
         def write_results(res_list):
             if not res_list:
                 return
-            tgt_conn = sqlite3.connect(TARGET_DB)
+            tgt_conn = sqlite3.connect(TARGET_DB, timeout=30.0)
             tgt_c = tgt_conn.cursor()
-            tgt_c.executemany(
-                "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
-                res_list
-            )
-            tgt_conn.commit()
-            tgt_conn.close()
+            try:
+                tgt_c.executemany(
+                    "INSERT OR REPLACE INTO analysis_result (accession, item1_analysis, item1a_analysis, period_of_report, item1_percents, item1a_percents) VALUES (?, ?, ?, ?, ?, ?)",
+                    res_list
+                )
+                tgt_conn.commit()
+            except sqlite3.OperationalError as e:
+                logging.error(f"Database write error: {e}")
+                tgt_conn.rollback()
+            finally:
+                tgt_conn.close()
 
         with tqdm(total=total_rows, unit="rows") as pbar:
             while True:
