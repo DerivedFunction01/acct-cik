@@ -929,7 +929,7 @@ class ContextualNumberCleaner:
             r"weeks?",
             r"days?",
             r"quarters?",
-            r"hr",
+            r"hrs?",
             r"hours?",
             r"annum",
             r"annual",
@@ -958,7 +958,7 @@ class ContextualNumberCleaner:
 
         # Matches: "3 year [contract]", "3-year [extension]", "0.25 per [hour]"
         self.duration_regex = re.compile(
-            rf"\b{number_range}\s*(?:[-]|per)?\s*{time_unit_pattern}\s+({duration_context_pattern})\b",
+            rf"\b{number_range}\s*(?:[-]|per)?\s*{time_unit_pattern}(?:\s+({duration_context_pattern}))?\b",
             re.IGNORECASE,
         )
 
@@ -979,6 +979,7 @@ class ContextualNumberCleaner:
             r"regions?",
             r"lodges?",
             r"councils?",
+            r"propositions?", # California proposition
         ]
         union_id_pattern = build_alternation(union_identifiers)
         self.union_id_regex = re.compile(
