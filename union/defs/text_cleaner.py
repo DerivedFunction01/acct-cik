@@ -1004,7 +1004,7 @@ class ContextualNumberCleaner:
         diversity_pattern = build_alternation(DIVERSITY_TERMS)
         
         # stripping union stats that happen to be near diversity terms.
-        div_gap = r"(?:[^\s\d%]+\s+){0,5}"
+        div_gap = r"(?:[\w-]+\s+){0,4}"
         
         # Matches: "20% [of workforce are] women"
         self.diversity_pre_regex = re.compile(
@@ -1014,7 +1014,7 @@ class ContextualNumberCleaner:
         
         # Matches: "women [comprise] 20%"
         self.diversity_post_regex = re.compile(
-            rf"\b({diversity_pattern}{div_gap})\s+{percent_range}",
+            rf"\b({diversity_pattern}\s+{div_gap}){percent_range}",
             re.IGNORECASE
         )
 
