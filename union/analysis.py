@@ -3614,6 +3614,11 @@ class UnionAnalyzer:
                         if not c_data["employee_count_covered"] and n_data["employee_count_covered"]:
                             c_data["employee_count_covered"] = n_data["employee_count_covered"]
 
+                        # Use potential total from current sentence if available (local count priority)
+                        if not c_data["employee_count_total"] and current.get("potential_total"):
+                            c_data["employee_count_total"] = current["potential_total"]
+                            c_data["note"] = (c_data.get("note") or "") + f" | Used local count {current['potential_total']}"
+
                         if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
                             c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
 
@@ -3823,8 +3828,9 @@ class UnionAnalyzer:
 
             # 2. Update Context (Worker Counts)
             effective_counts = get_effective_counts(analysis)
+            current_sentence_count = None
             if effective_counts and not is_historical:
-                last_employee_count = max(effective_counts)
+                current_sentence_count = max(effective_counts)
 
             # 3. Relevance Check
             if not analysis.is_relevant:
@@ -4046,8 +4052,11 @@ class UnionAnalyzer:
                     "worker_types": analysis.worker_types,
                     "is_remaining": analysis.has_remaining_other,
                     "is_union": analysis.is_union,
+                    "potential_total": current_sentence_count,
                 }
                 results.append(item)
+
+            last_employee_count = current_sentence_count
 
         merged_results = self._merge_continuation_items(results)
 

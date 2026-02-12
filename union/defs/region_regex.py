@@ -766,6 +766,8 @@ EUROPE = {
             Location("Sandnes", ["sandnes"]),
             Location("Tromso", ["tromso", "tromsø"]),
         ],
+        [],
+        ["Arbeid", "Fagforening", "Forbund", "Forening", "Landsorganisasjon"],
         code="NO",
     ),
     Nation(
@@ -787,11 +789,19 @@ EUROPE = {
             Location("Jonkoping", ["jonkoping", "jönköping"]),
             Location("Norrkoping", ["norrkoping", "norrköping"]),
         ],
-        ["Unionen"],
-        ["Saltsjöbadsavtalet", "Kollektivavtal"],
+        ["Unionen", "IF Metall", "Sveriges Ingenjörer", "Ledarna", "LO", "Landsorganisationen"],
+        ["Saltsjöbadsavtalet", "Kollektivavtal", "Arbete", "Fackförening", "Förening", "Förbund", "Fack"],
         code="SE",
     ),
-    Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
+    Nation(
+        "Denmark",
+        ["denmark", "danish"],
+        Region.EUROPE,
+        [],
+        [],
+        ["Arbejde", "Fagforening", "Forening", "Forbund"],
+        code="DK"
+    ),
     Nation(
         "Poland",
         ["poland", "polish"],
@@ -807,6 +817,8 @@ EUROPE = {
             Location("Gliwice", ["gliwice"]),  # Automotive hub
             Location("Tychy", ["tychy"]),  # Automotive hub
         ],
+        ["NSZZ Solidarnosc", "Solidarity", "OPZZ"],
+        ["Zwiazek", "Zawodowy", "Pracownikow", "Praca", "Stowarzyszenie", "Zjednoczone", "Federacja", "Konfederacja"],
         code="PL",
     ),
     Nation(
@@ -821,6 +833,8 @@ EUROPE = {
             Location("Esztergom", ["esztergom"]),  # Suzuki
             Location("Szentgotthárd", ["szentgotthard", "szentgotthárd"]),  # Opel
         ],
+        ["Vasas", "Hungarian Metallworkers' Federation", "MASZSZ"],
+        ["Szakszervezeti", "Szövetség", "Munka", "Egyesület", "Dolgozók"],
         code="HU",
     ),
     Nation(
@@ -836,6 +850,8 @@ EUROPE = {
             Location("Brno", ["brno"]),
             Location("Plzeň", ["plzen", "plzeň"]),
         ],
+        [],
+        ["Práce", "Odbory", "Asociace", "Federace", "Svaz"],
         code="CZ",
     ),
     Nation(
@@ -849,8 +865,8 @@ EUROPE = {
             Location("Bursa", ["bursa"]),  # Major automotive hub
             Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
-        [],
-        [],
+        ["Türk Metal", "Türk Metal Sendikasi", "DISK", "HAK-IS", "TURK-IS"],
+        ["Sendikasi", "Işçileri", "Çalışma", "Emek", "Dernek", "Federasyonu", "Konfederasyonu", "Birliği"],
         code="TR",
     ),
     Nation(
@@ -867,7 +883,7 @@ EUROPE = {
             Location("Togliatti", ["togliatti", "tolyatti"]),  # AvtoVAZ
         ],
         [],
-        [],
+        ["Trud", "Rabota", "Soyuz", "Profsoyuz", "Assotsiatsiya", "Federatsiya", "Rabochiy"],
         code="RU",
     ),
     Nation(
@@ -882,7 +898,15 @@ EUROPE = {
         ],
         code="BG",
     ),
-    Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
+    Nation(
+        "Romania",
+        ["romania", "romanian"],
+        Region.EUROPE,
+        [],
+        [],
+        ["Muncă", "Sindicat", "Asociația", "Uniunea", "Federația", "Lucrătorilor"],
+        code="RO"
+    ),
     Nation(
         "Germany",
         ["germany", "german", "deutschland"],
@@ -949,13 +973,15 @@ EUROPE = {
             "CFDT",
             "French Democratic Confederation of Labour",
             "Force Ouvrière",
-            "CGT",
             "Confédération Générale du Travail",
             "CFE-CGC",
             "Confédération Française de l'Encadrement",  # Management union
             "UNSA",
             "Solidaires",
             "SUD",
+            "Confédération Française des Travailleurs Chrétiens",
+            "CAT",
+            "Confédération Autonome du Travail",
         ],
         [
             "Comité Social et Économique",
@@ -1180,7 +1206,7 @@ EUROPE = {
             Location("Vantaa", ["vantaa"]),
         ],
         ["SAK", "STTK", "Akava"],
-        ["Työehtosopimus", "TES", "Ammattiliitto"],  # CBA/Union terms
+        ["Työehtosopimus", "TES", "Ammattiliitto", "Työ", "Liitto", "Yhdistys"],  # CBA/Union terms
         code="FI",
     ),
     Nation(
@@ -1195,6 +1221,8 @@ EUROPE = {
             Location("Dnipro", ["dnipro", "dnipropetrovsk"]),
             Location("Donetsk", ["donetsk"]),
         ],
+        [],
+        ["Pratsya", "Spilka", "Profspilka", "Asotsiatsiya", "Federatsiya", "Robitnyk"],
         code="UA",
     ),
     Nation(
@@ -1256,6 +1284,8 @@ EUROPE = {
         ["estonia", "estonian"],
         Region.EUROPE,
         [Location("Tallinn", ["tallinn"])],
+        ["IMTAL", "Estonian Industrial and Metalworkers' Union"],
+        ["Ametiühingute", "Liit", "Töötajate"],
         code="EE",
     ),
     Nation(
@@ -1344,10 +1374,13 @@ ASIA_PACIFIC = {
             "UA Zensen",
             "JAM",
             "Japanese Association of Metal and Allied Workers",
+            "Roudou Kumiai",
         ],
         [
             "Shunto",
             "Karoshi",
+            "Roudou",
+            "Kumiai",
         ],
         code="JP",
     ),
@@ -1369,6 +1402,8 @@ ASIA_PACIFIC = {
         ],
         [
             "Chaebol",
+            "Nodong",
+            "Johap",
         ],
         code="KR",
     ),
@@ -1394,7 +1429,7 @@ ASIA_PACIFIC = {
             
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
-        [],
+        ["Gonghui"],
         code="CN",
     ),
     Nation(
@@ -1468,6 +1503,7 @@ ASIA_PACIFIC = {
             Location("Haiphong", ["haiphong"]),  # Major Port
         ],
         ["VGCL", "Vietnam General Confederation of Labour"],
+        ["Cong doan", "Lao dong", "Nghiep doan", "Hiep hoi", "Lien doan"],
         code="VN",
     ),
     Nation(
@@ -1480,6 +1516,7 @@ ASIA_PACIFIC = {
             Location("Penang", ["penang"]),  # Tech Hub
         ],
         ["MTUC", "Malaysian Trades Union Congress"],
+        ["Kerja", "Buruh", "Kesatuan", "Persatuan", "Persekutuan", "Sekerja"],
         code="MY",
     ),
     Nation(
@@ -1503,6 +1540,8 @@ ASIA_PACIFIC = {
             Location("Chonburi", ["chonburi"]),
             Location("Ayutthaya", ["ayutthaya"]),
         ],
+        [],
+        ["Sahaphab", "Raengngan", "Samakhom", "Sapha"],
         code="TH",
     ),
     Nation(
@@ -1526,6 +1565,8 @@ ASIA_PACIFIC = {
             Location("Bandung", ["bandung"]),
             Location("Medan", ["medan"]),
         ],
+        [],
+        ["Serikat", "Buruh", "Pekerja", "Kerja", "Asosiasi", "Federasi", "Konfederasi"],
         code="ID",
     ),
     Nation(
@@ -1636,7 +1677,6 @@ LATIN_AMERICA = {
             "Confederation of Mexican Workers",
             "UNT",
             "CROC",
-            "Sindicato de Trabajadores",
         ],
         [
             "Maquiladora",
@@ -1686,7 +1726,6 @@ LATIN_AMERICA = {
             Location("Pacheco", ["pacheco"]),  # Ford/VW Plants
         ],
         [
-            "CGT",
             "General Confederation of Labour",
             "CTA",
             "SMATA",
@@ -1865,7 +1904,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Haifa", ["haifa"]),  # Major Industrial/Port
         ],
         ["Histadrut", "General Federation of Labour in Israel"],
-        [],
+        ["Avoda", "Igud", "Aguda", "Federatsia"],
         code="IL",
     ),
     Nation(
@@ -1971,7 +2010,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Kairouan", ["kairouan"]),
             Location("Bizerte", ["bizerte"]),
         ],
-        ["UGTT"],
+        ["UGTT", "UTT", "Union des travailleurs Tunisiens"],
         code="TN",
     ),
     Nation(
@@ -2118,7 +2157,7 @@ INTERNATIONAL = {
         ["international", "foreign", "overseas", "internationally"],
         Region.INTERNATIONAL,
         [],
-        [],
+        [r"CGT"],
         code="INT",
     ),
     Nation(
@@ -2172,6 +2211,7 @@ INTERNATIONAL = {
             "Ferroviários",
             "Ferrocarril",
             "Ferroviarios",
+            "Sindicato",
         ],
         code="INT_IBERIA",
     ),
@@ -2277,13 +2317,13 @@ INT_UNION_MAP = {
     "INT_IBERIA": (
         [
             "Trabalhadores", "Trabajadores", "Operários", "Obreros", "Empregados", "Empleados", "Funcionários", "Personal",
-            "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios",
+            "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios", "Obrera", "Obreras",
             "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Mineiros", "Mineros",
             "Automotivos", "Automotrices", "Construção", "Construcción", "Comércio", "Comercio", "Transportes", "Transporte", "Correios", "Correos",
             "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía"
         ],
         ["Sindicato", "Federação", "Federación", "Confederação", "Confederación", "União", "Unión", "Central", "Associação", "Asociación"],
-        r"(?:\s+(?:del|do|da|de|e|y|para|los|las|la|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",
+        r"(?:\s+(?:del|dos?|das?|des?|e|y|para|los?|las?|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_FR": (
         [
@@ -2294,7 +2334,7 @@ INT_UNION_MAP = {
             "Métallurgie", "Sidérurgie", "Pétrole", "Gaz", "Charbon", "Mines", "Bâtiment", "Énergie",
         ],
         ["Syndicat", "Fédération", "Confédération", "Union", "Centrale", "Association"],
-        r"(?:\s+(?:du|de|des|et|pour|le|la|les|&|[A-Z][\w-]*)){0,3}\s+",
+        r"(?:\s+(?:du|des?|et|pour|les?|la|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_IT": (
         [
