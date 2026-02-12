@@ -3113,6 +3113,7 @@ class UnionAnalyzer:
                 if (
                     cov.get("percentage") is None 
                     and cov.get("employee_count_covered") is None 
+                    and cov.get("employee_count_total") is None
                     and not cov.get("negated")
                 ):
                     continue
