@@ -3587,6 +3587,91 @@ class UnionAnalyzer:
 
         return self._resolve_counts_generic(analysis, geo_entries, total_key="GLO")
 
+    def _resolve_counts_generic_v2(
+        self, 
+        analysis: SentenceAnalysis, 
+        entities: List[Dict[str, Any]],
+        total_key: Optional[str] = None
+    ) -> Tuple[Dict[str, float], Optional[float]]:
+        """
+        Refactored version of _resolve_counts_generic.
+        Currently implements:
+        1. Sum of Parts (Total detection)
+        2. Exact Parallel Mapping (1-to-1)
+        """
+        mapped_counts = {}
+        sentence_total = None
+
+        # 1. Extract Counts
+        counts = [
+            m
+            for m in analysis._matches
+            if (m["type"] == MatchType.WORKER_COUNT
+            or m["type"] == MatchType.NUMBER)
+        ]
+        
+        if not counts or not entities:
+            return {}, None
+
+        parts = counts
+
+        # 2. Detect Total (Sum of Parts / Explicit Total)
+        if len(counts) > 1:
+            vals = [c["val"] for c in counts]
+            max_val = max(vals)
+            sum_val = sum(vals)
+            others_sum = sum_val - max_val
+
+            # Logic A: Arithmetic Match (Sum of parts ~= Total)
+            is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
+            
+            # Logic B: Count Mismatch (N+1 counts for N entities -> 1 is likely total)
+            is_len_mismatch = len(counts) == len(entities) + 1
+
+            # Logic C: Linguistic Indicators ("of which", "including")
+            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
+
+            if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
+                sentence_total = max_val
+
+                if total_key:
+                    mapped_counts[total_key] = sentence_total
+
+                # Remove the total from parts to map the rest
+                # We remove the *first* occurrence of max_val to be safe, though usually unique
+                for i, c in enumerate(parts):
+                    if c["val"] == max_val:
+                        parts = parts[:i] + parts[i+1:]
+                        break
+
+        # 3. Exact Parallel Mapping
+        # If number of remaining counts matches number of entities, assume order corresponds
+        if len(parts) == len(entities):
+            s_counts = sorted(parts, key=lambda x: x["span"][0])
+            s_entities = sorted(entities, key=lambda x: x["span"][0])
+            
+            for c, e in zip(s_counts, s_entities):
+                mapped_counts[e["key"]] = c["val"]
+            
+            return mapped_counts, sentence_total
+
+        return mapped_counts, sentence_total
+
+    def _resolve_counts_to_geography_v2(
+        self, analysis: SentenceAnalysis
+    ) -> Tuple[Dict[str, float], Optional[float]]:
+        """
+        Refactored version of _resolve_counts_to_geography.
+        Currently a placeholder.
+        """
+        return {}, None
+
+    def _map_assignments_to_geo_v2(self, analysis: SentenceAnalysis, assignments: List[Dict]) -> List[Dict]:
+        """
+        Refactored version of _map_assignments_to_geo.
+        Currently a placeholder.
+        """
+        return []
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
     ) -> Tuple[Dict[str, float], Optional[float]]:
