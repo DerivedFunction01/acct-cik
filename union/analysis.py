@@ -657,6 +657,7 @@ class UnionExtraAnalyzer:
             "temporal_scope": temporal_scope,
             "conditional": is_conditional,
             "note": None,
+            "is_union": analysis.is_union,
         }
 
 
@@ -3518,8 +3519,9 @@ class UnionAnalyzer:
                 # Skip if one sentence is union related, and the other isn't.
                 cur_is_union = current.get("is_union", False)
                 next_is_union = next_item.get("is_union", False)
+
                 if cur_is_union and cur_is_union != next_is_union:
-                    should_merge = False
+                    merged_results.append(current)
                     continue
                 if "geographic_context" not in next_item:
                     merged_results.append(current)
@@ -4025,6 +4027,7 @@ class UnionAnalyzer:
                                 "worker_type_map": type_map,
                                 "worker_types": analysis.worker_types,
                                 "is_remaining": analysis.has_remaining_other,
+                                "is_union": analysis.is_union,
                             }
                             split_items.append(split_item)
 
@@ -4042,6 +4045,7 @@ class UnionAnalyzer:
                     "worker_type_map": type_map,
                     "worker_types": analysis.worker_types,
                     "is_remaining": analysis.has_remaining_other,
+                    "is_union": analysis.is_union,
                 }
                 results.append(item)
 
