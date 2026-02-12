@@ -2829,6 +2829,37 @@ class UnionAnalyzer:
                 })
             return splits
 
+        # 1.5 Shared Assignment Split (1 count, multiple locations)
+        if len(assignments) == 1 and len(aligned_geos) > 1:
+            item = assignments[0]
+            c_span = item["match"]["span"]
+            
+            s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
+            
+            is_list = True
+            for i in range(len(s_geos) - 1):
+                e1 = s_geos[i]
+                e2 = s_geos[i+1]
+                gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
+                clean_gap = re.sub(r"[,\s]|and|&|or", "", gap_text, flags=re.IGNORECASE)
+                if clean_gap and len(gap_text) > 15:
+                    is_list = False
+                    break
+            
+            if is_list:
+                split_val = item["match"]["val"] / len(aligned_geos)
+                splits = []
+                for g in s_geos:
+                    obj = g["obj"]
+                    splits.append({
+                        "val": split_val,
+                        "type": item["type"],
+                        "region": obj.region.value,
+                        "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                        "note": f"Split from list to {obj.country}"
+                    })
+                return splits
+
         # 2. Greedy Proximity Mapping (Fallback)
         pairs = []
         for i, item in enumerate(assignments):
@@ -3155,32 +3186,52 @@ class UnionAnalyzer:
         # 1.6 Check for Shared Count (1 count, multiple entities) -> Split Evenly
         if len(parts) == 1 and len(entities) > 1:
             count_val = parts[0]["val"]
-            c_span = parts[0]["span"]
             
             sorted_entities = sorted(entities, key=lambda x: x["span"][0])
             
-            is_list = True
-            for i in range(len(sorted_entities) - 1):
-                e1 = sorted_entities[i]
-                e2 = sorted_entities[i+1]
-                gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
-                if not re.match(r"^\s*(?:,|and|&)\s*$", gap_text, re.IGNORECASE) and not re.match(r"^\s*$", gap_text):
-                     if len(gap_text) > 15: 
-                         is_list = False
-                         break
+            # Identify chains (lists of entities)
+            chains = []
+            if sorted_entities:
+                current_chain = [sorted_entities[0]]
+                for i in range(len(sorted_entities) - 1):
+                    e1 = sorted_entities[i]
+                    e2 = sorted_entities[i+1]
+                    gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
+                    
+                    # Check for list separators (comma, and, or) and short length
+                    is_list_gap = False
+                    clean_gap = re.sub(r"[,\s]|and|&|or", "", gap_text, flags=re.IGNORECASE)
+                    if not clean_gap and len(gap_text) <= 25:
+                        is_list_gap = True
+                    
+                    if is_list_gap:
+                        current_chain.append(e2)
+                    else:
+                        chains.append(current_chain)
+                        current_chain = [e2]
+                chains.append(current_chain)
             
-            if is_list:
-                group_start = sorted_entities[0]["span"][0]
-                group_end = sorted_entities[-1]["span"][1]
+            target_list = None
+            multi_item_chains = [c for c in chains if len(c) > 1]
+            
+            if len(multi_item_chains) == 1:
+                candidate = multi_item_chains[0]
                 
-                dist_before = group_start - c_span[1] if c_span[1] <= group_start else float('inf')
-                dist_after = c_span[0] - group_end if c_span[0] >= group_end else float('inf')
+                # Check if excluded items are Broad Containers (INT, GLO, DOM)
+                all_in_chain = set(id(x) for x in candidate)
+                others = [x for x in sorted_entities if id(x) not in all_in_chain]
                 
-                if min(dist_before, dist_after) < 50:
-                    split_val = count_val / len(entities)
-                    for e in entities:
-                        mapped_counts[e["key"]] = split_val
-                    return mapped_counts, sentence_total
+                broad_keys = {"INT", "GLO", "DOM", Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value}
+                others_are_broad = all(x["key"] in broad_keys for x in others)
+                
+                if others_are_broad:
+                    target_list = candidate
+            
+            if target_list:
+                split_val = count_val / len(target_list)
+                for e in target_list:
+                    mapped_counts[e["key"]] = split_val
+                return mapped_counts, sentence_total
 
         # 2. Parallel Structure
         if len(parts) == len(entities):
