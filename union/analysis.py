@@ -1555,10 +1555,11 @@ def determine_geo_context(
         lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
         if lang_matches:
             m = lang_matches[0]
+            assert m.geo_code is not None
+            allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
 
             # Try to resolve against last_context if available
             if last_context and last_context.get("countries") and m.geo_code:
-                allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
                 # Find first country in last_context that matches the language
                 matching_country = next(
                     (c for c in last_context["countries"] if c["code"] in allowed_codes),
@@ -1573,6 +1574,18 @@ def determine_geo_context(
                         "union_name_indicator": m.text,
                         "note": f"Resolved language term '{m.text}' to {matching_country['name']} from context",
                     }
+
+            # Fallback: If the language code maps to exactly one country (e.g. INT_FR -> FR), use it.
+            if len(allowed_codes) == 1:
+                code = allowed_codes.pop()
+                region_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+                return {
+                    "region": region_name,
+                    "countries": [{"name": code, "code": code}], # Use code as name if name unavailable
+                    "specificity": Specificity.INFERRED_LANG.value,
+                    "union_name_indicator": m.text,
+                    "note": f"Inferred from language term '{m.text}' (Unique code {code})",
+                }
 
             return {
                 "region": Region.INTERNATIONAL.value,  # Broad region
