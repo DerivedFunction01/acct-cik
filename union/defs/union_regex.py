@@ -179,7 +179,7 @@ DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
 # Regex to capture comma-separated worker titles preceding a union name
 # e.g. "Teachers, Instructors and " before "Writers Association"
 # Enforces that the terms are valid WORKER_TERMS to avoid capturing unrelated capitalized text.
-_worker_term_alt = to_build_alternation(set(WORKER_TERMS) - {r"Teamsters?"})
+_worker_term_alt = to_build_alternation(set(WORKER_TERMS) - {r"Teamsters?"}) + "(?:\')?"
 _prefix_sep = r"(?:,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+|\s+)"
 LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 
