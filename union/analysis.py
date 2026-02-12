@@ -2059,13 +2059,36 @@ class Tracker:
             if e.covered_count is None and e.percentage is not None:
                 # Apply if total is unknown OR matches the census (i.e. it's a country-wide rate)
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
-                    # Safety: Don't assume a segment covers the entire census, unless we only have a single segment (and generic Entry for that specific country, since we inject a placeholder entry for mentioned countries).
+                    
+                    use_fallback = False
+                    # Safety: Don't assume a segment covers the entire census, unless we only have a single segment
                     if e.scope == Scope.SEGMENT and e.total_count is None:
                         segment_count = sum(
                             1 for entry in entries if entry.scope == Scope.SEGMENT
                         )
                         if segment_count > 1:
-                            continue
+                            use_fallback = True
+                    
+                    # Also fallback if census is missing
+                    if census_total <= 0:
+                        use_fallback = True
+
+                    if use_fallback:
+                        base_pop = census_total
+                        if base_pop <= 0:
+                            r_name = _CODE_TO_REGION.get(name)
+                            if r_name:
+                                base_pop = self.region_totals.get(r_name, 0.0)
+                        if base_pop <= 0:
+                            base_pop = self.global_total
+                        
+                        if base_pop > 0:
+                            small_denom = max(1.0, round(base_pop * 0.001))
+                            e.total_count = small_denom
+                            e.covered_count = round((e.percentage / 100.0) * small_denom)
+                            self.resolution_log.append(f"Resolved COUNT for {name} ({e.key}) using 0.1% fallback: {e.percentage}% of {small_denom} (Base {base_pop})")
+                        continue
+
                     e.covered_count = round((e.percentage / 100.0) * census_total)
                     e.total_count = census_total
                     self.resolution_log.append(f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}")
