@@ -3588,7 +3588,7 @@ class UnionAnalyzer:
         return self._resolve_counts_generic(analysis, geo_entries, total_key="GLO")
 
     def _resolve_counts_generic_v2(
-        self, 
+                self, 
         analysis: SentenceAnalysis, 
         entities: List[Dict[str, Any]],
         total_key: Optional[str] = None,
@@ -3598,8 +3598,9 @@ class UnionAnalyzer:
         Refactored version of _resolve_counts_generic.
         Currently implements:
         1. Sum of Parts (Total detection)
-        2. Exact Parallel Mapping (1-to-1)
-        3. Naive Split (1-to-Many) if enabled
+        2. Virtual Count for Balance/Remaining
+        3. Exact Parallel Mapping (1-to-1)
+        4. Naive Split (1-to-Many) if enabled
         """
         mapped_counts = {}
         sentence_total = None
@@ -3615,7 +3616,7 @@ class UnionAnalyzer:
         if not counts or not entities:
             return {}, None
 
-        parts = counts
+        parts = counts[:]
 
         # 2. Detect Total (Sum of Parts / Explicit Total)
         if len(counts) > 1:
@@ -3646,6 +3647,23 @@ class UnionAnalyzer:
                         parts = parts[:i] + parts[i+1:]
                         break
 
+        # 2.1 Handle Remaining/Balance (Virtual Count)
+        if sentence_total is not None and analysis.has_remaining_other:
+             current_sum = sum(c["val"] for c in parts)
+             remainder = sentence_total - current_sum
+             
+             if remainder > 0:
+                 rem_match = REMAIN_REGEX.search(analysis.text)
+                 if rem_match:
+                     parts.append({
+                         "val": remainder,
+                         "span": rem_match.span(),
+                         "type": MatchType.WORKER_COUNT,
+                         "text": rem_match.group(0)
+                     })
+                     # Re-sort parts by position
+                     parts.sort(key=lambda x: x["span"][0])
+
         # 3. Exact Parallel Mapping
         # If number of remaining counts matches number of entities, assume order corresponds
         if len(parts) == len(entities):
@@ -3672,15 +3690,58 @@ class UnionAnalyzer:
     ) -> Tuple[Dict[str, float], Optional[float]]:
         """
         Refactored version of _resolve_counts_to_geography.
-        Currently a placeholder.
         """
-        return {}, None
+        # Correlate GeoMatches with Spans (Explicit only)
+        geo_entries = []
+        geo_match_objs = [
+            m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
+        ]
+        raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
+
+        # Align matches (assuming order preservation in extraction)
+        if len(geo_match_objs) == len(raw_geo_matches):
+            for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                # Use Region Name for generic accumulators, Code for countries
+                key = obj.geo_code
+                if obj.geo_code in REGION_CODES and obj.geo_code != "DOM":
+                    key = obj.region.value
+                geo_entries.append({"key": key, "span": raw["span"], "region_enum": obj.region})
+
+        return self._resolve_counts_generic_v2(analysis, geo_entries, total_key="GLO")
 
     def _map_assignments_to_geo_v2(self, analysis: SentenceAnalysis, assignments: List[Dict]) -> List[Dict]:
         """
         Refactored version of _map_assignments_to_geo.
-        Currently a placeholder.
         """
+        geo_match_objs = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
+        raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
+
+        aligned_geos = []
+        # Align matches (assuming order preservation)
+        if len(geo_match_objs) == len(raw_geo_matches):
+            for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                aligned_geos.append({"obj": obj, "span": raw["span"]})
+        else:
+            return []
+
+        # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
+        # If we have equal number of assignments and locations, assume 1-to-1 mapping in order
+        if len(assignments) == len(aligned_geos):
+            # Sort both by position
+            s_assign = sorted(assignments, key=lambda x: x["match"]["span"][0])
+            s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
+            splits = []
+            for item, g in zip(s_assign, s_geos):
+                obj = g["obj"]
+                splits.append({
+                    "val": item["match"]["val"],
+                    "type": item["type"],
+                    "region": obj.region.value,
+                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                    "note": f"Mapped to {obj.country}"
+                })
+            return splits
+            
         return []
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
@@ -4216,7 +4277,7 @@ class UnionAnalyzer:
 
                 # Only split if we have multiple relevant counts and multiple explicit geos
                 if len(relevant_assignments) > 1:
-                    splits = self._map_assignments_to_geo(analysis, relevant_assignments)
+                    splits = self._map_assignments_to_geo_v2(analysis, relevant_assignments)
                     if len(splits) > 1:
                         for s in splits:
                             new_geo_context = {
