@@ -3663,6 +3663,10 @@ class UnionAnalyzer:
                             not_covered = c_data.get("employee_count_not_covered")
                             is_negated = c_data.get("negated")
 
+                            # Fix for ZERO_COVERAGE: "None are union" -> 0% Covered (not 0% Not Covered)
+                            if c_data.get("negation_type") == NegationType.ZERO_COVERAGE.value:
+                                is_negated = False
+
                             # Case 1: Have Total + Pct -> Calculate Parts
                             if total and (covered is None or not_covered is None):
                                 subset = round((pct / 100.0) * total)
