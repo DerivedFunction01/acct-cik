@@ -1077,9 +1077,16 @@ class ContextualNumberCleaner:
             re.IGNORECASE
         )
 
-    def clean(self, text: str) -> str:
+    def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
+            
+        def union_id_replacer(m):
+            ident = m.group(1)
+            # Default to US unless explicitly Canada
+            suffix = "Canada" if home_country == "CA" else "US"
+            return f" {ident} {suffix} "
+
         paragraphs = text.split("\n\n")
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
@@ -1091,7 +1098,7 @@ class ContextualNumberCleaner:
             paragraph = self.personnel_event_regex.sub(r" \1 ", paragraph)
             paragraph = self.personnel_event_reverse_regex.sub(r" \1 ", paragraph)
             paragraph = self.duration_regex.sub(r" \1 ", paragraph)
-            paragraph = self.union_id_regex.sub(r" \1 ", paragraph)
+            paragraph = self.union_id_regex.sub(union_id_replacer, paragraph)
             paragraph = self.birth_year_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_pre_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_post_regex.sub(r" \1 ", paragraph)

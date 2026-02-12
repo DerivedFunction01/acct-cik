@@ -212,7 +212,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
                 output.append(part)
     return output
 
-def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False) -> Tuple[List[str], List[float]]:
+def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False, home_country: Optional[str] = None) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
     Cleans the text first, then checks for matches.
@@ -280,7 +280,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         cleaned_block = CURRENCY_REMOVER.clean(cleaned_block)
 
         # Remove non-employee numerics (facilities, growth rates)
-        cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block)
+        cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block, home_country=home_country)
 
         # Remove unnecessary words and simplify
         cleaned_block = CONCISENESS_CLEANER.clean(cleaned_block)
@@ -428,7 +428,8 @@ def process_row(row: Tuple) -> Optional[Tuple]:
             item1_list, 
             company_name=company_name, 
             year=year, 
-            allow_risk=False
+            allow_risk=False,
+            home_country=home_country
         )
 
         # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
@@ -436,7 +437,8 @@ def process_row(row: Tuple) -> Optional[Tuple]:
             item1a_list, 
             company_name=company_name, 
             year=year, 
-            allow_risk=True
+            allow_risk=True,
+            home_country=home_country
         )
 
         return (
