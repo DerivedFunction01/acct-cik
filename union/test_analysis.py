@@ -22,7 +22,7 @@ UNITED STATES OPERATIONS
 
 Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
 
-In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour. This represents 82% unionization in this division.
+In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour.
 
 Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
 
@@ -56,7 +56,7 @@ We employ approximately 85,000 workers across Asia-Pacific, primarily in technol
 
 In India, our Bangalore technology hub employs 45,000 software engineers and support staff. We do not currently have union representation at this facility.
 
-In China, we employ 20,000 workers across multiple manufacturing sites. These operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
+In China, we employ 20,000 workers across multiple manufacturing sites. All of these operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
 
 In Japan, we employ 12,000 workers. These employees participate in annual Shunto wage negotiations but remain entirely non-unionized in formal terms.
 
