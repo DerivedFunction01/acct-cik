@@ -92,7 +92,7 @@ NORTH_AMERICA = {
                 ["california", "ca", "cal"],
                 [
                     Location("San Francisco", ["san francisco", "sf", "bay area"]),
-                    Location("Los Angeles", ["los angeles", "la"]),
+                    Location("Los Angeles", ["los angeles"]),
                     Location("San Diego", ["san diego"]),
                     Location("San Jose", ["san jose"]),
                     Location("Fremont", ["fremont"]),
@@ -118,7 +118,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Illinois",
-                ["illinois", "il"],
+                ["illinois"],
                 [
                     Location("Chicago", ["chicago"]),
                     Location("Springfield", ["springfield, il"]),
@@ -238,7 +238,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Alabama",
-                ["alabama", "al"],
+                ["alabama"],
                 [
                     Location("Birmingham", ["birmingham, al", "birmingham, alabama"]),
                     Location("Huntsville", ["huntsville"]),
@@ -282,7 +282,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Colorado",
-                ["colorado", "co"],
+                ["colorado"],
                 [
                     Location("Denver", ["denver"]),
                     Location("Colorado Springs", ["colorado springs"]),
@@ -309,7 +309,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Georgia",
-                ["georgia", "ga"],
+                ["georgia"],
                 [
                     Location("Atlanta", ["atlanta"]),
                     Location("Savannah", ["savannah"]),
@@ -491,7 +491,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Rhode Island",
-                ["rhode island", "ri"],
+                ["rhode island"],
                 [
                     Location("Providence", ["providence"]),
                     Location("Warwick", ["warwick"]),
@@ -536,7 +536,7 @@ NORTH_AMERICA = {
             ),
             Location(
                 "Virginia",
-                ["virginia", "va"],
+                ["virginia"],
                 [
                     Location("Richmond", ["richmond, va"]),
                     Location("Virginia Beach", ["virginia beach"]),
@@ -793,6 +793,7 @@ EUROPE = {
         ["Saltsjöbadsavtalet", "Kollektivavtal", "Arbete", "Fackförening", "Förening", "Förbund", "Fack"],
         code="SE",
     ),
+    Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
     Nation(
         "Denmark",
         ["denmark", "danish"],
@@ -898,6 +899,7 @@ EUROPE = {
         ],
         code="BG",
     ),
+    Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
     Nation(
         "Romania",
         ["romania", "romanian"],
@@ -2330,7 +2332,7 @@ INT_UNION_MAP = {
             "Travailleurs", "Salariés", "Employés", "Personnel", "Ouvriers",
             "Métallurgistes", "Sidérurgistes", "Pétroliers", "Chimistes", "Bancaires",
             "Cheminots", "Portuaires", "Agricoles", "Mineurs",
-            "Automobiles", "Construction", "Commerce", "Transports", "Postes",
+            "Construction", "Commerce", "Transports", "Postes",
             "Métallurgie", "Sidérurgie", "Pétrole", "Gaz", "Charbon", "Mines", "Bâtiment", "Énergie",
         ],
         ["Syndicat", "Fédération", "Confédération", "Union", "Centrale", "Association"],
