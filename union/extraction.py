@@ -247,6 +247,7 @@ class SentenceAnalysis:
     _matches: List[Dict[str, Any]] = field(default_factory=list)
 
     is_relevant: bool = False
+    is_union: bool = False
 
 
 @dataclass
@@ -1223,6 +1224,14 @@ class UnionExtractor:
             or bool(analysis.worker_counts)
         )
 
+        analysis.is_union = (
+            bool(analysis.union_terms)
+            or bool(analysis.coverage_terms)
+            or has_negation
+            or bool(analysis.qualitative_membership_terms)
+            or has_union_geo
+        )
+
         # 5. Exclusions (Boilerplate / Personnel)
         if analysis.is_relevant:
             # Personnel: Exclude if no union terms and matches personnel event
@@ -1249,6 +1258,7 @@ class UnionExtractor:
                     or has_union_negation
                 ):
                     analysis.is_relevant = False
+                    analysis.is_union = False
 
             # Boilerplate: Exclude if no quantitative data and matches boilerplate
             elif BOILERPLATE_REGEX.search(text):
