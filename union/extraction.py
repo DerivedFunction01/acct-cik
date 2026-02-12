@@ -110,7 +110,7 @@ worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers
 non_numeric_gap = r"(?:[^\W\d][\w-]*\s+){0,3}"
 WORKER_COUNT_REGEX = build_regex(
     [
-        rf"employ(?:ed|s)?\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
+        rf"(?:employ(?:ed|s)?|have|had)\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
         rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}{worker_term_pattern}",
         rf"{worker_term_pattern}\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
         rf"(\d+(?:\.\d+)?)\s+(?:in|are|were|have|had)",
