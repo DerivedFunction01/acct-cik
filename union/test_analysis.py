@@ -54,7 +54,7 @@ ASIA-PACIFIC OPERATIONS
 
 We employ approximately 85,000 workers across Asia-Pacific, primarily in technology and manufacturing.
 
-In India, our Bangalore technology hub employs 45,000 software engineers and support staff. We do not currently have union representation at this facility.
+In India, our Bangalore technology hub employs 45,000 software engineers and support staff. None of our employees have union representation at this facility.
 
 In China, we employ 20,000 workers across multiple manufacturing sites. All of these operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
 
