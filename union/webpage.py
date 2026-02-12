@@ -1124,9 +1124,11 @@ def _collect_candidates_near_match(text: str, match: re.Match, matcher: RegionMa
     
     candidates = []
     
-    if matcher.location_regex:
+    if matcher.location_regexes:
         # Find all location matches in the snippet
-        loc_matches = list(matcher.location_regex.finditer(snippet))
+        loc_matches = []
+        for regex in matcher.location_regexes:
+            loc_matches.extend(list(regex.finditer(snippet)))
         
         if loc_matches:
             # Find the match closest to the label
@@ -1919,17 +1921,18 @@ def sync_home_country():
             check_country = new_country if new_country else current_country
             
             if (not check_country) or (check_country in TAX_HAVEN_CODES) or (check_country == "INT"):
-                if company_name and REGION_MATCHER.location_regex:
+                if company_name and REGION_MATCHER.location_regexes:
                     # Find all location matches
                     matches = []
-                    for m in REGION_MATCHER.location_regex.finditer(company_name):
-                        term = m.group(0).lower()
-                        if term in REGION_MATCHER.location_map:
-                            # (Region, Country, City, Code)
-                            _, _, _, code = REGION_MATCHER.location_map[term]
-                            # We want a specific country code that is NOT a tax haven and NOT a region code
-                            if code and code not in TAX_HAVEN_CODES and code not in REGION_CODES:
-                                matches.append(code)
+                    for regex in REGION_MATCHER.location_regexes:
+                        for m in regex.finditer(company_name):
+                            term = m.group(0).lower()
+                            if term in REGION_MATCHER.location_map:
+                                # (Region, Country, City, Code)
+                                _, _, _, code = REGION_MATCHER.location_map[term]
+                                # We want a specific country code that is NOT a tax haven and NOT a region code
+                                if code and code not in TAX_HAVEN_CODES and code not in REGION_CODES:
+                                    matches.append(code)
                     
                     if matches:
                         # Use the first valid non-tax-haven country found

@@ -1043,7 +1043,7 @@ class UnionExtractor:
         )
 
         # 8. Extract Geography (Explicit)
-        if self.matcher.location_regex:
+        if self.matcher.location_regexes:
 
             def geo_side_effect(m, val):
                 phrase = val.lower()
@@ -1060,12 +1060,13 @@ class UnionExtractor:
                         )
                     )
 
-            process_matches(
-                self.matcher.location_regex,
-                MatchType.GEO,
-                lambda m: m.group(0),
-                geo_side_effect,
-            )
+            for regex in self.matcher.location_regexes:
+                process_matches(
+                    regex,
+                    MatchType.GEO,
+                    lambda m: m.group(0),
+                    geo_side_effect,
+                )
 
         # 10. Extract Ratios (Before Numbers)
         process_matches(

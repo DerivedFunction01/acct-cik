@@ -73,7 +73,9 @@ NORTH_AMERICA = {
             "silicon valley",
             "twin cities",
             "appalachia",
-            r"american?" # The longer south america will trigger first
+            add_restrictions(
+                r"american?", lookbehinds=[r"central", r"latin", r"south"]
+            ),            
         ],
         Region.NORTH_AMERICA,
         [
@@ -2421,7 +2423,7 @@ class RegionMatcher:
     )  # term -> (Region, Country, City, Code)
 
     specific_union_regex: Optional[re.Pattern] = None
-    location_regex: Optional[re.Pattern] = None
+    location_regexes: List[re.Pattern] = []
 
     regex_detector_regex = re.compile(r"[\^\$\*\+\?\{\}\[\]\\\|\(\)]")
     _compiled = False
@@ -2442,9 +2444,22 @@ class RegionMatcher:
         ]
 
         union_phrases = set()
-        geo_phrases = set()
+        cls.location_regexes = []
+
+        # Helper to safely escape phrases (unless they are already regex patterns)
+        def safe_escape(phrases):
+            escaped = []
+            # Sort by length descending to match longest first
+            for p in sorted(list(phrases), key=len, reverse=True):
+                # If it has ? ( : ! [ ] then it is a regex
+                if cls.regex_detector_regex.search(p):
+                    escaped.append(p)
+                else:
+                    escaped.append(re.escape(p))
+            return escaped
 
         for region_set in all_regions:
+            region_geo_phrases = set()
             for nation in region_set:
                 # 1. Map Specific Unions
                 for union_name in nation.unions:
@@ -2464,7 +2479,7 @@ class RegionMatcher:
                         None,
                         nation.code,
                     )
-                    geo_phrases.add(keyword)
+                    region_geo_phrases.add(keyword)
 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
@@ -2474,7 +2489,7 @@ class RegionMatcher:
                         None,
                         nation.code,
                     )
-                    geo_phrases.add(phrase)
+                    region_geo_phrases.add(phrase)
 
                 # 3. Map Nation Name
                 cls.location_map[nation.name.lower()] = (
@@ -2483,7 +2498,7 @@ class RegionMatcher:
                     None,
                     nation.code,
                 )
-                geo_phrases.add(nation.name)
+                region_geo_phrases.add(nation.name)
 
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
@@ -2494,7 +2509,7 @@ class RegionMatcher:
                         loc.name,
                         nation.code,
                     )
-                    geo_phrases.add(loc.name)
+                    region_geo_phrases.add(loc.name)
 
                     # Location Phrases
                     for phrase in loc.phrases:
@@ -2504,7 +2519,7 @@ class RegionMatcher:
                             loc.name,
                             nation.code,
                         )
-                        geo_phrases.add(phrase)
+                        region_geo_phrases.add(phrase)
 
                     # Sub-cities
                     for sub in loc.cities:
@@ -2514,7 +2529,7 @@ class RegionMatcher:
                             sub.name,
                             nation.code,
                         )
-                        geo_phrases.add(sub.name)
+                        region_geo_phrases.add(sub.name)
                         for phrase in sub.phrases:
                             cls.location_map[phrase.lower()] = (
                                 nation.region,
@@ -2522,19 +2537,13 @@ class RegionMatcher:
                                 sub.name,
                                 nation.code,
                             )
-                            geo_phrases.add(phrase)
-
-        # Helper to safely escape phrases (unless they are already regex patterns)
-        def safe_escape(phrases):
-            escaped = []
-            # Sort by length descending to match longest first
-            for p in sorted(list(phrases), key=len, reverse=True):
-                # If it has ? ( : ! [ ] then it is a regex
-                if cls.regex_detector_regex.search(p):
-                    escaped.append(p)
-                else:
-                    escaped.append(re.escape(p))
-            return escaped
+                            region_geo_phrases.add(phrase)
+            
+            if region_geo_phrases:
+                pattern_str = (
+                    r"(?<!\w)(?:" + "|".join(safe_escape(region_geo_phrases)) + r")(?!\w)"
+                )
+                cls.location_regexes.append(re.compile(pattern_str, re.IGNORECASE))
 
         # Compile Specific Union Regex
         if union_phrases:
@@ -2542,14 +2551,6 @@ class RegionMatcher:
                 r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
             )
             cls.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
-
-        # Compile Location Regex
-        if geo_phrases:
-            pattern_str = (
-                r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
-            )
-
-            cls.location_regex = re.compile(pattern_str, re.IGNORECASE)
 
         cls._compiled = True
 
