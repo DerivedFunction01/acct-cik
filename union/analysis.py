@@ -716,7 +716,7 @@ def apply_qualitative_multipliers(
 
 
 # Pre‑compiled regexes
-_RANGE_TO_THROUGH = re.compile(r"\b(to|through)(?:\s+\S+){0,2}$", re.IGNORECASE)
+_RANGE_TO_THROUGH = re.compile(r"\b((?<!compared\s)to|through)(?:\s+\S+){0,2}$", re.IGNORECASE)
 _RANGE_AND = re.compile(r"\band\b", re.IGNORECASE)
 _RANGE_BETWEEN = re.compile(r"\bbetween\b", re.IGNORECASE)
 
