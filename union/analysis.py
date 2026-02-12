@@ -1560,6 +1560,7 @@ def determine_geo_context(
 
             # Try to resolve against last_context if available
             if last_context and last_context.get("countries") and m.geo_code:
+                allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
                 # Find first country in last_context that matches the language
                 matching_country = next(
                     (c for c in last_context["countries"] if c["code"] in allowed_codes),
@@ -1574,18 +1575,6 @@ def determine_geo_context(
                         "union_name_indicator": m.text,
                         "note": f"Resolved language term '{m.text}' to {matching_country['name']} from context",
                     }
-
-            # Fallback: If the language code maps to exactly one country (e.g. INT_FR -> FR), use it.
-            if len(allowed_codes) == 1:
-                code = allowed_codes.pop()
-                region_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
-                return {
-                    "region": region_name,
-                    "countries": [{"name": code, "code": code}], # Use code as name if name unavailable
-                    "specificity": Specificity.INFERRED_LANG.value,
-                    "union_name_indicator": m.text,
-                    "note": f"Inferred from language term '{m.text}' (Unique code {code})",
-                }
 
             return {
                 "region": Region.INTERNATIONAL.value,  # Broad region
@@ -2490,17 +2479,17 @@ class Tracker:
         # 2. Apply dummy to qualifying entries
         for e in self.entries:
             # Check basic criteria: Union record, no data, not already negated
-            if (e.is_union_record and 
-                e.percentage is None and 
-                e.covered_count is None and 
-                e.not_covered_count is None and
-                not e.is_negated):
-                
+            # Also allow if it's an existing dummy (1.0%) that needs a count calculated
+            is_candidate = (e.is_union_record and e.percentage is None and e.covered_count is None and e.not_covered_count is None and not e.is_negated)
+            is_existing_dummy = (e.is_union_record and e.percentage == 1.0 and e.covered_count is None and not e.is_negated)
+            
+            if is_candidate or is_existing_dummy:
                 # Check negation conflicts (Key or Related Geo)
                 if e.key not in negated_keys and not any(g in negated_geos for g in e.related_geo_codes):
-                    e.percentage = 1.0
-                    e.is_qualitative = True
-                    self.resolution_log.append(f"Applied dummy 1.0% to {e.key} based on union record presence")
+                    if e.percentage is None:
+                        e.percentage = 1.0
+                        e.is_qualitative = True
+                        self.resolution_log.append(f"Applied dummy 1.0% to {e.key} based on union record presence")
 
     def resolve_coverage(self):
         """
@@ -2522,6 +2511,9 @@ class Tracker:
             
         # 3. Resolve International Gap
         self._resolve_international_gap()
+        
+        # 4. Apply dummy percentages (Final fallback for backfilled totals)
+        self._apply_dummy_union_percentage()
     
     def _check_contradictions(self):
         """
@@ -3183,6 +3175,7 @@ class UnionAnalyzer:
                     and cov.get("employee_count_covered") is None 
                     and cov.get("employee_count_total") is None
                     and not cov.get("negated")
+                    and not item.get("is_union", False)
                 ):
                     continue
 
@@ -3698,10 +3691,6 @@ class UnionAnalyzer:
                             covered = c_data.get("employee_count_covered")
                             not_covered = c_data.get("employee_count_not_covered")
                             is_negated = c_data.get("negated")
-
-                            # Fix for ZERO_COVERAGE: "None are union" -> 0% Covered (not 0% Not Covered)
-                            if c_data.get("negation_type") == NegationType.ZERO_COVERAGE.value:
-                                is_negated = False
 
                             # Case 1: Have Total + Pct -> Calculate Parts
                             if total and (covered is None or not_covered is None):
