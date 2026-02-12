@@ -2280,9 +2280,15 @@ class Tracker:
     def _route_domestic(self, target_country: Optional[str] = None):
         if target_country is None:
             target_country = self.domestic_country_code
+            
+        # Fallback for truly unknown domestic code
+        if target_country in ["DOM", "Domestic", "Unknown", None]:
+            target_country = "US"
+            self.resolution_log.append("Target country was DOM/Unknown, defaulted to US")
 
         # Filter for valid country codes (2 letters usually)
-        valid_countries = {c for c in self.mentioned_countries if c and len(c) == 2}
+        # Treat "INT" as a valid country code for this logic if it is the target
+        valid_countries = {c for c in self.mentioned_countries if c and (len(c) == 2 or c == target_country)}
         other_countries = valid_countries - {target_country}
 
         # Condition: No other countries mentioned
@@ -3070,7 +3076,8 @@ class UnionAnalyzer:
     def _resolve_counts_generic(
         self, 
         analysis: SentenceAnalysis, 
-        entities: List[Dict[str, Any]]
+        entities: List[Dict[str, Any]],
+        total_key: Optional[str] = None
     ) -> Tuple[Dict[str, float], Optional[float]]:
         """
         Generic helper to map worker counts to a list of entities (regions or unions).
@@ -3104,6 +3111,10 @@ class UnionAnalyzer:
             
             if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
                 sentence_total = max_val
+                
+                if total_key:
+                    mapped_counts[total_key] = sentence_total
+
                 for i, c in enumerate(parts):
                     if c["val"] == max_val:
                         parts = parts[:i] + parts[i+1:]
@@ -3230,11 +3241,11 @@ class UnionAnalyzer:
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
                 # Use Region Name for generic accumulators, Code for countries
                 key = obj.geo_code
-                if obj.geo_code in REGION_CODES:
+                if obj.geo_code in REGION_CODES and obj.geo_code != "DOM":
                     key = obj.region.value
                 geo_entries.append({"key": key, "span": raw["span"], "region_enum": obj.region})
 
-        return self._resolve_counts_generic(analysis, geo_entries)
+        return self._resolve_counts_generic(analysis, geo_entries, total_key="GLO")
 
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
