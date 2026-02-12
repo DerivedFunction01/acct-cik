@@ -2049,33 +2049,16 @@ class Tracker:
                 # Apply if total is unknown OR matches the census (i.e. it's a country-wide rate)
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
                     
-                    use_fallback = False
                     # Safety: Don't assume a segment covers the entire census, unless we only have a single segment
                     if e.scope == Scope.SEGMENT and e.total_count is None:
                         segment_count = sum(
                             1 for entry in entries if entry.scope == Scope.SEGMENT
                         )
                         if segment_count > 1:
-                            use_fallback = True
+                            continue
                     
-                    # Also fallback if census is missing
+                    # Also skip if census is missing (fallback handler will try broader scopes)
                     if census_total <= 0:
-                        use_fallback = True
-
-                    if use_fallback:
-                        base_pop = census_total
-                        if base_pop <= 0:
-                            r_name = _CODE_TO_REGION.get(name)
-                            if r_name:
-                                base_pop = self.region_totals.get(r_name, 0.0)
-                        if base_pop <= 0:
-                            base_pop = self.global_total
-                        
-                        if base_pop > 0:
-                            small_denom = max(1.0, round(base_pop * 0.001))
-                            e.total_count = small_denom
-                            e.covered_count = round((e.percentage / 100.0) * small_denom)
-                            self.resolution_log.append(f"Resolved COUNT for {name} ({e.key}) using 0.1% fallback: {e.percentage}% of {small_denom} (Base {base_pop})")
                         continue
 
                     e.covered_count = round((e.percentage / 100.0) * census_total)
@@ -2514,7 +2497,103 @@ class Tracker:
         
         # 4. Apply dummy percentages (Final fallback for backfilled totals)
         self._apply_dummy_union_percentage()
-    
+
+        # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
+        self._apply_fallback_denominators()
+                         
+    def _apply_fallback_denominators(self):
+        """
+        Applies a conservative denominator (0.1% of population) to entries that have a percentage
+        but lack a total count (usually due to safety checks preventing census inheritance).
+        """
+        for e in self.entries:
+            # Only target entries with percentage but no counts
+            if e.percentage is not None and e.total_count is None and e.covered_count is None:
+                
+                # Determine base population for fallback
+                base_pop = 0.0
+                geo_name = "Unknown"
+                
+                # Try to find relevant population
+                # 1. Country Level
+                country_code = None
+                if e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
+                    country_code = e.key.split("::")[0]
+                elif e.scope == Scope.COUNTRY:
+                    country_code = e.key
+                
+                # Check for conflicting negations in the relevant scopes
+                scopes_to_check = set()
+                if country_code:
+                    scopes_to_check.add(country_code)
+                    r_name = _CODE_TO_REGION.get(country_code)
+                    if r_name:
+                        scopes_to_check.add(r_name)
+                elif e.scope == Scope.REGION and e.key:
+                    scopes_to_check.add(e.key)
+                scopes_to_check.add("GLO")
+                scopes_to_check.add(Scope.GLOBAL.value)
+
+                is_scope_negated = False
+                for check_e in self.entries:
+                    if check_e is e:
+                        continue
+
+                    # Check for explicit negation OR zero coverage (count/pct) in the scope
+                    has_zero = (check_e.covered_count == 0) or (check_e.percentage == 0)
+
+                    # Determine whether check_e belongs to the same geographic scope
+                    in_scope = False
+                    # Direct key match (country/region/global keys)
+                    if check_e.key in scopes_to_check:
+                        in_scope = True
+                    else:
+                        # If we are targeting a country, include any segment entries like "CN::..."
+                        if country_code and isinstance(check_e.key, str) and check_e.key.startswith(f"{country_code}::"):
+                            in_scope = True
+                        # If check_e is a country whose region is in scopes_to_check, include it
+                        if not in_scope and isinstance(check_e.key, str):
+                            try:
+                                region_of_check = _CODE_TO_REGION.get(check_e.key)
+                            except Exception:
+                                region_of_check = None
+                            if region_of_check and region_of_check in scopes_to_check:
+                                in_scope = True
+
+                    if (check_e.is_negated or has_zero) and in_scope:
+                        is_scope_negated = True
+                        self.resolution_log.append(f"Skipped fallback for {e.key}: Negation or zero found for {check_e.key}")
+                        break
+                
+                if is_scope_negated:
+                    continue
+
+                if country_code:
+                    geo_name = country_code
+                    base_pop = self.country_totals.get(country_code, 0.0)
+                    
+                    # 2. Region Level (if country empty)
+                    if base_pop <= 0:
+                        r_name = _CODE_TO_REGION.get(country_code)
+                        if r_name:
+                            base_pop = self.region_totals.get(r_name, 0.0)
+                            geo_name = r_name
+                
+                elif e.scope == Scope.REGION:
+                    geo_name = e.key
+                    base_pop = self.region_totals.get(e.key, 0.0) if e.key is not None else 0
+
+                # 3. Global Level
+                if base_pop <= 0:
+                    base_pop = self.global_total
+                    geo_name = "Global"
+
+                if base_pop > 0:
+                    small_denom = max(1.0, round(base_pop * 0.001))
+                    e.total_count = small_denom
+                    e.covered_count = round((e.percentage / 100.0) * small_denom)
+                    self.resolution_log.append(f"Resolved COUNT for {e.key} using 0.1% fallback: {e.percentage}% of {small_denom} (Base {base_pop} from {geo_name})")
+
     def _check_contradictions(self):
         """
         Checks for logical contradictions in the tracked data.
