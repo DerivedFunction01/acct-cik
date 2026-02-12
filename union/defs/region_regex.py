@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 from typing import Dict, List, Optional, Tuple, Any
-from defs.regex_lib import add_restrictions
+from defs.regex_lib import add_restrictions, build_compound, build_regex, to_build_alternation
 
 
 class Region(Enum):
@@ -1649,7 +1649,7 @@ ASIA_PACIFIC = {
 LATIN_AMERICA = {
     Nation(
         "Latin America",
-        [r"(?:latin|south)\s+america(?:s|n)?", "latam"],
+        [build_compound([r"latin", r"south", r"central"], r"america(?:n|s)?"), "latam"],
         Region.LATIN_AMERICA,
         code="LATAM",
     ),
