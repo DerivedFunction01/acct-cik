@@ -156,7 +156,7 @@ UNION_DENOMINATOR_REGEX = build_regex(
         ),
         PERCENT_PREFIX + build_compound(
             DENOMINATOR_PREFIX,
-            [r"union", r"bargaining\s+unit"],
+            [r"union", r"bargaining\s+units?"],
             sep_prefix=r"\s+(?:our\s+|the\s+)?",
         ),
         # Strict: Do not match (18% of the workers are covered/represented)
