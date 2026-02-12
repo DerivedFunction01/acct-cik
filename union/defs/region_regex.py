@@ -2124,7 +2124,7 @@ INTERNATIONAL = {
     Nation(
         "Global",
         ["global", "worldwide", "consolidated"],
-        Region.INTERNATIONAL,
+        Region.GLOBAL,
         [],
         [
             "ITF",

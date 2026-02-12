@@ -872,9 +872,26 @@ class ContextualNumberCleaner:
         percent_range = rf"{num}(?:\s*%?{sep}{num})?\s*%"
 
         # Matches: "100 [manufacturing] facilities"
-        # Allow up to 2 intervening words (e.g. "manufacturing and distribution")
+        # Define an asset component as up to 2 intervening words + an asset term.
+        # Allow the asset component to appear up to twice, joined by common
+        # connectors (comma, and, &, /, or, -). This tightly constrains
+        # what can be considered an asset phrase and avoids matching when
+        # unrelated filler words appear.
+        asset_comp = rf"(?:[\'\w-]+\s+){{0,2}}(?:{asset_pattern})"
+        connectors = r"(?:\s*(?:,|and|&|/|or|-)\s*)"
+        asset_chain = rf"{asset_comp}(?:{connectors}{asset_comp})?"
+
+        # Do not strip the numeric if the asset_chain is immediately followed by
+        # a worker term (e.g. "workers"). Also block if a worker term appears
+        # AFTER a connector + a second asset component (e.g. "warehouse and
+        # fulfillment center workers"). This restricts the negative lookahead to
+        # only the directly relevant patterns instead of an arbitrary word window.
+        next_worker_simple = rf"\s+(?:{worker_pattern})\b"
+        next_worker_after_second = rf"\s*(?:,|and|&|/|or|-)\s*(?:[\'\w-]+\s+){{0,2}}(?:{worker_pattern})\b"
+        combined_negative = rf"(?!{next_worker_simple}|{next_worker_after_second})"
+
         self.asset_regex = re.compile(
-            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,2}}{asset_pattern})\b(?!\s+(?:{worker_pattern}))",
+            rf"\b{number_range}\s+({asset_chain})\b{combined_negative}",
             re.IGNORECASE,
         )
 
