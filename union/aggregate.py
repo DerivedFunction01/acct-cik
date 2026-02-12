@@ -47,11 +47,18 @@ def process_row(row):
     }
 
     # Combine raw percentages from both sections
-    p1 = json.loads(item1_percents) if item1_percents else []
-    p1a = json.loads(item1a_percents) if item1a_percents else []
-    all_raw = sorted(list(set(p1 + p1a)))
-    if all_raw:
-        res["raw_percents"] = json.dumps(all_raw)
+    try:
+        p1 = json.loads(item1_percents) if item1_percents else []
+        p1a = json.loads(item1a_percents) if item1a_percents else []
+        # Ensure they are lists
+        if not isinstance(p1, list): p1 = []
+        if not isinstance(p1a, list): p1a = []
+        
+        all_raw = sorted(list(set(p1 + p1a)))
+        if all_raw:
+            res["raw_percents"] = json.dumps(all_raw)
+    except (json.JSONDecodeError, TypeError):
+        pass
 
     # --- Process Item 1 (Business Description) ---
     if item1_json:
@@ -98,7 +105,7 @@ def process_row(row):
 
 def main():
     if not Path(SOURCE_DB).exists():
-        logging.error(f"Source database {SOURCE_DB} not found. Run analyze_paragraphs.py first.")
+        logging.error(f"Source database {SOURCE_DB} not found. Run run_analysis.py first.")
         return
 
     conn = sqlite3.connect(SOURCE_DB)
@@ -136,59 +143,54 @@ def main():
             FROM analysis_result a
             LEFT JOIN report_data r ON a.accession = r.accession
         """)
-    except sqlite3.OperationalError:
-        logging.error("Could not read from 'analysis_result' table. Ensure analyze_paragraphs.py has run.")
+    except sqlite3.OperationalError as e:
+        logging.error(f"Database error: {e}. Ensure run_analysis.py has run and tables exist.")
         return
 
-    rows = c.fetchall()
-    logging.info(f"Processing {len(rows)} rows...")
-    
     batch = []
-    count = 0
+    total_processed = 0
     
-    for row in rows:
-        res = process_row(row)
-        
-        batch.append((
-            res["accession"],
-            res["cik"],
-            res["year"],
-            res["period_of_report"],
-            res["has_item1"],
-            res["has_item1a"],
-            res["union_rate"],
-            res["secondary_rate"],
-            res["measured_coverage"],
-            res["pct_north_america"],
-            res["pct_europe"],
-            res["pct_asia"],
-            res["pct_latam"],
-            res["pct_mea"],
-            res["pct_intl"],
-            res["raw_percents"]
-        ))
-        
-        if len(batch) >= 1000:
+    # Iterate over the cursor directly to save memory
+    while True:
+        rows = c.fetchmany(1000)
+        if not rows:
+            break
+            
+        for row in rows:
+            res = process_row(row)
+            
+            batch.append((
+                res["accession"],
+                res["cik"],
+                res["year"],
+                res["period_of_report"],
+                res["has_item1"],
+                res["has_item1a"],
+                res["union_rate"],
+                res["secondary_rate"],
+                res["measured_coverage"],
+                res["pct_north_america"],
+                res["pct_europe"],
+                res["pct_asia"],
+                res["pct_latam"],
+                res["pct_mea"],
+                res["pct_intl"],
+                res["raw_percents"]
+            ))
+            
+        if batch:
             c.executemany(f"""
                 INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             """, batch)
-            count = len(batch)
+            total_processed += len(batch)
             batch = []
-            print(f"Processed {count} rows...", end="\r")
+            print(f"Processed {total_processed} rows...", end="\r")
             
-    if batch:
-        c.executemany(f"""
-            INSERT OR REPLACE INTO {TARGET_TABLE} VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-            )
-        """, batch)
-        count = len(batch)
-        
     conn.commit()
     conn.close()
-    logging.info(f"\nAggregation complete. {count} rows inserted into '{TARGET_TABLE}'.")
+    logging.info(f"\nAggregation complete. {total_processed} rows inserted into '{TARGET_TABLE}'.")
 
 if __name__ == "__main__":
     main()
