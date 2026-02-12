@@ -3591,13 +3591,15 @@ class UnionAnalyzer:
         self, 
         analysis: SentenceAnalysis, 
         entities: List[Dict[str, Any]],
-        total_key: Optional[str] = None
+        total_key: Optional[str] = None,
+        allow_naive_split: bool = False
     ) -> Tuple[Dict[str, float], Optional[float]]:
         """
         Refactored version of _resolve_counts_generic.
         Currently implements:
         1. Sum of Parts (Total detection)
         2. Exact Parallel Mapping (1-to-1)
+        3. Naive Split (1-to-Many) if enabled
         """
         mapped_counts = {}
         sentence_total = None
@@ -3655,6 +3657,14 @@ class UnionAnalyzer:
             
             return mapped_counts, sentence_total
 
+        # 4. Naive Split (1 Count -> Multiple Entities)
+        if allow_naive_split and len(parts) == 1 and len(entities) > 1:
+            count_val = parts[0]["val"]
+            split_val = count_val / len(entities)
+            for e in entities:
+                mapped_counts[e["key"]] = split_val
+            return mapped_counts, sentence_total
+
         return mapped_counts, sentence_total
 
     def _resolve_counts_to_geography_v2(
@@ -3685,7 +3695,7 @@ class UnionAnalyzer:
         ]
 
         union_entries = [{"key": m["text"], "span": m["span"]} for m in union_matches]
-        return self._resolve_counts_generic(analysis, union_entries)
+        return self._resolve_counts_generic_v2(analysis, union_entries, allow_naive_split=True)
 
     def _resolve_counts_to_types(self, analysis: SentenceAnalysis) -> Dict[str, float]:
         """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""
