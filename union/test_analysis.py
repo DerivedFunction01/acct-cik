@@ -16,7 +16,7 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 ITEM_1 = """
 ITEM 1. BUSINESS
 
-TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide. Of our workforce, less than 1% are Traditionalists (born before 1928), 12% are Baby Boomers (born 1928-1945), 37% are Generation X (born 1965-1980), 42% are Millennials (born 1981-1996) and less than 9% are Generation Z (born after 1997). 
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 150,000 employees worldwide, compared to 250,000 in 2022. Of our workforce, less than 1% are Traditionalists (born before 1928), 12% are Baby Boomers (born 1928-1945), 37% are Generation X (born 1965-1980), 42% are Millennials (born 1981-1996) and less than 9% are Generation Z (born after 1997). 
 
 UNITED STATES OPERATIONS
 
