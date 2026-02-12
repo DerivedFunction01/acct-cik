@@ -31,6 +31,35 @@ def clean_spaces_and_punctuation(text: str) -> str:
     return text
 
 
+def normalize_quotes(text: str) -> str:
+    """
+    Normalize common Unicode single and double quotation marks to ASCII
+    straight quotes. Handles curly quotes and prime characters often
+    introduced by smart-quoting in word processors.
+    """
+    if not text:
+        return ""
+
+    # Common Unicode quote characters -> ASCII equivalents
+    replacements = {
+        "\u2018": "'",  # LEFT SINGLE QUOTATION MARK
+        "\u2019": "'",  # RIGHT SINGLE QUOTATION MARK (also used as apostrophe)
+        "\u201A": "'",  # SINGLE LOW-9 QUOTATION MARK
+        "\u201B": "'",  # SINGLE HIGH-REVERSED-9 QUOTATION MARK
+        "\u2032": "'",  # PRIME
+        "\u201C": '"',  # LEFT DOUBLE QUOTATION MARK
+        "\u201D": '"',  # RIGHT DOUBLE QUOTATION MARK
+        "\u201E": '"',  # DOUBLE LOW-9 QUOTATION MARK
+        "\u201F": '"',  # DOUBLE HIGH-REVERSED-9 QUOTATION MARK
+        "\u2033": '"',  # DOUBLE PRIME
+    }
+
+    for src, dst in replacements.items():
+        text = text.replace(src, dst)
+
+    return text
+
+
 class WebTextCleaner:
     false_positives = [
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
@@ -687,6 +716,9 @@ class MinimalTextCleaner:
         for paragraph in paragraphs:
             # 1. Whitespace
             paragraph = clean_spaces_and_punctuation(paragraph)
+
+            # Normalize Unicode quotes to ASCII straight quotes
+            paragraph = normalize_quotes(paragraph)
 
             # 2. Normalize Acronyms (Early)
             paragraph = self.normalize_acronyms(paragraph)

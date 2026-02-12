@@ -131,7 +131,7 @@ REPRESENTATION_TERMS = [
     r"covered",  # removed by
 ]
 
-GAP = r"(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
+GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
 
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
