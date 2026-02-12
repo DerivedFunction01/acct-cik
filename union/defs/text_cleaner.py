@@ -1035,6 +1035,8 @@ class ContextualNumberCleaner:
             r"regions?",
             r"lodges?",
             r"councils?",
+            r"chapters?",
+            r"branches?",
             r"propositions?", # California proposition
         ]
         union_id_pattern = build_alternation(union_identifiers)
