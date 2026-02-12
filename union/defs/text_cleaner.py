@@ -1079,8 +1079,6 @@ class ConcisenessCleaner:
     def __init__(self):
         self.removal_regex = build_regex(
             [
-                r"an?",
-                r"the",
                 r"approx(?:imate(?:ly)?|\.)?",
                 r"around",
                 r"about",
@@ -1104,7 +1102,6 @@ class ConcisenessCleaner:
                 r"propert(?:y|ies)",
                 r"stores?",
                 r"branch(?:es)?",
-                r"warehouses?",
                 r"offices",
                 r"centers?",
                 r"addition(?:ally)?",
