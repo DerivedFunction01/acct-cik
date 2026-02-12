@@ -1100,6 +1100,7 @@ class ConcisenessCleaner:
                 r"distributions?",
                 r"subsidiar(?:y|ies)",
                 r"manufacturing",
+                r"fulfillments?",
                 r"propert(?:y|ies)",
                 r"stores?",
                 r"branch(?:es)?",
