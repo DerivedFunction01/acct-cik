@@ -17,6 +17,7 @@ from extraction import (
 from defs.region_regex import (
     REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION
 )
+from defs.region_regex import group_by_scope
 from defs.output_enums import (
     Specificity,
     CoverageType,
@@ -3321,7 +3322,7 @@ class UnionAnalyzer:
                 tracker.register_mentions(geo_context)
 
             # Try to resolve specific counts to geography (e.g. "200 in China")
-            mapped_counts, _ = self._resolve_counts_to_geography(analysis)
+            mapped_counts, _ = self._resolve_counts_to_geography_v2(analysis)
             if mapped_counts:
                 for code, val in mapped_counts.items():
                     r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
@@ -3587,22 +3588,17 @@ class UnionAnalyzer:
 
         return self._resolve_counts_generic(analysis, geo_entries, total_key="GLO")
 
-    def _resolve_counts_generic_v2(
-                self, 
+    def _prepare_counts(
+        self, 
         analysis: SentenceAnalysis, 
         entities: List[Dict[str, Any]],
-        total_key: Optional[str] = None,
-        allow_naive_split: bool = False
-    ) -> Tuple[Dict[str, float], Optional[float]]:
+    ) -> Tuple[List[Dict[str, Any]], Optional[float]]:
         """
-        Refactored version of _resolve_counts_generic.
-        Currently implements:
-        1. Sum of Parts (Total detection)
-        2. Virtual Count for Balance/Remaining
-        3. Exact Parallel Mapping (1-to-1)
-        4. Naive Split (1-to-Many) if enabled
+        Helper to prepare counts for mapping:
+        1. Extracts counts
+        2. Detects and removes Total (Sum of Parts)
+        3. Adds Virtual Count for Balance/Remaining if applicable
         """
-        mapped_counts = {}
         sentence_total = None
 
         # 1. Extract Counts
@@ -3612,9 +3608,9 @@ class UnionAnalyzer:
             if (m["type"] == MatchType.WORKER_COUNT
             or m["type"] == MatchType.NUMBER)
         ]
-        
+
         if not counts or not entities:
-            return {}, None
+            return [], None
 
         parts = counts[:]
 
@@ -3627,7 +3623,7 @@ class UnionAnalyzer:
 
             # Logic A: Arithmetic Match (Sum of parts ~= Total)
             is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
-            
+
             # Logic B: Count Mismatch (N+1 counts for N entities -> 1 is likely total)
             is_len_mismatch = len(counts) == len(entities) + 1
 
@@ -3636,9 +3632,6 @@ class UnionAnalyzer:
 
             if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
                 sentence_total = max_val
-
-                if total_key:
-                    mapped_counts[total_key] = sentence_total
 
                 # Remove the total from parts to map the rest
                 # We remove the *first* occurrence of max_val to be safe, though usually unique
@@ -3649,31 +3642,91 @@ class UnionAnalyzer:
 
         # 2.1 Handle Remaining/Balance (Virtual Count)
         if sentence_total is not None and analysis.has_remaining_other:
-             current_sum = sum(c["val"] for c in parts)
-             remainder = sentence_total - current_sum
-             
-             if remainder > 0:
-                 rem_match = REMAIN_REGEX.search(analysis.text)
-                 if rem_match:
-                     parts.append({
-                         "val": remainder,
-                         "span": rem_match.span(),
-                         "type": MatchType.WORKER_COUNT,
-                         "text": rem_match.group(0)
-                     })
-                     # Re-sort parts by position
-                     parts.sort(key=lambda x: x["span"][0])
+            current_sum = sum(c["val"] for c in parts)
+            remainder = sentence_total - current_sum
 
+            if remainder > 0:
+                rem_match = REMAIN_REGEX.search(analysis.text)
+                if rem_match:
+                    parts.append({
+                        "val": remainder,
+                        "span": rem_match.span(),
+                        "type": MatchType.WORKER_COUNT,
+                        "text": rem_match.group(0)
+                    })
+                    # Re-sort parts by position
+                    parts.sort(key=lambda x: x["span"][0])
+        
+        return parts, sentence_total
+
+    def _resolve_counts_generic_v2(
+        self, 
+        analysis: SentenceAnalysis, 
+        entities: List[Dict[str, Any]],
+        total_key: Optional[str] = None,
+        allow_naive_split: bool = False
+    ) -> Tuple[Dict[str, float], Optional[float]]:
+        """
+        Refactored version of _resolve_counts_generic.
+        """
+        mapped_counts = {}
+        
+        # 1. Prepare Counts (Total detection + Virtual counts)
+        parts, sentence_total = self._prepare_counts(analysis, entities)
+        
+        if sentence_total is not None and total_key:
+            mapped_counts[total_key] = sentence_total
+
+        # 2. Mapping Logic
         # 3. Exact Parallel Mapping
         # If number of remaining counts matches number of entities, assume order corresponds
         if len(parts) == len(entities):
             s_counts = sorted(parts, key=lambda x: x["span"][0])
             s_entities = sorted(entities, key=lambda x: x["span"][0])
-            
+
             for c, e in zip(s_counts, s_entities):
                 mapped_counts[e["key"]] = c["val"]
-            
+
             return mapped_counts, sentence_total
+
+        # 3.5 Hierarchical Scope Grouping (N Counts -> N Scopes -> Many Entities)
+        # e.g. "100 Domestic and 100 International (Europe, China)" -> 2 counts, 4 entities
+        if entities:
+            # Try to group entities by scope
+            groups = group_by_scope(entities, target_count=None)
+            
+            if groups:
+                # Check if we have a mismatch that implies a Total is still in 'parts'
+                # e.g. 3 counts, 2 groups -> 1 count is likely the total of the 2 groups
+                if len(parts) == len(groups) + 1:
+                    vals = [c["val"] for c in parts]
+                    max_val = max(vals)
+                    # If we haven't already identified a total, or if this looks like a local total
+                    if sentence_total is None:
+                        # Assume max is total, remove it
+                        for i, c in enumerate(parts):
+                            if c["val"] == max_val:
+                                parts = parts[:i] + parts[i+1:]
+                                break
+            
+            # Now check if counts match groups
+            if len(parts) == len(groups):
+                # Sort parts to match groups order (assuming text order)
+                s_counts = sorted(parts, key=lambda x: x["span"][0])
+
+                for c, group in zip(s_counts, groups):
+                    # Assign full count to the Head (Container)
+                    head = group[0]
+                    mapped_counts[head["key"]] = c["val"]
+
+                    # Distribute count to children if present (for detailed tracking)
+                    children = group[1:]
+                    if children:
+                        split_val = c["val"] / len(children)
+                        for child in children:
+                            mapped_counts[child["key"]] = split_val
+
+                return mapped_counts, sentence_total
 
         # 4. Naive Split (1 Count -> Multiple Entities)
         if allow_naive_split and len(parts) == 1 and len(entities) > 1:
@@ -3682,6 +3735,37 @@ class UnionAnalyzer:
             for e in entities:
                 mapped_counts[e["key"]] = split_val
             return mapped_counts, sentence_total
+
+        # 5. Proximity Mapping (Fallback)
+        if entities and parts:
+            segments = get_text_segments(analysis.text)
+
+            def get_seg_idx(pos):
+                return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
+
+            pairs = []
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_seg = get_seg_idx(c_mid)
+                for e in entities:
+                    e_mid = (e["span"][0] + e["span"][1]) / 2
+                    e_seg = get_seg_idx(e_mid)
+                    dist = abs(c_mid - e_mid)
+
+                    # Penalize cross-segment matches
+                    if c_seg != e_seg:
+                        dist += 1000
+
+                    pairs.append((dist, c, e))
+
+            pairs.sort(key=lambda x: x[0])
+            used_c, used_e = set(), set()
+
+            for dist, c, e in pairs:
+                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
+                    mapped_counts[e["key"]] = c["val"]
+                    used_c.add(id(c))
+                    used_e.add(e["key"])
 
         return mapped_counts, sentence_total
 
@@ -3707,7 +3791,7 @@ class UnionAnalyzer:
                     key = obj.region.value
                 geo_entries.append({"key": key, "span": raw["span"], "region_enum": obj.region})
 
-        return self._resolve_counts_generic_v2(analysis, geo_entries, total_key="GLO")
+        return self._resolve_counts_generic_v2(analysis, geo_entries, total_key="GLO", allow_naive_split=True)
 
     def _map_assignments_to_geo_v2(self, analysis: SentenceAnalysis, assignments: List[Dict]) -> List[Dict]:
         """
@@ -3741,7 +3825,7 @@ class UnionAnalyzer:
                     "note": f"Mapped to {obj.country}"
                 })
             return splits
-            
+
         return []
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
@@ -4160,7 +4244,7 @@ class UnionAnalyzer:
                     union_counts = {}
                 else:
                     # Try intelligent mapping first
-                    mapped_counts, sent_total = self._resolve_counts_to_geography(
+                    mapped_counts, sent_total = self._resolve_counts_to_geography_v2(
                         analysis
                     )
                     union_counts, _ = self._resolve_counts_to_unions(analysis)

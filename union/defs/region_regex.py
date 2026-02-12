@@ -2296,7 +2296,7 @@ INTERNATIONAL = {
     Nation(
         Region.DOMESTIC.value,
         ["domestic", "domestically"],
-        Region.UNKNOWN,
+        Region.DOMESTIC,
         [],
         [],
         [],
@@ -2608,3 +2608,68 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
+
+def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
+    """
+    Groups geographic entities into clusters based on scope hierarchy to match a target count.
+    Used when the number of counts matches the number of 'scopes' but not the total number of entities.
+    
+    Example: 
+      Entities: [International, Europe, China]
+      Target: 1
+      Result: [[International, Europe, China]] (International contains others)
+      
+      Entities: [Domestic, International, Europe, China]
+      Target: 2
+      Result: [[Domestic], [International, Europe, China]]
+    """
+    if not entities:
+        return []
+
+    # Sort by position in text
+    sorted_entities = sorted(entities, key=lambda x: x["span"][0])
+    
+    groups = []
+    
+    for entity in sorted_entities:
+        if not groups:
+            groups.append([entity])
+            continue
+            
+        current_head = groups[-1][0]
+        
+        # Check containment
+        head_region = current_head.get("region_enum")
+        child_region = entity.get("region_enum")
+        child_key = entity.get("key")
+        
+        is_child = False
+        
+        if head_region == Region.GLOBAL:
+            is_child = True
+        elif head_region == Region.INTERNATIONAL:
+            # International contains everything except Domestic and Global
+            if child_region not in (Region.DOMESTIC, Region.GLOBAL) and child_key != "DOM":
+                is_child = True
+        elif head_region in (Region.DOMESTIC, Region.UNKNOWN):
+            # Domestic/Unknown usually doesn't contain other regions/countries in this context
+            # unless explicitly mapped, but usually they are peers or specific locations
+            pass
+        elif head_region:
+            # Specific Region (e.g. EUROPE) contains countries in that region
+            # Check if child is a country in that region
+            # We can check if child_region matches head_region (Country's region_enum is set to its region)
+            if child_region == head_region:
+                # Ensure it's not the same region name (e.g. Europe inside Europe)
+                if entity.get("key") != current_head.get("key"):
+                    is_child = True
+
+        if is_child:
+            groups[-1].append(entity)
+        else:
+            groups.append([entity])
+            
+    if target_count is None or len(groups) == target_count:
+        return groups
+        
+    return []
