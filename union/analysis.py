@@ -1608,17 +1608,11 @@ class Entry:
     qualitative_bounds: Optional[Tuple[float, float]] = None
     is_remaining: bool = False
     is_negated: bool = False
+    is_union_record: bool = False
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
     related_geo_codes: List[str] = field(default_factory=list)
 
-    @property
-    def is_union_specific(self) -> bool:
-        return self.key is not None and "::" in self.key and "::Segment_" not in self.key
-
-    @property
-    def is_generic_segment(self) -> bool:
-        return self.key is not None and "::Segment_" in self.key
 
 
 class Tracker:
@@ -1759,6 +1753,7 @@ class Tracker:
         is_remaining: bool = False,
         is_explicit: bool = False,
         is_negated: bool = False,
+        is_union_record: bool = False,
         sentence_index: int = -1
     ):
         """
@@ -1827,6 +1822,7 @@ class Tracker:
             qualitative_bounds=qualitative_bounds,
             is_remaining=is_remaining,
             is_explicit=is_explicit,
+            is_union_record=is_union_record,
             is_negated=is_negated,
             scope=scope,
             sent_idx=sentence_index,
@@ -3053,6 +3049,7 @@ class UnionAnalyzer:
                     is_remaining=(cov.get("type") == CoverageType.REMAINING.value),
                     is_explicit=(cov.get("type") == CoverageType.EXPLICIT_PERCENT.value),
                     is_negated=cov.get("negated", False),
+                    is_union_record=item.get("is_union", False),
                     sentence_index=item.get("sentence_index", -1)
                 )
 
@@ -3573,6 +3570,10 @@ class UnionAnalyzer:
                         merge_note = f" [Merged with next sentence: '{next_item.get('sentence', '')[:30]}...']"
                         c_data["note"] = (c_data.get("note") or "") + merge_note
                         current["merged_sentence_index"] = next_item.get("sentence_index")
+
+                        # Merge is_union flag (if continuation is union-specific, the whole item is)
+                        if next_item.get("is_union"):
+                            current["is_union"] = True
                         skip_indices.add(i + 1)
 
             merged_results.append(current)
