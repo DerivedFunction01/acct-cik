@@ -26,6 +26,8 @@ In our automobile manufacturing division, we employ 14,200 hourly production wor
 
 Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
 
+We also have several instructors who are members of Local 140 of the International Union of Instructors.
+
 We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
 
 Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
