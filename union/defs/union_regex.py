@@ -62,7 +62,7 @@ WORKER_TERMS = [
             r"Dock",
             r"Steel",
             r"Auto",
-            r"Metal",
+            r"Metall?",
             r"Iron",
             r"Rail(?:road)?",
             r"Farm",
