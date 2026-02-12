@@ -80,6 +80,7 @@ WORKER_TERMS = [
     ),
     r"Teachers?",
     r"Nurses?",
+    r"Doctors?",
     r"Pilots?",
     r"Flight\s+Attendants?",
     r"Drivers?",
