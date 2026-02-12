@@ -3734,10 +3734,53 @@ class UnionAnalyzer:
 
                 return mapped_counts, sentence_total
 
+        # 3.6 List Grouping (N Counts -> N Lists of Entities)
+        # Detects "2000 in A, B and C, and 3000 in D"
+        if entities and parts:
+            # Sort entities by position
+            s_entities = sorted(entities, key=lambda x: x["span"][0])
+            
+            groups = []
+            if s_entities:
+                current_group = [s_entities[0]]
+                for i in range(len(s_entities) - 1):
+                    e1 = s_entities[i]
+                    e2 = s_entities[i+1]
+                    
+                    # Check text between e1 end and e2 start
+                    start, end = e1["span"][1], e2["span"][0]
+                    text_between = analysis.text[start:end]
+                    
+                    # Check if any count falls in this gap
+                    has_count_in_gap = any(
+                        c["span"][0] >= start and c["span"][1] <= end 
+                        for c in parts
+                    )
+                    
+                    # Check for list separators
+                    clean_text = re.sub(r"\s+", " ", text_between).strip()
+                    is_sep = bool(re.match(r"^(?:,|;|and|&|or)+$", clean_text, re.IGNORECASE)) or not clean_text
+                    
+                    if not has_count_in_gap and is_sep:
+                         current_group.append(e2)
+                    else:
+                         groups.append(current_group)
+                         current_group = [e2]
+                groups.append(current_group)
+            
+            if len(groups) == len(parts):
+                # Sort counts
+                s_counts = sorted(parts, key=lambda x: x["span"][0])
+                for c, group in zip(s_counts, groups):
+                    split_val = int(c["val"] / len(group))
+                    for e in group:
+                        mapped_counts[e["key"]] = split_val
+                return mapped_counts, sentence_total
+
         # 4. Naive Split (1 Count -> Multiple Entities)
         if allow_naive_split and len(parts) == 1 and len(entities) > 1:
             count_val = parts[0]["val"]
-            split_val = count_val / len(entities)
+            split_val = int(count_val / len(entities))
             for e in entities:
                 mapped_counts[e["key"]] = split_val
             return mapped_counts, sentence_total
