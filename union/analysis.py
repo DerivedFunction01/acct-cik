@@ -2436,12 +2436,44 @@ class Tracker:
                 elif intl_entry.covered_count is not None:
                     intl_entry.percentage = round((intl_entry.covered_count / gap) * 100.0, 2)
 
+    def _apply_dummy_union_percentage(self):
+        """
+        Applies a dummy percentage to union records that lack quantitative data,
+        provided there are no negations for that country/region.
+        """
+        # 1. Identify negated scopes
+        negated_keys = set()
+        negated_geos = set()
+        
+        for e in self.entries:
+            if e.is_negated:
+                negated_keys.add(e.key)
+                if e.related_geo_codes:
+                    negated_geos.update(e.related_geo_codes)
+
+        # 2. Apply dummy to qualifying entries
+        for e in self.entries:
+            # Check basic criteria: Union record, no data, not already negated
+            if (e.is_union_record and 
+                e.percentage is None and 
+                e.covered_count is None and 
+                e.not_covered_count is None and
+                not e.is_negated):
+                
+                # Check negation conflicts (Key or Related Geo)
+                if e.key not in negated_keys and not any(g in negated_geos for g in e.related_geo_codes):
+                    e.percentage = 1.0
+                    e.is_qualitative = True
+                    self.resolution_log.append(f"Applied dummy 1.0% to {e.key} based on union record presence")
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
         """
         # 0. Resolve Domestic
         self._route_domestic()
+        # 0.1 Apply dummy percentages for union records with no data
+        self._apply_dummy_union_percentage()
         # 0.5 Resolve Aggregates (Propagate down)
         self._resolve_aggregates()
         # 1. Resolve Countries
