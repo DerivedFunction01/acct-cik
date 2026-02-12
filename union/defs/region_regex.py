@@ -73,9 +73,7 @@ NORTH_AMERICA = {
             "silicon valley",
             "twin cities",
             "appalachia",
-            add_restrictions(
-                r"american?", lookbehinds=[r"central", r"latin", r"south"]
-            ),
+            r"american?" # The longer south america will trigger first
         ],
         Region.NORTH_AMERICA,
         [
@@ -703,7 +701,6 @@ EUROPE = {
         "United Kingdom",
         [
             "uk",
-            "u.k.",
             "britain",
             "united kingdom",
             "england",
@@ -1338,7 +1335,7 @@ EUROPE = {
         code="AZ",
     ),
     Nation(
-        "Georgia (EU)",
+        "Republic of Georgia",
         ["republic of georgia"],
         Region.EUROPE,
         [Location("Tbilisi", ["tbilisi"])],
@@ -1649,8 +1646,9 @@ ASIA_PACIFIC = {
 LATIN_AMERICA = {
     Nation(
         "Latin America",
-        [build_compound([r"latin", r"south", r"central"], r"america(?:n|s)?"), "latam"],
+        [build_compound([r"latin", r"south", r"central"], [r"america(?:n|s)?"]), "latam"],
         Region.LATIN_AMERICA,
+        [],
         code="LATAM",
     ),
     Nation(
@@ -1865,7 +1863,7 @@ MIDDLE_EAST_AFRICA = {
     Nation("Africa", ["africa", add_restrictions("african", lookaheads=[r"american"])], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
     Nation(
         "United Arab Emirates",
-        ["uae", "u.a.e.", "emirates", "dirham", "aed"],
+        ["uae", "emirates", "dirham", "aed"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Dubai", ["dubai"]),
@@ -2424,14 +2422,16 @@ class RegionMatcher:
 
     specific_union_regex: Optional[re.Pattern] = None
     location_regex: Optional[re.Pattern] = None
-    _compiled = False
 
+    regex_detector_regex = re.compile(r"[\^\$\*\+\?\{\}\[\]\\\|\(\)]")
+    _compiled = False
     def __init__(self):
         if not RegionMatcher._compiled:
             RegionMatcher._compile()
 
     @classmethod
     def _compile(cls):
+
         all_regions = [
             NORTH_AMERICA,
             EUROPE,
@@ -2529,8 +2529,8 @@ class RegionMatcher:
             escaped = []
             # Sort by length descending to match longest first
             for p in sorted(list(phrases), key=len, reverse=True):
-                # If it starts with (? it is likely a regex lookbehind/ahead from add_restrictions
-                if p.startswith("(?"):
+                # If it has ? ( : ! [ ] then it is a regex
+                if cls.regex_detector_regex.search(p):
                     escaped.append(p)
                 else:
                     escaped.append(re.escape(p))
@@ -2548,6 +2548,7 @@ class RegionMatcher:
             pattern_str = (
                 r"(?<!\w)(?:" + "|".join(safe_escape(geo_phrases)) + r")(?!\w)"
             )
+
             cls.location_regex = re.compile(pattern_str, re.IGNORECASE)
 
         cls._compiled = True
