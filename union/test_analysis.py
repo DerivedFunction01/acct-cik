@@ -127,6 +127,22 @@ attract talent and maintain customer relationships, particularly among customers
 
 """
 
+ITEM_COMBINED = """
+ITEM 1. BUSINESS
+
+We have 10,000 employees in the Asia-Pacific region, of which 6,000 are in China and 2,000 are in India, with some of us.
+
+Our manufacturing is primarily with  2,000 in several US locations, Mexico, and 4,000 in Brazil.
+
+We employ approximately 8,000 workers in offshore territories, including 2,000 in Panama and 5,000 in Bermuda.
+
+Our workforce includes 500 employees in Canada, compared to 1,000 in the United Kingdom and 200 in South Korea.
+
+In Southeast Asia, we have 900 employees located in Vietnam, Thailand, and Malaysia.
+
+We have 5,000 employees in Mainland Europe, consisting of 3,000 in Germany and 2,000 in France.
+"""
+
 
 if __name__ == "__main__":
     # Test setup
@@ -195,6 +211,28 @@ if __name__ == "__main__":
     print(f"Sentences with employee counts: {total_with_counts}")
     print(f"Negated coverage statements: {negated_items}")
     print(f"Inherited geographic context: {inherited_geo}")
+
+    # Combined Consistency Test
+    print("\n" + "=" * 80)
+    print("Testing Combined Consistency Case\n")
+    cleaned_combined = cleaner.clean(ITEM_COMBINED)
+    cleaned_combined = currency_remover.clean(cleaned_combined)
+    cleaned_combined = contextual_cleaner.clean(cleaned_combined)
+    cleaned_combined = conciseness_cleaner.clean(cleaned_combined)
+    
+    print("Cleaned Text:\n")
+    print(cleaned_combined)
+    print("-" * 40)
+
+    analysis_output_combined = analyzer.analyze_paragraph(
+        cleaned_combined, item_type="item1", reporting_year=reporting_year
+    )
+    
+    print(json.dumps(analysis_output_combined.get("items", []), indent=2))
+    print("\nSUMMARY:\n")
+    print(json.dumps(analysis_output_combined.get("summary", {}), indent=2))
+    print("=" * 80)
+
 
     # Item 1A
     cleaned_text = cleaner.clean(ITEM_1A)

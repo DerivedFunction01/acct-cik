@@ -51,8 +51,7 @@ NORTH_AMERICA = {
     Nation(
         "United States",
         [
-            "the US",
-            "u.s.",
+            "US",
             "usa",
             "united states",
             "east coast",
@@ -2655,8 +2654,9 @@ def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] =
             # Domestic/Unknown usually doesn't contain other regions/countries in this context
             # unless explicitly mapped, but usually they are peers or specific locations
             pass
-        elif head_region:
+        elif head_region and current_head.get("key") in REGION_CODES:
             # Specific Region (e.g. EUROPE) contains countries in that region
+            # CRITICAL: Only allow grouping if Head is a Region Code (Container), not a Country
             # Check if child is a country in that region
             # We can check if child_region matches head_region (Country's region_enum is set to its region)
             if child_region == head_region:
