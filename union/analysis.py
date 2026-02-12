@@ -3630,7 +3630,13 @@ class UnionAnalyzer:
             # Logic C: Linguistic Indicators ("of which", "including")
             has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
 
-            if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
+            # Only remove total if we have more counts than entities (implying one is a container/total)
+            should_remove_total = False
+            if len(counts) > len(entities):
+                if is_len_mismatch or is_sum_match or has_subset_indicator:
+                    should_remove_total = True
+
+            if should_remove_total:
                 sentence_total = max_val
 
                 # Remove the total from parts to map the rest
