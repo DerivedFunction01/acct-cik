@@ -203,21 +203,6 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
-def has_union_context(analysis: SentenceAnalysis) -> bool:
-    """
-    Checks if the sentence contains explicit union context.
-    """
-    return (
-        bool(analysis.union_terms)
-        or bool(analysis.coverage_terms)
-        or bool(analysis.negation_terms)
-        or bool(analysis.qualitative_membership_terms)
-        or any(
-            m.source_type in (GeoSource.SPECIFIC_UNION, GeoSource.INFERRED_UNION)
-            for m in analysis.geo_matches
-        )
-    )
-
 
 class SimpleCoverageAnalyzer:
     """
@@ -583,7 +568,7 @@ class SimpleCoverageAnalyzer:
         }
 
         notes = []
-        if not has_union_context(analysis):
+        if not analysis.is_union:
             data["type"] = None
             return data
 
@@ -771,7 +756,7 @@ class ComplexCoverageAnalyzer:
         }
 
     def analyze(self) -> Dict[str, Any]:
-        if not has_union_context(self.analysis):
+        if not self.analysis.is_union:
             return self.data
 
         counts = get_effective_counts(self.analysis)
@@ -1626,6 +1611,14 @@ class Entry:
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
     related_geo_codes: List[str] = field(default_factory=list)
+
+    @property
+    def is_union_specific(self) -> bool:
+        return self.key is not None and "::" in self.key and "::Segment_" not in self.key
+
+    @property
+    def is_generic_segment(self) -> bool:
+        return self.key is not None and "::Segment_" in self.key
 
 
 class Tracker:
@@ -3926,7 +3919,7 @@ class UnionAnalyzer:
                 match = qual_matches[0]
 
                 # Ensure we have union context before applying generic qualitative terms
-                if match["type"] == MatchType.QUALITATIVE_TERM and not has_union_context(analysis):
+                if match["type"] == MatchType.QUALITATIVE_TERM and not analysis.is_union:
                     return data
 
                 term = match.get("term_obj")
