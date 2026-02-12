@@ -713,7 +713,7 @@ def interpret_qualitative_match(match: Dict[str, Any], analysis: SentenceAnalysi
     }
 
     # If there are multiple qualitative matches in the sentence, pick the
-    # lowest percentage produced by any of them.
+    # lowest percentage produced by any of them
     qual_matches = [
         m
         for m in analysis._matches
@@ -3515,6 +3515,12 @@ class UnionAnalyzer:
 
             if i + 1 < len(results):
                 next_item = results[i + 1]
+                # Skip if one sentence is union related, and the other isn't.
+                cur_is_union = current.get("is_union", False)
+                next_is_union = next_item.get("is_union", False)
+                if cur_is_union and cur_is_union != next_is_union:
+                    should_merge = False
+                    continue
                 if "geographic_context" not in next_item:
                     merged_results.append(current)
                     continue
@@ -3738,7 +3744,7 @@ class UnionAnalyzer:
                         # Merge is_union flag (if continuation is union-specific, the whole item is)
                         if next_item.get("is_union"):
                             current["is_union"] = True
-                        skip_indices.add(i + 1)
+                        skip_indices.add(i + 1)                            
 
             merged_results.append(current)
         return merged_results
