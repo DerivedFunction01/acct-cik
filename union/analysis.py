@@ -57,6 +57,18 @@ UNION_MATCH_TYPES = [
     MatchType.UNION_NAME,
 ]
 
+# Delimiters: , ; or words like while, although, but, however
+SEGMENT_DELIMITER_REGEX = re.compile(
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
+)
+
+def get_text_segments(text: str) -> List[Tuple[int, int]]:
+    delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
+    boundaries = [0] + [m.end() for m in delimiters] + [len(text)]
+    segments = []
+    for i in range(len(boundaries) - 1):
+        segments.append((boundaries[i], boundaries[i + 1]))
+    return segments
 
 def get_min_distance_to_matches(
     target_span: Tuple[int, int],
@@ -741,10 +753,6 @@ class ComplexCoverageAnalyzer:
     Handles complex scenarios: mixed coverage, ratios, inferred totals, percent of percent.
     """
 
-    # Delimiters: , ; or words like while, although, but, however
-    delimiter_regex = re.compile(
-        r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
-    )
     subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those)\b", re.IGNORECASE)
 
     def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
@@ -992,12 +1000,7 @@ class ComplexCoverageAnalyzer:
         """
         # 1. Identify Segments (Split by delimiters, avoiding numbers)
         # We capture delimiters to analyze list structure
-        delimiters = list(self.delimiter_regex.finditer(self.analysis.text))
-
-        boundaries = [0] + [m.end() for m in delimiters] + [len(self.analysis.text)]
-        segments = []
-        for i in range(len(boundaries) - 1):
-            segments.append((boundaries[i], boundaries[i + 1]))
+        segments = get_text_segments(self.analysis.text)
 
         # Helper to find segment index
         def get_seg_idx(pos):
@@ -3178,12 +3181,24 @@ class UnionAnalyzer:
 
         # 3. Proximity Mapping
         if entities:
+            segments = get_text_segments(analysis.text)
+            
+            def get_seg_idx(pos):
+                return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
+
             pairs = []
             for c in parts:
                 c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_seg = get_seg_idx(c_mid)
                 for e in entities:
                     e_mid = (e["span"][0] + e["span"][1]) / 2
+                    e_seg = get_seg_idx(e_mid)
                     dist = abs(c_mid - e_mid)
+                    
+                    # Penalize cross-segment matches
+                    if c_seg != e_seg:
+                        dist += 1000
+                    
                     pairs.append((dist, c, e))
 
             pairs.sort(key=lambda x: x[0])
