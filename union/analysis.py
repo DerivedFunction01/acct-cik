@@ -3111,13 +3111,15 @@ class UnionAnalyzer:
             if any("region_enum" in e for e in entities):
                  non_generic_entries = [g for g in entities if g.get("region_enum") not in generics]
                  
-                 if len(parts) == len(non_generic_entries):
-                     entities = non_generic_entries
-                 elif len(parts) == len(entities) - 1:
-                     for i, g in enumerate(entities):
-                         if g.get("region_enum") in generics:
-                             entities = entities[:i] + entities[i+1:]
-                             break
+                 # Only filter if we have non-generics to prefer. If all are generic, keep them for proximity matching.
+                 if non_generic_entries:
+                    if len(parts) == len(non_generic_entries):
+                        entities = non_generic_entries
+                    elif len(parts) == len(entities) - 1:
+                        for i, g in enumerate(entities):
+                            if g.get("region_enum") in generics:
+                                entities = entities[:i] + entities[i+1:]
+                                break
 
         # 1.6 Check for Shared Count (1 count, multiple entities) -> Split Evenly
         if len(parts) == 1 and len(entities) > 1:
@@ -3644,7 +3646,7 @@ class UnionAnalyzer:
                                 "regions": [],
                                 "unusual_union_region_combo": False,
                                 "union_names_mentioned": None,
-                                "note": None
+                                "note": "Region split"
                             }
                             
                             new_cov_data = {
