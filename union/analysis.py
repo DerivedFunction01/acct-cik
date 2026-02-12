@@ -3108,6 +3108,9 @@ class UnionAnalyzer:
                         target_y = reporting_year if reporting_year else max(analysis.years)
                         
                         for y_m, c_m in zip(y_matches, c_matches):
+                            # Check is Valid: The year must be related or within bounds!
+                            if not (target_y - 1 <= y_m["val"] <= target_y + 1):
+                                continue
                             if y_m["val"] == target_y:
                                 matched_temporal_count = c_m["val"]
                                 break
