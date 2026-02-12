@@ -703,8 +703,6 @@ def interpret_qualitative_match(match: Dict[str, Any], analysis: SentenceAnalysi
       - note: Optional[str]
       - is_negated: bool
 
-    This consolidates duplicated logic used in multiple places when a
-    qualitative term (e.g. "majority", "most") is present.
     """
     res: Dict[str, Any] = {
         "percentage": None,
@@ -714,44 +712,69 @@ def interpret_qualitative_match(match: Dict[str, Any], analysis: SentenceAnalysi
         "is_negated": False,
     }
 
-    if not match:
+    # If there are multiple qualitative matches in the sentence, pick the
+    # lowest percentage produced by any of them.
+    qual_matches = [
+        m
+        for m in analysis._matches
+        if m["type"] in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
+    ]
+
+    # If no qual matches found in analysis, fall back to provided match
+    if not qual_matches:
+        qual_matches = [match] if match else []
+
+    best_term = None
+    best_pct = None
+    best_is_neg = False
+    best_pattern = None
+    best_is_absolute = False
+    best_bounds = None
+
+    for qm in qual_matches:
+        term = qm.get("term_obj")
+        if not term or not isinstance(term, QualitativeTerm):
+            continue
+
+        is_locally_negated = check_local_negation(qm["span"], analysis.text, backward=backward)
+
+        # Absolute terms: treat as their positive_pct (but still consider for min)
+        if term.is_absolute:
+            pct = term.positive_pct
+        else:
+            pct = term.get_percentage(is_negated=is_locally_negated)
+
+        if pct is None:
+            continue
+
+        # Choose the lowest percentage
+        if best_pct is None or pct < best_pct:
+            best_pct = pct
+            best_term = term
+            best_is_neg = is_locally_negated
+            best_pattern = qm.get("pattern_str", qm.get("text", ""))
+            best_is_absolute = bool(term.is_absolute)
+            if term.lower_bound is not None and term.upper_bound is not None:
+                best_bounds = (term.lower_bound, term.upper_bound)
+
+    if best_pct is None:
         return res
 
-    term = match.get("term_obj")
-    pattern_str = match.get("pattern_str", "")
-    if not term:
-        return res
+    res["percentage"] = best_pct
+    res["is_negated"] = best_is_neg
 
-    assert isinstance(term, QualitativeTerm)
-    is_locally_negated = check_local_negation(match["span"], analysis.text, backward=backward)
-    res["is_negated"] = is_locally_negated
-
-    # Absolute qualitative (e.g. "all") -> use positive_pct as absolute
-    if term.is_absolute:
-        res["percentage"] = term.positive_pct
-        res["type"] = CoverageType.QUALITATIVE.value
-        if term.lower_bound is not None and term.upper_bound is not None:
-            res["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
-        if prefer_note:
-            res["note"] = f"Absolute qualitative: '{pattern_str}'"
-        return res
-
-    # Non-absolute: try to compute a percentage
-    pct = term.get_percentage(is_negated=is_locally_negated)
-    if pct is None:
-        return res
-
-    res["percentage"] = pct
-    if term.is_all and not is_locally_negated:
+    # If the best term implies 'all' and is not negated, surface as explicit percent
+    if getattr(best_term, "is_all", False) and not best_is_neg:
         res["type"] = CoverageType.EXPLICIT_PERCENT.value
     else:
+        # Absolute terms are still qualitative in our schema
         res["type"] = CoverageType.QUALITATIVE.value
 
-    if not is_locally_negated and term.lower_bound is not None and term.upper_bound is not None:
-        res["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
+    if (not best_is_neg) and best_bounds is not None:
+        res["qualitative_bounds"] = best_bounds
 
     if prefer_note:
-        res["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
+        res["note"] = f"Qualitative: '{best_pattern}' -> {best_pct}%"
 
     return res
 
