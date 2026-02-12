@@ -3095,7 +3095,26 @@ class UnionAnalyzer:
                 range_avg = self._detect_count_range(analysis, effective_counts)
                 summation = self._detect_summation(analysis, effective_counts)
 
-                if range_avg:
+                # 1. Temporal Alignment (2 Years, 2 Counts)
+                # "In 2009 we had 100, in 2010 we had 110"
+                matched_temporal_count = None
+                if len(analysis.years) == len(effective_counts) and len(effective_counts) >= 2:
+                    # Get matches to sort by position
+                    y_matches = sorted([m for m in analysis._matches if m["type"] == MatchType.YEAR], key=lambda x: x["span"][0])
+                    c_matches = sorted([m for m in analysis._matches if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] in effective_counts], key=lambda x: x["span"][0])
+                    
+                    if len(y_matches) == len(c_matches):
+                        # Determine target year
+                        target_y = reporting_year if reporting_year else max(analysis.years)
+                        
+                        for y_m, c_m in zip(y_matches, c_matches):
+                            if y_m["val"] == target_y:
+                                matched_temporal_count = c_m["val"]
+                                break
+
+                if matched_temporal_count is not None:
+                    final_count = matched_temporal_count
+                elif range_avg:
                     final_count = range_avg
                 elif summation:
                     final_count = summation
@@ -3228,7 +3247,7 @@ class UnionAnalyzer:
                     target_list = candidate
             
             if target_list:
-                split_val = count_val / len(target_list)
+                split_val = int(count_val / len(target_list))
                 for e in target_list:
                     mapped_counts[e["key"]] = split_val
                 return mapped_counts, sentence_total
