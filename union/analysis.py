@@ -453,36 +453,31 @@ class SimpleCoverageAnalyzer:
 
             if qual_match:
                 data["employee_count_total"] = count
-                term = qual_match.get("term_obj")
-                if term:
-                    assert isinstance(term, QualitativeTerm)
-                    is_term_negated = check_local_negation(
-                        qual_match["span"], analysis.text, backward=40
+                qinfo = interpret_qualitative_match(qual_match, analysis, backward=40, prefer_note=False)
+                pct = qinfo.get("percentage")
+                if pct is not None:
+                    data["percentage"] = pct
+                    if qinfo.get("type"):
+                        data["type"] = qinfo.get("type")
+                    else:
+                        data["type"] = CoverageType.QUALITATIVE.value
+                    if qinfo.get("qualitative_bounds") is not None:
+                        data["qualitative_bounds"] = qinfo.get("qualitative_bounds")
+
+                    has_status_negation = any(
+                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                        for m in analysis._matches
                     )
-                    pct = term.get_percentage(is_negated=is_term_negated)
-                    if pct is not None:
-                        data["percentage"] = pct
-                        if term.is_all and not is_term_negated:
-                            data["type"] = CoverageType.EXPLICIT_PERCENT.value
-                        else:
-                            data["type"] = CoverageType.QUALITATIVE.value
-                        if term.lower_bound is not None and term.upper_bound is not None and (term.is_absolute or not is_term_negated):
-                            data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
 
-                        has_status_negation = any(
-                            m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-                            for m in analysis._matches
-                        )
-
-                        ratio = round((pct / 100.0) * count)
-                        apply_coverage_logic(
-                            data,
-                            total=count,
-                            subset=ratio,
-                            is_negated=has_status_negation,
-                            notes=notes,
-                            note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}" + (" (negated)" if has_status_negation else "")
-                        )
+                    ratio = round((pct / 100.0) * count)
+                    apply_coverage_logic(
+                        data,
+                        total=count,
+                        subset=ratio,
+                        is_negated=has_status_negation,
+                        notes=notes,
+                        note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}" + (" (negated)" if has_status_negation else "")
+                    )
                 else:
                     data["type"] = CoverageType.CALCULATED.value
                     data["employee_count_total"] = count
@@ -697,6 +692,68 @@ def apply_qualitative_multipliers(
             )
 
     return raw_pct, None
+
+
+def interpret_qualitative_match(match: Dict[str, Any], analysis: SentenceAnalysis, backward: int = 40, prefer_note: bool = False) -> Dict[str, Any]:
+    """
+    Interpret a qualitative match and return a dictionary with keys:
+      - percentage: Optional[float]
+      - type: Optional[str] (CoverageType value)
+      - qualitative_bounds: Optional[Tuple[float,float]]
+      - note: Optional[str]
+      - is_negated: bool
+
+    This consolidates duplicated logic used in multiple places when a
+    qualitative term (e.g. "majority", "most") is present.
+    """
+    res: Dict[str, Any] = {
+        "percentage": None,
+        "type": None,
+        "qualitative_bounds": None,
+        "note": None,
+        "is_negated": False,
+    }
+
+    if not match:
+        return res
+
+    term = match.get("term_obj")
+    pattern_str = match.get("pattern_str", "")
+    if not term:
+        return res
+
+    assert isinstance(term, QualitativeTerm)
+    is_locally_negated = check_local_negation(match["span"], analysis.text, backward=backward)
+    res["is_negated"] = is_locally_negated
+
+    # Absolute qualitative (e.g. "all") -> use positive_pct as absolute
+    if term.is_absolute:
+        res["percentage"] = term.positive_pct
+        res["type"] = CoverageType.QUALITATIVE.value
+        if term.lower_bound is not None and term.upper_bound is not None:
+            res["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
+        if prefer_note:
+            res["note"] = f"Absolute qualitative: '{pattern_str}'"
+        return res
+
+    # Non-absolute: try to compute a percentage
+    pct = term.get_percentage(is_negated=is_locally_negated)
+    if pct is None:
+        return res
+
+    res["percentage"] = pct
+    if term.is_all and not is_locally_negated:
+        res["type"] = CoverageType.EXPLICIT_PERCENT.value
+    else:
+        res["type"] = CoverageType.QUALITATIVE.value
+
+    if not is_locally_negated and term.lower_bound is not None and term.upper_bound is not None:
+        res["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
+
+    if prefer_note:
+        res["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
+
+    return res
 
 
 # Pre‑compiled regexes
@@ -4007,31 +4064,19 @@ class UnionAnalyzer:
                 if match["type"] == MatchType.QUALITATIVE_TERM and not analysis.is_union:
                     return data
 
-                term = match.get("term_obj")
-                pattern_str = match.get("pattern_str", "")
-
-                if term:
-                    assert isinstance(term, QualitativeTerm)
-                    is_locally_negated = check_local_negation(
-                        match["span"], analysis.text
-                    )
-                    if term.is_absolute:
-                        data["percentage"] = term.positive_pct
-                        data["type"] = CoverageType.QUALITATIVE.value
-                        if term.lower_bound is not None and term.upper_bound is not None:
-                            data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
-                        data["note"] = f"Absolute qualitative: '{pattern_str}'"
+                # Consolidated qualitative-term interpretation
+                qinfo = interpret_qualitative_match(match, analysis, prefer_note=True)
+                pct = qinfo.get("percentage")
+                if pct is not None:
+                    data["percentage"] = pct
+                    if qinfo.get("type"):
+                        data["type"] = qinfo.get("type")
                     else:
-                        pct = term.get_percentage(is_negated=is_locally_negated)
-                        if pct is not None:
-                            data["percentage"] = pct
-                            if term.is_all and not is_locally_negated:
-                                data["type"] = CoverageType.EXPLICIT_PERCENT.value
-                            else:
-                                data["type"] = CoverageType.QUALITATIVE.value
-                            data["note"] = f"Qualitative: '{pattern_str}' -> {pct}%"
-                            if not is_locally_negated and term.lower_bound is not None and term.upper_bound is not None:
-                                data["qualitative_bounds"] = (term.lower_bound, term.upper_bound)
+                        data["type"] = CoverageType.QUALITATIVE.value
+                    if qinfo.get("qualitative_bounds") is not None:
+                        data["qualitative_bounds"] = qinfo.get("qualitative_bounds")
+                    if qinfo.get("note"):
+                        data["note"] = qinfo.get("note")
 
         return data
 
