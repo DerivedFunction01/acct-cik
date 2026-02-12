@@ -12,6 +12,7 @@ from extraction import (
     MatchType,
     OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
+    REMAIN_REGEX,
 )
 from defs.region_regex import (
     REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION
@@ -3104,6 +3105,22 @@ class UnionAnalyzer:
                     if c["val"] == max_val:
                         parts = parts[:i] + parts[i+1:]
                         break
+
+        # 1.1 Handle Remaining/Balance (Virtual Count)
+        if sentence_total is not None and analysis.has_remaining_other:
+            current_sum = sum(c["val"] for c in parts)
+            remainder = sentence_total - current_sum
+
+            if remainder > 0:
+                rem_match = REMAIN_REGEX.search(analysis.text)
+                if rem_match:
+                    parts.append({
+                        "val": remainder,
+                        "span": rem_match.span(),
+                        "type": MatchType.WORKER_COUNT,
+                        "text": rem_match.group(0)
+                    })
+                    parts.sort(key=lambda x: x["span"][0])
 
         # 1.5 Filter Generic Regions if Mismatch (Specific to Geography)
         if len(parts) < len(entities):

@@ -75,7 +75,7 @@ NEGATION_REGEX = build_regex(
     [r"no", r"not", r"nor", r"without", r"neither", r"none", r"never"]
 )
 
-REMAIN_REGEX = build_regex([r"remaining", r"rest", r"other"])
+REMAIN_REGEX = build_regex([r"remaining", r"rest", r"other", r"balance"])
 
 
 OF_REGEX = build_regex([r"(?:out\s+)?of"])
