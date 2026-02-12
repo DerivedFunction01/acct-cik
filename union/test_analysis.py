@@ -28,7 +28,7 @@ Our East Coast distribution centers employ logistics personnel who are unionized
 
 We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
 
-Our corporate headquarters employs administrative, sales, and technical staff. A portion of these 50,000 corporate employees remain unionized, though the exact number is not material to our risk profile.
+Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
 
 We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
 
