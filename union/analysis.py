@@ -203,7 +203,6 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
-
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -1614,7 +1613,6 @@ class Entry:
     related_geo_codes: List[str] = field(default_factory=list)
 
 
-
 class Tracker:
     """
     Tracks the 'Whole Pie' (Total Employee Counts) across different geographic scopes.
@@ -2809,12 +2807,12 @@ class UnionAnalyzer:
         """
         if not counts or len(counts) < 2:
             return None
-        
+
         # 1. Check if one number is the sum of the others (Explicit Total)
         max_val = max(counts)
         total_sum = sum(counts)
         rest = total_sum - max_val
-        
+
         # If max is roughly equal to the sum of the rest, then max is the total.
         if max_val > 0 and abs(max_val - rest) / max_val < 0.05:
             return None
@@ -2824,14 +2822,14 @@ class UnionAnalyzer:
             c1, c2 = counts[0], counts[1]
             m1 = next((m for m in analysis._matches if m["val"] == c1 and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)), None)
             m2 = next((m for m in analysis._matches if m["val"] == c2 and m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m is not m1), None)
-            
+
             if m1 and m2:
                 # Sort by position
                 if m1["span"][0] > m2["span"][0]:
                     m1, m2 = m2, m1
                 if len(analysis.worker_types) > 1 or len(analysis.worker_terms) > 1:
                     return c1 + c2
-                        
+
         return None
 
     def _determine_geo_context(
@@ -2848,7 +2846,7 @@ class UnionAnalyzer:
         """
         geo_match_objs = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
         raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
-        
+
         aligned_geos = []
         # Align matches (assuming order preservation)
         if len(geo_match_objs) == len(raw_geo_matches):
@@ -2879,9 +2877,9 @@ class UnionAnalyzer:
         if len(assignments) == 1 and len(aligned_geos) > 1:
             item = assignments[0]
             c_span = item["match"]["span"]
-            
+
             s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
-            
+
             is_list = True
             for i in range(len(s_geos) - 1):
                 e1 = s_geos[i]
@@ -2891,7 +2889,7 @@ class UnionAnalyzer:
                 if clean_gap and len(gap_text) > 15:
                     is_list = False
                     break
-            
+
             if is_list:
                 split_val = item["match"]["val"] / len(aligned_geos)
                 splits = []
@@ -2911,7 +2909,7 @@ class UnionAnalyzer:
         for i, item in enumerate(assignments):
             c_span = item["match"]["span"]
             c_mid = (c_span[0] + c_span[1]) / 2
-            
+
             for j, g in enumerate(aligned_geos):
                 g_mid = (g["span"][0] + g["span"][1]) / 2
                 dist = abs(c_mid - g_mid)
@@ -2920,13 +2918,13 @@ class UnionAnalyzer:
                     "assign_idx": i,
                     "geo_idx": j
                 })
-        
+
         pairs.sort(key=lambda x: x["dist"])
-        
+
         used_assign = set()
         used_geo = set()
         mapping = {} # assign_idx -> geo_idx
-        
+
         # Allow reuse if we have more assignments than locations (e.g. "20 union, 30 non-union in China")
         allow_reuse = len(assignments) > len(aligned_geos)
 
@@ -2937,7 +2935,7 @@ class UnionAnalyzer:
                         mapping[p["assign_idx"]] = p["geo_idx"]
                         used_assign.add(p["assign_idx"])
                         used_geo.add(p["geo_idx"])
-        
+
         splits = []
         # Process assignments in original order to preserve logic
         for i, item in enumerate(assignments):
@@ -2951,7 +2949,7 @@ class UnionAnalyzer:
                     "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
                     "note": f"Mapped to {obj.country}"
                 })
-        
+
         return splits
 
     def analyze_paragraph(
@@ -3003,7 +3001,7 @@ class UnionAnalyzer:
                     previous_totals=prev_paragraph_totals,
                     start_index=global_sentence_index,
                 )
-                
+
                 global_sentence_index += len(p_sentences)
 
                 # Update all_region_totals with max found across all blocks
@@ -3149,11 +3147,11 @@ class UnionAnalyzer:
                     # Get matches to sort by position
                     y_matches = sorted([m for m in analysis._matches if m["type"] == MatchType.YEAR], key=lambda x: x["span"][0])
                     c_matches = sorted([m for m in analysis._matches if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] in effective_counts], key=lambda x: x["span"][0])
-                    
+
                     if len(y_matches) == len(c_matches):
                         # Determine target year
                         target_y = reporting_year if reporting_year else max(analysis.years)
-                        
+
                         for y_m, c_m in zip(y_matches, c_matches):
                             # Check is Valid: The year must be related or within bounds!
                             if not (target_y - 1 <= y_m["val"] <= target_y + 1):
@@ -3196,22 +3194,22 @@ class UnionAnalyzer:
             return {}, None
 
         parts = counts
-        
+
         # 1. Identify Total (Denominator)
         if len(counts) > 1:
             vals = [c["val"] for c in counts]
             max_val = max(vals)
             sum_val = sum(vals)
             others_sum = sum_val - max_val
-            
+
             is_sum_match = others_sum > 0 and abs(max_val - others_sum) / max_val < 0.10
             is_len_mismatch = len(counts) == len(entities) + 1
-            
+
             has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
-            
+
             if is_len_mismatch or (is_sum_match and len(counts) != len(entities)) or has_subset_indicator:
                 sentence_total = max_val
-                
+
                 if total_key:
                     mapped_counts[total_key] = sentence_total
 
@@ -3240,10 +3238,10 @@ class UnionAnalyzer:
         if len(parts) < len(entities):
             generics = (Region.INTERNATIONAL, Region.DOMESTIC, Region.UNKNOWN)
             if any("region_enum" in e for e in entities):
-                 non_generic_entries = [g for g in entities if g.get("region_enum") not in generics]
-                 
-                 # Only filter if we have non-generics to prefer. If all are generic, keep them for proximity matching.
-                 if non_generic_entries:
+                non_generic_entries = [g for g in entities if g.get("region_enum") not in generics]
+
+                # Only filter if we have non-generics to prefer. If all are generic, keep them for proximity matching.
+                if non_generic_entries:
                     if len(parts) == len(non_generic_entries):
                         entities = non_generic_entries
                     elif len(parts) == len(entities) - 1:
@@ -3255,9 +3253,9 @@ class UnionAnalyzer:
         # 1.6 Check for Shared Count (1 count, multiple entities) -> Split Evenly
         if len(parts) == 1 and len(entities) > 1:
             count_val = parts[0]["val"]
-            
+
             sorted_entities = sorted(entities, key=lambda x: x["span"][0])
-            
+
             # Identify chains (lists of entities)
             chains = []
             if sorted_entities:
@@ -3266,36 +3264,36 @@ class UnionAnalyzer:
                     e1 = sorted_entities[i]
                     e2 = sorted_entities[i+1]
                     gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
-                    
+
                     # Check for list separators (comma, and, or) and short length
                     is_list_gap = False
                     clean_gap = re.sub(r"[,\s]|and|&|or", "", gap_text, flags=re.IGNORECASE)
                     if not clean_gap and len(gap_text) <= 25:
                         is_list_gap = True
-                    
+
                     if is_list_gap:
                         current_chain.append(e2)
                     else:
                         chains.append(current_chain)
                         current_chain = [e2]
                 chains.append(current_chain)
-            
+
             target_list = None
             multi_item_chains = [c for c in chains if len(c) > 1]
-            
+
             if len(multi_item_chains) == 1:
                 candidate = multi_item_chains[0]
-                
+
                 # Check if excluded items are Broad Containers (INT, GLO, DOM)
                 all_in_chain = set(id(x) for x in candidate)
                 others = [x for x in sorted_entities if id(x) not in all_in_chain]
-                
+
                 broad_keys = {"INT", "GLO", "DOM", Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value}
                 others_are_broad = all(x["key"] in broad_keys for x in others)
-                
+
                 if others_are_broad:
                     target_list = candidate
-            
+
             if target_list:
                 split_val = int(count_val / len(target_list))
                 for e in target_list:
@@ -3313,7 +3311,7 @@ class UnionAnalyzer:
         # 3. Proximity Mapping
         if entities:
             segments = get_text_segments(analysis.text)
-            
+
             def get_seg_idx(pos):
                 return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
 
@@ -3325,11 +3323,11 @@ class UnionAnalyzer:
                     e_mid = (e["span"][0] + e["span"][1]) / 2
                     e_seg = get_seg_idx(e_mid)
                     dist = abs(c_mid - e_mid)
-                    
+
                     # Penalize cross-segment matches
                     if c_seg != e_seg:
                         dist += 1000
-                    
+
                     pairs.append((dist, c, e))
 
             pairs.sort(key=lambda x: x[0])
@@ -3378,7 +3376,7 @@ class UnionAnalyzer:
             m for m in analysis._matches 
             if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
         ]
-        
+
         union_entries = [{"key": m["text"], "span": m["span"]} for m in union_matches]
         return self._resolve_counts_generic(analysis, union_entries)
 
@@ -3386,20 +3384,20 @@ class UnionAnalyzer:
         """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""
         mapping = {}
         counts = [m for m in analysis._matches if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)]
-        
+
         # Include WORKER_TYPE
         types = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TYPE]
-        
+
         # Include specific WORKER_TERM (e.g. pilots, teachers)
         terms = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TERM]
         for t in terms:
             val_lower = t["val"].lower()
             if val_lower not in GENERIC_WORKER_TERMS and val_lower.rstrip("s") not in GENERIC_WORKER_TERMS:
                 types.append(t)
-        
+
         if not counts or not types:
             return {}
-            
+
         used_c = set()
         used_t = set()
         pairs = []
@@ -3409,15 +3407,15 @@ class UnionAnalyzer:
                 t_mid = (t["span"][0] + t["span"][1]) / 2
                 dist = abs(c_mid - t_mid)
                 pairs.append((dist, c, t))
-        
+
         pairs.sort(key=lambda x: x[0])
-        
+
         for dist, c, t in pairs:
             if dist < 50 and id(c) not in used_c and id(t) not in used_t:
                 mapping[t["val"].lower()] = c["val"]
                 used_c.add(id(c))
                 used_t.add(id(t))
-                
+
         return mapping
 
     def _merge_continuation_items(
@@ -3474,7 +3472,6 @@ class UnionAnalyzer:
                     # If both have a total, don't merge
                     if c_data["employee_count_total"] is not None and n_data["employee_count_total"] is not None:
                         should_merge = False
-                    
 
                     # 2. Subject Conflict Check (Specific Unions)
                     # Do not merge if both items mention different specific unions (e.g. UAW vs Teamsters)
@@ -3532,33 +3529,120 @@ class UnionAnalyzer:
                         if not c_data["employee_count_not_covered"] and n_data["employee_count_not_covered"]:
                             c_data["employee_count_not_covered"] = n_data["employee_count_not_covered"]
 
+                        # Recalculate missing values if percentage is present
+                        if c_data["percentage"] is not None:
+                            pct = c_data["percentage"]
+                            total = c_data.get("employee_count_total")
+                            covered = c_data.get("employee_count_covered")
+                            not_covered = c_data.get("employee_count_not_covered")
+                            is_negated = c_data.get("negated")
+
+                            # Case 1: Have Total + Pct -> Calculate Parts
+                            if total and (covered is None or not_covered is None):
+                                subset = round((pct / 100.0) * total)
+                                if is_negated:
+                                    if not_covered is None:
+                                        c_data["employee_count_not_covered"] = subset
+                                    if covered is None:
+                                        c_data["employee_count_covered"] = (
+                                            total - subset
+                                        )
+                                else:
+                                    if covered is None:
+                                        c_data["employee_count_covered"] = subset
+                                    if not_covered is None:
+                                        c_data["employee_count_not_covered"] = (
+                                            total - subset
+                                        )
+                                c_data["note"] = (
+                                    c_data.get("note") or ""
+                                ) + " | Derived counts from merged %"
+
+                            # Case 2: Have Part + Pct -> Calculate Total (Denominator)
+                            elif not total and pct > 0:
+                                derived_total = None
+                                if is_negated and not_covered is not None:
+                                    derived_total = round(not_covered / (pct / 100.0))
+                                    c_data["employee_count_covered"] = (
+                                        derived_total - not_covered
+                                    )
+                                elif not is_negated and covered is not None:
+                                    derived_total = round(covered / (pct / 100.0))
+                                    c_data["employee_count_not_covered"] = (
+                                        derived_total - covered
+                                    )
+
+                                if derived_total is not None:
+                                    c_data["employee_count_total"] = derived_total
+                                    c_data["note"] = (
+                                        c_data.get("note") or ""
+                                    ) + " | Derived total from merged %"
+
+                            # Case 3: Refinement (Assumed 100% -> Actual %)
+                            elif total and pct > 0 and pct < 100:
+                                if covered == total:
+                                    derived_total = round(covered / (pct / 100.0))
+                                    c_data["employee_count_total"] = derived_total
+                                    c_data["employee_count_not_covered"] = (
+                                        derived_total - covered
+                                    )
+                                    c_data["note"] = (
+                                        (c_data.get("note") or "")
+                                        + f" | Refined Total from {total} to {derived_total} using {pct}%"
+                                    )
+                                elif not_covered == total:
+                                    if is_negated:
+                                        derived_total = round(
+                                            not_covered / (pct / 100.0)
+                                        )
+                                        c_data["employee_count_total"] = derived_total
+                                        c_data["employee_count_covered"] = (
+                                            derived_total - not_covered
+                                        )
+                                        c_data["note"] = (
+                                            (c_data.get("note") or "")
+                                            + f" | Refined Total from {total} to {derived_total} using {pct}% (negated)"
+                                        )
+                                    else:
+                                        derived_total = round(
+                                            not_covered / ((100 - pct) / 100.0)
+                                        )
+                                        c_data["employee_count_total"] = derived_total
+                                        c_data["employee_count_covered"] = (
+                                            derived_total - not_covered
+                                        )
+                                        c_data["note"] = (
+                                            (c_data.get("note") or "")
+                                            + f" | Refined Total from {total} to {derived_total} using {pct}% (remainder)"
+                                        )
+
                         # NEW: Type-based coverage inference
                         # If next item indicates coverage (union terms) and specifies worker types
-                        
+
                         # Gather targets from types and specific terms
                         targets = set(next_item.get("worker_types", []))
                         for w in next_item.get("worker_terms", []):
-                             if w.lower() not in GENERIC_WORKER_TERMS and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS:
-                                 targets.add(w)
+                            if w.lower() not in GENERIC_WORKER_TERMS and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS:
+                                targets.add(w)
 
                         if next_item.get("keyword_matched") and targets:
                             # Check if current item has counts for these types
                             c_map = current.get("worker_type_map", {})
-                            
+
                             matched_count = 0.0
                             found_match = False
-                            
+
                             for w_type in targets:
                                 w_type_lower = w_type.lower()
                                 if w_type_lower in c_map:
                                     matched_count += c_map[w_type_lower]
                                     found_match = True
-                            
+
                             if found_match:
                                 target_field = "employee_count_not_covered" if n_data.get("negated") else "employee_count_covered"
                                 current_val = c_data.get(target_field) or 0.0
                                 c_data[target_field] = current_val + matched_count
-                                
+
                                 # Recalculate percentage if total exists
                                 if c_data.get("employee_count_total"):
                                     cov = c_data.get("employee_count_covered") or 0.0
@@ -3707,13 +3791,13 @@ class UnionAnalyzer:
                                 local_totals[code] = count
                             if count > effective_totals.get(code, 0):
                                 effective_totals[code] = count
-                    
+
                     if union_counts:
                         for union_name, count in union_counts.items():
                             lower_name = union_name.lower()
                             if lower_name in self.matcher.union_map:
                                 region, country, code = self.matcher.union_map[lower_name]
-                                
+
                                 prev_val = previous_totals.get(code, 0) if previous_totals else 0
                                 curr_max = effective_totals.get(code, 0)
                                 if count > prev_val and count >= curr_max:
@@ -3788,7 +3872,7 @@ class UnionAnalyzer:
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
-            
+
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
 
@@ -3799,7 +3883,7 @@ class UnionAnalyzer:
 
             if assignments:
                 relevant_assignments = [a for a in assignments if a["type"] in ("covered", "not_covered")]
-                
+
                 # Only split if we have multiple relevant counts and multiple explicit geos
                 if len(relevant_assignments) > 1:
                     splits = self._map_assignments_to_geo(analysis, relevant_assignments)
@@ -3815,7 +3899,7 @@ class UnionAnalyzer:
                                 "union_names_mentioned": None,
                                 "note": "Region split"
                             }
-                            
+
                             new_cov_data = {
                                 "percentage": None,
                                 "employee_count_covered": None,
@@ -3828,14 +3912,14 @@ class UnionAnalyzer:
                                 "note": f"Split from list | {s['note']}",
                                 "temporal_scope": coverage_data.get("temporal_scope", "CURRENT")
                             }
-                            
+
                             if s["type"] == "covered":
                                 new_cov_data["employee_count_covered"] = s["val"]
                             elif s["type"] == "not_covered":
                                 new_cov_data["employee_count_not_covered"] = s["val"]
                                 new_cov_data["negated"] = True
                                 new_cov_data["negation_type"] = NegationType.NOT_COVERED.value
-                            
+
                             # Try to find total
                             c_code = s["countries"][0]["code"]
                             c_total = effective_totals.get(c_code)
@@ -3843,7 +3927,7 @@ class UnionAnalyzer:
                                 new_cov_data["employee_count_total"] = c_total
                                 if s["type"] == "covered":
                                     new_cov_data["percentage"] = round((s["val"]/c_total)*100, 2)
-                            
+
                             split_item = {
                                 "sentence": sent,
                                 "keyword_matched": analysis.union_terms or None,
