@@ -3232,12 +3232,13 @@ def weighted_division(
     if not entities:
         return {}
 
-    # Calculate total weight
-    total_weight = 0.0
+    # Calculate initial weights
     entity_weights = []
+    keys = []
 
     for e in entities:
         key = e["key"]
+        keys.append(key)
         w = 0.0005  # Default weight (small country)
 
         # Check if key is a region name
@@ -3248,7 +3249,23 @@ def weighted_division(
             w = _CODE_TO_WEIGHT[key]
 
         entity_weights.append(w)
-        total_weight += w
+
+    # Check for tight regional clustering to apply smoothing
+    # If entities are grouped in a specific sub-region (e.g. East Asia, GCC), 
+    # their operational size is likely more uniform than their GDP/Pop implies.
+    is_tight_cluster = False
+    if len(keys) > 1:
+        for members in COMPOSITE_REGION_MAP.values():
+            member_set = set(members)
+            if all(k in member_set for k in keys):
+                is_tight_cluster = True
+                break
+    
+    if is_tight_cluster:
+        # Apply square root smoothing to dampen outliers (e.g. Japan vs Taiwan)
+        entity_weights = [w ** 0.5 for w in entity_weights]
+
+    total_weight = sum(entity_weights)
 
     if total_weight == 0:
         # Fallback to equal split
