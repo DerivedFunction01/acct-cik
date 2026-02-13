@@ -2819,10 +2819,6 @@ TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
     "BM",  # Bermuda
     "VG",  # British Virgin Islands
-    # "LU",  # Luxembourg
-    # "IE",  # Ireland
-    # "NL",  # Netherlands
-    # "CH",  # Switzerland
     "CY",  # Cyprus
     "MT",  # Malta
     "JE",  # Jersey
@@ -2835,8 +2831,6 @@ TAX_HAVEN_CODES = {
     "CW",  # Curacao
     "MU",  # Mauritius
     "PA",  # Panama
-    # "HK",  # Hong Kong
-    # "SG",  # Singapore
 }
 
 # Additional locations to penalize in weight calculations (but not treat as tax havens for home country detection)
@@ -2845,15 +2839,15 @@ EXTRA_WEIGHT_PENALTY_CODES = {
     "IE": 0.40,  # Ireland
     "NL": 0.70,  # Netherlands
     "CH": 0.70,  # Switzerland
+    "HK": 0.05,  # Hong Kong
+    "SG": 0.40,  # Singapore
 }
 
 
 BUSINESS_BOOSTER = {
-    "TW": 1.15,  # Taiwan – real manufacturing + tech hub
-    "HK": 1.15,  # Hong Kong – finance + corporate hub
-    "SG": 1.10,  # Singapore – already strong, small nudge
-    "IL": 1.10,  # Israel – high complexity, real tech footprint
-    "KR": 1.10,  # South Korea – real corporate presence to boost it vs Japan
+    "TW": 1.5,  # Taiwan – real manufacturing + tech hub
+    "IL": 1.5,  # Israel – high complexity, real tech footprint
+    "KR": 1.5,  # South Korea – real corporate presence to boost it vs Japan
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
 
@@ -3120,7 +3114,7 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
-def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
+def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.4):
     """
     Loads GDP and Population percentages to calculate a composite weight.
     Formula: Weight = alpha * gdp_pct + (1 - alpha) * population_pct
@@ -3154,7 +3148,7 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
     manual_rows = {
         # Example: Taiwan (TW)
         # Values are in 0–1 scale (not 0–100)
-        "TW": {"gdp_pct": 0.0084, "population_pct": 0.29},
+        "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
         "XK": {"gdp_pct": 0.0001, "population_pct": 0.00022},
         "GG": {"gdp_pct": 0.000008, "population_pct": 0.000035},
         "JE": {"gdp_pct": 0.000013, "population_pct": 0.000073},
