@@ -812,6 +812,13 @@ QUALITATIVE_TERMS_AMB = [
         negated_pct=None,
         requires_suffix=True,
     ),
+    QualitativeTerm(
+        core_terms=["rest"],
+        suffix_terms=["of"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+    ),
 ]
 
 COMPILED_QUALITATIVE_PATTERNS = []
