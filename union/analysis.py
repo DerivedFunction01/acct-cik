@@ -3805,7 +3805,7 @@ class UnionAnalyzer:
         
         for e in entities:
             key = e["key"]
-            w = 2.0 # Default weight (small country)
+            w = 0.0005 # Default weight (small country)
             
             # Check if key is a region name
             if key in REGION_WEIGHTS:
