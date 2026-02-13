@@ -3330,7 +3330,7 @@ class UnionAnalyzer:
                 tracker.register_mentions(geo_context)
 
             # Try to resolve specific counts to geography (e.g. "200 in China")
-            mapped_counts, _ = self._resolve_counts_to_geography(analysis)
+            mapped_counts, _, _ = self._resolve_counts_to_geography(analysis)
             if mapped_counts:
                 for code, val in mapped_counts.items():
                     r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
@@ -3341,7 +3341,7 @@ class UnionAnalyzer:
                     tracker.update(val, specific_ctx)
 
             # Try to resolve counts to unions
-            union_counts, _ = self._resolve_counts_to_unions(analysis)
+            union_counts, _, _ = self._resolve_counts_to_unions(analysis)
             if union_counts:
                 for union_name, val in union_counts.items():
                     info = self.matcher.get_union(union_name)
@@ -3758,7 +3758,7 @@ class UnionAnalyzer:
         entities: List[Dict[str, Any]],
         total_key: Optional[str] = None,
         allow_naive_split: bool = False
-    ) -> Tuple[Dict[str, float], Optional[float]]:
+    ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_generic.
         """
@@ -3766,121 +3766,194 @@ class UnionAnalyzer:
         
         # 1. Prepare Counts (Total detection + Virtual counts + Proximity Map)
         parts, sentence_total, proximity_map = self._prepare_counts(analysis, entities)
-        
+
         if sentence_total is not None and total_key:
             mapped_counts[total_key] = sentence_total
 
-        # 2. Mapping Logic
-        # 3. Exact Parallel Mapping
-        # If number of remaining counts matches number of entities, assume order corresponds
-        if len(parts) == len(entities):
-            s_counts = sorted(parts, key=lambda x: x["span"][0])
-            s_entities = sorted(entities, key=lambda x: x["span"][0])
+        # --- Helper Strategies ---
 
-            for c, e in zip(s_counts, s_entities):
-                mapped_counts[e["key"]] = c["val"]
+        def try_exact_parallel(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
+            if len(curr_parts) == len(curr_entities):
+                s_counts = sorted(curr_parts, key=lambda x: x["span"][0])
+                s_entities = sorted(curr_entities, key=lambda x: x["span"][0])
+                local_map = {}
+                for c, e in zip(s_counts, s_entities):
+                    local_map[e["key"]] = c["val"]
+                return local_map, "Exact Parallel"
+            return None
 
-            return mapped_counts, sentence_total
-
-        # 3.5 Hierarchical Scope Grouping (N Counts -> N Scopes -> Many Entities)
-        # e.g. "100 Domestic and 100 International (Europe, China)" -> 2 counts, 4 entities
-        if entities:
-            # Try to group entities by scope
-            groups = group_by_scope(entities, target_count=None)
-            
-            if groups:
-                # Check if we have a mismatch that implies a Total is still in 'parts'
-                # e.g. 3 counts, 2 groups -> 1 count is likely the total of the 2 groups
-                if len(parts) == len(groups) + 1:
-                    vals = [c["val"] for c in parts]
+        def try_hierarchical_grouping(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
+            if curr_entities:
+                groups = group_by_scope(curr_entities, target_count=None)
+                
+                target_parts = curr_parts
+                if groups and len(curr_parts) == len(groups) + 1:
+                    vals = [c["val"] for c in curr_parts]
                     max_val = max(vals)
-                    # If we haven't already identified a total, or if this looks like a local total
+                    # Only remove if we don't have a global total
                     if sentence_total is None:
-                        # Assume max is total, remove it
-                        for i, c in enumerate(parts):
+                        for i, c in enumerate(curr_parts):
                             if c["val"] == max_val:
-                                parts = parts[:i] + parts[i+1:]
+                                target_parts = curr_parts[:i] + curr_parts[i+1:]
                                 break
+                
+                if len(target_parts) == len(groups):
+                    s_counts = sorted(target_parts, key=lambda x: x["span"][0])
+                    local_map = {}
+                    for c, group in zip(s_counts, groups):
+                        head = group[0]
+                        local_map[head["key"]] = c["val"]
+                        children = group[1:]
+                        if children:
+                            split_val = c["val"] / len(children)
+                            for child in children:
+                                local_map[child["key"]] = split_val
+                    return local_map, "Hierarchical Grouping"
+            return None
+
+        def try_list_grouping(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
+            if curr_entities and curr_parts:
+                s_entities = sorted(curr_entities, key=lambda x: x["span"][0])
+                groups = []
+                if s_entities:
+                    current_group = [s_entities[0]]
+                    for i in range(len(s_entities) - 1):
+                        e1 = s_entities[i]
+                        e2 = s_entities[i+1]
+                        start, end = e1["span"][1], e2["span"][0]
+                        text_between = analysis.text[start:end]
+                        
+                        has_count_in_gap = any(
+                            c["span"][0] >= start and c["span"][1] <= end 
+                            for c in curr_parts
+                        )
+                        
+                        clean_text = re.sub(r"\s+", " ", text_between).strip()
+                        is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
+                        
+                        if not has_count_in_gap and is_sep:
+                             current_group.append(e2)
+                        else:
+                             groups.append(current_group)
+                             current_group = [e2]
+                    groups.append(current_group)
+                
+                if len(groups) == len(curr_parts):
+                    s_counts = sorted(curr_parts, key=lambda x: x["span"][0])
+                    local_map = {}
+                    for c, group in zip(s_counts, groups):
+                        split_val = int(c["val"] / len(group))
+                        for e in group:
+                            local_map[e["key"]] = split_val
+                    return local_map, "List Grouping"
+            return None
+
+        def try_naive_split(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
+            if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
+                count_val = curr_parts[0]["val"]
+                split_val = int(count_val / len(curr_entities))
+                local_map = {}
+                for e in curr_entities:
+                    local_map[e["key"]] = split_val
+                return local_map, "Naive Split"
+            return None
+
+        def resolve_subset(curr_parts, curr_entities) -> Tuple[Dict[str, float], str]:
+            res = try_exact_parallel(curr_parts, curr_entities)
+            if res: return res
             
-            # Now check if counts match groups
-            if len(parts) == len(groups):
-                # Sort parts to match groups order (assuming text order)
-                s_counts = sorted(parts, key=lambda x: x["span"][0])
-
-                for c, group in zip(s_counts, groups):
-                    # Assign full count to the Head (Container)
-                    head = group[0]
-                    mapped_counts[head["key"]] = c["val"]
-
-                    # Distribute count to children if present (for detailed tracking)
-                    children = group[1:]
-                    if children:
-                        split_val = c["val"] / len(children)
-                        for child in children:
-                            mapped_counts[child["key"]] = split_val
-
-                return mapped_counts, sentence_total
-
-        # 3.6 List Grouping (N Counts -> N Lists of Entities)
-        # Detects "2000 in A, B and C, and 3000 in D"
-        if entities and parts:
-            # Sort entities by position
-            s_entities = sorted(entities, key=lambda x: x["span"][0])
+            res = try_hierarchical_grouping(curr_parts, curr_entities)
+            if res: return res
             
-            groups = []
-            if s_entities:
-                current_group = [s_entities[0]]
-                for i in range(len(s_entities) - 1):
-                    e1 = s_entities[i]
-                    e2 = s_entities[i+1]
-                    
-                    # Check text between e1 end and e2 start
-                    start, end = e1["span"][1], e2["span"][0]
-                    text_between = analysis.text[start:end]
-                    
-                    # Check if any count falls in this gap
-                    has_count_in_gap = any(
-                        c["span"][0] >= start and c["span"][1] <= end 
-                        for c in parts
-                    )
-                    
-                    # Check for list separators
-                    clean_text = re.sub(r"\s+", " ", text_between).strip()
-                    is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
-                    
-                    if not has_count_in_gap and is_sep:
-                         current_group.append(e2)
-                    else:
-                         groups.append(current_group)
-                         current_group = [e2]
-                groups.append(current_group)
+            res = try_list_grouping(curr_parts, curr_entities)
+            if res: return res
             
-            if len(groups) == len(parts):
-                # Sort counts
-                s_counts = sorted(parts, key=lambda x: x["span"][0])
-                for c, group in zip(s_counts, groups):
-                    split_val = int(c["val"] / len(group))
-                    for e in group:
-                        mapped_counts[e["key"]] = split_val
-                return mapped_counts, sentence_total
+            res = try_naive_split(curr_parts, curr_entities)
+            if res: return res
+            
+            # Fallback: Use global proximity map filtered for these entities
+            local_map = {}
+            for e in curr_entities:
+                if e["key"] in proximity_map:
+                    mapped_val = proximity_map[e["key"]]
+                    if any(p["val"] == mapped_val for p in curr_parts):
+                        local_map[e["key"]] = mapped_val
+            return local_map, "Proximity Subset"
 
-        # 4. Naive Split (1 Count -> Multiple Entities)
-        if allow_naive_split and len(parts) == 1 and len(entities) > 1:
-            count_val = parts[0]["val"]
-            split_val = int(count_val / len(entities))
-            for e in entities:
-                mapped_counts[e["key"]] = split_val
-            return mapped_counts, sentence_total
+        def try_hard_boundary_split() -> Optional[Tuple[Dict[str, float], List[str]]]:
+            if not parts or not entities:
+                return None
+            
+            segments = get_text_segments(analysis.text)
+            zones = []
+            current_zone = [0]
+            
+            for i in range(len(segments) - 1):
+                delim_match = segments[i][2]
+                is_hard = True
+                if delim_match and delim_match.group(0) == ",":
+                    is_hard = False
+                
+                if is_hard:
+                    zones.append(current_zone)
+                    current_zone = [i + 1]
+                else:
+                    current_zone.append(i + 1)
+            zones.append(current_zone)
+            
+            if len(zones) <= 1:
+                return None
+            
+            combined_map = {}
+            has_content = False
+            notes = []
+            
+            for seg_indices in zones:
+                z_start = segments[seg_indices[0]][0]
+                z_end = segments[seg_indices[-1]][1]
+                
+                z_parts = [p for p in parts if z_start <= p["span"][0] < z_end]
+                z_entities = [e for e in entities if z_start <= e["span"][0] < z_end]
+                
+                if z_parts or z_entities:
+                    has_content = True
+                    zone_map, note = resolve_subset(z_parts, z_entities)
+                    combined_map.update(zone_map)
+                    notes.append(note)
+            
+            if has_content:
+                return combined_map, notes
+            return None
 
-        # 5. Proximity Mapping (Fallback)
+        # --- Execution Flow ---
+        
+        # 1. Try Global Strategies
+        res = try_exact_parallel(parts, entities)
+        if res: return res[0], sentence_total, [res[1]]
+        
+        res = try_hierarchical_grouping(parts, entities)
+        if res: return res[0], sentence_total, [res[1]]
+        
+        res = try_list_grouping(parts, entities)
+        if res: return res[0], sentence_total, [res[1]]
+        
+        # 2. Try Split & Retry
+        res = try_hard_boundary_split()
+        if res: return res[0], sentence_total, ["Split by Boundary"] + res[1]
+        
+        # 3. Try Naive Split (Global)
+        res = try_naive_split(parts, entities)
+        if res: return res[0], sentence_total, [res[1]]
+        
+        # 4. Fallback to Proximity
         if not mapped_counts and proximity_map:
-            return proximity_map, sentence_total
+            return proximity_map, sentence_total, ["Global Proximity"]
 
-        return mapped_counts, sentence_total
+        return mapped_counts, sentence_total, []
 
     def _resolve_counts_to_geography(
         self, analysis: SentenceAnalysis
-    ) -> Tuple[Dict[str, float], Optional[float]]:
+    ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_to_geography.
         """
@@ -3938,7 +4011,7 @@ class UnionAnalyzer:
         return []
     def _resolve_counts_to_unions(
         self, analysis: SentenceAnalysis
-    ) -> Tuple[Dict[str, float], Optional[float]]:
+    ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Intelligently maps worker counts to union entities within the sentence.
         """
@@ -4342,7 +4415,8 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = current_idx
 
             # 5. Update Region Totals
-            census_update_note = None
+            geo_notes, union_notes, census_update_note = None, None, None
+            
             if effective_counts:
                 # Check for range first
                 range_avg = self._detect_count_range(analysis, effective_counts)
@@ -4353,10 +4427,10 @@ class UnionAnalyzer:
                     union_counts = {}
                 else:
                     # Try intelligent mapping first
-                    mapped_counts, sent_total = self._resolve_counts_to_geography(
+                    mapped_counts, sent_total, geo_notes = self._resolve_counts_to_geography(
                         analysis
                     )
-                    union_counts, _ = self._resolve_counts_to_unions(analysis)
+                    union_counts, _, union_notes = self._resolve_counts_to_unions(analysis)
                     current_val = max(effective_counts)
 
                 updates_found = []
@@ -4428,6 +4502,10 @@ class UnionAnalyzer:
                 if updates_found:
                     unique_updates = sorted(list(set(updates_found)))
                     census_update_note = f"Updates lookup: {', '.join(unique_updates)}"
+                    if geo_notes:
+                        census_update_note += f" | Geo Strategy: {', '.join(geo_notes)}"
+                    if union_notes:
+                        census_update_note += f" | Union Strategy: {', '.join(union_notes)}"
 
             # 6. Determine Relevant Total for Calculation
             relevant_total = None
