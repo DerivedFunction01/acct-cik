@@ -1077,6 +1077,13 @@ class ContextualNumberCleaner:
             re.IGNORECASE
         )
 
+        # 9. Remaining/Other Stripper
+        # Matches: "1000 [remaining] employees" -> "1000 employees"
+        self.remaining_cleaner_regex = re.compile(
+            rf"\b({number_range})\s+(?:remaining|other)\b",
+            re.IGNORECASE
+        )
+
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
@@ -1104,6 +1111,7 @@ class ContextualNumberCleaner:
             paragraph = self.diversity_post_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = self.bargaining_unit_regex.sub(r" \1 ", paragraph)
+            paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
