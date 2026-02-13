@@ -1361,6 +1361,12 @@ EUROPE = {
         code="BALTIC",
     ),
     Nation(
+        "Balkans",
+        ["balkans", "balkan", "balkan peninsula"],
+        Region.EUROPE,
+        code="BALKAN",
+    ),
+    Nation(
         "Belarus",
         ["belarus", "belarusian", "byelorussia"],
         Region.EUROPE,
@@ -1388,6 +1394,7 @@ EUROPE = {
         [Location("Baku", ["baku"])],
         code="AZ",
     ),
+    Nation("Kosovo", ["kosovo"], Region.EUROPE, code="XK"),
     Nation(
         "Republic of Georgia",
         ["republic of georgia"],
@@ -3025,6 +3032,7 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
         # Example: Taiwan (TW)
         # Values are in 0–1 scale (not 0–100)
         "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
+        "XK": {"gdp_pct": 0.0001, "population_pct": 0.00022},
     }
 
     # Ensure required columns exist
@@ -3071,6 +3079,7 @@ def _build_code_to_weight_map():
     external_weights = _load_external_weights()
     manual_composites = {
         "BALTIC": ["EE", "LV", "LT"],
+        "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
         "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"],
         "AFRICA": [
             "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
