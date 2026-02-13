@@ -64,7 +64,7 @@ SEGMENT_DELIMITER_REGEX = re.compile(
 )
 
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
-SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,2}}$"
+SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
 
 def get_text_segments(text: str) -> List[Tuple[int, int]]:
