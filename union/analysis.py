@@ -3630,27 +3630,7 @@ class UnionAnalyzer:
             # Logic C: Remaining/Balance Indicator
             # If "remaining" is present but NOT associated with a specific count, 
             # it implies a virtual remainder, which requires a Total to calculate from.
-            is_virtual_remainder = False
-            if analysis.has_remaining_other:
-                rem_match = REMAIN_REGEX.search(analysis.text)
-                if rem_match:
-                    rem_span = rem_match.span()
-                    # Check if any count is close to "remaining"
-                    is_associated = False
-                    for c in counts:
-                        dist = 0
-                        c_span = c["span"]
-                        if c_span[1] < rem_span[0]:
-                            dist = rem_span[0] - c_span[1]
-                        elif rem_span[1] < c_span[0]:
-                            dist = c_span[0] - rem_span[1]
-                        
-                        if dist < 20: 
-                            is_associated = True
-                            break
-                    
-                    if not is_associated:
-                        is_virtual_remainder = True
+            is_virtual_remainder = analysis.has_remaining_other
 
             # Only remove total if we have more counts than entities (implying one is a container/total)
             # OR if we have a virtual remainder (which implies we need to split a Total)
