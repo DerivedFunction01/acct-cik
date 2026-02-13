@@ -3770,10 +3770,6 @@ class UnionAnalyzer:
         if sentence_total is not None and total_key:
             mapped_counts[total_key] = sentence_total
 
-        # Check if proximity mapping solved the mismatch (Excess entities)
-        if len(parts) < len(entities) and len(proximity_map) == len(parts):
-             return proximity_map, sentence_total
-
         # 2. Mapping Logic
         # 3. Exact Parallel Mapping
         # If number of remaining counts matches number of entities, assume order corresponds
