@@ -2715,6 +2715,7 @@ COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
+    "G7": ["CA", "FR", "DE", "IT", "JP", "GB", "US", "Europe"],
     "AFRICA": [
         "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
         "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
@@ -3114,7 +3115,7 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
-def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.4):
+def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
     """
     Loads GDP and Population percentages to calculate a composite weight.
     Formula: Weight = alpha * gdp_pct + (1 - alpha) * population_pct
