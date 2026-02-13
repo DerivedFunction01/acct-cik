@@ -3642,8 +3642,16 @@ class UnionAnalyzer:
             if is_virtual_remainder:
                 should_remove_total = True
             elif len(counts) > len(entities):
-                if is_len_mismatch or is_sum_match or analysis.has_subset_indicator:
+                if is_len_mismatch or is_sum_match:
                     should_remove_total = True
+                if analysis.has_subset_indicator:
+                    # Check if the total count even exists before the subset indicator
+                    subset_indictator = next((m for m in analysis._matches if m["type"] == MatchType.SUBSET), None)
+                    if subset_indictator:
+                        # Find the total candidates that appear before the subset
+                        total_candidates = [c for c in counts if c["val"] == max_val and c["span"][0] < subset_indictator["span"][0]]
+                        if total_candidates:
+                            should_remove_total = True                    
 
             if should_remove_total:
                 sentence_total = max_val
