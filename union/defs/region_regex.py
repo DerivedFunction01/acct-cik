@@ -727,6 +727,12 @@ EUROPE = {
         code="DACH",
     ),
     Nation(
+        "Eastern Europe",
+        ["eastern europe", "east europe", "cee", "central and eastern europe"],
+        Region.EUROPE,
+        code="EEUROPE",
+    ),
+    Nation(
         "United Kingdom",
         [
             "uk",
@@ -2724,6 +2730,10 @@ COMPOSITE_REGION_MAP = {
     "BENELUX": ["BE", "NL", "LU"],
     "DACH": ["DE", "AT", "CH"],
     "NAMERICA": ["US", "CA", "MX"],
+    "EEUROPE": [
+        "PL", "CZ", "SK", "HU", "RO", "BG", "RU", "UA", "BY", "MD", 
+        "EE", "LV", "LT", "SI", "HR", "BA", "RS", "ME", "MK", "AL", "XK"
+    ],
     "OCEANIA": ["AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "FM", "MH", "PW"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
