@@ -703,6 +703,30 @@ EUROPE = {
         code="EU",
     ),
     Nation(
+        "Nordics",
+        ["nordics", "nordic", "scandinavia", "scandinavian"],
+        Region.EUROPE,
+        code="NORDIC",
+    ),
+    Nation(
+        "Benelux",
+        ["benelux"],
+        Region.EUROPE,
+        code="BENELUX",
+    ),
+    Nation(
+        "Iberia",
+        ["iberia", "iberian", "iberian peninsula"],
+        Region.EUROPE,
+        code="IBERIA",
+    ),
+    Nation(
+        "DACH",
+        ["dach", "dach region"],
+        Region.EUROPE,
+        code="DACH",
+    ),
+    Nation(
         "United Kingdom",
         [
             "uk",
@@ -1789,6 +1813,24 @@ LATIN_AMERICA = {
         code="LATAM",
     ),
     Nation(
+        "South America",
+        ["south america", "south american"],
+        Region.LATIN_AMERICA,
+        code="SAMERICA",
+    ),
+    Nation(
+        "Central America",
+        ["central america", "central american"],
+        Region.LATIN_AMERICA,
+        code="CAMERICA",
+    ),
+    Nation(
+        "Caribbean",
+        ["caribbean", "west indies"],
+        Region.LATIN_AMERICA,
+        code="CARIBBEAN",
+    ),
+    Nation(
         "Mexico",
         ["mexico", "mexican"],
         Region.LATIN_AMERICA,
@@ -2668,7 +2710,14 @@ COMPOSITE_REGION_MAP = {
     "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
     "EASIA": ["CN", "JP", "KR", "KP", "TW", "MN", "HK", "MO"],
     "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
-    "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"]
+    "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"],
+    "SAMERICA": ["AR", "BO", "BR", "CL", "CO", "EC", "GY", "PY", "PE", "SR", "UY", "VE"],
+    "CAMERICA": ["BZ", "CR", "SV", "GT", "HN", "NI", "PA"],
+    "CARIBBEAN": ["AG", "AW", "BS", "BB", "BM", "VG", "KY", "CU", "CW", "DM", "DO", "GD", "HT", "JM", "KN", "LC", "MF", "PR", "VC", "SX", "TT", "TC", "VI"],
+    "NORDIC": ["DK", "FI", "IS", "NO", "SE"],
+    "BENELUX": ["BE", "NL", "LU"],
+    "DACH": ["DE", "AT", "CH"],
+    "IBERIA": ["ES", "PT"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
 
