@@ -1356,7 +1356,7 @@ EUROPE = {
     ),
     Nation(
         "Baltic States",
-        ["baltic states", "baltics"],
+        ["baltic states", "baltics", "baltic region"],
         Region.EUROPE,
         code="BALTIC",
     ),
