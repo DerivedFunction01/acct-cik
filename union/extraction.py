@@ -180,6 +180,7 @@ SUBSET_REGEX = build_regex([
     r"compris(?:ing|es?|ed)",
     r"with",
     r"consist(?:ing|s|ed)?"
+    r":"
     ]
 )
 
