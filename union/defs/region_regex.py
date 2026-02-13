@@ -2696,7 +2696,7 @@ INT_LANGUAGE_MAP = {
 COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
-    "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"],
+    "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
     "AFRICA": [
         "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
         "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
@@ -2785,26 +2785,12 @@ REGION_CODES = {
     "EU",
     "APAC",
     "LATAM",
-    "MEA",
-    "AFRICA",
-    "ME",
-    "GCC",
-    "SSA",
-    "SASIA",
-    "ASEAN",
-    "BALTIC",
-    "CIS",
     "INT",
-    "SSA",
     "DOM",
-    "INT_IBERIA",
-    "INT_FR",
-    "INT_IT",
-    "INT_DE",
-    "INT_NL",
-    "INT_MUSLIM",
-    "EASIA",
 }
+REGION_CODES.update(COMPOSITE_REGION_MAP.keys())
+REGION_CODES.update(INT_LANGUAGE_MAP.keys())
+
 TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
     "BM",  # Bermuda
@@ -3277,17 +3263,20 @@ def weighted_division(
 ) -> Dict[str, float]:
     """
     Distributes a value across entities based on heuristic weights.
+    Applies hierarchical clustering:
+    1. Groups entities into clusters (based on COMPOSITE_REGION_MAP).
+    2. Sums raw weights for clusters vs standalone entities.
+    3. Distributes value to groups proportional to total weight.
+    4. Distributes within clusters using smoothed weights (sqrt).
     """
     if not entities:
         return {}
 
-    # Calculate initial weights
-    entity_weights = []
-    keys = []
-
+    # 1. Map keys to raw weights
+    key_to_weight = {}
+    
     for e in entities:
         key = e["key"]
-        keys.append(key)
         w = 0.0005  # Default weight (small country)
 
         # Check if key is a region name
@@ -3296,49 +3285,95 @@ def weighted_division(
         # Check if key is a country code
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]
+        
+        key_to_weight[key] = w
 
-        entity_weights.append(w)
+    # 2. Identify Clusters
+    remaining_keys = set(key_to_weight.keys())
+    groups = [] # List of dicts: {keys: [], weight: float, is_cluster: bool}
 
-    # Check for tight regional clustering to apply smoothing
-    # If entities are grouped in a specific sub-region (e.g. East Asia, GCC), 
-    # their operational size is likely more uniform than their GDP/Pop implies.
-    is_tight_cluster = False
-    if len(keys) > 1:
-        for members in COMPOSITE_REGION_MAP.values():
-            member_set = set(members)
-            if all(k in member_set for k in keys):
-                is_tight_cluster = True
-                break
+    # Sort composite regions by size (specificity) - smallest first
+    sorted_composites = sorted(COMPOSITE_REGION_MAP.items(), key=lambda x: len(x[1]))
+
+    for region_code, members in sorted_composites:
+        member_set = set(members)
+        # Find intersection with remaining keys
+        intersection = remaining_keys.intersection(member_set)
+        if len(intersection) >= 2:
+            # Found a cluster
+            cluster_keys = sorted(list(intersection))
+            # Calculate raw weight sum of the cluster
+            w_sum = sum(key_to_weight[k] for k in cluster_keys)
+            groups.append({
+                "keys": cluster_keys,
+                "weight": w_sum,
+                "is_cluster": True
+            })
+            # Remove from remaining
+            remaining_keys -= intersection
     
-    if is_tight_cluster:
-        # Apply square root smoothing to dampen outliers (e.g. Japan vs Taiwan)
-        entity_weights = [w ** 0.5 for w in entity_weights]
+    # Add remaining as individual groups
+    for k in sorted(list(remaining_keys)):
+        groups.append({
+            "keys": [k],
+            "weight": key_to_weight[k],
+            "is_cluster": False
+        })
 
-    total_weight = sum(entity_weights)
-
-    if total_weight == 0:
-        # Fallback to equal split
+    # 3. Distribute val among groups based on group weights
+    total_group_weight = sum(g["weight"] for g in groups)
+    
+    final_distribution = {}
+    
+    if total_group_weight == 0:
+        # Fallback: equal split among all entities
         split_val = int(val / len(entities))
-        return {e["key"]: split_val for e in entities}
+        # Handle remainder
+        remainder = int(val) - (split_val * len(entities))
+        for i, e in enumerate(entities):
+            final_distribution[e["key"]] = split_val + (1 if i < remainder else 0)
+        return final_distribution
 
-    # Distribute
-    result = {}
-    current_sum = 0
-    for i, e in enumerate(entities):
-        if i == len(entities) - 1:
-            # Assign remainder to last to ensure sum matches val
-            remainder = val - current_sum
-            if isinstance(remainder, float) and remainder.is_integer():
-                result[e["key"]] = int(remainder)
-            else:
-                result[e["key"]] = remainder
+    # Distribute to groups
+    val_remaining = int(val)
+    
+    for i, group in enumerate(groups):
+        # Calculate group share
+        if i == len(groups) - 1:
+            group_share = val_remaining
         else:
-            share = (entity_weights[i] / total_weight) * val
-            share_int = int(round(share))
-            result[e["key"]] = share_int
-            current_sum += share_int
+            share = (group["weight"] / total_group_weight) * val
+            group_share = int(round(share))
+            val_remaining -= group_share
+            
+        # 4. Distribute inside group
+        if group["is_cluster"]:
+            # Smooth weights inside cluster: sqrt(weight)
+            member_weights = {k: key_to_weight[k] ** 0.5 for k in group["keys"]}
+            total_member_weight = sum(member_weights.values())
+            
+            if total_member_weight == 0:
+                # Equal split inside cluster
+                sub_split = int(group_share / len(group["keys"]))
+                sub_rem = int(group_share) - (sub_split * len(group["keys"]))
+                for j, k in enumerate(group["keys"]):
+                    final_distribution[k] = sub_split + (1 if j < sub_rem else 0)
+            else:
+                sub_remaining = group_share
+                for j, k in enumerate(group["keys"]):
+                    if j == len(group["keys"]) - 1:
+                        final_distribution[k] = sub_remaining
+                    else:
+                        sub_share = (member_weights[k] / total_member_weight) * group_share
+                        sub_share_int = int(round(sub_share))
+                        final_distribution[k] = sub_share_int
+                        sub_remaining -= sub_share_int
+        else:
+            # Single entity
+            k = group["keys"][0]
+            final_distribution[k] = group_share
 
-    return result
+    return final_distribution
 
 
 def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
