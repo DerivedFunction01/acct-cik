@@ -171,7 +171,12 @@ UNION_DENOMINATOR_REGEX = build_regex(
 )
 
 DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
-
+SUBSET_REGEX = build_regex([
+    r"of\s+(?:which|whom)",
+    r"includ(?:ing|es)",
+    r"compris(?:ing|es)",
+    ]
+)
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -242,6 +247,7 @@ class SentenceAnalysis:
     has_respectively: bool = False
     has_remaining_other: bool = False
     has_union_denominator: bool = False
+    has_subset_indicator: bool = False
 
     # Raw matches for debugging or precise location
     _matches: List[Dict[str, Any]] = field(default_factory=list)
@@ -840,6 +846,11 @@ class UnionExtractor:
         analysis.has_remaining_other = bool(REMAIN_REGEX.search(text))
         analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
+        analysis.has_subset_indicator = bool(
+            SUBSET_REGEX.search(
+                text
+            )
+        )
 
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False):
             nonlocal working_text
@@ -882,7 +893,7 @@ class UnionExtractor:
                 # Mask with spaces
                 for i in range(start, end):
                     chars[i] = " "
-                
+
                 if update_working_text:
                     working_text = "".join(chars)
 
@@ -911,9 +922,9 @@ class UnionExtractor:
 
             def specific_union_side_effect(m, val):
                 analysis.union_terms.append(val)
-                info = self.matcher.get_union(val)
-                if info:
-                    region, country, code = info
+                lower_term = val.lower()
+                if lower_term in self.matcher.union_map:
+                    region, country, code = self.matcher.union_map[lower_term]
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,
@@ -946,14 +957,14 @@ class UnionExtractor:
             if prefix_match:
                 prefix = prefix_match.group(0)
                 return prefix + val, start - len(prefix), end
-            
+
             return val
 
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
-            info = self.matcher.get_union(val)
-            if info:
-                region, country, code = info
+            lower_term = val.lower()
+            if lower_term in self.matcher.union_map:
+                region, country, code = self.matcher.union_map[lower_term]
                 analysis.geo_matches.append(
                     GeoMatch(
                         text=val,
@@ -1046,9 +1057,9 @@ class UnionExtractor:
         if self.matcher.location_regexes:
 
             def geo_side_effect(m, val):
-                info = self.matcher.get_location(val)
-                if info:
-                    region, country, city, code = info
+                phrase = val.lower()
+                if phrase in self.matcher.location_map:
+                    region, country, city, code = self.matcher.location_map[phrase]
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,
