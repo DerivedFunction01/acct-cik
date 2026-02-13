@@ -3223,6 +3223,58 @@ def _build_region_weights_map(country_weights):
 
 REGION_WEIGHTS = _build_region_weights_map(_CODE_TO_WEIGHT)
 
+def weighted_division(
+    val: float, entities: List[Dict[str, Any]]
+) -> Dict[str, float]:
+    """
+    Distributes a value across entities based on heuristic weights.
+    """
+    if not entities:
+        return {}
+
+    # Calculate total weight
+    total_weight = 0.0
+    entity_weights = []
+
+    for e in entities:
+        key = e["key"]
+        w = 0.0005  # Default weight (small country)
+
+        # Check if key is a region name
+        if key in REGION_WEIGHTS:
+            w = REGION_WEIGHTS[key]
+        # Check if key is a country code
+        elif key in _CODE_TO_WEIGHT:
+            w = _CODE_TO_WEIGHT[key]
+
+        entity_weights.append(w)
+        total_weight += w
+
+    if total_weight == 0:
+        # Fallback to equal split
+        split_val = int(val / len(entities))
+        return {e["key"]: split_val for e in entities}
+
+    # Distribute
+    result = {}
+    current_sum = 0
+    for i, e in enumerate(entities):
+        if i == len(entities) - 1:
+            # Assign remainder to last to ensure sum matches val
+            remainder = val - current_sum
+            if isinstance(remainder, float) and remainder.is_integer():
+                result[e["key"]] = int(remainder)
+            else:
+                result[e["key"]] = remainder
+        else:
+            share = (entity_weights[i] / total_weight) * val
+            share_int = int(round(share))
+            result[e["key"]] = share_int
+            current_sum += share_int
+
+    return result
+
+
 def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
     """
     Groups geographic entities into clusters based on scope hierarchy to match a target count.
