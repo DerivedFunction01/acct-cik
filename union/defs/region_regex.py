@@ -2072,6 +2072,14 @@ MIDDLE_EAST_AFRICA = {
         code="AFRICA",
     ),
     Nation(
+        "North Africa",
+        [
+            "north africa", "northern africa"
+        ],
+        Region.MIDDLE_EAST_AFRICA,
+        code="NAFRICA",
+    ),
+    Nation(
         "United Arab Emirates",
         ["uae", "emirates", "dirham", "aed"],
         Region.MIDDLE_EAST_AFRICA,
@@ -2631,6 +2639,30 @@ INT_LANGUAGE_MAP = {
     "INT_NL": {"NL", "BE", "SR"},
 }
 
+COMPOSITE_REGION_MAP = {
+    "BALTIC": ["EE", "LV", "LT"],
+    "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
+    "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"],
+    "AFRICA": [
+        "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
+        "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
+        "BF", "ML", "BW", "MZ", "GA", "GN", "TD", "MG", "BJ", "RW",
+        "CG", "NE", "MW", "MR", "TG", "SL", "SO", "SS", "ER", "SZ",
+        "BI", "DJ", "LR", "CF", "CV", "LS", "GM", "GW", "SC", "KM",
+        "ST", "GQ",
+    ],
+    "GCC": ["SA", "AE", "KW", "QA", "BH", "OM"],
+    "ASEAN": ["ID", "TH", "MY", "SG", "PH", "VN", "BN", "KH", "LA", "MM"],
+    "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
+    "EASIA": ["CN", "JP", "KR", "KP", "TW", "MN", "HK", "MO"],
+    "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
+    "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"]
+}
+COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
+
+# MEA is ME + AFRICA
+COMPOSITE_REGION_MAP["MEA"] = list(set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"]))
+
 # Worker terms, Union terms, gap
 INT_UNION_MAP = {
     "INT_IBERIA": (
@@ -3079,36 +3111,10 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
 def _build_code_to_weight_map():
     mapping = {}
     external_weights = _load_external_weights()
-    manual_composites = {
-        "BALTIC": ["EE", "LV", "LT"],
-        "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
-        "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"],
-        "AFRICA": [
-            "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
-            "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
-            "BF", "ML", "BW", "MZ", "GA", "GN", "TD", "MG", "BJ", "RW",
-            "CG", "NE", "MW", "MR", "TG", "SL", "SO", "SS", "ER", "SZ",
-            "BI", "DJ", "LR", "CF", "CV", "LS", "GM", "GW", "SC", "KM",
-            "ST", "GQ",
-        ],
-        "GCC": ["SA", "AE", "KW", "QA", "BH", "OM"],
-        "ASEAN": ["ID", "TH", "MY", "SG", "PH", "VN", "BN", "KH", "LA", "MM"],
-        "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
-        "EASIA": ["CN", "JP", "KR", "KP", "TW", "MN", "HK", "MO"],
-        "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
-    }
-    
-    # SSA (Sub-Saharan) is AFRICA minus North Africa
-    north_africa = {"EG", "DZ", "MA", "TN", "LY", "SD"}
-    manual_composites["SSA"] = [c for c in manual_composites["AFRICA"] if c not in north_africa]
-    
-    # MEA is ME + AFRICA
-    manual_composites["MEA"] = list(set(manual_composites["ME"] + manual_composites["AFRICA"]))
-
     # Add language buckets from INT_LANGUAGE_MAP
     for code, countries in INT_LANGUAGE_MAP.items():
-        manual_composites[code] = list(countries)
-
+        COMPOSITE_REGION_MAP[code] = list(countries)
+        
     defined_codes = set()
 
     all_regions = [
@@ -3142,7 +3148,7 @@ def _build_code_to_weight_map():
             pass
 
     # Apply Manual Composites
-    for code, constituents in manual_composites.items():
+    for code, constituents in COMPOSITE_REGION_MAP.items():
         # Only calculate if the code is currently using the default weight (or missing)
         current_w = mapping.get(code, 0.005)
         if abs(current_w - 0.005) < 0.000001:
