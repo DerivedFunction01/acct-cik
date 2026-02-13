@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from extraction import (
     NEGATION_REGEX,
     OR_REGEX,
+    SUBSET_REGEX,
     QualitativeTerm,
     UnionExtractor,
     SentenceAnalysis,
@@ -821,7 +822,7 @@ class ComplexCoverageAnalyzer:
     """
     Handles complex scenarios: mixed coverage, ratios, inferred totals, percent of percent.
     """
-
+    # Uses a different subset regex made for percentage cases
     subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those)\b", re.IGNORECASE)
 
     def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
@@ -3700,6 +3701,40 @@ class UnionAnalyzer:
         if sentence_total is not None and total_key:
             mapped_counts[total_key] = sentence_total
 
+        # --- NEW: Pre-calculate Proximity Mapping ---
+        # We do this early to detect if some entities are just descriptors (far from counts)
+        # while others are targets (close to counts).
+        proximity_map = {}
+        if entities and parts:
+            segments = get_text_segments(analysis.text)
+
+            def get_seg_idx(pos):
+                return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
+
+            pairs = []
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_seg = get_seg_idx(c_mid)
+                for e in entities:
+                    e_mid = (e["span"][0] + e["span"][1]) / 2
+                    e_seg = get_seg_idx(e_mid)
+                    dist = abs(c_mid - e_mid)
+
+                    # Penalize cross-segment matches
+                    if c_seg != e_seg:
+                        dist += 1000
+
+                    pairs.append((dist, c, e))
+
+            pairs.sort(key=lambda x: x[0])
+            used_c, used_e = set(), set()
+
+            for dist, c, e in pairs:
+                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
+                    proximity_map[e["key"]] = c["val"]
+                    used_c.add(id(c))
+                    used_e.add(e["key"])
+
         # 2. Mapping Logic
         # 3. Exact Parallel Mapping
         # If number of remaining counts matches number of entities, assume order corresponds
@@ -3803,35 +3838,8 @@ class UnionAnalyzer:
             return mapped_counts, sentence_total
 
         # 5. Proximity Mapping (Fallback)
-        if entities and parts:
-            segments = get_text_segments(analysis.text)
-
-            def get_seg_idx(pos):
-                return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
-
-            pairs = []
-            for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
-                c_seg = get_seg_idx(c_mid)
-                for e in entities:
-                    e_mid = (e["span"][0] + e["span"][1]) / 2
-                    e_seg = get_seg_idx(e_mid)
-                    dist = abs(c_mid - e_mid)
-
-                    # Penalize cross-segment matches
-                    if c_seg != e_seg:
-                        dist += 1000
-
-                    pairs.append((dist, c, e))
-
-            pairs.sort(key=lambda x: x[0])
-            used_c, used_e = set(), set()
-
-            for dist, c, e in pairs:
-                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
-                    mapped_counts[e["key"]] = c["val"]
-                    used_c.add(id(c))
-                    used_e.add(e["key"])
+        if not mapped_counts and proximity_map:
+            return proximity_map, sentence_total
 
         return mapped_counts, sentence_total
 
