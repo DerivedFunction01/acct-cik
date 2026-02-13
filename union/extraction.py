@@ -174,7 +174,7 @@ DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
 SUBSET_REGEX = build_regex([
     r"of\s+(?:which|whom)",
     r"includ(?:ing|es)",
-    r"compris(?:ing|es)",
+    r"compris(?:ing|es?|ed)",
     ]
 )
 

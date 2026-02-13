@@ -3628,12 +3628,11 @@ class UnionAnalyzer:
             is_len_mismatch = len(counts) == len(entities) + 1
 
             # Logic C: Linguistic Indicators ("of which", "including")
-            has_subset_indicator = bool(re.search(r"(?:of\s+which|includ(?:ing|es)|compris(?:ing|es))", analysis.text, re.IGNORECASE))
 
             # Only remove total if we have more counts than entities (implying one is a container/total)
             should_remove_total = False
             if len(counts) > len(entities):
-                if is_len_mismatch or is_sum_match or has_subset_indicator:
+                if is_len_mismatch or is_sum_match or analysis.has_subset_indicator:
                     should_remove_total = True
 
             if should_remove_total:
