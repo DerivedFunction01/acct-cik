@@ -864,6 +864,7 @@ class UnionExtractor:
 
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False):
             nonlocal working_text
+            assert isinstance(pattern, re.Pattern)
             current_iter_matches = list(pattern.finditer(working_text))
             if not current_iter_matches:
                 return
@@ -932,9 +933,9 @@ class UnionExtractor:
 
             def specific_union_side_effect(m, val):
                 analysis.union_terms.append(val)
-                lower_term = val.lower()
-                if lower_term in self.matcher.union_map:
-                    region, country, code = self.matcher.union_map[lower_term]
+                info = self.matcher.get_union(val)
+                if info:
+                    region, country, code = info
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,
@@ -953,7 +954,7 @@ class UnionExtractor:
             )
 
         # 4. Extract Dynamic Union Names (Pattern-based)
-        def expand_dynamic_match(m):
+        def expand_dynamic_match(m: re.Match):
             val = m.group(0)
             start, end = m.span()
 
@@ -972,9 +973,9 @@ class UnionExtractor:
 
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
-            lower_term = val.lower()
-            if lower_term in self.matcher.union_map:
-                region, country, code = self.matcher.union_map[lower_term]
+            info = self.matcher.get_union(val)
+            if info:
+                region, country, code = info
                 analysis.geo_matches.append(
                     GeoMatch(
                         text=val,
@@ -988,6 +989,7 @@ class UnionExtractor:
                 # Fallback: Check if it matches a known foreign dynamic pattern
                 # This maps "Sindicato de..." back to "INT_IBERIA", etc.
                 for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
+                    assert isinstance(pattern, re.Pattern)
                     if pattern.fullmatch(val):
                         # We found the language origin.
                         # We don't know the specific country yet, but we have the language code.
@@ -1067,9 +1069,9 @@ class UnionExtractor:
         if self.matcher.location_regexes:
 
             def geo_side_effect(m, val):
-                phrase = val.lower()
-                if phrase in self.matcher.location_map:
-                    region, country, city, code = self.matcher.location_map[phrase]
+                info = self.matcher.get_location(val)
+                if info:
+                    region, country, city, code = info
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,
