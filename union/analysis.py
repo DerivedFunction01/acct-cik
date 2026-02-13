@@ -3786,6 +3786,48 @@ class UnionAnalyzer:
         filtered = [entities[i] for i in sorted(keep_indices)]
         return filtered if filtered else entities
 
+    def _preprocess_redundant_containers(
+        self, entities: List[Dict[str, Any]], sentence_total: Optional[float]
+    ) -> Tuple[List[Dict[str, Any]], str]:
+        """
+        If no total was detected, and we have a region entity that contains all other
+        entities in the list, it is likely a descriptor. Remove it to prevent it
+        from absorbing counts meant for its constituents.
+        """
+        if sentence_total is None and len(entities) > 1:
+            containers = []
+            others = []
+            
+            for i, e in enumerate(entities):
+                is_region = False
+                if "region_enum" in e:
+                    r_val = e["region_enum"].value
+                    # It is a container if the key is the region name or a region code
+                    if e["key"] == r_val or e["key"] in REGION_CODES:
+                        is_region = True
+                
+                if is_region:
+                    containers.append(i)
+                else:
+                    others.append(i)
+            
+            # If exactly one container and it contains all others
+            if len(containers) == 1 and others:
+                c_idx = containers[0]
+                container_region = entities[c_idx].get("region_enum")
+                
+                all_contained = True
+                for o_idx in others:
+                    other = entities[o_idx]
+                    if "region_enum" not in other or other["region_enum"] != container_region:
+                        all_contained = False
+                        break
+                
+                if all_contained:
+                    return [e for i, e in enumerate(entities) if i != c_idx], "Removed Redundant Container"
+
+        return entities, ""
+
     def _resolve_counts_generic(
         self, 
         analysis: SentenceAnalysis, 
@@ -3803,6 +3845,10 @@ class UnionAnalyzer:
 
         if sentence_total is not None and total_key:
             mapped_counts[total_key] = sentence_total
+
+        # --- Preprocess: Remove redundant container regions ---
+        entities, preprocess_note = self._preprocess_redundant_containers(entities, sentence_total)
+        base_notes = [preprocess_note] if preprocess_note else []
 
         # --- Helper Strategies ---
 
@@ -3971,27 +4017,27 @@ class UnionAnalyzer:
         
         # 1. Try Global Strategies
         res = try_exact_parallel(parts, entities)
-        if res: return res[0], sentence_total, [res[1]]
+        if res: return res[0], sentence_total, base_notes + [res[1]]
         
         res = try_hierarchical_grouping(parts, entities)
-        if res: return res[0], sentence_total, [res[1]]
+        if res: return res[0], sentence_total, base_notes + [res[1]]
         
         res = try_list_grouping(parts, entities)
-        if res: return res[0], sentence_total, [res[1]]
+        if res: return res[0], sentence_total, base_notes + [res[1]]
         
         # 2. Try Split & Retry
         res = try_hard_boundary_split()
-        if res: return res[0], sentence_total, ["Split by Boundary"] + res[1]
+        if res: return res[0], sentence_total, base_notes + ["Split by Boundary"] + res[1]
         
         # 3. Try Naive Split (Global)
         res = try_naive_split(parts, entities)
-        if res: return res[0], sentence_total, [res[1]]
+        if res: return res[0], sentence_total, base_notes + [res[1]]
         
         # 4. Fallback to Proximity
         if not mapped_counts and proximity_map:
-            return proximity_map, sentence_total, ["Global Proximity"]
+            return proximity_map, sentence_total, base_notes + ["Global Proximity"]
 
-        return mapped_counts, sentence_total, []
+        return mapped_counts, sentence_total, base_notes
 
     def _resolve_counts_to_geography(
         self, analysis: SentenceAnalysis
