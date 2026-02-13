@@ -6,6 +6,7 @@ from enum import Enum
 
 from defs.regex_lib import (
     SENTENCE_SPLIT_PATTERN2,
+    add_restrictions,
     build_alternation,
     build_regex,
     build_compound,
@@ -75,7 +76,9 @@ NEGATION_REGEX = build_regex(
     [r"no", r"not", r"nor", r"without", r"neither", r"none", r"never"]
 )
 
-REMAIN_REGEX = build_regex([r"remaining", r"rest", r"other", r"balance"])
+REMAIN_REGEX = build_regex(
+    [add_restrictions(build_alternation([r"remaining", build_compound([], r"rest(?:\s+of)?", [r"(?:\s+the)?"], sep_suffix=""), r"other", r"balance"]), lookaheads=[r"\d"], lookahead_sep=r"\s+")]
+)
 
 
 OF_REGEX = build_regex([r"(?:out\s+)?of"])

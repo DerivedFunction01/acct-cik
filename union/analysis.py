@@ -3627,11 +3627,38 @@ class UnionAnalyzer:
             # Logic B: Count Mismatch (N+1 counts for N entities -> 1 is likely total)
             is_len_mismatch = len(counts) == len(entities) + 1
 
-            # Logic C: Linguistic Indicators ("of which", "including")
+            # Logic C: Remaining/Balance Indicator
+            # If "remaining" is present but NOT associated with a specific count, 
+            # it implies a virtual remainder, which requires a Total to calculate from.
+            is_virtual_remainder = False
+            if analysis.has_remaining_other:
+                rem_match = REMAIN_REGEX.search(analysis.text)
+                if rem_match:
+                    rem_span = rem_match.span()
+                    # Check if any count is close to "remaining"
+                    is_associated = False
+                    for c in counts:
+                        dist = 0
+                        c_span = c["span"]
+                        if c_span[1] < rem_span[0]:
+                            dist = rem_span[0] - c_span[1]
+                        elif rem_span[1] < c_span[0]:
+                            dist = c_span[0] - rem_span[1]
+                        
+                        if dist < 20: 
+                            is_associated = True
+                            break
+                    
+                    if not is_associated:
+                        is_virtual_remainder = True
 
             # Only remove total if we have more counts than entities (implying one is a container/total)
+            # OR if we have a virtual remainder (which implies we need to split a Total)
             should_remove_total = False
-            if len(counts) > len(entities):
+            
+            if is_virtual_remainder:
+                should_remove_total = True
+            elif len(counts) > len(entities):
                 if is_len_mismatch or is_sum_match or analysis.has_subset_indicator:
                     should_remove_total = True
 
@@ -3650,7 +3677,7 @@ class UnionAnalyzer:
             current_sum = sum(c["val"] for c in parts)
             remainder = sentence_total - current_sum
 
-            if remainder > 0 and analysis.has_remaining_other:
+            if remainder > 0:
                 rem_match = REMAIN_REGEX.search(analysis.text)
                 if rem_match:
                     parts.append({
@@ -3661,7 +3688,7 @@ class UnionAnalyzer:
                     })
                     # Re-sort parts by position
                     parts.sort(key=lambda x: x["span"][0])
-        
+                    
         return parts, sentence_total
 
     def _resolve_counts_generic(
