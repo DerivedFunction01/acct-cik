@@ -73,9 +73,9 @@ NORTH_AMERICA = {
             "silicon valley",
             "twin cities",
             "appalachia",
-            add_restrictions(
+            to_build_alternation(add_restrictions(
                 r"american?", lookbehinds=[r"central", r"latin", r"south"]
-            ),            
+            )),            
         ],
         Region.NORTH_AMERICA,
         [
@@ -1648,7 +1648,12 @@ ASIA_PACIFIC = {
 LATIN_AMERICA = {
     Nation(
         "Latin America",
-        [build_compound([r"latin", r"south", r"central"], [r"america(?:n|s)?"]), "latam"],
+        [
+            to_build_alternation(
+                build_compound([r"latin", r"south", r"central"], [r"america(?:n|s)?"])
+            ),
+            "latam",
+        ],
         Region.LATIN_AMERICA,
         [],
         code="LATAM",
@@ -1751,7 +1756,7 @@ LATIN_AMERICA = {
             Location("Rancagua", ["rancagua", "el teniente"]),
         ],
         ["CUT Chile", "Central Unitaria de Trabajadores"],
-        [ "Código del Trabajo"],
+        ["Código del Trabajo"],
         code="CL",
     ),
     Nation(
@@ -1862,7 +1867,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         code="MEA",
     ),
-    Nation("Africa", ["africa", add_restrictions("african", lookaheads=[r"american"])], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
+    Nation("Africa", ["africa", to_build_alternation(add_restrictions("african", lookaheads=[r"american"]))], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
     Nation(
         "United Arab Emirates",
         ["uae", "emirates", "dirham", "aed"],
@@ -2418,9 +2423,12 @@ class RegionMatcher:
     union_map: Dict[str, Tuple[Region, str, str]] = (
         {}
     )  # term -> (Region, Country, Code)
+    regex_union_map: Dict[str, Tuple[Region, str, str]] = {}
+
     location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = (
         {}
     )  # term -> (Region, Country, City, Code)
+    regex_location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = {}
 
     specific_union_regex: Optional[re.Pattern] = None
     location_regexes: List[re.Pattern] = []
@@ -2430,6 +2438,27 @@ class RegionMatcher:
     def __init__(self):
         if not RegionMatcher._compiled:
             RegionMatcher._compile()
+
+    @classmethod
+    def get_location(cls, text: str) -> Optional[Tuple[Region, str, Optional[str], str]]:
+        lower = text.lower()
+        if lower in cls.location_map:
+            return cls.location_map[lower]
+        
+        for pattern, info in cls.regex_location_map.items():
+            if re.fullmatch(pattern, text, re.IGNORECASE):
+                return info
+        return None
+
+    @classmethod
+    def get_union(cls, text: str) -> Optional[Tuple[Region, str, str]]:
+        lower = text.lower()
+        if lower in cls.union_map:
+            return cls.union_map[lower]
+        for pattern, info in cls.regex_union_map.items():
+            if re.fullmatch(pattern, text, re.IGNORECASE):
+                return info
+        return None
 
     @classmethod
     def _compile(cls):
@@ -2443,6 +2472,10 @@ class RegionMatcher:
             INTERNATIONAL,
         ]
 
+        cls.union_map = {}
+        cls.regex_union_map = {}
+        cls.location_map = {}
+        cls.regex_location_map = {}
         union_phrases = set()
         cls.location_regexes = []
 
@@ -2464,91 +2497,123 @@ class RegionMatcher:
                 # 1. Map Specific Unions
                 for union_name in nation.unions:
                     # Store mapping
-                    cls.union_map[union_name.lower()] = (
+                    info = (
                         nation.region,
                         nation.name,
                         nation.code,
                     )
+                    if cls.regex_detector_regex.search(union_name):
+                        cls.regex_union_map[union_name] = info
+                    else:
+                        cls.union_map[union_name.lower()] = info
                     union_phrases.add(union_name)
 
                 # 1b. Map Keywords (Treat as Phrases for detection - Region Match Only)
                 for keyword in nation.keywords:
-                    cls.location_map[keyword.lower()] = (
+                    info = (
                         nation.region,
                         nation.name,
                         None,
                         nation.code,
                     )
+                    if cls.regex_detector_regex.search(keyword):
+                        cls.regex_location_map[keyword] = info
+                    else:
+                        cls.location_map[keyword.lower()] = info
                     region_geo_phrases.add(keyword)
 
                 # 2. Map Nation Phrases (e.g. "USA", "United States")
                 for phrase in nation.phrases:
-                    cls.location_map[phrase.lower()] = (
+                    info = (
                         nation.region,
                         nation.name,
                         None,
                         nation.code,
                     )
+                    if cls.regex_detector_regex.search(phrase):
+                        cls.regex_location_map[phrase] = info
+                    else:
+                        cls.location_map[phrase.lower()] = info
                     region_geo_phrases.add(phrase)
 
                 # 3. Map Nation Name
-                cls.location_map[nation.name.lower()] = (
+                info = (
                     nation.region,
                     nation.name,
                     None,
                     nation.code,
                 )
+                if cls.regex_detector_regex.search(nation.name):
+                    cls.regex_location_map[nation.name] = info
+                else:
+                    cls.location_map[nation.name.lower()] = info
                 region_geo_phrases.add(nation.name)
 
                 # 4. Map Locations (Cities/States)
                 for loc in nation.locations:
                     # Location Name
-                    cls.location_map[loc.name.lower()] = (
+                    info = (
                         nation.region,
                         nation.name,
                         loc.name,
                         nation.code,
                     )
+                    if cls.regex_detector_regex.search(loc.name):
+                        cls.regex_location_map[loc.name] = info
+                    else:
+                        cls.location_map[loc.name.lower()] = info
                     region_geo_phrases.add(loc.name)
 
                     # Location Phrases
                     for phrase in loc.phrases:
-                        cls.location_map[phrase.lower()] = (
+                        info = (
                             nation.region,
                             nation.name,
                             loc.name,
                             nation.code,
                         )
+                        if cls.regex_detector_regex.search(phrase):
+                            cls.regex_location_map[phrase] = info
+                        else:
+                            cls.location_map[phrase.lower()] = info
                         region_geo_phrases.add(phrase)
 
                     # Sub-cities
                     for sub in loc.cities:
-                        cls.location_map[sub.name.lower()] = (
+                        info = (
                             nation.region,
                             nation.name,
                             sub.name,
                             nation.code,
                         )
+                        if cls.regex_detector_regex.search(sub.name):
+                            cls.regex_location_map[sub.name] = info
+                        else:
+                            cls.location_map[sub.name.lower()] = info
                         region_geo_phrases.add(sub.name)
                         for phrase in sub.phrases:
-                            cls.location_map[phrase.lower()] = (
+                            info = (
                                 nation.region,
                                 nation.name,
                                 sub.name,
                                 nation.code,
                             )
+                            if cls.regex_detector_regex.search(phrase):
+                                cls.regex_location_map[phrase] = info
+                            else:
+                                cls.location_map[phrase.lower()] = info
                             region_geo_phrases.add(phrase)
             
             if region_geo_phrases:
                 pattern_str = (
-                    r"(?<!\w)(?:" + "|".join(safe_escape(region_geo_phrases)) + r")(?!\w)"
+                    r"\b(?:" + "|".join(safe_escape(region_geo_phrases)) + r")\b"
                 )
                 cls.location_regexes.append(re.compile(pattern_str, re.IGNORECASE))
 
         # Compile Specific Union Regex
         if union_phrases:
             pattern_str = (
-                r"(?<!\w)(?:" + "|".join(safe_escape(union_phrases)) + r")(?!\w)"
+                r"\b(?:" + "|".join(safe_escape(union_phrases)) + r")\b"
             )
             cls.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
 
@@ -2560,9 +2625,10 @@ class RegionMatcher:
         if self.specific_union_regex:
             for m in self.specific_union_regex.finditer(text):
                 term = m.group(0)
-                region, country, code = self.union_map.get(
-                    term.lower(), (None, None, None)
-                )
+                info = self.get_union(term)
+                if not info:
+                    continue
+                region, country, code = info
                 results.append(
                     {
                         "term": term,

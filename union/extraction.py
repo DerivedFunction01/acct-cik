@@ -911,9 +911,9 @@ class UnionExtractor:
 
             def specific_union_side_effect(m, val):
                 analysis.union_terms.append(val)
-                lower_term = val.lower()
-                if lower_term in self.matcher.union_map:
-                    region, country, code = self.matcher.union_map[lower_term]
+                info = self.matcher.get_union(val)
+                if info:
+                    region, country, code = info
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,
@@ -951,9 +951,9 @@ class UnionExtractor:
 
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
-            lower_term = val.lower()
-            if lower_term in self.matcher.union_map:
-                region, country, code = self.matcher.union_map[lower_term]
+            info = self.matcher.get_union(val)
+            if info:
+                region, country, code = info
                 analysis.geo_matches.append(
                     GeoMatch(
                         text=val,
@@ -1046,9 +1046,9 @@ class UnionExtractor:
         if self.matcher.location_regexes:
 
             def geo_side_effect(m, val):
-                phrase = val.lower()
-                if phrase in self.matcher.location_map:
-                    region, country, city, code = self.matcher.location_map[phrase]
+                info = self.matcher.get_location(val)
+                if info:
+                    region, country, city, code = info
                     analysis.geo_matches.append(
                         GeoMatch(
                             text=val,

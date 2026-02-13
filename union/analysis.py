@@ -3336,9 +3336,9 @@ class UnionAnalyzer:
             union_counts, _ = self._resolve_counts_to_unions(analysis)
             if union_counts:
                 for union_name, val in union_counts.items():
-                    lower_name = union_name.lower()
-                    if lower_name in self.matcher.union_map:
-                        region, country, code = self.matcher.union_map[lower_name]
+                    info = self.matcher.get_union(union_name)
+                    if info:
+                        region, country, code = info
                         specific_ctx = {
                             "region": region.value,
                             "countries": [{"code": code, "name": country}]
@@ -3997,8 +3997,8 @@ class UnionAnalyzer:
                         k_curr = current.get("keyword_matched")
                         k_next = next_item.get("keyword_matched")
                         if k_curr and k_next:
-                            specific_curr = {t for t in k_curr if t.lower() in self.matcher.union_map}
-                            specific_next = {t for t in k_next if t.lower() in self.matcher.union_map}
+                            specific_curr = {t for t in k_curr if self.matcher.get_union(t)}
+                            specific_next = {t for t in k_next if self.matcher.get_union(t)}
 
                             if specific_curr and specific_next and specific_curr.isdisjoint(specific_next):
                                 should_merge = False
@@ -4318,9 +4318,9 @@ class UnionAnalyzer:
 
                     if union_counts:
                         for union_name, count in union_counts.items():
-                            lower_name = union_name.lower()
-                            if lower_name in self.matcher.union_map:
-                                region, country, code = self.matcher.union_map[lower_name]
+                            info = self.matcher.get_union(union_name)
+                            if info:
+                                region, country, code = info
 
                                 prev_val = previous_totals.get(code, 0) if previous_totals else 0
                                 curr_max = effective_totals.get(code, 0)
