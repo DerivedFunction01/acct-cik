@@ -1730,8 +1730,8 @@ class Tracker:
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
+        regions = geo_context.get("regions", [])
         codes = {c.get("code") for c in countries}
-
         # 1. Global Update
         if "GLO" in codes or (region == Region.UNKNOWN.value and not codes):
             self.global_total = max(self.global_total, count)
@@ -1750,10 +1750,22 @@ class Tracker:
         if len(countries) == 1:
             c = countries[0]
             code = c["code"]
-            if code == "DOM":
-                code = self.domestic_country_code
-            if count > self.country_totals.get(code, 0):
-                self.country_totals[code] = count
+            
+            # Check for disjoint regions (e.g. "US and Europe")
+            is_disjoint = False
+            if regions:
+                country_region_name = _CODE_TO_REGION.get(code)
+                for r in regions:
+                    r_name = r.get("name")
+                    if r_name and r_name != country_region_name:
+                        is_disjoint = True
+                        break
+            
+            if not is_disjoint:
+                if code == "DOM":
+                    code = self.domestic_country_code
+                if count > self.country_totals.get(code, 0):
+                    self.country_totals[code] = count
 
     def register_mentions(self, geo_context: Dict[str, Any]):
         countries = geo_context.get("countries", [])
