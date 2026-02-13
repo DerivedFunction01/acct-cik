@@ -1446,6 +1446,12 @@ ASIA_PACIFIC = {
         code="SASIA",
     ),
     Nation(
+        "East Asia",
+        ["east asia", "eastern asia", "far east"],
+        Region.ASIA_PACIFIC,
+        code="EASIA",
+    ),
+    Nation(
         "Japan",
         ["japan", "japanese", "yen", "jpy"],
         Region.ASIA_PACIFIC,
@@ -2696,6 +2702,7 @@ REGION_CODES = {
     "INT_IT",
     "INT_DE",
     "INT_NL",
+    "EASIA",
 }
 TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
@@ -3076,6 +3083,7 @@ def _build_code_to_weight_map():
         "GCC": ["SA", "AE", "KW", "QA", "BH", "OM"],
         "ASEAN": ["ID", "TH", "MY", "SG", "PH", "VN", "BN", "KH", "LA", "MM"],
         "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
+        "EASIA": ["CN", "JP", "KR", "KP", "TW", "MN", "HK", "MO"],
         "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
     }
     
