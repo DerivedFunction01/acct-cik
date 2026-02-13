@@ -3752,6 +3752,40 @@ class UnionAnalyzer:
 
         return parts, sentence_total, proximity_map
     
+    def _remove_container_regions(self, entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Removes entities that are containers of other entities in the list.
+        Used to prevent double-counting in division operations.
+        """
+        if not entities:
+            return []
+            
+        keep_indices = set()
+        for i, e1 in enumerate(entities):
+            is_container_of_others = False
+            
+            # Determine region of e1
+            # e1["key"] could be "Europe", "EU", "RU", etc.
+            r1 = _CODE_TO_REGION.get(e1["key"], e1["key"])
+            
+            # Is e1 a Region?
+            is_region_1 = (e1["key"] in [r.value for r in Region]) or (e1["key"] in REGION_CODES)
+            
+            if is_region_1:
+                for j, e2 in enumerate(entities):
+                    if i == j: continue
+                    r2 = _CODE_TO_REGION.get(e2["key"])
+                    # If e2 maps to e1's region name
+                    if r2 and r2 == r1:
+                        is_container_of_others = True
+                        break
+            
+            if not is_container_of_others:
+                keep_indices.add(i)
+                
+        filtered = [entities[i] for i in sorted(keep_indices)]
+        return filtered if filtered else entities
+
     def _resolve_counts_generic(
         self, 
         analysis: SentenceAnalysis, 
@@ -3842,8 +3876,9 @@ class UnionAnalyzer:
                     s_counts = sorted(curr_parts, key=lambda x: x["span"][0])
                     local_map = {}
                     for c, group in zip(s_counts, groups):
-                        split_val = int(c["val"] / len(group))
-                        for e in group:
+                        valid_group = self._remove_container_regions(group)
+                        split_val = int(c["val"] / len(valid_group))
+                        for e in valid_group:
                             local_map[e["key"]] = split_val
                     return local_map, "List Grouping"
             return None
@@ -3851,9 +3886,10 @@ class UnionAnalyzer:
         def try_naive_split(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
-                split_val = int(count_val / len(curr_entities))
+                valid_entities = self._remove_container_regions(curr_entities)
+                split_val = int(count_val / len(valid_entities))
                 local_map = {}
-                for e in curr_entities:
+                for e in valid_entities:
                     local_map[e["key"]] = split_val
                 return local_map, "Naive Split"
             return None
