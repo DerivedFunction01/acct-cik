@@ -1465,6 +1465,12 @@ ASIA_PACIFIC = {
         code="APAC",
     ),
     Nation(
+        "Oceania",
+        ["oceania", "oceanian"],
+        Region.ASIA_PACIFIC,
+        code="OCEANIA",
+    ),
+    Nation(
         "Southeast Asia",
         ["southeast asia", "s.e. asia", "asean"],
         Region.ASIA_PACIFIC,
@@ -2717,7 +2723,8 @@ COMPOSITE_REGION_MAP = {
     "NORDIC": ["DK", "FI", "IS", "NO", "SE"],
     "BENELUX": ["BE", "NL", "LU"],
     "DACH": ["DE", "AT", "CH"],
-    "IBERIA": ["ES", "PT"],
+    "NAMERICA": ["US", "CA", "MX"],
+    "OCEANIA": ["AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "FM", "MH", "PW"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
 
