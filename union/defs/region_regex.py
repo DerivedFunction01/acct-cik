@@ -3,6 +3,8 @@ from enum import Enum
 import re
 from typing import Dict, List, Optional, Tuple, Any
 from defs.regex_lib import add_restrictions, build_compound, build_regex, to_build_alternation
+import pandas as pd
+from pathlib import Path
 
 
 class Region(Enum):
@@ -39,6 +41,7 @@ class Nation:
     unions: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
     code: str = ""
+    weight: float = 0.005 # 0.5%
 
     def __hash__(self):
         return hash(self.name)
@@ -705,7 +708,7 @@ EUROPE = {
             "uk",
             "britain",
             "united kingdom",
-            "england",
+            add_restrictions("england", lookbehinds=[r"new"]),
             "sterling", "gbp",
             add_restrictions("british", lookaheads=[r"virgin", r"columbia"]),
         ],
@@ -1833,7 +1836,7 @@ LATIN_AMERICA = {
     ),
     Nation(
         "British Virgin Islands",
-        ["british virgin islands", "bvi", "b.v.i."],
+        ["british virgin islands", "bvi"],
         Region.LATIN_AMERICA,
         [Location("Road Town", ["road town"])],
         code="VG",
@@ -2675,6 +2678,118 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
+
+def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
+    """
+    Loads GDP and Population percentages to calculate a composite weight.
+    Formula: Weight = alpha * gdp_pct + (1 - alpha) * population_pct
+    Default alpha=0.6 gives slightly more weight to economic output (GDP) 
+    as a proxy for formal employment presence.
+    """
+    # Search for CSV in current or parent directories
+    candidates = [
+        Path(csv_filename),
+        Path("union") / csv_filename,
+        Path("..") / csv_filename,
+        Path("../..") / csv_filename
+    ]
+    
+    df = None
+    for p in candidates:
+        if p.exists():
+            try:
+                df = pd.read_csv(p)
+                break
+            except Exception:
+                continue
+    
+    if df is None or "code" not in df.columns:
+        return {}
+
+    try:
+        # Ensure columns exist and fill NaNs
+        cols = ["gdp_pct", "population_pct"]
+        for c in cols:
+            if c not in df.columns:
+                df[c] = 0.0
+        df = df.fillna(0)
+        
+        # Calculate composite weight
+        # Note: Input percentages are 0-100 based on dataset.py logic
+        df["weight"] = (alpha * df["gdp_pct"]) + ((1 - alpha) * df["population_pct"])
+        
+        # Normalize to avoid extremely small numbers if needed, 
+        # but relative weights are what matters for division.
+        return df.set_index("code")["weight"].to_dict()
+    except Exception:
+        return {}
+
+def _build_code_to_weight_map():
+    mapping = {}
+    external_weights = _load_external_weights()
+    
+    all_regions = [
+        NORTH_AMERICA,
+        EUROPE,
+        ASIA_PACIFIC,
+        LATIN_AMERICA,
+        MIDDLE_EAST_AFRICA,
+        INTERNATIONAL,
+    ]
+    for r_set in all_regions:
+        for nation in r_set:
+            if nation.code:
+                # Use external weight if available, else default
+                if nation.code in external_weights:
+                    mapping[nation.code] = external_weights[nation.code]
+                else:
+                    mapping[nation.code] = nation.weight
+    
+    return mapping
+
+
+_CODE_TO_WEIGHT = _build_code_to_weight_map()
+
+def _build_region_weights_map(country_weights):
+    """Aggregates country weights to determine region weights."""
+    r_weights = {}
+    
+    # Map Region Enum to list of country codes
+    region_to_codes = {}
+    
+    # 1. Group codes by Region
+    all_regions = [
+        NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, MIDDLE_EAST_AFRICA, INTERNATIONAL
+    ]
+    
+    for r_set in all_regions:
+        for nation in r_set:
+            if nation.code and nation.code in country_weights:
+                r_val = nation.region.value
+                if r_val not in region_to_codes:
+                    region_to_codes[r_val] = []
+                region_to_codes[r_val].append(nation.code)
+
+    # 2. Sum weights
+    for r_val, codes in region_to_codes.items():
+        total_w = sum(country_weights[c] for c in codes)
+        r_weights[r_val] = total_w
+
+    # 3. Map Region Codes (EU, APAC) to the same weight
+    # We find the "Container Nation" for each region to get its code
+    for r_set in all_regions:
+        for nation in r_set:
+            # Heuristic: If nation name matches region name or is a known container
+            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "MEA", "NA"]:
+                if nation.region.value in r_weights:
+                    r_weights[nation.code] = r_weights[nation.region.value]
+                    # Also update the country-level map for the region code itself
+                    # so "EU" gets the weight of Europe, not 0.005
+                    _CODE_TO_WEIGHT[nation.code] = r_weights[nation.region.value]
+
+    return r_weights
+
+REGION_WEIGHTS = _build_region_weights_map(_CODE_TO_WEIGHT)
 
 def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
     """

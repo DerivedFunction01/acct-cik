@@ -16,7 +16,7 @@ from extraction import (
     REMAIN_REGEX,
 )
 from defs.region_regex import (
-    REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION
+    REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION, _CODE_TO_WEIGHT, REGION_WEIGHTS
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -3792,6 +3792,51 @@ class UnionAnalyzer:
         filtered = [entities[i] for i in sorted(keep_indices)]
         return filtered if filtered else entities
 
+    def _weighted_division(self, val: float, entities: List[Dict[str, Any]]) -> Dict[str, float]:
+        """
+        Distributes a value across entities based on heuristic weights.
+        """
+        if not entities:
+            return {}
+        
+        # Calculate total weight
+        total_weight = 0.0
+        entity_weights = []
+        
+        for e in entities:
+            key = e["key"]
+            w = 2.0 # Default weight (small country)
+            
+            # Check if key is a region name
+            if key in REGION_WEIGHTS:
+                w = REGION_WEIGHTS[key]
+            # Check if key is a country code
+            elif key in _CODE_TO_WEIGHT:
+                w = _CODE_TO_WEIGHT[key]
+            
+            entity_weights.append(w)
+            total_weight += w
+            
+        if total_weight == 0:
+            # Fallback to equal split
+            split_val = int(val / len(entities))
+            return {e["key"]: split_val for e in entities}
+            
+        # Distribute
+        result = {}
+        current_sum = 0
+        for i, e in enumerate(entities):
+            if i == len(entities) - 1:
+                # Assign remainder to last to ensure sum matches val
+                result[e["key"]] = val - current_sum
+            else:
+                share = (entity_weights[i] / total_weight) * val
+                share_int = int(round(share))
+                result[e["key"]] = share_int
+                current_sum += share_int
+                
+        return result
+
     def _preprocess_redundant_containers(
         self, entities: List[Dict[str, Any]], sentence_total: Optional[float]
     ) -> Tuple[List[Dict[str, Any]], str]:
@@ -3891,9 +3936,8 @@ class UnionAnalyzer:
                         local_map[head["key"]] = c["val"]
                         children = group[1:]
                         if children:
-                            split_val = c["val"] / len(children)
-                            for child in children:
-                                local_map[child["key"]] = split_val
+                            child_map = self._weighted_division(c["val"], children)
+                            local_map.update(child_map)
                     return local_map, "Hierarchical Grouping"
             return None
 
@@ -3932,9 +3976,8 @@ class UnionAnalyzer:
                         valid_group = self._remove_container_regions(group)
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
-                        split_val = int(c["val"] / len(valid_group))
-                        for e in valid_group:
-                            local_map[e["key"]] = split_val
+                        group_map = self._weighted_division(c["val"], valid_group)
+                        local_map.update(group_map)
                     return local_map, "List Grouping" + filtered_note
             return None
 
@@ -3945,10 +3988,7 @@ class UnionAnalyzer:
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
-                split_val = int(count_val / len(valid_entities))
-                local_map = {}
-                for e in valid_entities:
-                    local_map[e["key"]] = split_val
+                local_map = self._weighted_division(count_val, valid_entities)
                 return local_map, "Naive Split" + filtered_note
             return None
 
