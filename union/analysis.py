@@ -3661,13 +3661,13 @@ class UnionAnalyzer:
             remainder = sentence_total - current_sum
 
             if remainder > 0:
-                rem_match = REMAIN_REGEX.search(analysis.text)
+                rem_match = next((m for m in analysis._matches if m["type"] == MatchType.REMAINING_OTHER), None)
                 if rem_match:
                     parts.append({
                         "val": remainder,
-                        "span": rem_match.span(),
+                        "span": rem_match["span"],
                         "type": MatchType.WORKER_COUNT,
-                        "text": rem_match.group(0)
+                        "text": rem_match["text"]
                     })
                     # Re-sort parts by position
                     parts.sort(key=lambda x: x["span"][0])

@@ -209,6 +209,7 @@ class MatchType(Enum):
     REMAINING_OTHER = "REMAINING_OTHER"
     WORKER_TYPE = "WORKER_TYPE"
     DIVERSITY_TERM = "DIVERSITY_TERM"
+    SUBSET = "SUBSET"
 
 
 @dataclass
@@ -243,6 +244,8 @@ class SentenceAnalysis:
     geo_matches: List[GeoMatch] = field(default_factory=list)
     worker_types: List[str] = field(default_factory=list)
     diversity_terms: List[str] = field(default_factory=list)
+    subset_indicators: List[str] = field(default_factory=list)
+    remaining_others: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -855,14 +858,8 @@ class UnionExtractor:
         analysis.has_historical = bool(HISTORICAL_REGEX.search(text))
         analysis.has_future = bool(FUTURE_REGEX.search(text))
         analysis.has_respectively = bool(RESPECTIVELY_REGEX.search(text))
-        analysis.has_remaining_other = bool(REMAIN_REGEX.search(text))
         analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
-        analysis.has_subset_indicator = bool(
-            SUBSET_REGEX.search(
-                text
-            )
-        )
 
         def process_matches(pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False):
             nonlocal working_text
@@ -912,6 +909,22 @@ class UnionExtractor:
 
             if not update_working_text:
                 working_text = "".join(chars)
+        # 0. Subset indicators
+        process_matches(
+            SUBSET_REGEX,
+            MatchType.SUBSET,
+            lambda m: m.group(0),
+            lambda m, val: analysis.subset_indicators.append(val),
+        )
+        # 0.1 Remaining others
+        process_matches(
+            REMAIN_REGEX,
+            MatchType.REMAINING_OTHER,
+            lambda m: m.group(0),
+            lambda m, val: analysis.remaining_others.append(val),
+        )
+        analysis.has_subset_indicator = len(analysis.subset_indicators) > 0
+        analysis.has_remaining_other = len(analysis.remaining_others) > 0
 
         # 1. Extract Percentages
         process_matches(

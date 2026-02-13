@@ -132,7 +132,7 @@ ITEM 1. BUSINESS
 
 We have 10,000 employees in the Asia-Pacific region, of which 6,000 are in China and 2,000 are in India, with the remaining in Japan and the Philippines.
 
-Our manufacturing is primarily with 2,000 in several US locations, Mexico, and 4,000 in Brazil.
+Our Central American workforce consists of 2,000 employees in Puerto Rico and Mexico, and 4,000 in the Dominican Republic.
 
 We employ approximately 8,000 workers in latin american territories, including 2,000 in Panama and 5,000 in Bermuda.
 
