@@ -733,6 +733,12 @@ EUROPE = {
         code="EEUROPE",
     ),
     Nation(
+        "Western Europe",
+        ["western europe", "west europe"],
+        Region.EUROPE,
+        code="WEUROPE",
+    ),
+    Nation(
         "United Kingdom",
         [
             "uk",
@@ -2734,6 +2740,7 @@ COMPOSITE_REGION_MAP = {
         "PL", "CZ", "SK", "HU", "RO", "BG", "RU", "UA", "BY", "MD", 
         "EE", "LV", "LT", "SI", "HR", "BA", "RS", "ME", "MK", "AL", "XK"
     ],
+    "WEUROPE": ["GB", "IE", "FR", "BE", "NL", "LU", "DE", "AT", "CH"],
     "OCEANIA": ["AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "FM", "MH", "PW"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
@@ -3302,6 +3309,9 @@ def weighted_division(
         # Check if key is a country code
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]
+        
+        if key in TAX_HAVEN_CODES:
+            w *= 0.1
         
         key_to_weight[key] = w
 
