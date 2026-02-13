@@ -163,56 +163,56 @@ if __name__ == "__main__":
     print()
 
     # Clean the text
-    # cleaned_text = cleaner.clean(ITEM_1)
-    # cleaned_text = currency_remover.clean(cleaned_text)
-    # cleaned_text = contextual_cleaner.clean(cleaned_text)
-    # cleaned_text = conciseness_cleaner.clean(cleaned_text)
-    # print("="* 80)
-    # print("Cleaned Text:\n")
-    # print(cleaned_text)
-    # print("\n" + "=" * 80)
+    cleaned_text = cleaner.clean(ITEM_1)
+    cleaned_text = currency_remover.clean(cleaned_text)
+    cleaned_text = contextual_cleaner.clean(cleaned_text)
+    cleaned_text = conciseness_cleaner.clean(cleaned_text)
+    print("="* 80)
+    print("Cleaned Text:\n")
+    print(cleaned_text)
+    print("\n" + "=" * 80)
 
-    # # Analyze with context
-    # analysis_output = analyzer.analyze_paragraph(
-    #     cleaned_text, item_type="item1", reporting_year=reporting_year
-    # )
+    # Analyze with context
+    analysis_output = analyzer.analyze_paragraph(
+        cleaned_text, item_type="item1", reporting_year=reporting_year
+    )
 
-    # results = analysis_output.get("items", [])
-    # summary = analysis_output.get("summary", {})
+    results = analysis_output.get("items", [])
+    summary = analysis_output.get("summary", {})
 
-    # # Pretty print results
-    # print(f"Total Sentences Extracted: {len(results)}\n")
-    # print(json.dumps(results, indent=2))
+    # Pretty print results
+    print(f"Total Sentences Extracted: {len(results)}\n")
+    print(json.dumps(results, indent=2))
 
-    # print("\n" + "=" * 80)
-    # print("\nCALCULATED SUMMARY:\n")
-    # print(json.dumps(summary, indent=2))
+    print("\n" + "=" * 80)
+    print("\nCALCULATED SUMMARY:\n")
+    print(json.dumps(summary, indent=2))
 
-    # # Summary statistics
-    # print("\n" + "=" * 80)
-    # print("\nSUMMARY STATISTICS:\n")
+    # Summary statistics
+    print("\n" + "=" * 80)
+    print("\nSUMMARY STATISTICS:\n")
 
-    # total_with_percentage = len(
-    #     [r for r in results if r.get("coverage_data", {}).get("percentage")]
-    # )
-    # total_with_counts = len(
-    #     [r for r in results if r.get("coverage_data", {}).get("employee_count_covered")]
-    # )
-    # negated_items = len(
-    #     [r for r in results if r.get("coverage_data", {}).get("negated")]
-    # )
-    # inherited_geo = len(
-    #     [
-    #         r
-    #         for r in results
-    #         if r.get("geographic_context", {}).get("specificity") == "INHERITED_PREV"
-    #     ]
-    # )
+    total_with_percentage = len(
+        [r for r in results if r.get("coverage_data", {}).get("percentage")]
+    )
+    total_with_counts = len(
+        [r for r in results if r.get("coverage_data", {}).get("employee_count_covered")]
+    )
+    negated_items = len(
+        [r for r in results if r.get("coverage_data", {}).get("negated")]
+    )
+    inherited_geo = len(
+        [
+            r
+            for r in results
+            if r.get("geographic_context", {}).get("specificity") == "INHERITED_PREV"
+        ]
+    )
 
-    # print(f"Sentences with explicit/calculated percentage: {total_with_percentage}")
-    # print(f"Sentences with employee counts: {total_with_counts}")
-    # print(f"Negated coverage statements: {negated_items}")
-    # print(f"Inherited geographic context: {inherited_geo}")
+    print(f"Sentences with explicit/calculated percentage: {total_with_percentage}")
+    print(f"Sentences with employee counts: {total_with_counts}")
+    print(f"Negated coverage statements: {negated_items}")
+    print(f"Inherited geographic context: {inherited_geo}")
 
     # Combined Consistency Test
     print("\n" + "=" * 80)

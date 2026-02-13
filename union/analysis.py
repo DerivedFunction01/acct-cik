@@ -2353,7 +2353,10 @@ class Tracker:
                 )
                 census_total = total_sum
         self._resolve_overlaps_list(country_code, relevant_entries)
-        self._resolve_gap_list(country_code, census_total, relevant_entries)
+
+        # Filter for constituents (Segments) to avoid double counting the Country entry itself
+        constituents = [e for e in relevant_entries if e.scope == Scope.SEGMENT]
+        self._resolve_geographic_gaps(country_code, census_total, constituents)
 
     def _resolve_single_region(self, region_name: str, region_total: float):
         self._inject_placeholders(region_name)
@@ -2361,7 +2364,10 @@ class Tracker:
         if not entries:
             return
         self._resolve_overlaps_list(region_name, entries)
-        self._resolve_geographic_gaps(region_name, region_total, entries)
+
+        # Filter for constituents (Countries) to avoid double counting the Region entry itself
+        constituents = [e for e in entries if e.scope == Scope.COUNTRY]
+        self._resolve_geographic_gaps(region_name, region_total, constituents)
 
     def _route_domestic(self, target_country: Optional[str] = None):
         if target_country is None:
