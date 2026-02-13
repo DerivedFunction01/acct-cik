@@ -1146,9 +1146,10 @@ def _collect_candidates_near_match(text: str, match: re.Match, matcher: RegionMa
                 else:
                     dist = 0
                 
-                term = m.group(0).lower()
-                if term in matcher.location_map:
-                    code = matcher.location_map[term][3]
+                term = m.group(0)
+                info = matcher.get_location(term)
+                if info:
+                    code = info[3]
                     if ignore_us and code == "US":
                         continue
                     candidates.append((code, dist))
@@ -1926,10 +1927,11 @@ def sync_home_country():
                     matches = []
                     for regex in REGION_MATCHER.location_regexes:
                         for m in regex.finditer(company_name):
-                            term = m.group(0).lower()
-                            if term in REGION_MATCHER.location_map:
+                            term = m.group(0)
+                            info = REGION_MATCHER.get_location(term)
+                            if info:
                                 # (Region, Country, City, Code)
-                                _, _, _, code = REGION_MATCHER.location_map[term]
+                                _, _, _, code = info
                                 # We want a specific country code that is NOT a tax haven and NOT a region code
                                 if code and code not in TAX_HAVEN_CODES and code not in REGION_CODES:
                                     matches.append(code)
