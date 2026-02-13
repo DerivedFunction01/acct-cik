@@ -176,7 +176,7 @@ UNION_DENOMINATOR_REGEX = build_regex(
 DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
 SUBSET_REGEX = build_regex([
     r"of\s+(?:which|whom|these|those)",
-    r"includ(?:ing|es)",
+    r"includ(?:ing|es?)",
     r"compris(?:ing|es?|ed)",
     r"with",
     r"consist(?:ing|s|ed)?"
