@@ -907,7 +907,7 @@ EUROPE = {
     ),
     Nation(
         "Russia",
-        ["russia", "russian", "ussr", "soviet union", "ruble", "rub"],
+        ["russia", "russian", "ruble", "rub"],
         Region.EUROPE,
         [
             Location("Moscow", ["moscow"]),
@@ -1404,7 +1404,7 @@ EUROPE = {
     ),
     Nation(
         "CIS",
-        ["cis", "commonwealth of independent states"],
+        ["cis", "commonwealth of independent states", "ussr", "soviet union", "soviet"],
         Region.EUROPE,
         code="CIS",
     ),
