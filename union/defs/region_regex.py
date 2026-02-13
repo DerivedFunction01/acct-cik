@@ -1821,9 +1821,8 @@ LATIN_AMERICA = {
     Nation(
         "Latin America",
         [
-            to_build_alternation(
-                build_compound([r"latin", r"south", r"central"], [r"america(?:n|s)?"])
-            ),
+            "latin america",
+            "latin american",
             "latam",
         ],
         Region.LATIN_AMERICA,
