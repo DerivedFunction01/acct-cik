@@ -141,6 +141,8 @@ Our workforce includes 500 employees in Canada, compared to 1,000 in the United 
 In Southeast Asia, we have 900 employees located in Vietnam, Thailand, and Malaysia.
 
 We have 5,000 employees in Mainland Europe, consisting of 3,000 in Germany, Italy, and Sweden, and 2,000 in France.
+
+We have an additional 5,000 employees in Eastern Europe, consisting of 2,000 in Russia and Belarus, with the remaining in Ukraine.
 """
 
 
