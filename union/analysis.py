@@ -3828,7 +3828,11 @@ class UnionAnalyzer:
         for i, e in enumerate(entities):
             if i == len(entities) - 1:
                 # Assign remainder to last to ensure sum matches val
-                result[e["key"]] = val - current_sum
+                remainder = val - current_sum
+                if isinstance(remainder, float) and remainder.is_integer():
+                    result[e["key"]] = int(remainder)
+                else:
+                    result[e["key"]] = remainder
             else:
                 share = (entity_weights[i] / total_weight) * val
                 share_int = int(round(share))
