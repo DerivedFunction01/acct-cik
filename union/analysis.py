@@ -61,19 +61,23 @@ UNION_MATCH_TYPES = [
 
 # Delimiters: , ; or words like while, although, but, however
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet|compar(ed?|ing|ison))|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
 )
 
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
 
-def get_text_segments(text: str) -> List[Tuple[int, int]]:
+def get_text_segments(text: str) -> List[Tuple[int, int, Optional[re.Match]]]:
     delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
-    boundaries = [0] + [m.end() for m in delimiters] + [len(text)]
+    delimiters.extend(list(SUBSET_REGEX.finditer(text)))
+    delimiters.sort(key=lambda x: x.start())
     segments = []
-    for i in range(len(boundaries) - 1):
-        segments.append((boundaries[i], boundaries[i + 1]))
+    current_start = 0
+    for m in delimiters:
+        segments.append((current_start, m.end(), m))
+        current_start = m.end()
+    segments.append((current_start, len(text), None))
     return segments
 
 def get_min_distance_to_matches(
@@ -1074,7 +1078,7 @@ class ComplexCoverageAnalyzer:
 
         # Helper to find segment index
         def get_seg_idx(pos):
-            return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
+            return next((i for i, (s, e, _) in enumerate(segments) if s <= pos < e), -1)
 
         # 2. Gather entities
         _counts = [
@@ -1204,7 +1208,7 @@ class ComplexCoverageAnalyzer:
 
         def get_segment_range(span):
             mid = (span[0] + span[1]) / 2
-            for start, end in segments:
+            for start, end, _ in segments:
                 if start <= mid < end:
                     return start, end
             return 0, len(self.analysis.text)
@@ -3596,7 +3600,7 @@ class UnionAnalyzer:
         self, 
         analysis: SentenceAnalysis, 
         entities: List[Dict[str, Any]],
-    ) -> Tuple[List[Dict[str, Any]], Optional[float]]:
+    ) -> Tuple[List[Dict[str, Any]], Optional[float], Dict[str, float]]:
         """
         Helper to prepare counts for mapping:
         1. Extracts counts
@@ -3614,7 +3618,7 @@ class UnionAnalyzer:
         ]
 
         if not counts or not entities:
-            return [], None
+            return [], None, {}
 
         parts = counts[:]
 
@@ -3681,7 +3685,72 @@ class UnionAnalyzer:
                     # Re-sort parts by position
                     parts.sort(key=lambda x: x["span"][0])
                     
-        return parts, sentence_total
+        # 4. Pre-calculate Proximity Mapping
+        # We do this early to detect if some entities are just descriptors (far from counts)
+        # while others are targets (close to counts).
+        proximity_map = {}
+        if entities and parts:
+            segments = get_text_segments(analysis.text)
+
+            def get_seg_idx(pos):
+                return next((i for i, (s, e, _) in enumerate(segments) if s <= pos < e), -1)
+
+            # Pre-calculate counts per segment
+            counts_in_segment = {}
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                s_idx = get_seg_idx(c_mid)
+                counts_in_segment[s_idx] = counts_in_segment.get(s_idx, 0) + 1
+
+            pairs = []
+            for c in parts:
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_seg = get_seg_idx(c_mid)
+                for e in entities:
+                    e_mid = (e["span"][0] + e["span"][1]) / 2
+                    e_seg = get_seg_idx(e_mid)
+                    dist = abs(c_mid - e_mid)
+
+                    # Penalize cross-segment matches
+                    if c_seg != e_seg:
+                        # Check for blocking counts in target or intermediate segments
+                        # Also check if the separator is a "hard" separator (not a comma)
+                        is_soft_boundary = True
+                        start_seg, end_seg = sorted((c_seg, e_seg))
+                        for i in range(start_seg, end_seg):
+                            delim_match = segments[i][2]
+                            if delim_match:
+                                if delim_match.group(0) != ",":
+                                    is_soft_boundary = False
+                                    break
+
+                        has_blocking = False
+                        if counts_in_segment.get(e_seg, 0) > 0:
+                            has_blocking = True
+                        else:
+                            start, end = sorted((c_seg, e_seg))
+                            for i in range(start + 1, end):
+                                if counts_in_segment.get(i, 0) > 0:
+                                    has_blocking = True
+                                    break
+                        
+                        if has_blocking or not is_soft_boundary:
+                            dist += 1000
+                        else:
+                            dist *= 0.8
+
+                    pairs.append((dist, c, e))
+
+            pairs.sort(key=lambda x: x[0])
+            used_c, used_e = set(), set()
+
+            for dist, c, e in pairs:
+                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
+                    proximity_map[e["key"]] = c["val"]
+                    used_c.add(id(c))
+                    used_e.add(e["key"])
+
+        return parts, sentence_total, proximity_map
     
     def _resolve_counts_generic(
         self, 
@@ -3695,45 +3764,15 @@ class UnionAnalyzer:
         """
         mapped_counts = {}
         
-        # 1. Prepare Counts (Total detection + Virtual counts)
-        parts, sentence_total = self._prepare_counts(analysis, entities)
+        # 1. Prepare Counts (Total detection + Virtual counts + Proximity Map)
+        parts, sentence_total, proximity_map = self._prepare_counts(analysis, entities)
         
         if sentence_total is not None and total_key:
             mapped_counts[total_key] = sentence_total
 
-        # --- NEW: Pre-calculate Proximity Mapping ---
-        # We do this early to detect if some entities are just descriptors (far from counts)
-        # while others are targets (close to counts).
-        proximity_map = {}
-        if entities and parts:
-            segments = get_text_segments(analysis.text)
-
-            def get_seg_idx(pos):
-                return next((i for i, (s, e) in enumerate(segments) if s <= pos < e), -1)
-
-            pairs = []
-            for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
-                c_seg = get_seg_idx(c_mid)
-                for e in entities:
-                    e_mid = (e["span"][0] + e["span"][1]) / 2
-                    e_seg = get_seg_idx(e_mid)
-                    dist = abs(c_mid - e_mid)
-
-                    # Penalize cross-segment matches
-                    if c_seg != e_seg:
-                        dist += 1000
-
-                    pairs.append((dist, c, e))
-
-            pairs.sort(key=lambda x: x[0])
-            used_c, used_e = set(), set()
-
-            for dist, c, e in pairs:
-                if dist < 150 and id(c) not in used_c and e["key"] not in used_e:
-                    proximity_map[e["key"]] = c["val"]
-                    used_c.add(id(c))
-                    used_e.add(e["key"])
+        # Check if proximity mapping solved the mismatch (Excess entities)
+        if len(parts) < len(entities) and len(proximity_map) == len(parts):
+             return proximity_map, sentence_total
 
         # 2. Mapping Logic
         # 3. Exact Parallel Mapping
