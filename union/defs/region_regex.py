@@ -2619,6 +2619,15 @@ INTERNATIONAL = {
         code="INT_NL",
     ),
     Nation(
+        "Muslim",
+        [],
+        Region.INTERNATIONAL,
+        [],
+        [],
+        ["Muslim"],
+        code="INT_MUSLIM",
+    ),
+    Nation(
         Region.DOMESTIC.value,
         ["domestic", "domestically"],
         Region.DOMESTIC,
@@ -2637,6 +2646,9 @@ INT_LANGUAGE_MAP = {
     "INT_IT": {"IT", "CH", "SM", "VA"},
     "INT_DE": {"DE", "AT", "CH", "LI", "LU"},
     "INT_NL": {"NL", "BE", "SR"},
+    "INT_MUSLIM": {
+        "ID", "PK", "BD", "TR", "EG", "IR", "SA", "MY", "IQ", "AF", "DZ", "MA", "SD", "YE", "SY", "TN", "JO", "LB", "KW", "OM", "QA", "BH", "AE"
+    },
 }
 
 COMPOSITE_REGION_MAP = {
@@ -2741,6 +2753,7 @@ REGION_CODES = {
     "INT_IT",
     "INT_DE",
     "INT_NL",
+    "INT_MUSLIM",
     "EASIA",
 }
 TAX_HAVEN_CODES = {
