@@ -134,7 +134,8 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<!\bp\.)"  # p. (page) - FIXED (Separated)
     r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
     r"(?<!\b[Ee]tc\.)"  # etc.
-    r"\s+(?=[A-Z_])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
+    r"(?<!\bSt\.)" # St. Petersburg
+    r"\s+(?=[A-Z_<])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
 )
 
 
@@ -159,6 +160,7 @@ SENTENCE_SPLIT_PATTERN2 = re.compile(
     r"(?<!\bp\.)"  # p. (page) - FIXED (Separated)
     r"(?<!\bpp\.)"  # pp. (pages) - FIXED (Separated)
     r"(?<!\b[Ee]tc\.)"  # etc.
+    r"(?<!\bSt\.)"
     r"\s+(?=[A-Z0-9_<])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
 )
 
