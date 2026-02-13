@@ -3033,6 +3033,8 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
         # Values are in 0–1 scale (not 0–100)
         "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
         "XK": {"gdp_pct": 0.0001, "population_pct": 0.00022},
+        "GG": {"gdp_pct": 0.000008, "population_pct": 0.000035},
+        "JE": {"gdp_pct": 0.000013, "population_pct": 0.000073},
     }
 
     # Ensure required columns exist
