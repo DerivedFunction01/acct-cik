@@ -2728,6 +2728,8 @@ def _build_code_to_weight_map():
     mapping = {}
     external_weights = _load_external_weights()
     
+    defined_codes = set()
+    
     all_regions = [
         NORTH_AMERICA,
         EUROPE,
@@ -2739,11 +2741,24 @@ def _build_code_to_weight_map():
     for r_set in all_regions:
         for nation in r_set:
             if nation.code:
+                defined_codes.add(nation.code)
                 # Use external weight if available, else default
                 if nation.code in external_weights:
                     mapping[nation.code] = external_weights[nation.code]
                 else:
                     mapping[nation.code] = nation.weight
+    
+    # Log codes present in CSV but not in definitions (Undefined Countries)
+    missing_definitions = []
+    for code, weight in external_weights.items():
+        if code not in defined_codes:
+            missing_definitions.append({"code": code, "weight": weight})
+            
+    if missing_definitions:
+        try:
+            pd.DataFrame(missing_definitions).to_csv("undefined_countries.csv", index=False)
+        except Exception:
+            pass
     
     return mapping
 
