@@ -3875,23 +3875,29 @@ class UnionAnalyzer:
                 if len(groups) == len(curr_parts):
                     s_counts = sorted(curr_parts, key=lambda x: x["span"][0])
                     local_map = {}
+                    filtered_note = ""
                     for c, group in zip(s_counts, groups):
                         valid_group = self._remove_container_regions(group)
+                        if len(valid_group) < len(group):
+                            filtered_note = " (Filtered Containers)"
                         split_val = int(c["val"] / len(valid_group))
                         for e in valid_group:
                             local_map[e["key"]] = split_val
-                    return local_map, "List Grouping"
+                    return local_map, "List Grouping" + filtered_note
             return None
 
         def try_naive_split(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
                 valid_entities = self._remove_container_regions(curr_entities)
+                filtered_note = ""
+                if len(valid_entities) < len(curr_entities):
+                    filtered_note = " (Filtered Containers)"
                 split_val = int(count_val / len(valid_entities))
                 local_map = {}
                 for e in valid_entities:
                     local_map[e["key"]] = split_val
-                return local_map, "Naive Split"
+                return local_map, "Naive Split" + filtered_note
             return None
 
         def resolve_subset(curr_parts, curr_entities) -> Tuple[Dict[str, float], str]:
