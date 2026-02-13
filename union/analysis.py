@@ -3759,7 +3759,7 @@ class UnionAnalyzer:
                     
                     # Check for list separators
                     clean_text = re.sub(r"\s+", " ", text_between).strip()
-                    is_sep = bool(re.match(r"^(?:,|;|and|&|or)+$", clean_text, re.IGNORECASE)) or not clean_text
+                    is_sep = bool(re.match(r"^(?:,|;|&|[,;\s]?(?:and|or))+$", clean_text, re.IGNORECASE)) or not clean_text
                     
                     if not has_count_in_gap and is_sep:
                          current_group.append(e2)
