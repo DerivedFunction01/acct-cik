@@ -2839,6 +2839,25 @@ TAX_HAVEN_CODES = {
     # "SG",  # Singapore
 }
 
+# Additional locations to penalize in weight calculations (but not treat as tax havens for home country detection)
+EXTRA_WEIGHT_PENALTY_CODES = {
+    "LU": 0.25,  # Luxembourg
+    "IE": 0.40,  # Ireland
+    "NL": 0.70,  # Netherlands
+    "CH": 0.70,  # Switzerland
+}
+
+
+BUSINESS_BOOSTER = {
+    "TW": 1.15,  # Taiwan – real manufacturing + tech hub
+    "HK": 1.15,  # Hong Kong – finance + corporate hub
+    "SG": 1.10,  # Singapore – already strong, small nudge
+    "IL": 1.10,  # Israel – high complexity, real tech footprint
+    "KR": 1.10,  # South Korea – real corporate presence to boost it vs Japan
+    "AE": 1.10,  # UAE – real corporate hub, not a tax haven
+}
+
+TAX_HAVEN_PENALTY = 0.10  # Reduce weight by 80% for tax havens
 
 class RegionMatcher:
     """
@@ -3177,6 +3196,21 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
     # Compute composite weight
     df["weight"] = alpha * df["gdp_pct"] + (1 - alpha) * df["population_pct"]
 
+    # Apply Business Boosters
+    for code, multiplier in BUSINESS_BOOSTER.items():
+        if code in df["code"].values:
+            df.loc[df["code"] == code, "weight"] *= multiplier
+
+    # Apply Tax Haven Penalty
+    for code in TAX_HAVEN_CODES:
+        if code in df["code"].values:
+            df.loc[df["code"] == code, "weight"] *= TAX_HAVEN_PENALTY
+            
+    # Apply Specific Penalties
+    for code, penalty in EXTRA_WEIGHT_PENALTY_CODES.items():
+        if code in df["code"].values:
+            df.loc[df["code"] == code, "weight"] *= penalty
+
     return df.set_index("code")["weight"].to_dict()
 
 
@@ -3309,10 +3343,7 @@ def weighted_division(
         # Check if key is a country code
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]
-        
-        if key in TAX_HAVEN_CODES:
-            w *= 0.1
-        
+          
         key_to_weight[key] = w
 
     # 2. Identify Clusters
