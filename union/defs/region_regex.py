@@ -2714,7 +2714,10 @@ COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
-    "G7": ["CA", "FR", "DE", "IT", "JP", "GB", "US"],
+    "G20": [
+        "AR", "AU", "BR", "CA", "CN", "FR", "DE", "IN", "ID", "IT",
+        "JP", "KR", "MX", "RU", "SA", "ZA", "TR", "GB", "US", "EU", "Europe"
+    ],
     "AFRICA": [
         "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
         "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
