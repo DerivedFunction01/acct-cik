@@ -709,7 +709,8 @@ EUROPE = {
             "britain",
             "united kingdom",
             add_restrictions("england", lookbehinds=[r"new"]),
-            "sterling", "gbp",
+            "sterling",
+            "gbp",
             add_restrictions("british", lookaheads=[r"virgin", r"columbia"]),
         ],
         Region.EUROPE,
@@ -790,8 +791,23 @@ EUROPE = {
             Location("Jonkoping", ["jonkoping", "jönköping"]),
             Location("Norrkoping", ["norrkoping", "norrköping"]),
         ],
-        ["Unionen", "IF Metall", "Sveriges Ingenjörer", "Ledarna", "LO", "Landsorganisationen"],
-        ["Saltsjöbadsavtalet", "Kollektivavtal", "Arbete", "Fackförening", "Förening", "Förbund", "Fack"],
+        [
+            "Unionen",
+            "IF Metall",
+            "Sveriges Ingenjörer",
+            "Ledarna",
+            "LO",
+            "Landsorganisationen",
+        ],
+        [
+            "Saltsjöbadsavtalet",
+            "Kollektivavtal",
+            "Arbete",
+            "Fackförening",
+            "Förening",
+            "Förbund",
+            "Fack",
+        ],
         code="SE",
     ),
     Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
@@ -802,7 +818,7 @@ EUROPE = {
         [],
         [],
         ["Arbejde", "Fagforening", "Forening", "Forbund"],
-        code="DK"
+        code="DK",
     ),
     Nation(
         "Poland",
@@ -820,7 +836,16 @@ EUROPE = {
             Location("Tychy", ["tychy"]),  # Automotive hub
         ],
         ["NSZZ Solidarnosc", "Solidarity", "OPZZ"],
-        ["Zwiazek", "Zawodowy", "Pracownikow", "Praca", "Stowarzyszenie", "Zjednoczone", "Federacja", "Konfederacja"],
+        [
+            "Zwiazek",
+            "Zawodowy",
+            "Pracownikow",
+            "Praca",
+            "Stowarzyszenie",
+            "Zjednoczone",
+            "Federacja",
+            "Konfederacja",
+        ],
         code="PL",
     ),
     Nation(
@@ -868,7 +893,16 @@ EUROPE = {
             Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
         ["Türk Metal", "Türk Metal Sendikasi", "DISK", "HAK-IS", "TURK-IS"],
-        ["Sendikasi", "Işçileri", "Çalışma", "Emek", "Dernek", "Federasyonu", "Konfederasyonu", "Birliği"],
+        [
+            "Sendikasi",
+            "Işçileri",
+            "Çalışma",
+            "Emek",
+            "Dernek",
+            "Federasyonu",
+            "Konfederasyonu",
+            "Birliği",
+        ],
         code="TR",
     ),
     Nation(
@@ -885,7 +919,15 @@ EUROPE = {
             Location("Togliatti", ["togliatti", "tolyatti"]),  # AvtoVAZ
         ],
         [],
-        ["Trud", "Rabota", "Soyuz", "Profsoyuz", "Assotsiatsiya", "Federatsiya", "Rabochiy"],
+        [
+            "Trud",
+            "Rabota",
+            "Soyuz",
+            "Profsoyuz",
+            "Assotsiatsiya",
+            "Federatsiya",
+            "Rabochiy",
+        ],
         code="RU",
     ),
     Nation(
@@ -908,7 +950,7 @@ EUROPE = {
         [],
         [],
         ["Muncă", "Sindicat", "Asociația", "Uniunea", "Federația", "Lucrătorilor"],
-        code="RO"
+        code="RO",
     ),
     Nation(
         "Germany",
@@ -1209,7 +1251,14 @@ EUROPE = {
             Location("Vantaa", ["vantaa"]),
         ],
         ["SAK", "STTK", "Akava"],
-        ["Työehtosopimus", "TES", "Ammattiliitto", "Työ", "Liitto", "Yhdistys"],  # CBA/Union terms
+        [
+            "Työehtosopimus",
+            "TES",
+            "Ammattiliitto",
+            "Työ",
+            "Liitto",
+            "Yhdistys",
+        ],  # CBA/Union terms
         code="FI",
     ),
     Nation(
@@ -1352,6 +1401,30 @@ EUROPE = {
         Region.EUROPE,
         code="CIS",
     ),
+    Nation("Albania", ["albania", "albanian"], Region.EUROPE, code="AL"),
+    Nation("Andorra", ["andorra", "andorran"], Region.EUROPE, code="AD"),
+    Nation(
+        "Bosnia and Herzegovina",
+        ["bosnia", "herzegovina", "bosnian"],
+        Region.EUROPE,
+        code="BA",
+    ),
+    Nation("Croatia", ["croatia", "croatian"], Region.EUROPE, code="HR"),
+    Nation("Faroe Islands", ["faroe islands", "faroese"], Region.EUROPE, code="FO"),
+    Nation("Gibraltar", ["gibraltar"], Region.EUROPE, code="GI"),
+    Nation("Greenland", ["greenland", "greenlandic"], Region.EUROPE, code="GL"),
+    Nation("Iceland", ["iceland", "icelandic"], Region.EUROPE, code="IS"),
+    Nation("Montenegro", ["montenegro", "montenegrin"], Region.EUROPE, code="ME"),
+    Nation(
+        "North Macedonia",
+        ["north macedonia", "macedonia", "macedonian"],
+        Region.EUROPE,
+        code="MK",
+    ),
+    Nation("San Marino", ["san marino", "sammarinese"], Region.EUROPE, code="SM"),
+    Nation("Serbia", ["serbia", "serbian"], Region.EUROPE, code="RS"),
+    Nation("Slovakia", ["slovakia", "slovak"], Region.EUROPE, code="SK"),
+    Nation("Slovenia", ["slovenia", "slovenian"], Region.EUROPE, code="SI"),
 }
 ASIA_PACIFIC = {
     Nation(
@@ -1862,6 +1935,53 @@ LATIN_AMERICA = {
         [Location("Willemstad", ["willemstad"])],
         code="CW",
     ),
+    Nation(
+        "Antigua and Barbuda", ["antigua", "barbuda"], Region.LATIN_AMERICA, code="AG"
+    ),
+    Nation("Aruba", ["aruba", "aruban"], Region.LATIN_AMERICA, code="AW"),
+    Nation("Belize", ["belize", "belizean"], Region.LATIN_AMERICA, code="BZ"),
+    Nation("Cuba", ["cuba", "cuban"], Region.LATIN_AMERICA, code="CU"),
+    Nation("Dominica", ["dominica"], Region.LATIN_AMERICA, code="DM"),
+    Nation(
+        "El Salvador", ["el salvador", "salvadoran"], Region.LATIN_AMERICA, code="SV"
+    ),
+    Nation("Grenada", ["grenada", "grenadian"], Region.LATIN_AMERICA, code="GD"),
+    Nation("Guyana", ["guyana", "guyanese"], Region.LATIN_AMERICA, code="GY"),
+    Nation("Haiti", ["haiti", "haitian"], Region.LATIN_AMERICA, code="HT"),
+    Nation("Honduras", ["honduras", "honduran"], Region.LATIN_AMERICA, code="HN"),
+    Nation("Jamaica", ["jamaica", "jamaican"], Region.LATIN_AMERICA, code="JM"),
+    Nation("Nicaragua", ["nicaragua", "nicaraguan"], Region.LATIN_AMERICA, code="NI"),
+    Nation(
+        "Saint Kitts and Nevis",
+        ["saint kitts", "nevis"],
+        Region.LATIN_AMERICA,
+        code="KN",
+    ),
+    Nation("Saint Lucia", ["saint lucia"], Region.LATIN_AMERICA, code="LC"),
+    Nation("Saint Martin", ["saint martin"], Region.LATIN_AMERICA, code="MF"),
+    Nation(
+        "Saint Vincent and the Grenadines",
+        ["saint vincent", "grenadines"],
+        Region.LATIN_AMERICA,
+        code="VC",
+    ),
+    Nation("Sint Maarten", ["sint maarten"], Region.LATIN_AMERICA, code="SX"),
+    Nation("Suriname", ["suriname", "surinamese"], Region.LATIN_AMERICA, code="SR"),
+    Nation(
+        "Trinidad and Tobago", ["trinidad", "tobago"], Region.LATIN_AMERICA, code="TT"
+    ),
+    Nation(
+        "Turks and Caicos Islands",
+        ["turks and caicos"],
+        Region.LATIN_AMERICA,
+        code="TC",
+    ),
+    Nation(
+        "U.S. Virgin Islands",
+        ["us virgin islands", "usvi"],
+        Region.LATIN_AMERICA,
+        code="VI",
+    ),
 }
 MIDDLE_EAST_AFRICA = {
     Nation(
@@ -1870,7 +1990,15 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         code="MEA",
     ),
-    Nation("Africa", ["africa", to_build_alternation(add_restrictions("african", lookaheads=[r"american"]))], Region.MIDDLE_EAST_AFRICA, code="AFRICA"),
+    Nation(
+        "Africa",
+        [
+            "africa",
+            to_build_alternation(add_restrictions("african", lookaheads=[r"american"])),
+        ],
+        Region.MIDDLE_EAST_AFRICA,
+        code="AFRICA",
+    ),
     Nation(
         "United Arab Emirates",
         ["uae", "emirates", "dirham", "aed"],
@@ -2155,8 +2283,118 @@ MIDDLE_EAST_AFRICA = {
         "DRC",
         ["democratic republic of the congo", "drc", "congo-kinshasa", "zaire"],
         Region.MIDDLE_EAST_AFRICA,
-        [Location("Kinshasa", ["kinshasa"]), Location("Lubumbashi", ["lubumbashi"]), Location("Kolwezi", ["kolwezi"])],
+        [
+            Location("Kinshasa", ["kinshasa"]),
+            Location("Lubumbashi", ["lubumbashi"]),
+            Location("Kolwezi", ["kolwezi"]),
+        ],
         code="CD",
+    ),
+    Nation("Angola", ["angola", "angolan"], Region.MIDDLE_EAST_AFRICA, code="AO"),
+    Nation("Bahrain", ["bahrain", "bahraini"], Region.MIDDLE_EAST_AFRICA, code="BH"),
+    Nation("Benin", ["benin", "beninese"], Region.MIDDLE_EAST_AFRICA, code="BJ"),
+    Nation("Botswana", ["botswana"], Region.MIDDLE_EAST_AFRICA, code="BW"),
+    Nation(
+        "Burkina Faso",
+        ["burkina faso", "burkinabe"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="BF",
+    ),
+    Nation("Burundi", ["burundi", "burundian"], Region.MIDDLE_EAST_AFRICA, code="BI"),
+    Nation(
+        "Cabo Verde", ["cabo verde", "cape verde"], Region.MIDDLE_EAST_AFRICA, code="CV"
+    ),
+    Nation(
+        "Cameroon", ["cameroon", "cameroonian"], Region.MIDDLE_EAST_AFRICA, code="CM"
+    ),
+    Nation(
+        "Central African Republic",
+        ["central african republic", "car"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="CF",
+    ),
+    Nation("Chad", ["chad", "chadian"], Region.MIDDLE_EAST_AFRICA, code="TD"),
+    Nation("Comoros", ["comoros", "comorian"], Region.MIDDLE_EAST_AFRICA, code="KM"),
+    Nation(
+        "Congo",
+        ["republic of the congo", "congo-brazzaville"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="CG",
+    ),
+    Nation(
+        "Côte d'Ivoire",
+        ["côte d'ivoire", "ivory coast"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="CI",
+    ),
+    Nation(
+        "Djibouti", ["djibouti", "djiboutian"], Region.MIDDLE_EAST_AFRICA, code="DJ"
+    ),
+    Nation(
+        "Equatorial Guinea", ["equatorial guinea"], Region.MIDDLE_EAST_AFRICA, code="GQ"
+    ),
+    Nation("Eritrea", ["eritrea", "eritrean"], Region.MIDDLE_EAST_AFRICA, code="ER"),
+    Nation("Eswatini", ["eswatini", "swaziland"], Region.MIDDLE_EAST_AFRICA, code="SZ"),
+    Nation("Gabon", ["gabon", "gabonese"], Region.MIDDLE_EAST_AFRICA, code="GA"),
+    Nation("Gambia", ["gambia", "gambian"], Region.MIDDLE_EAST_AFRICA, code="GM"),
+    Nation("Guinea", ["guinea", "guinean"], Region.MIDDLE_EAST_AFRICA, code="GN"),
+    Nation("Guinea-Bissau", ["guinea-bissau"], Region.MIDDLE_EAST_AFRICA, code="GW"),
+    Nation("Iran", ["iran", "iranian"], Region.MIDDLE_EAST_AFRICA, code="IR"),
+    Nation("Lesotho", ["lesotho"], Region.MIDDLE_EAST_AFRICA, code="LS"),
+    Nation("Liberia", ["liberia", "liberian"], Region.MIDDLE_EAST_AFRICA, code="LR"),
+    Nation("Libya", ["libya", "libyan"], Region.MIDDLE_EAST_AFRICA, code="LY"),
+    Nation(
+        "Madagascar", ["madagascar", "malagasy"], Region.MIDDLE_EAST_AFRICA, code="MG"
+    ),
+    Nation("Malawi", ["malawi", "malawian"], Region.MIDDLE_EAST_AFRICA, code="MW"),
+    Nation("Mali", ["mali", "malian"], Region.MIDDLE_EAST_AFRICA, code="ML"),
+    Nation(
+        "Mauritania",
+        ["mauritania", "mauritanian"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="MR",
+    ),
+    Nation(
+        "Mozambique", ["mozambique", "mozambican"], Region.MIDDLE_EAST_AFRICA, code="MZ"
+    ),
+    Nation("Niger", ["niger", "nigerien"], Region.MIDDLE_EAST_AFRICA, code="NE"),
+    Nation(
+        "Palestine", ["palestine", "palestinian"], Region.MIDDLE_EAST_AFRICA, code="PS"
+    ),
+    Nation("Rwanda", ["rwanda", "rwandan"], Region.MIDDLE_EAST_AFRICA, code="RW"),
+    Nation(
+        "São Tomé and Príncipe",
+        ["são tomé", "principe"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="ST",
+    ),
+    Nation("Senegal", ["senegal", "senegalese"], Region.MIDDLE_EAST_AFRICA, code="SN"),
+    Nation(
+        "Seychelles",
+        ["seychelles", "seychellois"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SC",
+    ),
+    Nation(
+        "Sierra Leone",
+        ["sierra leone", "sierra leonean"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SL",
+    ),
+    Nation("Somalia", ["somalia", "somali"], Region.MIDDLE_EAST_AFRICA, code="SO"),
+    Nation(
+        "South Sudan",
+        ["south sudan", "south sudanese"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SS",
+    ),
+    Nation("Sudan", ["sudan", "sudanese"], Region.MIDDLE_EAST_AFRICA, code="SD"),
+    Nation("Syria", ["syria", "syrian"], Region.MIDDLE_EAST_AFRICA, code="SY"),
+    Nation("Togo", ["togo", "togolese"], Region.MIDDLE_EAST_AFRICA, code="TG"),
+    Nation("Uganda", ["uganda", "ugandan"], Region.MIDDLE_EAST_AFRICA, code="UG"),
+    Nation("Yemen", ["yemen", "yemeni"], Region.MIDDLE_EAST_AFRICA, code="YE"),
+    Nation(
+        "Zimbabwe", ["zimbabwe", "zimbabwean"], Region.MIDDLE_EAST_AFRICA, code="ZW"
     ),
 }
 
