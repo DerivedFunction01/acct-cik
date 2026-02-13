@@ -3651,7 +3651,7 @@ class UnionAnalyzer:
             current_sum = sum(c["val"] for c in parts)
             remainder = sentence_total - current_sum
 
-            if remainder > 0:
+            if remainder > 0 and analysis.has_remaining_other:
                 rem_match = REMAIN_REGEX.search(analysis.text)
                 if rem_match:
                     parts.append({
