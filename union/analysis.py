@@ -68,16 +68,17 @@ FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
 
-def get_text_segments(text: str) -> List[Tuple[int, int, Optional[re.Match]]]:
+def get_text_segments(text: str) -> List[Tuple[int, int, str]]:
     delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
     delimiters.extend(list(SUBSET_REGEX.finditer(text)))
     delimiters.sort(key=lambda x: x.start())
     segments = []
     current_start = 0
     for m in delimiters:
-        segments.append((current_start, m.end(), m))
+        # Return start, end, and the delimiter text itself
+        segments.append((current_start, m.end(), m.group(0)))
         current_start = m.end()
-    segments.append((current_start, len(text), None))
+    segments.append((current_start, len(text), ""))
     return segments
 
 def get_min_distance_to_matches(
@@ -1078,7 +1079,7 @@ class ComplexCoverageAnalyzer:
 
         # Helper to find segment index
         def get_seg_idx(pos):
-            return next((i for i, (s, e, _) in enumerate(segments) if s <= pos < e), -1)
+            return next((i for i, (s, e, _) in enumerate(segments) if s <= pos < e), 0)
 
         # 2. Gather entities
         _counts = [
@@ -3718,11 +3719,10 @@ class UnionAnalyzer:
                         is_soft_boundary = True
                         start_seg, end_seg = sorted((c_seg, e_seg))
                         for i in range(start_seg, end_seg):
-                            delim_match = segments[i][2]
-                            if delim_match:
-                                if delim_match.group(0) != ",":
-                                    is_soft_boundary = False
-                                    break
+                            delim_text = segments[i][2]
+                            if delim_text and delim_text != ",":
+                                is_soft_boundary = False
+                                break
 
                         has_blocking = False
                         if counts_in_segment.get(e_seg, 0) > 0:
@@ -3931,9 +3931,9 @@ class UnionAnalyzer:
             current_zone = [0]
             
             for i in range(len(segments) - 1):
-                delim_match = segments[i][2]
+                delim_text = segments[i][2]
                 is_hard = True
-                if delim_match and delim_match.group(0) == ",":
+                if delim_text == ",":
                     is_hard = False
                 
                 if is_hard:

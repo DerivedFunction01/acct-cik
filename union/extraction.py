@@ -179,7 +179,7 @@ SUBSET_REGEX = build_regex([
     r"includ(?:ing|es?)",
     r"compris(?:ing|es?|ed)",
     r"with",
-    r"consist(?:ing|s|ed)?"
+    r"consist(?:ing|s|ed)?",
     r":"
     ]
 )
