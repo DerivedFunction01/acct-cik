@@ -588,7 +588,6 @@ class SimpleCoverageAnalyzer:
             
 
         data["note"] = " | ".join(notes) if notes else "Simple Analysis (No Data)"
-        data["employee_count_total"]
         return data
 
 class UnionExtraAnalyzer:

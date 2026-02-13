@@ -77,7 +77,7 @@ NEGATION_REGEX = build_regex(
 )
 
 REMAIN_REGEX = build_regex(
-    [add_restrictions(build_alternation([r"remaining", build_compound([], r"rest(?:\s+of)?", [r"(?:\s+the)?"], sep_suffix=""), r"other", r"balance"]), lookaheads=[r"\d"], lookahead_sep=r"\s+")]
+    [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", r"other", r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
 )
 
 
