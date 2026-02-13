@@ -3150,7 +3150,9 @@ def _build_code_to_weight_map():
                 total_w += external_weights.get(c, mapping.get(c, 0.0))
             if total_w > 0:
                 mapping[code] = total_w
-
+    # Force containers to 0 to prevent accidental distribution
+    for code in ["DOM", "GLO", "INT"]:
+        mapping[code] = 0.0
     return mapping
 
 
@@ -3159,15 +3161,15 @@ _CODE_TO_WEIGHT = _build_code_to_weight_map()
 def _build_region_weights_map(country_weights):
     """Aggregates country weights to determine region weights."""
     r_weights = {}
-    
+
     # Map Region Enum to list of country codes
     region_to_codes = {}
-    
+
     # 1. Group codes by Region
     all_regions = [
         NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, MIDDLE_EAST_AFRICA, INTERNATIONAL
     ]
-    
+
     for r_set in all_regions:
         for nation in r_set:
             if nation.code and nation.code in country_weights:
@@ -3185,6 +3187,9 @@ def _build_region_weights_map(country_weights):
     # We find the "Container Nation" for each region to get its code
     for r_set in all_regions:
         for nation in r_set:
+            # Skip INT, DOM, GLO from inheriting region weights
+            if nation.code in ["INT", "DOM", "GLO"]:
+                continue
             # Heuristic: If nation name matches region name or is a known container
             if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "NA"]:
                 if nation.region.value in r_weights:
