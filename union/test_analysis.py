@@ -130,19 +130,18 @@ attract talent and maintain customer relationships, particularly among customers
 ITEM_COMBINED = """
 ITEM 1. BUSINESS
 
-We have 10,000 employees in the Asia-Pacific region, of which 6,000 are in China and 2,000 are in India, with the remaining in Japan and the Philippines.
-
+We have 10,000 employees in the Asia‑Pacific region, of which 6,000 are in China and 2,000 are in India, with the remaining in Japan and the Philippines.
 Our Central American workforce consists of 2,000 employees in Puerto Rico and Mexico, and 4,000 in the Dominican Republic.
-
-We employ approximately 8,000 workers in latin american territories, including 2,000 in Panama and 5,000 in Bermuda.
-
+We employ approximately 8,000 workers in Latin American territories, including 2,000 in Panama and 5,000 in Bermuda, with the remaining in Suriname.
 Our workforce includes 500 employees in Canada, compared to 1,000 in the United Kingdom and 200 in South Korea.
-
 In Southeast Asia, we have 900 employees located in Vietnam, Thailand, and Malaysia.
-
 We have 5,000 employees in Mainland Europe, consisting of 3,000 in Germany, Italy, and Sweden, and 2,000 in France.
-
 We have an additional 5,000 employees in Eastern Europe, consisting of 2,000 in Russia and Belarus, with the remaining in Ukraine.
+We also maintain 7,500 employees in the Extended Asia region, of which 3,000 are in Mongolia and 1,500 in Laos, with the remaining in Timor‑Leste and Brunei.
+Our Caribbean and Lesser Antilles division includes 3,500 employees, with 1,200 in Saint Kitts and Nevis, 1,000 in Antigua and Barbuda, and the remaining in Grenada.
+In the Nordic Microstates cluster, we employ 1,100 workers, including 400 in Iceland, 300 in the Faroe Islands, and the remaining in Åland.
+Our European Micro‑Territories group consists of 2,400 employees, with 1,000 in Luxembourg, 800 in Andorra, and the remaining in Liechtenstein.
+Finally, we have 4,200 employees in the Balkan Extended Region, of which 1,800 are in Moldova and 1,200 in North Macedonia, with the remaining in Kosovo.
 """
 
 

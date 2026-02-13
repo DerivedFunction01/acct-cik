@@ -1434,6 +1434,18 @@ ASIA_PACIFIC = {
         code="APAC",
     ),
     Nation(
+        "Southeast Asia",
+        ["southeast asia", "s.e. asia", "asean"],
+        Region.ASIA_PACIFIC,
+        code="ASEAN",
+    ),
+    Nation(
+        "South Asia",
+        ["south asia", "southern asia", "indian subcontinent"],
+        Region.ASIA_PACIFIC,
+        code="SASIA",
+    ),
+    Nation(
         "Japan",
         ["japan", "japanese", "yen", "jpy"],
         Region.ASIA_PACIFIC,
@@ -2015,9 +2027,27 @@ LATIN_AMERICA = {
 MIDDLE_EAST_AFRICA = {
     Nation(
         "Middle East",
-        ["middle east", "middle eastern", "mena"],
+        ["middle east", "middle eastern"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="ME",
+    ),
+    Nation(
+        "Middle East & Africa",
+        ["middle east and africa", "middle east & africa", "mena"],
         Region.MIDDLE_EAST_AFRICA,
         code="MEA",
+    ),
+    Nation(
+        "Gulf States",
+        ["gulf states", "gcc", "gulf cooperation council", "arabian gulf"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="GCC",
+    ),
+    Nation(
+        "Sub-Saharan Africa",
+        ["sub-saharan africa", "sub-sahara"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SSA",
     ),
     Nation(
         "Africa",
@@ -2651,7 +2681,15 @@ REGION_CODES = {
     "LATAM",
     "MEA",
     "AFRICA",
+    "ME",
+    "GCC",
+    "SSA",
+    "SASIA",
+    "ASEAN",
+    "BALTIC",
+    "CIS",
     "INT",
+    "SSA",
     "DOM",
     "INT_IBERIA",
     "INT_FR",
@@ -2945,22 +2983,22 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
-
 def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
     """
     Loads GDP and Population percentages to calculate a composite weight.
     Formula: Weight = alpha * gdp_pct + (1 - alpha) * population_pct
-    Default alpha=0.6 gives slightly more weight to economic output (GDP) 
-    as a proxy for formal employment presence.
+
+    Now supports manual overrides for missing or corrected country codes.
     """
+
     # Search for CSV in current or parent directories
     candidates = [
         Path(csv_filename),
         Path("union") / csv_filename,
         Path("..") / csv_filename,
-        Path("../..") / csv_filename
+        Path("../..") / csv_filename,
     ]
-    
+
     df = None
     for p in candidates:
         if p.exists():
@@ -2969,34 +3007,91 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.6):
                 break
             except Exception:
                 continue
-    
+
     if df is None or "code" not in df.columns:
         return {}
 
-    try:
-        # Ensure columns exist and fill NaNs
-        cols = ["gdp_pct", "population_pct"]
-        for c in cols:
-            if c not in df.columns:
-                df[c] = 0.0
-        df = df.fillna(0)
-        
-        # Calculate composite weight
-        # Note: Input percentages are 0-100 based on dataset.py logic
-        df["weight"] = (alpha * df["gdp_pct"]) + ((1 - alpha) * df["population_pct"])
-        
-        # Normalize to avoid extremely small numbers if needed, 
-        # but relative weights are what matters for division.
-        return df.set_index("code")["weight"].to_dict()
-    except Exception:
-        return {}
+    # -------------------------------
+    # 🔥 MANUAL OVERRIDES GO HERE
+    # -------------------------------
+    manual_rows = {
+        # Example: Taiwan (TW)
+        # Values are in 0–1 scale (not 0–100)
+        "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
+    }
+
+    # Ensure required columns exist
+    for c in ["gdp_pct", "population_pct"]:
+        if c not in df.columns:
+            df[c] = 0.0
+
+    df = df.fillna(0)
+
+    # Apply manual overrides
+    for code, vals in manual_rows.items():
+        if code in df["code"].values:
+            # Update existing row
+            df.loc[df["code"] == code, ["gdp_pct", "population_pct"]] = [
+                vals["gdp_pct"],
+                vals["population_pct"],
+            ]
+        else:
+            # Insert new row
+            df = pd.concat(
+                [
+                    df,
+                    pd.DataFrame(
+                        [
+                            {
+                                "code": code,
+                                "gdp_pct": vals["gdp_pct"],
+                                "population_pct": vals["population_pct"],
+                            }
+                        ]
+                    ),
+                ],
+                ignore_index=True,
+            )
+
+    # Compute composite weight
+    df["weight"] = alpha * df["gdp_pct"] + (1 - alpha) * df["population_pct"]
+
+    return df.set_index("code")["weight"].to_dict()
+
 
 def _build_code_to_weight_map():
     mapping = {}
     external_weights = _load_external_weights()
+    manual_composites = {
+        "BALTIC": ["EE", "LV", "LT"],
+        "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"],
+        "AFRICA": [
+            "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
+            "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
+            "BF", "ML", "BW", "MZ", "GA", "GN", "TD", "MG", "BJ", "RW",
+            "CG", "NE", "MW", "MR", "TG", "SL", "SO", "SS", "ER", "SZ",
+            "BI", "DJ", "LR", "CF", "CV", "LS", "GM", "GW", "SC", "KM",
+            "ST", "GQ",
+        ],
+        "GCC": ["SA", "AE", "KW", "QA", "BH", "OM"],
+        "ASEAN": ["ID", "TH", "MY", "SG", "PH", "VN", "BN", "KH", "LA", "MM"],
+        "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
+        "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
+    }
     
+    # SSA (Sub-Saharan) is AFRICA minus North Africa
+    north_africa = {"EG", "DZ", "MA", "TN", "LY", "SD"}
+    manual_composites["SSA"] = [c for c in manual_composites["AFRICA"] if c not in north_africa]
+    
+    # MEA is ME + AFRICA
+    manual_composites["MEA"] = list(set(manual_composites["ME"] + manual_composites["AFRICA"]))
+
+    # Add language buckets from INT_LANGUAGE_MAP
+    for code, countries in INT_LANGUAGE_MAP.items():
+        manual_composites[code] = list(countries)
+
     defined_codes = set()
-    
+
     all_regions = [
         NORTH_AMERICA,
         EUROPE,
@@ -3014,19 +3109,31 @@ def _build_code_to_weight_map():
                     mapping[nation.code] = external_weights[nation.code]
                 else:
                     mapping[nation.code] = nation.weight
-    
+
     # Log codes present in CSV but not in definitions (Undefined Countries)
     missing_definitions = []
     for code, weight in external_weights.items():
         if code not in defined_codes:
             missing_definitions.append({"code": code, "weight": weight})
-            
+
     if missing_definitions:
         try:
             pd.DataFrame(missing_definitions).to_csv("undefined_countries.csv", index=False)
         except Exception:
             pass
-    
+
+    # Apply Manual Composites
+    for code, constituents in manual_composites.items():
+        # Only calculate if the code is currently using the default weight (or missing)
+        current_w = mapping.get(code, 0.005)
+        if abs(current_w - 0.005) < 0.000001:
+            total_w = 0.0
+            for c in constituents:
+                # Use external weight if available, else use mapped weight
+                total_w += external_weights.get(c, mapping.get(c, 0.0))
+            if total_w > 0:
+                mapping[code] = total_w
+
     return mapping
 
 
@@ -3062,7 +3169,7 @@ def _build_region_weights_map(country_weights):
     for r_set in all_regions:
         for nation in r_set:
             # Heuristic: If nation name matches region name or is a known container
-            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "MEA", "NA"]:
+            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "NA"]:
                 if nation.region.value in r_weights:
                     r_weights[nation.code] = r_weights[nation.region.value]
                     # Also update the country-level map for the region code itself
