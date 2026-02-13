@@ -63,6 +63,10 @@ SEGMENT_DELIMITER_REGEX = re.compile(
     r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet)|(?:,)(?!(?:\s+or))\b", re.IGNORECASE
 )
 
+FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
+SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,2}}$"
+LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
+
 def get_text_segments(text: str) -> List[Tuple[int, int]]:
     delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
     boundaries = [0] + [m.end() for m in delimiters] + [len(text)]
@@ -3669,7 +3673,7 @@ class UnionAnalyzer:
                     parts.sort(key=lambda x: x["span"][0])
                     
         return parts, sentence_total
-
+    
     def _resolve_counts_generic(
         self, 
         analysis: SentenceAnalysis, 
@@ -3764,7 +3768,7 @@ class UnionAnalyzer:
                     
                     # Check for list separators
                     clean_text = re.sub(r"\s+", " ", text_between).strip()
-                    is_sep = bool(re.match(r"^(?:,|;|&|[,;\s]?(?:and|or))+$", clean_text, re.IGNORECASE)) or not clean_text
+                    is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
                     
                     if not has_count_in_gap and is_sep:
                          current_group.append(e2)
