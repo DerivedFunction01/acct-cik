@@ -2716,7 +2716,7 @@ COMPOSITE_REGION_MAP = {
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
     "G20": [
         "AR", "AU", "BR", "CA", "CN", "FR", "DE", "IN", "ID", "IT",
-        "JP", "KR", "MX", "RU", "SA", "ZA", "TR", "GB", "US", "EU", "Europe"
+        "JP", "KR", "MX", "RU", "SA", "ZA", "TR", "GB", "US", "EU", "Europe", "NA", "North America"
     ],
     "AFRICA": [
         "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
