@@ -14,15 +14,75 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 
 
 ITEM_1 = """
-The Company offers fair terms and conditions of employment. The Company's overall purpose, Code of Conduct, talent development strategies, and employment policies support the principles in the United Nations Universal Declaration of Human Rights, and the International Labor Organization’s Fundamental Principles and Labor Standards.
+TechAdvance Manufacturing operates a diverse global workforce across 
+manufacturing, logistics, and technology divisions. As of the end of 2023, 
+our total employee base reached approximately 38,500 across all regions.
 
-The Company considers its relationship with its employees to be good. While there have been a small number of minor labor disputes historically, such disputes have not had a significant or lasting impact on the Company's relationship with its employees, and customer perception of its employee practices or its business results. 
+In our United States operations, which employ 16,800 workers, approximately 22% 
+(3,696 employees) are represented by labor unions. Our largest unionized segment 
+comprises 2,100 production workers in our Ohio and Indiana facilities, organized 
+under the United Auto Workers (UAW) agreement that became effective in 2022. 
+Additionally, our West Coast logistics centers employ 1,596 workers represented 
+by the International Brotherhood of Teamsters, covering 100% of those facilities.
 
-Major unions in Europe to which some of the Company's employees belong include: IG Metall in Germany; Unite the union in the United Kingdom; Confédération Générale des Travailleurs (CGT), Confédération Française Démocratique du Travail (CFDT), Confédération Française de l’Encadrement Confédération Générale des cadres (CFE-CGC), Force Ouvrière (FO), Confédération Française des Travailleurs Chrétiens (CFTC), Solidaires, Unitaires, Démocratiques (SUD) and Conféderation Autonome du Travail (CAT) in France; Union General de Trabajadores (UGT), Union Sindical Obrera (USO), Comisiones Obereras (CCOO) and Confederacion General de Trabajadores (CGT) in Spain; IF Metall, Unionen, Sveriges Ingenjörer and Ledarna in Sweden; Industriaal- ja Metallitöötajate Ametiühingute Liit (IMTAL) in Estonia; Vasas Szakszervezeti Szövetség (Hungarian Metallworkers‘ Federation) in Hungary; Samorzadny NiezalezĪny Zwiazek Zawodowy Pracownikow and Zakladowa Organizacja Związkowa NSZZ Solidarnosc in Poland; National Union of Metal Workers South Africa (NUMSA) in South Africa; Union Générale des Travailleurs Tunisiens (UGTT) and Union des travailleurs Tunisiens (UTT) in Tunisia, and Türk Metal Sendikasi in Turkey. 
+Our non-union domestic workforce of 13,104 employees consists primarily of 
+engineering, administrative, and management personnel at our headquarters in 
+Dallas, Texas, where 4,200 of 5,100 corporate staff operate outside union 
+frameworks. The remaining non-union workers are distributed across regional 
+sales offices and smaller manufacturing sites. We maintain a neutral stance 
+toward unionization efforts and do not actively oppose employee organizing.
 
-In addition, the Company’s employees in other regions are represented by the following unions: Unifor in Canada; Sindicato de Jornaleros y Obreros Industriales y de la Industria Maquiladora de H.Matamoros, Tamaulipas (CTM); Sindicato Nacional de Trabajadores de la Industria Metalúrgica y Similares, Federación Valle de Toluca (CTM); Sindicato Nacional “Nueva Cultura Laboral” de trabajadores de la fabricación, manufactura, ensamble de autopartes mecánicas y eléctricas y componentes de la Industria Automotriz, C.R.O.C.; Sindicato Nacional de Trabajadores de la Industria Arnesera, Eléctrica, Automotriz y Aeronáutica de la República Mexicana; “Nueva Cultura Laboral” “de trabajadores de la fabricación, manufactura, ensamble de autopartes mecánicas y eléctricas y componentes de la industria Automotriz (CROC); Sindicato Nacional de Trabajadores de la Industria de Autopartes en General y/o Similares, Conexos y sus Servicios de la República Mexicana, in Mexico; Sindicato Industrial de Trabajadores de la Transformación, Construcción, Automotriz, Agropecuaria, Plásticos y de la Industria en General, del Comercio y Servicios, Similares, anexos y conexos del Estado de Querétaro “Ángel Castillo Resendiz”; Sindicato dos Metalúrgicos de Taubaté e Região in Brazil; Autoliv India Employees Association, Bangalore & Mysore in India; Korean Metal Workers Union (FKTU) in South Korea; Autoliv Japan Roudou Kumiai in Japan, and All-China Federation of Trade Unions in China. 
+In Canada, we employ 2,400 workers across three locations: Toronto, Vancouver, 
+and Calgary. The Toronto facility (1,100 workers) is 65% unionized under Unifor 
+representation (715 workers), while Vancouver (800 workers) and Calgary (500 workers) 
+remain entirely non-union. We anticipate potential organizing activity in Vancouver 
+during 2024 but expect no material change to current representation levels.
 
-In many European countries, Canada, Mexico, Brazil and South Korea, wages, salaries and general working conditions are negotiated with local unions and/or are subject to centrally negotiated collective bargaining agreements. The terms of the Company's various agreements with unions typically range between one to three years. Some of the Company's subsidiaries in Europe, Canada, Mexico, Brazil and South Korea must negotiate with the applicable local unions with respect to important changes in operations, working and employment conditions. Twice a year, members of the Company’s management conduct a meeting with the European Works Council (EWC) to provide employee representatives with important information about the Company and a forum for the exchange of ideas and opinions. In many Asia Pacific countries, the central or regional governments provide guidance each year for salary adjustments or statutory minimum wage for workers. The Company's employees may join associations in accordance with local legislation and rules, although the level of unionization varies significantly throughout its operations.
+Our European operations, which employed 8,900 workers at year-end 2023, present 
+a more complex landscape. In Germany, we operated two manufacturing plants employing 
+3,100 workers total: the Düsseldorf facility (1,800 workers) with 68% IG Metall 
+representation (1,224 workers), and the Stuttgart facility (1,300 workers) with 
+no formal union representation but subject to German Works Council requirements. 
+France is home to our second-largest European facility with 2,400 employees in 
+the Paris region; approximately 45% are represented by unions (CFDT, CGT, and FO 
+combined), equaling roughly 1,080 workers. The Netherlands facility in Rotterdam 
+employs 1,600 workers, of which only 15% (240 workers) maintain union membership 
+under the FNV. Our smaller UK operations in Liverpool employ 800 workers with 
+minimal union presence at approximately 8% (64 workers) under Unite the Union.
+
+We maintain generally constructive relationships with our European union partners, 
+though relations with the German works councils can be technically complex. Our 
+French operations have experienced no significant labor disputes in the past three years.
+
+In Asia-Pacific, our footprint is growing but remains under-unionized. Japan 
+represents our largest regional presence with 6,200 employees: 4,100 in our Tokyo 
+automotive component facility and 2,100 in our Osaka electronics manufacturing. 
+The Tokyo facility is 35% unionized (1,435 workers) under the Japanese Association 
+of Metal and Allied Workers (JAM), while Osaka is entirely non-union. India is our 
+emerging market with 3,400 software engineers at our Bangalore campus; none are 
+currently unionized, though we monitor labor developments given local organizing trends. 
+Thailand's small facility employs 420 workers entirely outside union frameworks. Australia 
+and New Zealand operations employ 850 workers combined, with no formal union representation.
+
+Our Chinese operations, while currently non-unionized with 2,800 workers across Shanghai 
+and Shenzhen facilities, present potential future exposure. We note that all Chinese facilities 
+operate under the all-China Federation of Trade Unions framework as required by law; however, 
+we currently report zero formal representation of our workforce. We plan to increase hiring 
+in China by 40% through 2025, which could result in additional union exposure.
+
+In Latin America, we maintain minimal operations: Mexico (1,200 workers at Monterrey plant) 
+is 25% unionized (300 workers) under CTM, while our presence in Brazil (280 workers, 
+São Paulo) and Colombia (180 workers) remains non-union. We do not anticipate union 
+organizing activity in these regions in the near term.
+
+Middle East and Africa operations are limited. Our UAE facility (Dubai, 320 workers) is 
+entirely non-union as required by local law. We have no current operations in other 
+African markets, having divested our South African subsidiary in 2019.
+
+Overall, our global unionization rate stands at approximately 24% of our total workforce. 
+We believe our labor relations profile is stable, with no significant pending negotiations 
+or anticipated labor disputes. We remain committed to fair labor practices and transparent 
+engagement with employee representative bodies.
 """
 
 ITEM_1A = """
