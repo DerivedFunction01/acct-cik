@@ -1788,7 +1788,6 @@ class ComplexCoverageAnalyzer:
                     self.data["note"] = note
 
         total_candidates = []
-        new_parts_sum = 0.0
 
         for item in count_assignments:
             ctype = item["type"]
@@ -1796,12 +1795,10 @@ class ComplexCoverageAnalyzer:
             if ctype == "covered":
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
-                new_parts_sum += val
                 logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
-                new_parts_sum += val
                 logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":
                 total_candidates.append(val)
@@ -1818,22 +1815,23 @@ class ComplexCoverageAnalyzer:
 
             # 2. Check against existing data (Parent vs Disjoint)
             current_total = self.data["employee_count_total"] or 0
+            max_cand = max(total_candidates)
+            full_parts_sum = (self.data["employee_count_covered"] or 0) + (self.data["employee_count_not_covered"] or 0)
             
-            if len(total_candidates) == 1:
-                candidate = total_candidates[0]
-                implied_sum = current_total + new_parts_sum
-                
-                # If candidate matches (Current Total + New Parts), it's a Parent Total
-                if implied_sum > 0 and abs(candidate - implied_sum) / implied_sum < 0.10:
-                    self.data["employee_count_total"] = max(candidate, implied_sum)
-                    logic_notes.append(f"Identified parent total {self.data['employee_count_total']} (matches parts {current_total} + {new_parts_sum})")
-                else:
-                    # Disjoint: Accumulate
-                    self.data["employee_count_total"] = current_total + candidate
+            is_parent = False
+            if max_cand > 0:
+                if full_parts_sum > 0 and abs(max_cand - full_parts_sum) / max_cand < 0.10:
+                    is_parent = True
+                elif (current_total + full_parts_sum) > 0 and abs(max_cand - (current_total + full_parts_sum)) / max_cand < 0.10:
+                    is_parent = True
+
+            if is_parent:
+                self.data["employee_count_total"] = max(current_total, max_cand)
+                logic_notes.append(f"Identified parent total {self.data['employee_count_total']} (matches parts)")
             else:
-                # Multiple disjoint totals
                 self.data["employee_count_total"] = current_total + sum(total_candidates)
-                logic_notes.append(f"Summed totals: {total_candidates}")
+                if len(total_candidates) > 1:
+                    logic_notes.append(f"Summed totals: {total_candidates}")
 
         # Inferred Total Logic (Parts > Total)
         parts_sum = (self.data["employee_count_covered"] or 0) + (self.data["employee_count_not_covered"] or 0)
