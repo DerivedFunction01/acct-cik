@@ -18,7 +18,7 @@ from extraction import (
 from defs.region_regex import (
     REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION, 
     weighted_division, _CODE_TO_LABOR_RATE, REGION_LABOR_RATES,
-    _CODE_TO_WEIGHT, REGION_WEIGHTS
+    _CODE_TO_WEIGHT, REGION_WEIGHTS, COMPOSITE_REGION_MAP
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -1919,6 +1919,7 @@ class Tracker:
 
         related_codes = [c["code"] for c in countries if c.get("code")]
         if "regions" in geo_context:
+            related_codes.extend([r["code"] for r in geo_context["regions"] if r.get("code")])
             related_codes.extend([r["name"] for r in geo_context["regions"] if r.get("name")])
 
         self.entries.append(Entry(
@@ -2571,8 +2572,40 @@ class Tracker:
                         # Try to find rate from external data
                         rate = None
 
+                        # 1. Try Related Geo Codes (e.g. NORDIC for Europe entry)
+                        if e.related_geo_codes:
+                            for code in e.related_geo_codes:
+                                if code in COMPOSITE_REGION_MAP and code in REGION_LABOR_RATES:
+                                    rate = REGION_LABOR_RATES[code]
+                                    break
+
+                        # 2. Try calculating from mentioned countries in the region
+                        if rate is None and e.scope == Scope.REGION and e.key in [r.value for r in Region]:
+                            region_name = e.key
+                            relevant_countries = []
+                            for code in self.mentioned_countries:
+                                if code not in REGION_CODES and _CODE_TO_REGION.get(code) == region_name:
+                                    relevant_countries.append(code)
+                            
+                            if relevant_countries:
+                                total_weight = 0.0
+                                weighted_rate_sum = 0.0
+                                used_codes = []
+                                
+                                for code in relevant_countries:
+                                    if code in _CODE_TO_LABOR_RATE and code in _CODE_TO_WEIGHT:
+                                        w = _CODE_TO_WEIGHT[code]
+                                        r = _CODE_TO_LABOR_RATE[code]
+                                        weighted_rate_sum += r * w
+                                        total_weight += w
+                                        used_codes.append(code)
+                                
+                                if total_weight > 0:
+                                    rate = weighted_rate_sum / total_weight
+                                    self.resolution_log.append(f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of: {', '.join(used_codes)}")
+
                         # 3. Try Segment (Country::...)
-                        if isinstance(e.key, str):
+                        if rate is None and isinstance(e.key, str):
                             code = e.key.split("::")[0]
                             if code in _CODE_TO_LABOR_RATE:
                                 rate = _CODE_TO_LABOR_RATE[code]
