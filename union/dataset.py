@@ -168,13 +168,18 @@ X_missing = missing[["population_pct", "gdp_pct"]]
 preds = model.predict(X_missing)
 
 full_df.loc[full_df["labor_rate"].isna(), "labor_rate"] = preds.round(6)
-
-full_df = full_df.drop(columns=["cb_rate", "union_rate", "name", "region"])
-
 # Labor rate back to decimal instead of pct
 full_df["labor_rate"] = full_df["labor_rate"] / 100
+region_stats = (
+    full_df.groupby("region")["labor_rate"]
+    .agg(["mean", "median", "std", "count"])
+    .sort_values("mean", ascending=False)
+)
+full_df = full_df.drop(columns=["cb_rate", "union_rate", "name", "region"])
 
 # %%
 print(full_df.head())
 print(full_df.describe())
+print(region_stats)
+
 full_df.to_csv(r"gdp_pop_pct.csv", index=False, float_format="%.10f")
