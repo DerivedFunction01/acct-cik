@@ -2589,6 +2589,16 @@ class Tracker:
                 e.covered_count = round((e.percentage / 100.0) * e.total_count)
                 self.resolution_log.append(f"Calculated covered count for {e.key}: {e.percentage}% of {e.total_count} -> {e.covered_count}")
 
+    def _inject_virtual_global_pool(self):
+        """
+        Injects a virtual global total if no census data exists but union records are present.
+        This allows weight-based distribution to function for 'union name only' scenarios.
+        """
+        has_unions = any(e.is_union_record for e in self.entries)
+        if has_unions:
+            self.global_total = 10000.0
+            self.resolution_log.append("Injected Virtual Global Pool (10,000) due to lack of census data.")
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
@@ -2621,6 +2631,10 @@ class Tracker:
 
         # 4.5 Calculate missing covered counts (for entries with Total + Pct but no Covered)
         self._calculate_missing_covered_counts()
+
+        # 4.8 Inject Virtual Pool if still empty (for Union Name only cases)
+        if self.global_total == 0:
+            self._inject_virtual_global_pool()
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
         self._apply_fallback_denominators()
