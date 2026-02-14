@@ -365,7 +365,7 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
     + RELATIONSHIP_NEUTRAL_TERMS
 )
 
-BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations", "closely", "publically", "disclose", "disclosure", "believe(?:s|d)?"]
+BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations?", "closely", "publically", "disclos(?:ed?|es|ing)", "disclosures?", "believe(?:s|d)?", "oppos(?:es?|ed|ing)"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
@@ -409,7 +409,7 @@ SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
 
 NON_COVERAGE_PHRASES = [
     CORE.ATWILL,
-    r"operate(?:s|d)?\s+outside",
+    r"outside",
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
     build_compound(
