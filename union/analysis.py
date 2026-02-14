@@ -2676,6 +2676,63 @@ class Tracker:
                         f"Updated total for {e.key} from {old} to {known_total} (census match)"
                     )
 
+    def _drop_redundant_entries(self, entries: List[Entry]):
+        """
+        Drops entries that are restatements of other entries to avoid double counting.
+        e.g. "80 not covered" when we already have "20 covered" out of 100.
+        """
+        to_remove = []
+        
+        # Group by normalized key (parent entity) to compare entries for the same entity or its segments
+        by_parent = {}
+        for e in entries:
+            # Normalize key: US::Segment_0 -> US
+            parent_key = e.key.split("::")[0] if e.key and "::" in e.key else e.key
+            if parent_key not in by_parent:
+                by_parent[parent_key] = []
+            by_parent[parent_key].append(e)
+            
+        for parent, group in by_parent.items():
+            if len(group) < 2:
+                continue
+            
+            # Find entries with Total and Covered (Source of Truth)
+            sources = [e for e in group if e.total_count is not None and e.covered_count is not None]
+            
+            # Find entries with Not Covered (Candidates for removal)
+            targets = [e for e in group if e.not_covered_count is not None]
+            
+            for t in targets:
+                if t in sources: # Don't remove self if it has both
+                    continue
+                    
+                val = t.not_covered_count
+                t_total = t.total_count
+                
+                for s in sources:
+                    if s is t: continue
+                    implied_not_covered = (s.total_count or 0) - (s.covered_count or 0)
+                    
+                    if self._matches_census(val, implied_not_covered):
+                        # If keys differ (e.g. Segment_0 vs Segment_1), enforce stricter check:
+                        # The target's Total must match the source's Implied Not Covered.
+                        if s.key != t.key:
+                            if t_total is not None and self._matches_census(t_total, implied_not_covered):
+                                to_remove.append(t)
+                                self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from {s.key})")
+                                break
+                        else:
+                            # Same key: standard redundancy check
+                            to_remove.append(t)
+                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from another entry)")
+                            break
+        
+        for e in to_remove:
+            if e in self.entries:
+                self.entries.remove(e)
+            if e in entries:
+                entries.remove(e)
+
     def _resolve_single_country(self, country_code: str, census_total: float):
         relevant_entries = [
             e
@@ -2687,6 +2744,8 @@ class Tracker:
                 and e.key.startswith(f"{country_code}::")
             )
         ]
+
+        self._drop_redundant_entries(relevant_entries)
 
         # Backfill total for the country entry itself if it exists
         # This ensures placeholders get the distributed virtual total
@@ -2735,7 +2794,7 @@ class Tracker:
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
             # Also skip GLO (Global) as it is a container for everything
-            if country_code in REGION_CODES or country_code == "GLO":
+            if country_code in REGION_CODES or country_code == "GLO" or (country_code == r.value for r in Region):
                 # self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region/container code.")
                 return
             if census_total > 0:
@@ -2788,6 +2847,7 @@ class Tracker:
     def _resolve_single_region(self, region_name: str, region_total: float):
         self._inject_placeholders(region_name)
         entries = self._get_region_entries(region_name)
+        self._drop_redundant_entries(entries)
         if not entries:
             if region_total > 0:
                 self.entries.append(
@@ -3394,9 +3454,9 @@ class Tracker:
                 scopes_to_check = set()
                 if country_code:
                     scopes_to_check.add(country_code)
-                    r_name = _CODE_TO_REGION.get(country_code)
-                    if r_name:
-                        scopes_to_check.add(r_name)
+                    # r_name = _CODE_TO_REGION.get(country_code)
+                    # if r_name:
+                    #     scopes_to_check.add(r_name)
                 elif e.scope == Scope.REGION and e.key:
                     scopes_to_check.add(e.key)
                 # scopes_to_check.add("GLO")
