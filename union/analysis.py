@@ -2563,7 +2563,7 @@ class Tracker:
             # Check basic criteria: Union record, no data, not already negated
             # Also allow if it's an existing dummy (1.0%) that needs a count calculated
             is_candidate = (e.is_union_record and e.percentage is None and e.covered_count is None and e.not_covered_count is None and not e.is_negated)
-            is_existing_dummy = (e.is_union_record and e.percentage == 1.0 and e.covered_count is None and not e.is_negated)
+            is_existing_dummy = e.is_dummy_percent
 
             if is_candidate or is_existing_dummy:
                 # Check negation conflicts (Key or Related Geo)
@@ -2572,26 +2572,20 @@ class Tracker:
                         # Try to find rate from external data
                         rate = None
 
-                        # 1. Try Related Geo Codes (e.g. NORDIC for Europe entry)
-                        if e.related_geo_codes:
-                            for code in e.related_geo_codes:
-                                if code in COMPOSITE_REGION_MAP and code in REGION_LABOR_RATES:
-                                    rate = REGION_LABOR_RATES[code]
-                                    break
-
                         # 2. Try calculating from mentioned countries in the region
-                        if rate is None and e.scope == Scope.REGION and e.key in [r.value for r in Region]:
+                        if e.scope == Scope.REGION or e.key in [r.value for r in Region]:
                             region_name = e.key
                             relevant_countries = []
+                            print(self.mentioned_countries if e.key == "Europe" else "")
                             for code in self.mentioned_countries:
-                                if code not in REGION_CODES and _CODE_TO_REGION.get(code) == region_name:
+                                if code not in REGION_CODES and _CODE_TO_REGION.get(code) in [region_name, e.key]:
                                     relevant_countries.append(code)
-                            
+
                             if relevant_countries:
                                 total_weight = 0.0
                                 weighted_rate_sum = 0.0
                                 used_codes = []
-                                
+
                                 for code in relevant_countries:
                                     if code in _CODE_TO_LABOR_RATE and code in _CODE_TO_WEIGHT:
                                         w = _CODE_TO_WEIGHT[code]
@@ -2599,7 +2593,7 @@ class Tracker:
                                         weighted_rate_sum += r * w
                                         total_weight += w
                                         used_codes.append(code)
-                                
+
                                 if total_weight > 0:
                                     rate = weighted_rate_sum / total_weight
                                     self.resolution_log.append(f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of: {', '.join(used_codes)}")
@@ -2644,7 +2638,7 @@ class Tracker:
 
         # Base for home country
         virtual_total = 1000.0
-        
+
         # Identify unique geographic entities mentioned
         unique_entities = set()
         for e in self.entries:
@@ -2652,10 +2646,10 @@ class Tracker:
                 key = str(e.key)
                 if e.scope == Scope.SEGMENT and "::" in key:
                     key = key.split("::")[0]
-                
+
                 if key and key not in (Region.GLOBAL.value, Region.GLOBAL, Region.AGGREGATE.value, Scope.AGGREGATE, Region.AGGREGATE, Region.UNKNOWN, Region.UNKNOWN.value):
                     unique_entities.add(key)
-        
+
         for code in self.mentioned_countries:
             if code and code not in ("DOM", "GLO"):
                 unique_entities.add(code)
@@ -2672,33 +2666,33 @@ class Tracker:
         UNIT_BASE = 100.0
         INTL_BOOSTER = 1.0
         BOOSTER_STEP = 0.01
-        
+
         sorted_entities = sorted(list(unique_entities))
         log_details = []
-        
+
         for entity in sorted_entities:
             weight = 0.005
             if entity in _CODE_TO_WEIGHT:
                 weight = _CODE_TO_WEIGHT[entity]
             elif entity in REGION_WEIGHTS:
                 weight = REGION_WEIGHTS[entity]
-            
+
             # Dynamic contribution
             contribution = UNIT_BASE * (1 + (weight * 10)) * INTL_BOOSTER
             virtual_total += contribution
-            
+
             log_details.append(f"{entity}(w={weight:.2f})")
-            
+
             INTL_BOOSTER += BOOSTER_STEP
 
         self.global_total = round(virtual_total)
-        
+
         log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
         if len(log_details) > 5:
-             log_msg += f" Details: {', '.join(log_details[:5])}..."
+            log_msg += f" Details: {', '.join(log_details[:5])}..."
         else:
-             log_msg += f" Details: {', '.join(log_details)}"
-             
+            log_msg += f" Details: {', '.join(log_details)}"
+
         self.resolution_log.append(log_msg)
 
     def resolve_coverage(self):
@@ -2791,7 +2785,7 @@ class Tracker:
                 else:
                     scope_key = Scope.GLOBAL
                     scope_type = Scope.GLOBAL.value
-            
+
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
                 if country_code:
@@ -2926,7 +2920,7 @@ class Tracker:
 
                 # Determine available population
                 available_pop = estimated_pop - consumed_pop
-                
+
                 # Decide whether to use the full available remainder or a conservative fallback
                 use_conservative = False
                 distributable_pop = 0.0
@@ -2962,7 +2956,7 @@ class Tracker:
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
                         log_msg += f" (Distributed among {num_segments} segments)"
-                    
+
                     if use_conservative:
                         log_msg += " (Conservative 0.1% - Scope Full)"
 
@@ -3057,7 +3051,7 @@ class Tracker:
                 continue
 
             log(f"\n  Processing Region: {r_name}")
-            
+
             # [A] Calculate Bottom-Up Aggregation (Countries)
             c_agg_covered = 0.0
             c_agg_total = 0.0
@@ -3167,22 +3161,22 @@ class Tracker:
                 (e for e in self.entries if e.scope == Scope.REGION and e.key == r_name),
                 None,
             )
-            
+
             r_covered = 0.0
             r_total = 0.0
             has_data = False
 
             # [C] Reconcile Bottom-Up vs Top-Down
             use_regional = False
-            
+
             if r_entry and (r_entry.covered_count is not None or r_entry.percentage is not None):
                 log(f"      ✓ Found region entry: {r_entry.key}")
-                
+
                 # Extract Regional Data
                 td_covered = 0.0
                 td_total = 0.0
                 td_has_data = False
-                
+
                 if r_entry.covered_count is not None:
                     td_covered = r_entry.covered_count
                     td_total = r_entry.total_count if r_entry.total_count else 0.0
@@ -3191,7 +3185,7 @@ class Tracker:
                     td_covered = (r_entry.percentage / 100.0) * r_entry.total_count
                     td_total = r_entry.total_count
                     td_has_data = True
-                
+
                 # Decision Logic
                 if td_has_data:
                     # If Bottom-Up Total is significantly larger than Regional Total, prefer Bottom-Up
@@ -3468,7 +3462,7 @@ class Tracker:
 
         # Ensure Global is in derived_regional_coverage with the final likely_percentage
         if metrics["likely_percentage"] is not None:
-             metrics["derived_regional_coverage"]["Global"] = metrics["likely_percentage"]
+            metrics["derived_regional_coverage"]["Global"] = metrics["likely_percentage"]
 
         log("\n" + "=" * 80)
         log("FINAL METRICS:")
