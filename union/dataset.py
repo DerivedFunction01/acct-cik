@@ -46,3 +46,57 @@ output_csv.columns = ["code", "population_pct", "gdp_pct"]
 # %%
 output_csv.to_csv(r"gdp_pop_pct.csv", index=False)
 # %%
+import pandas as pd
+
+cb_df = pd.read_excel("cb_rate.xlsx")
+cb = cb_df[cb_df["indicator.label"] == "Collective bargaining coverage rate (%)"]
+cb_avg = (
+    cb_df[cb_df["indicator.label"] == "Collective bargaining coverage rate (%)"]
+    .groupby("ref_area.label", as_index=False)
+    .agg(cb_rate=("obs_value", "mean"))
+)
+cb_avg["cb_rate"] = cb_avg["cb_rate"].round(4)
+union_df = pd.read_excel("union_rate.xlsx")
+union = union_df[union_df["indicator.label"] == "Trade union density rate (%)"]
+union_avg = union.groupby("ref_area.label", as_index=False).agg(
+    union_rate=("obs_value", "mean")
+)
+union_avg["union_rate"] = union_avg["union_rate"].round(4)
+cb_union = cb_avg.merge(union_avg, on="ref_area.label", how="outer")
+cb_union["cb_rate"] = cb_union["cb_rate"].fillna(cb_union["union_rate"])
+cb_union["union_rate"] = cb_union["union_rate"].fillna(cb_union["cb_rate"])
+cb_union["labor_rate"] = cb_union[["cb_rate", "union_rate"]].mean(axis=1).round(4)
+cb_union.rename(
+    columns={
+        "ref_area.label": "name",
+    },
+    inplace=True,
+)
+cb_union.head()
+
+# %%
+cb_union = cb_union.merge(
+    codes_conv[["name", "alpha2"]],  how="left"
+)
+#%%
+import difflib
+
+# --- Fuzzy match helper ---
+iso_names = codes_conv["name"].tolist()
+
+
+def fuzzy_match(name, choices, cutoff=0.6):
+    matches = difflib.get_close_matches(name, choices, n=1, cutoff=cutoff)
+    return matches[0] if matches else None
+
+
+# --- Add fuzzy-matched ISO name ---
+cb_union["country_fuzzy"] = cb_union["name"].apply(
+    lambda x: fuzzy_match(x, iso_names)
+)
+#%%
+# --- Merge using fuzzy name to get alpha2 ---
+cb_union_merged = cb_union.merge(
+    codes_conv[["name", "alpha2"]], left_on="country_fuzzy", right_on="name", how="left"
+)
+# %%
