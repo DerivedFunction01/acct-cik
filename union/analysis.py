@@ -1792,6 +1792,29 @@ def determine_geo_context(
         if specific_unions:
             # Use the first specific union found
             m = specific_unions[0]
+
+            # If union is generic (INT/GLO), check if we should inherit specific context instead
+            if m.geo_code in ["INT", "GLO"] and last_context:
+                last_region = last_context.get("region")
+                last_countries = last_context.get("countries", [])
+                
+                is_specific_prev = (
+                    last_region not in [Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.UNKNOWN.value, Region.AGGREGATE.value]
+                    or (last_countries and last_countries[0]["code"] not in ["INT", "GLO", "DOM"])
+                )
+                
+                if is_specific_prev:
+                    strong_global_modifiers = {"global", "international"}
+                    has_global_mod = any(mod.lower() in strong_global_modifiers for mod in analysis.total_modifiers)
+                    
+                    if not has_global_mod:
+                        ctx = last_context.copy()
+                        ctx["specificity"] = Specificity.INHERITED.value
+                        ctx["inherited_from_sentence_index"] = last_idx
+                        ctx["union_name_indicator"] = m.text
+                        ctx.pop("explicit_countries", None)
+                        return ctx
+
             return {
                 "region": m.region.value,
                 "countries": [{"name": m.country, "code": m.geo_code}],
@@ -4596,8 +4619,25 @@ class UnionAnalyzer:
                     info = self.matcher.get_union(union_name)
                     if info:
                         region, country, code = info
+
+                        # Refine generic union code using context
+                        if code in ["INT", "GLO"]:
+                            ctx_countries = geo_context.get("countries", [])
+                            if len(ctx_countries) == 1:
+                                c_ctx = ctx_countries[0]
+                                c_code = c_ctx.get("code")
+                                if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value]:
+                                    code = c_code
+                                    country = c_ctx.get("name", country)
+
+                        r_val = region.value
+                        if code != info[2]:
+                            r_name = _CODE_TO_REGION.get(code)
+                            if r_name:
+                                r_val = r_name
+
                         specific_ctx = {
-                            "region": region.value,
+                            "region": r_val,
                             "countries": [{"code": code, "name": country}],
                         }
                         tracker.update(val, specific_ctx)
@@ -5772,6 +5812,15 @@ class UnionAnalyzer:
                             info = self.matcher.get_union(union_name)
                             if info:
                                 region, country, code = info
+
+                                # Refine generic union code using context
+                                if code in ["INT", "GLO"]:
+                                    ctx_countries = geo_context.get("countries", [])
+                                    if len(ctx_countries) > 0:
+                                        c_ctx = ctx_countries[0]
+                                        c_code = c_ctx.get("code")
+                                        if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value]:
+                                            code = c_code
 
                                 prev_val = (
                                     previous_totals.get(code, 0)
