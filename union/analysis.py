@@ -2885,13 +2885,13 @@ class Tracker:
             if e.total_count is not None:
                 # 1. Check Covered vs Total
                 if e.covered_count is not None and e.covered_count > e.total_count:
-                    self.resolution_log.append(f"Validation: Reduced covered for {e.key} from {e.covered_count} to {e.total_count} (Covered > Total)")
-                    e.covered_count = e.total_count
+                    self.resolution_log.append(f"Validation: Bumped total for {e.key} from {e.total_count} to {e.covered_count} (Covered > Total)")
+                    e.total_count = e.covered_count
 
                 # 1. Check not Covered vs Total
                 if e.not_covered_count is not None and e.not_covered_count > e.total_count:
-                    self.resolution_log.append(f"Validation: Reduced not covered for {e.key} from {e.not_covered_count} to {e.total_count} (Not Covered > Total)")
-                    e.not_covered_count = e.total_count
+                    self.resolution_log.append(f"Validation: Bumped total for {e.key} from {e.total_count} to {e.not_covered_count} (Not Covered > Total)")
+                    e.total_count = e.not_covered_count
 
                 # 2. Check Sum of Parts vs Total
                 parts_sum = (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
@@ -4169,7 +4169,8 @@ class UnionAnalyzer:
         analysis: SentenceAnalysis, 
         entities: List[Dict[str, Any]],
         total_key: Optional[str] = None,
-        allow_naive_split: bool = False
+        allow_naive_split: bool = False,
+        use_labor_weights: bool = False
     ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_generic.
@@ -4222,7 +4223,7 @@ class UnionAnalyzer:
                         local_map[head["key"]] = c["val"]
                         children = group[1:]
                         if children:
-                            child_map, c_note = weighted_division(c["val"], children)
+                            child_map, c_note = weighted_division(c["val"], children, use_labor_weights=use_labor_weights)
                             local_map.update(child_map)
                             if c_note:
                                 notes.append(c_note)
@@ -4265,7 +4266,7 @@ class UnionAnalyzer:
                         valid_group = self._remove_container_regions(group)
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
-                        group_map, g_note = weighted_division(c["val"], valid_group)
+                        group_map, g_note = weighted_division(c["val"], valid_group, use_labor_weights=use_labor_weights)
                         local_map.update(group_map)
                         if g_note:
                             cluster_notes.append(g_note)
@@ -4283,7 +4284,7 @@ class UnionAnalyzer:
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
-                local_map, w_note = weighted_division(count_val, valid_entities)
+                local_map, w_note = weighted_division(count_val, valid_entities, use_labor_weights=use_labor_weights)
                 final_note = "Naive Split" + filtered_note
                 if w_note:
                     final_note += f" | {w_note}"
@@ -4454,7 +4455,7 @@ class UnionAnalyzer:
         ]
 
         union_entries = [{"key": m["text"], "span": m["span"]} for m in union_matches]
-        return self._resolve_counts_generic(analysis, union_entries, allow_naive_split=True)
+        return self._resolve_counts_generic(analysis, union_entries, allow_naive_split=True, use_labor_weights=True)
 
     def _resolve_counts_to_types(self, analysis: SentenceAnalysis) -> Dict[str, float]:
         """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""

@@ -3397,7 +3397,7 @@ def _build_region_labor_rates_map(country_rates, country_weights):
 REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
 
 def weighted_division(
-    val: float, entities: List[Dict[str, Any]]
+    val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False
 ) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
@@ -3424,6 +3424,15 @@ def weighted_division(
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]
           
+        if use_labor_weights:
+            rate = 0.15  # Default average rate if unknown
+            if key in REGION_LABOR_RATES:
+                rate = REGION_LABOR_RATES[key]
+            elif key in _CODE_TO_LABOR_RATE:
+                rate = _CODE_TO_LABOR_RATE[key]
+            
+            w *= rate
+
         key_to_weight[key] = w
 
     # 2. Identify Clusters
