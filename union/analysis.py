@@ -2577,7 +2577,7 @@ class Tracker:
                             e.percentage = 1.0
                             e.is_qualitative = True
                             e.is_dummy_percent = True
-                            self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
+                            # self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
 
     def _calculate_missing_covered_counts(self):
         """
