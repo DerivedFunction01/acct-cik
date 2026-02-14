@@ -2578,12 +2578,12 @@ class Tracker:
                             for code in self.mentioned_countries:
                                 if code not in REGION_CODES and _CODE_TO_REGION.get(code) in [region_name, e.key]:
                                     relevant_countries.append(code)
-
+                            
                             if relevant_countries:
                                 total_weight = 0.0
                                 weighted_rate_sum = 0.0
                                 used_codes = []
-
+                                
                                 for code in relevant_countries:
                                     if code in _CODE_TO_LABOR_RATE and code in _CODE_TO_WEIGHT:
                                         w = _CODE_TO_WEIGHT[code]
@@ -2591,7 +2591,7 @@ class Tracker:
                                         weighted_rate_sum += r * w
                                         total_weight += w
                                         used_codes.append(code)
-
+                                
                                 if total_weight > 0:
                                     rate = weighted_rate_sum / total_weight
                                     self.resolution_log.append(f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of: {', '.join(used_codes)}")
@@ -2636,7 +2636,7 @@ class Tracker:
 
         # Base for home country
         virtual_total = 1000.0
-
+        
         # Identify unique geographic entities mentioned
         unique_entities = set()
         for e in self.entries:
@@ -2644,10 +2644,10 @@ class Tracker:
                 key = str(e.key)
                 if e.scope == Scope.SEGMENT and "::" in key:
                     key = key.split("::")[0]
-
+                
                 if key and key not in (Region.GLOBAL.value, Region.GLOBAL, Region.AGGREGATE.value, Scope.AGGREGATE, Region.AGGREGATE, Region.UNKNOWN, Region.UNKNOWN.value):
                     unique_entities.add(key)
-
+        
         for code in self.mentioned_countries:
             if code and code not in ("DOM", "GLO"):
                 unique_entities.add(code)
@@ -2664,34 +2664,60 @@ class Tracker:
         UNIT_BASE = 100.0
         INTL_BOOSTER = 1.0
         BOOSTER_STEP = 0.01
-
+        
         sorted_entities = sorted(list(unique_entities))
         log_details = []
-
+        
         for entity in sorted_entities:
             weight = 0.005
             if entity in _CODE_TO_WEIGHT:
                 weight = _CODE_TO_WEIGHT[entity]
             elif entity in REGION_WEIGHTS:
                 weight = REGION_WEIGHTS[entity]
-
+            
             # Dynamic contribution
             contribution = UNIT_BASE * (1 + (weight * 10)) * INTL_BOOSTER
             virtual_total += contribution
-
+            
             log_details.append(f"{entity}(w={weight:.2f})")
-
+            
             INTL_BOOSTER += BOOSTER_STEP
 
         self.global_total = round(virtual_total)
-
+        
         log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
         if len(log_details) > 5:
-            log_msg += f" Details: {', '.join(log_details[:5])}..."
+             log_msg += f" Details: {', '.join(log_details[:5])}..."
         else:
-            log_msg += f" Details: {', '.join(log_details)}"
-
+             log_msg += f" Details: {', '.join(log_details)}"
+             
         self.resolution_log.append(log_msg)
+
+        # Distribute to populate country/region totals for fallback
+        dist_entities = [{"key": self.domestic_country_code}]
+        for entity in sorted_entities:
+            dist_entities.append({"key": entity})
+            
+        distribution, note = weighted_division(
+            self.global_total, 
+            dist_entities, 
+            use_labor_weights=False, 
+            domestic_country=self.domestic_country_code
+        )
+        
+        for key, val in distribution.items():
+            # Determine if region or country
+            is_region = key in REGION_CODES or key in [r.value for r in Region]
+            
+            if is_region:
+                if self.region_totals.get(key, 0) == 0:
+                    self.region_totals[key] = val
+            else:
+                if self.country_totals.get(key, 0) == 0:
+                    self.country_totals[key] = val
+        
+        if note:
+            self.resolution_log.append(f"Distributed Virtual Pool: {note}")
 
     def resolve_coverage(self):
         """
@@ -2748,7 +2774,6 @@ class Tracker:
                 Region.ASIA_PACIFIC,
                 Region.LATIN_AMERICA,
                 Region.MIDDLE_EAST_AFRICA,
-                Region.INTERNATIONAL,
             ]
         )
 
@@ -2783,7 +2808,7 @@ class Tracker:
                 else:
                     scope_key = Scope.GLOBAL
                     scope_type = Scope.GLOBAL.value
-
+            
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
                 if country_code:
@@ -2918,7 +2943,7 @@ class Tracker:
 
                 # Determine available population
                 available_pop = estimated_pop - consumed_pop
-
+                
                 # Decide whether to use the full available remainder or a conservative fallback
                 use_conservative = False
                 distributable_pop = 0.0
@@ -2954,7 +2979,7 @@ class Tracker:
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
                         log_msg += f" (Distributed among {num_segments} segments)"
-
+                    
                     if use_conservative:
                         log_msg += " (Conservative 0.1% - Scope Full)"
 
@@ -3049,7 +3074,7 @@ class Tracker:
                 continue
 
             log(f"\n  Processing Region: {r_name}")
-
+            
             # [A] Calculate Bottom-Up Aggregation (Countries)
             c_agg_covered = 0.0
             c_agg_total = 0.0
@@ -3159,22 +3184,22 @@ class Tracker:
                 (e for e in self.entries if e.scope == Scope.REGION and e.key == r_name),
                 None,
             )
-
+            
             r_covered = 0.0
             r_total = 0.0
             has_data = False
 
             # [C] Reconcile Bottom-Up vs Top-Down
             use_regional = False
-
+            
             if r_entry and (r_entry.covered_count is not None or r_entry.percentage is not None):
                 log(f"      ✓ Found region entry: {r_entry.key}")
-
+                
                 # Extract Regional Data
                 td_covered = 0.0
                 td_total = 0.0
                 td_has_data = False
-
+                
                 if r_entry.covered_count is not None:
                     td_covered = r_entry.covered_count
                     td_total = r_entry.total_count if r_entry.total_count else 0.0
@@ -3183,7 +3208,7 @@ class Tracker:
                     td_covered = (r_entry.percentage / 100.0) * r_entry.total_count
                     td_total = r_entry.total_count
                     td_has_data = True
-
+                
                 # Decision Logic
                 if td_has_data:
                     # If Bottom-Up Total is significantly larger than Regional Total, prefer Bottom-Up
@@ -3549,118 +3574,6 @@ class UnionAnalyzer:
         Local wrapper for geographic context determination.
         """
         return determine_geo_context(analysis, last_context, current_idx, last_idx)
-
-    # def _map_assignments_to_geo(self, analysis: SentenceAnalysis, assignments: List[Dict]) -> List[Dict]:
-    #     """
-    #     Maps count assignments to explicit geographic entities in the sentence.
-    #     """
-    #     geo_match_objs = [m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT]
-    #     raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
-
-    #     aligned_geos = []
-    #     # Align matches (assuming order preservation)
-    #     if len(geo_match_objs) == len(raw_geo_matches):
-    #         for obj, raw in zip(geo_match_objs, raw_geo_matches):
-    #             aligned_geos.append({"obj": obj, "span": raw["span"]})
-    #     else:
-    #         return []
-
-    #     # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
-    #     # If we have equal number of assignments and locations, assume 1-to-1 mapping in order
-    #     if len(assignments) == len(aligned_geos):
-    #         # Sort both by position
-    #         s_assign = sorted(assignments, key=lambda x: x["match"]["span"][0])
-    #         s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
-    #         splits = []
-    #         for item, g in zip(s_assign, s_geos):
-    #             obj = g["obj"]
-    #             splits.append({
-    #                 "val": item["match"]["val"],
-    #                 "type": item["type"],
-    #                 "region": obj.region.value,
-    #                 "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-    #                 "note": f"Mapped to {obj.country}"
-    #             })
-    #         return splits
-
-    #     # 1.5 Shared Assignment Split (1 count, multiple locations)
-    #     if len(assignments) == 1 and len(aligned_geos) > 1:
-    #         item = assignments[0]
-    #         c_span = item["match"]["span"]
-
-    #         s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
-
-    #         is_list = True
-    #         for i in range(len(s_geos) - 1):
-    #             e1 = s_geos[i]
-    #             e2 = s_geos[i+1]
-    #             gap_text = analysis.text[e1["span"][1]:e2["span"][0]]
-    #             clean_gap = re.sub(r"[,\s]|and|&|or", "", gap_text, flags=re.IGNORECASE)
-    #             if clean_gap and len(gap_text) > 15:
-    #                 is_list = False
-    #                 break
-
-    #         if is_list:
-    #             split_val = item["match"]["val"] / len(aligned_geos)
-    #             splits = []
-    #             for g in s_geos:
-    #                 obj = g["obj"]
-    #                 splits.append({
-    #                     "val": split_val,
-    #                     "type": item["type"],
-    #                     "region": obj.region.value,
-    #                     "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-    #                     "note": f"Split from list to {obj.country}"
-    #                 })
-    #             return splits
-
-    #     # 2. Greedy Proximity Mapping (Fallback)
-    #     pairs = []
-    #     for i, item in enumerate(assignments):
-    #         c_span = item["match"]["span"]
-    #         c_mid = (c_span[0] + c_span[1]) / 2
-
-    #         for j, g in enumerate(aligned_geos):
-    #             g_mid = (g["span"][0] + g["span"][1]) / 2
-    #             dist = abs(c_mid - g_mid)
-    #             pairs.append({
-    #                 "dist": dist,
-    #                 "assign_idx": i,
-    #                 "geo_idx": j
-    #             })
-
-    #     pairs.sort(key=lambda x: x["dist"])
-
-    #     used_assign = set()
-    #     used_geo = set()
-    #     mapping = {} # assign_idx -> geo_idx
-
-    #     # Allow reuse if we have more assignments than locations (e.g. "20 union, 30 non-union in China")
-    #     allow_reuse = len(assignments) > len(aligned_geos)
-
-    #     for p in pairs:
-    #         if p["assign_idx"] not in used_assign:
-    #             if allow_reuse or p["geo_idx"] not in used_geo:
-    #                 if p["dist"] < 150:
-    #                     mapping[p["assign_idx"]] = p["geo_idx"]
-    #                     used_assign.add(p["assign_idx"])
-    #                     used_geo.add(p["geo_idx"])
-
-    #     splits = []
-    #     # Process assignments in original order to preserve logic
-    #     for i, item in enumerate(assignments):
-    #         if i in mapping:
-    #             g = aligned_geos[mapping[i]]
-    #             obj = g["obj"]
-    #             splits.append({
-    #                 "val": item["match"]["val"],
-    #                 "type": item["type"],
-    #                 "region": obj.region.value,
-    #                 "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-    #                 "note": f"Mapped to {obj.country}"
-    #             })
-
-    #     return splits
 
     def analyze_paragraph(
         self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None
