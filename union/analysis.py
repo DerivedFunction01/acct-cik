@@ -79,7 +79,7 @@ UNION_MATCH_TYPES = [
     MatchType.UNION_NAME,
 ]
 
-# Delimiters: , ; or words like while, although, but, however
+# Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
     r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet|compar(ed?|ing|ison))\b|(?:,)(?!(?:\s+or))\b",
     re.IGNORECASE,
@@ -1415,9 +1415,19 @@ class ComplexCoverageAnalyzer:
         def is_connected(idx1, idx2):
             if is_global_context:
                 return True
-            if count_assignments[idx1]["seg_idx"] == count_assignments[idx2]["seg_idx"]:
+            
+            s1 = count_assignments[idx1]["seg_idx"]
+            s2 = count_assignments[idx2]["seg_idx"]
+            if s1 == s2:
                 return True
-            return False
+            
+            # Allow connection across soft delimiters (commas) but not hard ones
+            start, end = min(s1, s2), max(s1, s2)
+            for i in range(start, end):
+                delim = segments[i][2].strip()
+                if delim != ",":
+                    return False
+            return True
 
         # Forward Propagation
         for i in range(len(count_assignments) - 1):
