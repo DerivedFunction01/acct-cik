@@ -270,7 +270,7 @@ class SimpleCoverageAnalyzer:
         # 1. Explicit "OR" relationship (Equivalence -> Count is Subset)
         if OR_REGEX.search(between):
             is_count_total = False
-            notes.append("Logic: OR detected -> Count is Covered")
+            notes.append("Logic: OR/BY detected -> Count is Covered")
         # 2. Explicit "OF" relationship (Partitive -> Count is Total)
         elif OF_REGEX.search(between):
             is_count_total = True
