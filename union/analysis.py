@@ -2341,6 +2341,22 @@ class Tracker:
                (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
         ]
         if not relevant_entries:
+            # Check if this is a region code (container) to avoid zeroing out composites
+            if country_code in REGION_CODES:
+                self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region code.")
+                return
+            if census_total > 0:
+                self.entries.append(Entry(
+                    scope=Scope.COUNTRY,
+                    key=country_code,
+                    total_count=census_total,
+                    covered_count=0.0,
+                    not_covered_count=census_total,
+                    percentage=0.0,
+                    is_explicit=False,
+                    is_negated=True
+                ))
+                self.resolution_log.append(f"Inferred 0% coverage for {country_code}: Census {census_total} exists but no union entries found.")
             return
         # Check if sum of segments exceeds census total (indicating census was just a large segment)
         segments = [
@@ -2374,6 +2390,18 @@ class Tracker:
         self._inject_placeholders(region_name)
         entries = self._get_region_entries(region_name)
         if not entries:
+            if region_total > 0:
+                self.entries.append(Entry(
+                    scope=Scope.REGION,
+                    key=region_name,
+                    total_count=region_total,
+                    covered_count=0.0,
+                    not_covered_count=region_total,
+                    percentage=0.0,
+                    is_explicit=False,
+                    is_negated=True
+                ))
+                self.resolution_log.append(f"Inferred 0% coverage for {region_name}: Census {region_total} exists but no union entries found.")
             return
         self._resolve_overlaps_list(region_name, entries)
 
@@ -2417,6 +2445,13 @@ class Tracker:
             val = self.country_totals.pop("DOM")
             self.country_totals[target_country] = max(self.country_totals.get(target_country, 0), val)
             self.resolution_log.append(f"Remapped country total DOM ({val}) to {target_country}")
+
+        # Remap Region Totals for Domestic
+        for key in [Region.DOMESTIC.value, "Domestic", "DOM"]:
+            if key in self.region_totals:
+                val = self.region_totals.pop(key)
+                self.country_totals[target_country] = max(self.country_totals.get(target_country, 0), val)
+                self.resolution_log.append(f"Remapped region total '{key}' ({val}) to country '{target_country}'")
 
     def _resolve_international_gap(self):
         """
@@ -2696,8 +2731,7 @@ class Tracker:
 
         # 1. Aggregate Regions (Bottom-Up FIRST)
         log("\n[STEP 1] Aggregating Regions (Bottom-Up Priority)...")
-        bottom_up_covered = 0.0
-        bottom_up_total = 0.0
+        region_results = {}
 
         for region in Region:
             r_name = region.value
@@ -2850,8 +2884,7 @@ class Tracker:
 
             # C. Update Metrics
             if has_data:
-                bottom_up_covered += r_covered
-                bottom_up_total += r_total
+                region_results[r_name] = {"covered": r_covered, "total": r_total}
                 log(f"    ✓ Region {r_name} data: {r_covered}/{r_total}")
 
                 if r_name not in metrics["derived_regional_coverage"] and r_total > 0:
@@ -2860,6 +2893,32 @@ class Tracker:
                     log(f"      → Stored in derived_regional_coverage: {regional_pct}%")
             else:
                 log(f"    ✗ No data found for region {r_name}")
+
+        # Resolve Overlaps (International vs Specific Regions)
+        # Sum specific regions (NA, EU, APAC, LATAM, MEA)
+        specific_regions = [r.value for r in Region if r not in (Region.INTERNATIONAL, Region.GLOBAL, Region.DOMESTIC, Region.UNKNOWN)]
+        
+        sum_specific_covered = sum(region_results.get(r, {}).get("covered", 0.0) for r in specific_regions)
+        sum_specific_total = sum(region_results.get(r, {}).get("total", 0.0) for r in specific_regions)
+        
+        intl_res = region_results.get(Region.INTERNATIONAL.value, {"covered": 0.0, "total": 0.0})
+        
+        # Logic: If International Total > Sum of Specifics, assume International is the superset (Rest of World)
+        # Otherwise, assume Specifics provide better granularity or International is just a subset/synonym
+        if intl_res["total"] > sum_specific_total:
+            bottom_up_total = intl_res["total"]
+            bottom_up_covered = intl_res["covered"]
+            log(f"    ℹ International ({intl_res['total']}) > Sum of Specifics ({sum_specific_total}). Using International as Non-Domestic Total.")
+        else:
+            bottom_up_total = sum_specific_total
+            bottom_up_covered = sum_specific_covered
+            if intl_res["total"] > 0:
+                log(f"    ℹ Sum of Specifics ({sum_specific_total}) >= International ({intl_res['total']}). Using Specifics.")
+
+        # Add Domestic (should be 0 if routed to US/NA, but add if present as distinct region)
+        dom_res = region_results.get(Region.DOMESTIC.value, {"covered": 0.0, "total": 0.0})
+        bottom_up_total += dom_res["total"]
+        bottom_up_covered += dom_res["covered"]
 
         # 2. Check for Explicit Global Entry (AFTER bottom-up)
         log("\n[STEP 2] Checking for Explicit Global Entry...")
