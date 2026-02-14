@@ -2229,11 +2229,13 @@ class Tracker:
         return base_threshold
 
     def _matches_census(
-        self, val: float, census: float, threshold: float = 0.05
+        self, val: Optional[float] = None, census: Optional[float] = None, threshold: float = 0.05
     ) -> bool:
         """
         Checks if value matches census within threshold or rounding error.
         """
+        if val is None or census is None:
+            return False
         if census == 0:
             return val == 0
 
@@ -2742,10 +2744,11 @@ class Tracker:
         to_remove = []
         
         # Group by normalized key (parent entity) to compare entries for the same entity or its segments
-        by_parent = {}
+        by_parent: Dict[str, List[Entry]] = {}
         for e in entries:
+            assert e.key is not None
             # Normalize key: US::Segment_0 -> US
-            parent_key = e.key.split("::")[0] if e.key and "::" in e.key else e.key
+            parent_key = e.key.split("::")[0]
             if parent_key not in by_parent:
                 by_parent[parent_key] = []
             by_parent[parent_key].append(e)
@@ -2754,11 +2757,12 @@ class Tracker:
             if len(group) < 2:
                 continue
             
+            # 1. Check Not Covered vs (Total - Covered)
             # Find entries with Total and Covered (Source of Truth)
-            sources = [e for e in group if e.total_count is not None and e.covered_count is not None]
+            sources: List[Entry] = [e for e in group if e.total_count is not None and e.covered_count is not None]
             
             # Find entries with Not Covered (Candidates for removal)
-            targets = [e for e in group if e.not_covered_count is not None]
+            targets: List[Entry] = [e for e in group if e.not_covered_count is not None]
             
             for t in targets:
                 if t in sources: # Don't remove self if it has both
@@ -2783,6 +2787,58 @@ class Tracker:
                             # Same key: standard redundancy check
                             to_remove.append(t)
                             self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from another entry)")
+                            break
+
+            # 2. Check Covered vs Covered (with equal or larger Total)
+            covered_entries: List[Entry] = [e for e in group if e.covered_count is not None]
+            
+            for t in covered_entries:
+                if t in to_remove: continue
+                
+                val = t.covered_count
+                t_total = t.total_count or 0
+                
+                for s in covered_entries:
+                    if s is t: continue
+                    if s in to_remove: continue
+                    
+                    s_val = s.covered_count
+                    s_total = s.total_count or 0
+                    
+                    if self._matches_census(val, s_val):
+                        should_remove_t = False
+                        reason = ""
+                        
+                        if s_total > t_total:
+                            should_remove_t = True
+                            reason = f"matches {s.covered_count} from {s.key} with larger total {s.total_count}"
+                        elif s_total == t_total:
+                            # Tie-breakers
+                            if s.is_explicit and not t.is_explicit:
+                                should_remove_t = True
+                                reason = f"duplicate of {s.key}, preferring explicit"
+                            elif not s.is_explicit and t.is_explicit:
+                                pass
+                            elif s.percentage is not None and t.percentage is None:
+                                should_remove_t = True
+                                reason = f"duplicate of {s.key}, preferring percentage"
+                            elif s.percentage is None and t.percentage is not None:
+                                pass
+                            # Use index in 'entries' list as final tie-breaker (keep first)
+                            elif entries.index(s) < entries.index(t):
+                                should_remove_t = True
+                                reason = f"duplicate of {s.key}"
+                        
+                        if should_remove_t:
+                            to_remove.append(t)
+                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} covered ({reason})")
+                            break
+
+                    # Case B: Covered Count matches Total Count (Misclassification)
+                    if s_total > 0 and self._matches_census(val, s_total):
+                        if s_val < s_total:
+                            to_remove.append(t)
+                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} covered (matches total from {s.key}, likely misclassified total)")
                             break
         
         for e in to_remove:
