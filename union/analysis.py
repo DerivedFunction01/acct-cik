@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Dict, Any, Optional, Tuple, Union
+from typing import List, Dict, Any, Optional, Set, Tuple, Union
 import re
 from dataclasses import dataclass, field
 
@@ -990,20 +990,23 @@ class ComplexCoverageAnalyzer:
         if self._handle_percent_of_percent():
             return self.data
 
-        # 2. Mixed Coverage (Resolves specific counts/percents)
-        self._resolve_mixed_coverage(counts=counts)
+        # 2. Local Patterns (Sliding Window for "Count, Percent, Count")
+        excluded_ids = self._resolve_local_patterns()
 
-        # 3. Ratios
+        # 3. Mixed Coverage (Resolves specific counts/percents)
+        self._resolve_mixed_coverage(counts=counts, excluded_match_ids=excluded_ids)
+
+        # 4. Ratios
         if not self.data["percentage"]:
             self._handle_ratios()
 
-        # 4. Calculate Percentage from Counts
+        # 5. Calculate Percentage from Counts
         self._calculate_percentage_from_counts()
 
-        # 5. Calculate Count from Percentage
+        # 6. Calculate Count from Percentage
         self._calculate_count_from_percentage()
 
-        # 6. Handle Negation (if no data yet)
+        # 7. Handle Negation (if no data yet)
         self._handle_negation()
 
         return self.data
@@ -1216,7 +1219,65 @@ class ComplexCoverageAnalyzer:
                         return True
         return False
 
-    def _resolve_mixed_coverage(self, counts: List[float] = []):
+    def _resolve_local_patterns(self) -> Set[int]:
+        """
+        Scans for local arithmetic patterns (e.g. Total * Pct = Part) using a sliding window.
+        Returns a set of match IDs that were consumed.
+        """
+        consumed_indices = set()
+        
+        # Gather all relevant matches sorted by position
+        relevant_types = (MatchType.WORKER_COUNT, MatchType.NUMBER, MatchType.PERCENT)
+        matches = [m for m in self.analysis._matches if m["type"] in relevant_types]
+        matches.sort(key=lambda x: x["span"][0])
+        
+        if len(matches) < 3:
+            return consumed_indices
+
+        # Sliding window of size 3
+        for i in range(len(matches) - 2):
+            window = matches[i:i+3]
+            
+            # Skip if any already consumed
+            if any(id(m) in consumed_indices for m in window):
+                continue
+                
+            # Identify components
+            counts = [m for m in window if m["type"] != MatchType.PERCENT]
+            percents = [m for m in window if m["type"] == MatchType.PERCENT]
+            
+            if len(counts) == 2 and len(percents) == 1:
+                c1 = counts[0]["val"]
+                c2 = counts[1]["val"]
+                pct = percents[0]["val"]
+                
+                # Check math: Total * Pct = Part
+                # Case A: c1 is Total, c2 is Part
+                if c1 > 0 and abs(c1 * (pct/100.0) - c2) < max(1.0, c1*0.01):
+                    self._apply_local_pattern(total_match=counts[0], part_match=counts[1], pct_match=percents[0])
+                    consumed_indices.update(id(m) for m in window)
+                    continue
+                    
+                # Case B: c2 is Total, c1 is Part
+                if c2 > 0 and abs(c2 * (pct/100.0) - c1) < max(1.0, c2*0.01):
+                    self._apply_local_pattern(total_match=counts[1], part_match=counts[0], pct_match=percents[0])
+                    consumed_indices.update(id(m) for m in window)
+                    continue
+                    
+        return consumed_indices
+
+    def _apply_local_pattern(self, total_match, part_match, pct_match):
+        # Determine if Part is Covered or Not Covered based on local context
+        is_negated = check_local_negation(pct_match["span"], self.analysis.text, backward=30, forward=30)
+        
+        # Calculate remainder
+        remainder = total_match["val"] - part_match["val"]
+        
+        apply_coverage_logic(self.data, total=total_match["val"], subset=part_match["val"], is_negated=is_negated)
+        
+        self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_match['val']} is {pct_match['val']}% of {total_match['val']}"
+
+    def _resolve_mixed_coverage(self, counts: List[float] = [], excluded_match_ids: Set[int] = set()):
         """
         Resolves mixed coverage by segmenting text on delimiters and mapping
         values to keywords within the same segment.
@@ -1235,8 +1296,13 @@ class ComplexCoverageAnalyzer:
             for m in self.analysis._matches
             if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
             and m["val"] in counts
+            and id(m) not in excluded_match_ids
         ]
-        percents = [m for m in self.analysis._matches if m["type"] == MatchType.PERCENT]
+        percents = [
+            m for m in self.analysis._matches 
+            if m["type"] == MatchType.PERCENT
+            and id(m) not in excluded_match_ids
+        ]
 
         positives = [
             m
