@@ -2370,6 +2370,31 @@ class Tracker:
             if (e.scope == Scope.COUNTRY and e.key == country_code) or 
                (e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{country_code}::"))
         ]
+
+        # Backfill total for the country entry itself if it exists
+        # This ensures placeholders get the distributed virtual total
+        country_entry = next((e for e in relevant_entries if e.scope == Scope.COUNTRY and e.key == country_code), None)
+        if country_entry:
+            if country_entry.total_count is None and census_total > 0:
+                country_entry.total_count = census_total
+                self.resolution_log.append(f"Backfilled total for {country_code}: {census_total}")
+            elif country_entry.total_count is not None and census_total > country_entry.total_count:
+                 # Update if census is larger (e.g. from virtual pool)
+                 old = country_entry.total_count
+                 country_entry.total_count = census_total
+                 self.resolution_log.append(f"Updated total for {country_code} from {old} to {census_total} (census match)")
+            
+            # If we have a total but no coverage data, and it's not a union record (e.g. placeholder), infer 0%
+            if (country_entry.total_count is not None and country_entry.total_count > 0 and
+                country_entry.covered_count is None and country_entry.percentage is None and
+                not country_entry.is_union_record):
+                
+                country_entry.covered_count = 0.0
+                country_entry.not_covered_count = country_entry.total_count
+                country_entry.percentage = 0.0
+                country_entry.is_negated = True
+                self.resolution_log.append(f"Inferred 0% coverage for {country_code} (Placeholder with Total)")
+
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
             # Also skip GLO (Global) as it is a container for everything
