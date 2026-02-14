@@ -81,7 +81,7 @@ REMAIN_REGEX = build_regex(
 )
 
 CONSIST_REGEX = build_regex([r"consist(?:s|ed|ing)?"])
-OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?", r"and", r";"])
+OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?"])
 OR_REGEX = build_regex([r"or", r"\(", r"\)"])
 TOT_PCT_CNT_REGEX = build_regex([r"by", r"(?:we|a)re", r"ha(?:s|d|ve)"])
 TOTAL_MODIFIER_REGEX = build_regex(

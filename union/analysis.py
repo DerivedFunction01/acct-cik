@@ -278,7 +278,7 @@ class SimpleCoverageAnalyzer:
 
         # 0.1 X% ... consists 1000
         if CONSIST_REGEX.search(between) and pct_before_cnt:
-            is_count_total = True
+            is_count_total = False
         # 1. Explicit "OR" relationship (Equivalence -> Count is Subset)
         elif OR_REGEX.search(between):
             is_count_total = False
@@ -288,7 +288,8 @@ class SimpleCoverageAnalyzer:
             is_count_total = True
             notes.append("Logic: OF detected -> Count is Total")
         elif pct_before_cnt:
-            is_count_total = True
+            is_count_total = False
+            notes.append("Logic: PCT before Count (no subset indicator) -> Count is Total")
         # 3. Proximity to Union Term (Heuristic)
         else:
             dist_pct = get_min_distance_to_matches(pct_match["span"], analysis._matches, UNION_MATCH_TYPES)
