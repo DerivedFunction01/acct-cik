@@ -80,7 +80,7 @@ REMAIN_REGEX = build_regex(
     [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", r"other", r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
 )
 
-CONSIST_REGEX = build_regex([r"consist(?:s|ed|ing)?"])
+CONSIST_REGEX = build_regex([r"(?:consist|compris)(?:s|ed|es|ing)?"])
 OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?"])
 OR_REGEX = build_regex([r"or", r"\(", r"\)"])
 TOT_PCT_CNT_REGEX = build_regex([r"by", r"(?:we|a)re", r"ha(?:s|d|ve)"])
