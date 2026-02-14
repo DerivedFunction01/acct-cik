@@ -81,7 +81,7 @@ UNION_MATCH_TYPES = [
 
 # Delimiters: , ; or words like while, although, but, however
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet|compar(ed?|ing|ison))|(?:,)(?!(?:\s+or))\b",
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet|compar(ed?|ing|ison))\b|(?:,)(?!(?:\s+or))\b",
     re.IGNORECASE,
 )
 
@@ -1396,10 +1396,17 @@ class ComplexCoverageAnalyzer:
             # Find segment index
             c_mid = (c["span"][0] + c["span"][1]) / 2
             seg_idx = get_seg_idx(c_mid)
+            
+            seg_text = ""
+            if 0 <= seg_idx < len(segments):
+                s_start, s_end, _ = segments[seg_idx]
+                seg_text = self.analysis.text[s_start:s_end].strip()
 
             # Get local type
             ctype = get_nearest_type_in_segment(c["span"])
-            count_assignments.append({"match": c, "type": ctype, "seg_idx": seg_idx})
+            count_assignments.append(
+                {"match": c, "type": ctype, "seg_idx": seg_idx, "seg_text": seg_text}
+            )
 
         # 5. Propagate Types (List Logic)
         # Sort by position
@@ -1420,7 +1427,7 @@ class ComplexCoverageAnalyzer:
             ):
                 if is_connected(i, i + 1):
                     count_assignments[i + 1]["type"] = count_assignments[i]["type"]
-                    logic_notes.append("Propagated Forward")
+                    logic_notes.append(f"Propagated {count_assignments[i]['type']} Forward")
 
         # Backward Propagation
         for i in range(len(count_assignments) - 1, 0, -1):
@@ -1430,11 +1437,23 @@ class ComplexCoverageAnalyzer:
             ):
                 if is_connected(i, i - 1):
                     count_assignments[i - 1]["type"] = count_assignments[i]["type"]
-                    logic_notes.append("Propagated Backward")
+                    logic_notes.append(f"Propagated {count_assignments[i]['type']} Backward")
 
         self.data["_count_assignments"] = count_assignments
 
+        # Check if we have enough data to calculate percentage later
+        has_covered = self.data["employee_count_covered"] is not None
+        has_not_covered = self.data["employee_count_not_covered"] is not None
+        has_total = self.data["employee_count_total"] is not None
+
+        can_calculate_pct = (has_covered and has_total) or \
+                            (has_not_covered and has_total) or \
+                            (has_covered and has_not_covered)
+
         for p in percents:
+            if can_calculate_pct:
+                continue
+
             ptype = get_nearest_type_in_segment(p["span"])
             adj_val, note = apply_qualitative_multipliers(
                 p["val"], p["span"], self.analysis.text, apply=True
@@ -1459,24 +1478,30 @@ class ComplexCoverageAnalyzer:
             if ctype == "covered":
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
+                logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
+                logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":
                 total_candidates.append(val)
+                logic_notes.append(f"Assigned {val} to total")
 
         if total_candidates:
             self.data["employee_count_total"] = sum(total_candidates)
+            if len(total_candidates) > 1:
+                logic_notes.append(f"Summed totals: {total_candidates}")
 
         if (
-            self.data["employee_count_covered"]
-            and self.data["employee_count_not_covered"]
+            self.data["employee_count_covered"] is not None
+            and self.data["employee_count_not_covered"] is not None
             and not self.data["employee_count_total"]
         ):
             self.data["employee_count_total"] = (
                 self.data["employee_count_covered"]
                 + self.data["employee_count_not_covered"]
             )
+            logic_notes.append(f"Inferred total {self.data['employee_count_total']} from parts")
 
         if logic_notes:
             current_note = self.data["note"] or ""
@@ -5201,6 +5226,14 @@ class UnionAnalyzer:
             splits = []
             for item, g in zip(s_assign, s_geos):
                 obj = g["obj"]
+                
+                note = f"Mapped to {obj.country}"
+                if item.get("seg_text"):
+                    seg_snippet = item["seg_text"]
+                    if len(seg_snippet) > 40:
+                        seg_snippet = seg_snippet[:40] + "..."
+                    note += f" [Seg: '{seg_snippet}']"
+
                 splits.append(
                     {
                         "val": item["match"]["val"],
@@ -5209,7 +5242,7 @@ class UnionAnalyzer:
                         "countries": [
                             {"name": obj.country, "code": obj.geo_code, "locations": []}
                         ],
-                        "note": f"Mapped to {obj.country}",
+                        "note": note,
                     }
                 )
             return splits

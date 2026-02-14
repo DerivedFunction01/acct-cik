@@ -180,7 +180,7 @@ SUBSET_REGEX = build_regex([
     r"of\s+(?:which|whom|these|those)",
     r"includ(?:ing|es?)",
     r"compris(?:ing|es?|ed)",
-    r"with",
+    r",\s+with",
     r"from",
     r"within",
     r"consist(?:ing|s|ed)?",
