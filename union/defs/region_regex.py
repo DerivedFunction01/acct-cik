@@ -2855,7 +2855,7 @@ BUSINESS_BOOSTER = {
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
 
-TAX_HAVEN_PENALTY = 0.10  # Reduce weight by 80% for tax havens
+TAX_HAVEN_PENALTY = 0.05  # Reduce weight by 80% for tax havens
 
 class RegionMatcher:
     """
