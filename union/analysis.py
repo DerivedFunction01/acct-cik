@@ -2214,7 +2214,13 @@ class Tracker:
                                 scope=scope,
                                 key=code,
                                 total_count=known_total,
-                                is_explicit=False
+                                is_explicit=False,
+                                is_union_record=e.is_union_record,
+                                is_qualitative=e.is_qualitative,
+                                qualitative_bounds=e.qualitative_bounds,
+                                is_remaining=e.is_remaining,
+                                is_negated=e.is_negated,
+                                is_dummy_percent=e.is_dummy_percent
                             )
                             self.entries.append(new_entry)
                             targets = [new_entry]
@@ -2232,8 +2238,8 @@ class Tracker:
                                     if t.total_count:
                                         t.covered_count = round((pct / 100.0) * t.total_count)
 
-                                if e.is_union_record:
-                                    t.is_union_record = True
+                            if e.is_union_record:
+                                t.is_union_record = True
 
     def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
         """
