@@ -1523,7 +1523,7 @@ def determine_geo_context(
             c.pop("region_enum", None)
 
         region_val = (
-            Region.INTERNATIONAL.value
+            Region.AGGREGATE.value
             if len(regions) > 1
             else (list(regions)[0].value if regions else Region.UNKNOWN.value)
         )
@@ -1885,6 +1885,9 @@ class Tracker:
             else:
                 scope = Scope.REGION
                 key = region
+        elif region == Region.AGGREGATE.value:
+            scope = Scope.AGGREGATE
+            key = Region.AGGREGATE.value
         elif region == Region.UNKNOWN.value:
             if "DOM" in codes:
                 key = self.domestic_country_code
@@ -2272,6 +2275,9 @@ class Tracker:
 
     def _get_region_entries(self, region_name: str) -> List[Entry]:
         relevant = []
+        # Dynamic definition for International: Include all non-domestic regions
+        is_international_agg = (region_name == Region.INTERNATIONAL.value)
+
         for e in self.entries:
             # 1. Direct Region Match
             if e.scope == Scope.REGION and e.key == region_name:
@@ -2295,6 +2301,12 @@ class Tracker:
                 # Check mapping
                 if _CODE_TO_REGION.get(code) == region_name:
                     relevant.append(e)
+        
+        if is_international_agg:
+             # Include other Region entries (e.g. Europe, Asia) to treat International as superset
+             for e in self.entries:
+                 if e.scope == Scope.REGION and e.key not in (Region.INTERNATIONAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value, Region.GLOBAL.value, Region.AGGREGATE.value):
+                     relevant.append(e)
         return relevant
 
     def _inject_placeholders(self, region_name: str):
@@ -2473,7 +2485,7 @@ class Tracker:
         
         for r in Region:
             r_name = r.value
-            if r_name in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+            if r_name in (Region.INTERNATIONAL.value, Region.UNKNOWN.value, Region.AGGREGATE.value, Region.GLOBAL.value, Region.DOMESTIC.value):
                 continue
                 
             # 1. Check for Region Entry
@@ -2551,8 +2563,14 @@ class Tracker:
         for country_code, census_total in self.country_totals.items():
             self._resolve_single_country(country_code, census_total)
 
-        # 2. Resolve Regions
-        for region_name, region_total in self.region_totals.items():
+        # 2. Resolve Regions (Specific First, then International)
+        # We sort to ensure International comes last, so it can aggregate resolved children
+        sorted_regions = sorted(
+            self.region_totals.keys(),
+            key=lambda r: 1 if r == Region.INTERNATIONAL.value else 0
+        )
+        for region_name in sorted_regions:
+            region_total = self.region_totals[region_name]
             self._resolve_single_region(region_name, region_total)
             
         # 3. Resolve International Gap
@@ -2735,8 +2753,8 @@ class Tracker:
 
         for region in Region:
             r_name = region.value
-            if r_name == "Unknown":
-                log(f"  ⊘ Skipping 'Unknown' region")
+            if r_name in [Region.UNKNOWN.value, Region.AGGREGATE.value]:
+                log(f"  ⊘ Skipping 'Unknown'/'Aggregate' region")
                 continue
 
             log(f"\n  Processing Region: {r_name}")
@@ -2908,7 +2926,7 @@ class Tracker:
         sum_specific_covered = 0.0
 
         for r_name, res in region_results.items():
-            if r_name in (Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value):
+            if r_name in (Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value, Region.AGGREGATE.value):
                 continue
             
             sum_specific_total += res["total"]

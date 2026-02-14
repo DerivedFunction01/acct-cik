@@ -17,6 +17,7 @@ class Region(Enum):
     UNKNOWN = "Unknown"
     DOMESTIC = "Domestic"
     GLOBAL = "Global"
+    AGGREGATE = "Aggregate"
 
 
 class GeoSource(Enum):
