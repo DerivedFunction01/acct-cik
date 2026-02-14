@@ -2762,7 +2762,7 @@ INT_UNION_MAP = {
             "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios", "Obrera", "Obreras",
             "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Mineiros", "Mineros",
             "Automotivos", "Automotrices", "Construção", "Construcción", "Comércio", "Comercio", "Transportes", "Transporte", "Correios", "Correos",
-            "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía", "Sindical"
+            "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía", "Sindical", "Nacional",
         ],
         ["Sindicato", "Federação", "Federación", "Confederação", "Confederación", "União", "Unión", "Union", "Central", "Associação", "Asociación"],
         r"(?:\s+(?:del?|dos?|das?|des?|e|y|para|los?|las?|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",

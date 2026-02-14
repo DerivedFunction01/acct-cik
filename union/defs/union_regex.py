@@ -161,9 +161,10 @@ for code, (workers, unions, gap) in INT_UNION_MAP.items():
     if workers and unions:
         # Build specific pattern for this language code
         p_workers = build_compound(unions, workers, sep_prefix=gap)
+        p_workers2 = build_compound(workers, unions, sep_prefix=gap)
         p_unions = build_compound(unions, unions, sep_prefix=gap)
-        _foreign_dynamic.extend([p_workers, p_unions])
-        FOREIGN_DYNAMIC_PATTERNS[code] = build_regex([p_workers, p_unions], ignore_case=True)
+        _foreign_dynamic.extend([p_workers, p_unions, p_workers2])
+        FOREIGN_DYNAMIC_PATTERNS[code] = build_regex([p_workers, p_unions, p_workers2], ignore_case=True)
 
 _CORE_DYNAMIC_PATTERN = build_alternation(
     [
