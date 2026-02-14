@@ -5386,7 +5386,21 @@ class UnionAnalyzer:
 
         # Align matches (assuming order preservation in extraction)
         if len(geo_match_objs) == len(raw_geo_matches):
+            # Pre-calculate strong codes for refinement
+            strong_codes = {}
+            for obj in geo_match_objs:
+                if obj.geo_code and not obj.geo_code.startswith("INT_") and obj.geo_code not in ["INT", "GLO"]:
+                    strong_codes[obj.geo_code] = obj
+
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                # Refine INT_ codes
+                if obj.geo_code and obj.geo_code.startswith("INT_") and obj.geo_code in INT_LANGUAGE_MAP:
+                    allowed = INT_LANGUAGE_MAP[obj.geo_code]
+                    intersection = set(strong_codes.keys()).intersection(allowed)
+                    if len(intersection) == 1:
+                        target_code = list(intersection)[0]
+                        obj = strong_codes[target_code]
+
                 # Use Region Name for generic accumulators, Code for countries
                 key = obj.geo_code
                 if obj.geo_code in REGION_CODES and obj.geo_code != "DOM":
@@ -5413,7 +5427,21 @@ class UnionAnalyzer:
         aligned_geos = []
         # Align matches (assuming order preservation)
         if len(geo_match_objs) == len(raw_geo_matches):
+            # Pre-calculate strong codes for refinement
+            strong_codes = {}
+            for obj in geo_match_objs:
+                if obj.geo_code and not obj.geo_code.startswith("INT_") and obj.geo_code not in ["INT", "GLO"]:
+                    strong_codes[obj.geo_code] = obj
+
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                # Refine INT_ codes
+                if obj.geo_code and obj.geo_code.startswith("INT_") and obj.geo_code in INT_LANGUAGE_MAP:
+                    allowed = INT_LANGUAGE_MAP[obj.geo_code]
+                    intersection = set(strong_codes.keys()).intersection(allowed)
+                    if len(intersection) == 1:
+                        target_code = list(intersection)[0]
+                        obj = strong_codes[target_code]
+
                 aligned_geos.append({"obj": obj, "span": raw["span"]})
         else:
             return []
