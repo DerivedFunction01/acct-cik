@@ -2574,7 +2574,7 @@ class Tracker:
                             e.is_dummy_percent = True
                             self.resolution_log.append(f"Applied inferred rate {e.percentage}% to {e.key} (Source: External Est. Data)")
                         else:
-                            e.percentage = 1.0
+                            e.percentage = 0
                             e.is_qualitative = True
                             e.is_dummy_percent = True
                             # self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
@@ -2595,9 +2595,67 @@ class Tracker:
         This allows weight-based distribution to function for 'union name only' scenarios.
         """
         has_unions = any(e.is_union_record for e in self.entries)
-        if has_unions:
-            self.global_total = 10000.0
-            self.resolution_log.append("Injected Virtual Global Pool (10,000) due to lack of census data.")
+        if not has_unions:
+            return
+
+        # Base for home country
+        virtual_total = 1000.0
+        
+        # Identify unique geographic entities mentioned
+        unique_entities = set()
+        for e in self.entries:
+            if e.scope in (Scope.COUNTRY, Scope.REGION, Scope.SEGMENT):
+                key = str(e.key)
+                if e.scope == Scope.SEGMENT and "::" in key:
+                    key = key.split("::")[0]
+                
+                if key and key not in (Region.GLOBAL.value, Region.GLOBAL, Region.AGGREGATE.value, Scope.AGGREGATE, Region.AGGREGATE, Region.UNKNOWN, Region.UNKNOWN.value):
+                    unique_entities.add(key)
+        
+        for code in self.mentioned_countries:
+            if code and code not in ("DOM", "GLO"):
+                unique_entities.add(code)
+
+        # Remove domestic from set
+        if self.domestic_country_code in unique_entities:
+            unique_entities.remove(self.domestic_country_code)
+        # Also remove "Domestic" aliases
+        for d in ["DOM", Region.DOMESTIC, Region.DOMESTIC.value]:
+            if d in unique_entities:
+                unique_entities.remove(d)
+
+        # Parameters
+        UNIT_BASE = 200.0
+        INTL_BOOSTER = 1.0
+        BOOSTER_STEP = 0.01
+        
+        sorted_entities = sorted(list(unique_entities))
+        log_details = []
+        
+        for entity in sorted_entities:
+            weight = 0.005
+            if entity in _CODE_TO_WEIGHT:
+                weight = _CODE_TO_WEIGHT[entity]
+            elif entity in REGION_WEIGHTS:
+                weight = REGION_WEIGHTS[entity]
+            
+            # Dynamic contribution
+            contribution = UNIT_BASE * (1 + (weight * 10)) * INTL_BOOSTER
+            virtual_total += contribution
+            
+            log_details.append(f"{entity}(w={weight:.2f})")
+            
+            INTL_BOOSTER += BOOSTER_STEP
+
+        self.global_total = round(virtual_total)
+        
+        log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
+        if len(log_details) > 5:
+             log_msg += f" Details: {', '.join(log_details[:5])}..."
+        else:
+             log_msg += f" Details: {', '.join(log_details)}"
+             
+        self.resolution_log.append(log_msg)
 
     def resolve_coverage(self):
         """
