@@ -993,6 +993,9 @@ class ComplexCoverageAnalyzer:
         # 2. Local Patterns (Sliding Window for "Count, Percent, Count")
         excluded_ids = self._resolve_local_patterns()
 
+        # Refresh counts to include any virtual matches injected by local patterns
+        counts = get_effective_counts(self.analysis)
+
         # 3. Mixed Coverage (Resolves specific counts/percents)
         self._resolve_mixed_coverage(counts=counts, excluded_match_ids=excluded_ids)
 
@@ -1276,6 +1279,20 @@ class ComplexCoverageAnalyzer:
         apply_coverage_logic(self.data, total=total_match["val"], subset=part_match["val"], is_negated=is_negated)
         
         self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_match['val']} is {pct_match['val']}% of {total_match['val']}"
+
+        # Inject virtual remainder for subsequent analysis
+        if remainder > 0:
+            # Use the end of the pattern as the position for the virtual match
+            span_start = max(total_match["span"][1], part_match["span"][1], pct_match["span"][1])
+            virtual_match = {
+                "type": MatchType.WORKER_COUNT,
+                "val": remainder,
+                "span": (span_start, span_start),
+                "text": "VIRTUAL_REMAINDER",
+            }
+            self.data["note"] += f" | Virtual remainder: {remainder}. "
+            self.analysis._matches.append(virtual_match)
+            self.analysis.worker_counts.append(remainder)
 
     def _resolve_mixed_coverage(self, counts: List[float] = [], excluded_match_ids: Set[int] = set()):
         """
