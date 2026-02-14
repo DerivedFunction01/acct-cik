@@ -3409,6 +3409,7 @@ def _build_region_labor_rates_map(country_rates, country_weights):
 
 REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
 DOMESTIC_BOOSTER = 2.5
+DOMESTIC_MAX = 4
 def weighted_division(
     val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False, domestic_country: Optional[str] = None
 ) -> Tuple[Dict[str, float], str]:
@@ -3426,6 +3427,7 @@ def weighted_division(
     # 1. Map keys to raw weights
     key_to_weight = {}
     note = "" if not use_labor_weights else "Labor weights applied. "
+    use_booster = len(entities) < DOMESTIC_MAX
     for e in entities:
         key = e["key"]
         w = 0.0005  # Default weight (small country)
@@ -3447,9 +3449,10 @@ def weighted_division(
             w *= rate
 
         # Apply Domestic Booster
-        if domestic_country and key == domestic_country:
-            w *= DOMESTIC_BOOSTER
-            note = f"Domestic: {domestic_country} boosted (x{DOMESTIC_BOOSTER}). "
+        if (domestic_country and key == domestic_country):
+            if use_booster:
+                w *= DOMESTIC_BOOSTER
+            note = f"Domestic: {domestic_country} boosted (x{DOMESTIC_BOOSTER}). " if use_booster else f"Too many entities. Booster (x{DOMESTIC_BOOSTER}) not applied for {domestic_country}. "
 
         key_to_weight[key] = w
 
@@ -3461,7 +3464,7 @@ def weighted_division(
         # If domestic share is low (< 35%) despite booster, force it up.
         if total_w > 0:
             share = dom_w / total_w
-            if share < 0.35:
+            if share < 0.35 and use_booster:
                 others_w = total_w - dom_w
                 # Target 40% share: new_dom / (others + new_dom) = 0.4 => new_dom = 0.4 * others / 0.6
                 new_dom_w = others_w * (0.4 / 0.6)
