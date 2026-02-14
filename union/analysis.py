@@ -4223,7 +4223,7 @@ class UnionAnalyzer:
                         local_map[head["key"]] = c["val"]
                         children = group[1:]
                         if children:
-                            child_map, c_note = weighted_division(c["val"], children, use_labor_weights=use_labor_weights)
+                            child_map, c_note = weighted_division(c["val"], children, use_labor_weights=use_labor_weights, domestic_country=self.domestic_country_code)
                             local_map.update(child_map)
                             if c_note:
                                 notes.append(c_note)
@@ -4266,7 +4266,7 @@ class UnionAnalyzer:
                         valid_group = self._remove_container_regions(group)
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
-                        group_map, g_note = weighted_division(c["val"], valid_group, use_labor_weights=use_labor_weights)
+                        group_map, g_note = weighted_division(c["val"], valid_group, use_labor_weights=use_labor_weights, domestic_country=self.domestic_country_code)
                         local_map.update(group_map)
                         if g_note:
                             cluster_notes.append(g_note)
@@ -4284,7 +4284,7 @@ class UnionAnalyzer:
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
-                local_map, w_note = weighted_division(count_val, valid_entities, use_labor_weights=use_labor_weights)
+                local_map, w_note = weighted_division(count_val, valid_entities, use_labor_weights=use_labor_weights, domestic_country=self.domestic_country_code)
                 final_note = "Naive Split" + filtered_note
                 if w_note:
                     final_note += f" | {w_note}"

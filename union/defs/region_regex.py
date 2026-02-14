@@ -3395,9 +3395,9 @@ def _build_region_labor_rates_map(country_rates, country_weights):
     return r_rates
 
 REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
-
+DOMESTIC_BOOSTER = 2.5
 def weighted_division(
-    val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False
+    val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False, domestic_country: Optional[str] = None
 ) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
@@ -3412,7 +3412,7 @@ def weighted_division(
 
     # 1. Map keys to raw weights
     key_to_weight = {}
-    
+    note = ""
     for e in entities:
         key = e["key"]
         w = 0.0005  # Default weight (small country)
@@ -3423,15 +3423,20 @@ def weighted_division(
         # Check if key is a country code
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]
-          
+
         if use_labor_weights:
             rate = 0.15  # Default average rate if unknown
             if key in REGION_LABOR_RATES:
                 rate = REGION_LABOR_RATES[key]
             elif key in _CODE_TO_LABOR_RATE:
                 rate = _CODE_TO_LABOR_RATE[key]
-            
+
             w *= rate
+
+        # Apply Domestic Booster
+        if domestic_country and key == domestic_country:
+            w *= DOMESTIC_BOOSTER
+            note = f"Domestic: {domestic_country} boosted (x{DOMESTIC_BOOSTER}). "
 
         key_to_weight[key] = w
 
@@ -3460,7 +3465,7 @@ def weighted_division(
             used_clusters.append(region_code)
             # Remove from remaining
             remaining_keys -= intersection
-    
+
     # Add remaining as individual groups
     for k in sorted(list(remaining_keys)):
         groups.append({
@@ -3471,9 +3476,9 @@ def weighted_division(
 
     # 3. Distribute val among groups based on group weights
     total_group_weight = sum(g["weight"] for g in groups)
-    
+
     final_distribution = {}
-    
+
     if total_group_weight == 0:
         # Fallback: equal split among all entities
         split_val = int(val / len(entities))
@@ -3485,7 +3490,7 @@ def weighted_division(
 
     # Distribute to groups
     val_remaining = int(val)
-    
+
     for i, group in enumerate(groups):
         # Calculate group share
         if i == len(groups) - 1:
@@ -3494,13 +3499,13 @@ def weighted_division(
             share = (group["weight"] / total_group_weight) * val
             group_share = int(round(share))
             val_remaining -= group_share
-            
+
         # 4. Distribute inside group
         if group["is_cluster"]:
             # Smooth weights inside cluster: sqrt(weight)
             member_weights = {k: key_to_weight[k] ** 0.5 for k in group["keys"]}
             total_member_weight = sum(member_weights.values())
-            
+
             if total_member_weight == 0:
                 # Equal split inside cluster
                 sub_split = int(group_share / len(group["keys"]))
@@ -3522,9 +3527,8 @@ def weighted_division(
             k = group["keys"][0]
             final_distribution[k] = group_share
 
-    note = ""
     if used_clusters:
-        note = f"Smoothed Clusters: {', '.join(used_clusters)}"
+        note += f"Smoothed Clusters: {', '.join(used_clusters)}"
 
     return final_distribution, note
 
