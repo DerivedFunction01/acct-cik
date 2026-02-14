@@ -3144,7 +3144,7 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
                 continue
 
     if df is None or "code" not in df.columns:
-        return {}
+        return {}, {}
 
     # # -------------------------------
     # # 🔥 MANUAL OVERRIDES GO HERE
@@ -3209,12 +3209,19 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
         if code in df["code"].values:
             df.loc[df["code"] == code, "weight"] *= penalty
 
-    return df.set_index("code")["weight"].to_dict()
+    weights = df.set_index("code")["weight"].to_dict()
+    labor_rates = {}
+    if "labor_rate" in df.columns:
+        labor_rates = df.set_index("code")["labor_rate"].to_dict()
 
+    return weights, labor_rates
+
+
+_EXTERNAL_WEIGHTS, _CODE_TO_LABOR_RATE = _load_external_weights()
 
 def _build_code_to_weight_map():
     mapping = {}
-    external_weights = _load_external_weights()
+    external_weights = _EXTERNAL_WEIGHTS
     # Add language buckets from INT_LANGUAGE_MAP
     for code, countries in INT_LANGUAGE_MAP.items():
         COMPOSITE_REGION_MAP[code] = list(countries)
@@ -3313,6 +3320,81 @@ def _build_region_weights_map(country_weights):
     return r_weights
 
 REGION_WEIGHTS = _build_region_weights_map(_CODE_TO_WEIGHT)
+
+def _build_region_labor_rates_map(country_rates, country_weights):
+    """Aggregates country labor rates to determine region labor rates (weighted average)."""
+    r_rates = {}
+    region_to_codes = {}
+
+    all_regions = [
+        NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, MIDDLE_EAST_AFRICA, INTERNATIONAL
+    ]
+
+    for r_set in all_regions:
+        for nation in r_set:
+            if nation.code and nation.code in country_rates:
+                r_val = nation.region.value
+                if r_val not in region_to_codes:
+                    region_to_codes[r_val] = []
+                region_to_codes[r_val].append(nation.code)
+
+    for r_val, codes in region_to_codes.items():
+        total_weight = 0.0
+        weighted_sum = 0.0
+        count = 0
+
+        for c in codes:
+            rate = country_rates[c]
+            weight = country_weights.get(c, 0.0)
+
+            weighted_sum += rate * weight
+            total_weight += weight
+            count += 1
+
+        if total_weight > 0:
+            r_rates[r_val] = weighted_sum / total_weight
+        elif count > 0:
+            # Simple average if no weights
+            r_rates[r_val] = sum(country_rates[c] for c in codes) / count
+
+    # Map Region Codes
+    for r_set in all_regions:
+        for nation in r_set:
+            if nation.code in ["INT", "DOM", "GLO"]:
+                continue
+            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "NA"]:
+                if nation.region.value in r_rates:
+                    r_rates[nation.code] = r_rates[nation.region.value]
+                    # Also update the country-level map for the region code itself
+                    country_rates[nation.code] = r_rates[nation.region.value]
+
+    # Calculate rates for Composite Regions
+    for code, constituents in COMPOSITE_REGION_MAP.items():
+        total_weight = 0.0
+        weighted_sum = 0.0
+        count = 0
+
+        for c in constituents:
+            if c in country_rates:
+                rate = country_rates[c]
+                weight = country_weights.get(c, 0.0)
+
+                weighted_sum += rate * weight
+                total_weight += weight
+                count += 1
+
+        if total_weight > 0:
+            avg_rate = weighted_sum / total_weight
+            country_rates[code] = avg_rate
+            r_rates[code] = avg_rate
+        elif count > 0:
+            avg_rate = sum(country_rates[c] for c in constituents if c in country_rates) / count
+            country_rates[code] = avg_rate
+            r_rates[code] = avg_rate
+
+    return r_rates
+
+REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
 
 def weighted_division(
     val: float, entities: List[Dict[str, Any]]
