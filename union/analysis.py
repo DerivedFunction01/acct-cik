@@ -971,6 +971,7 @@ class ComplexCoverageAnalyzer:
             "type": CoverageType.NONE.value,
             "qualitative_bounds": None,
             "note": None,
+            "_count_assignments": [],
         }
 
     def analyze(self) -> Dict[str, Any]:
@@ -991,6 +992,7 @@ class ComplexCoverageAnalyzer:
             return self.data
 
         # 2. Local Patterns (Sliding Window for "Count, Percent, Count")
+        # Returns indices to exclude from generic processing, but queues assignments internally
         excluded_ids = self._resolve_local_patterns()
 
         # Refresh counts to include any virtual matches injected by local patterns
@@ -1231,6 +1233,7 @@ class ComplexCoverageAnalyzer:
         Scans for local arithmetic patterns (e.g. Total * Pct = Part) using a sliding window.
         Returns a set of match IDs that were consumed.
         """
+        self.local_assignments = []
         consumed_indices = set()
         
         # Gather all relevant matches sorted by position
@@ -1331,8 +1334,10 @@ class ComplexCoverageAnalyzer:
         
         if pct_first:
             between = self.analysis.text[pct_match["span"][1]:count_match["span"][0]]
+            base_span = count_match["span"]
         else:
             between = self.analysis.text[count_match["span"][1]:pct_match["span"][0]]
+            base_span = pct_match["span"]
             
         is_count_total = True # Default assumption
         
@@ -1359,10 +1364,16 @@ class ComplexCoverageAnalyzer:
             subset_val = round((pct / 100.0) * count)
             if is_negated:
                 not_covered_val = subset_val
-                covered_val = total_val - subset_val
+                covered_val = max(0, total_val - subset_val)
+                self.local_assignments.append({"match": count_match, "type": "total"})
+                self.local_assignments.append({"match": {"val": not_covered_val, "span": base_span}, "type": "not_covered"})
+                self.local_assignments.append({"match": {"val": covered_val, "span": base_span}, "type": "covered"})
             else:
                 covered_val = subset_val
-                not_covered_val = total_val - subset_val
+                not_covered_val = max(0, total_val - subset_val)
+                self.local_assignments.append({"match": count_match, "type": "total"})
+                self.local_assignments.append({"match": {"val": covered_val, "span": base_span}, "type": "covered"})
+                self.local_assignments.append({"match": {"val": not_covered_val, "span": base_span}, "type": "not_covered"})
             note_suffix = "(Total)"
         else:
             # Count is subset
@@ -1372,27 +1383,16 @@ class ComplexCoverageAnalyzer:
             else:
                 total_val = count # Avoid div by zero
             
-            if is_negated:
-                not_covered_val = subset_val
-                covered_val = total_val - subset_val
-            else:
-                covered_val = subset_val
-                not_covered_val = total_val - subset_val
             note_suffix = "(Subset)"
+            
+            # For subset, we map the explicit count to its type, and the derived total to the same span
+            if is_negated:
+                self.local_assignments.append({"match": count_match, "type": "not_covered"})
+            else:
+                self.local_assignments.append({"match": count_match, "type": "covered"})
+            
+            self.local_assignments.append({"match": {"val": total_val, "span": count_match["span"]}, "type": "total"})
 
-        # Accumulate
-        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total_val
-        self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + covered_val
-        self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + not_covered_val
-        
-        if self.data["percentage"] is None:
-             self.data["percentage"] = pct
-             self.data["type"] = CoverageType.EXPLICIT_PERCENT.value
-        else:
-             # Multiple percentages -> Calculated type
-             self.data["percentage"] = None # Force recalculation from accumulated counts
-             self.data["type"] = CoverageType.CALCULATED.value
-             
         self.data["note"] = (self.data["note"] or "") + f" | Local pair: {pct}%/{count} {note_suffix}"
 
     def _apply_local_pattern(self, total_match, part_match, pct_match):
@@ -1403,24 +1403,19 @@ class ComplexCoverageAnalyzer:
         part_val = part_match["val"]
         pct_val = pct_match["val"]
         
-        if is_negated:
-            not_covered_val = part_val
-            covered_val = total_val - part_val
-        else:
-            covered_val = part_val
-            not_covered_val = total_val - part_val
-            
-        # Accumulate
-        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total_val
-        self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + covered_val
-        self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + not_covered_val
+        # Queue assignments instead of updating data directly
+        self.local_assignments.append({"match": total_match, "type": "total"})
         
-        if self.data["percentage"] is None:
-             self.data["percentage"] = pct_val
-             self.data["type"] = CoverageType.CALCULATED.value
+        if is_negated:
+            self.local_assignments.append({"match": part_match, "type": "not_covered"})
+            # Add virtual remainder
+            rem_val = max(0, total_val - part_val)
+            self.local_assignments.append({"match": {"val": rem_val, "span": total_match["span"]}, "type": "covered"})
         else:
-             self.data["percentage"] = None
-             self.data["type"] = CoverageType.CALCULATED.value
+            self.local_assignments.append({"match": part_match, "type": "covered"})
+            # Add virtual remainder
+            rem_val = max(0, total_val - part_val)
+            self.local_assignments.append({"match": {"val": rem_val, "span": total_match["span"]}, "type": "not_covered"})
         
         self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_val} is {pct_val}% of {total_val}"
 
@@ -1447,14 +1442,17 @@ class ComplexCoverageAnalyzer:
         part_match = m1 if m1["val"] == part else m2
         is_negated = check_local_negation(part_match["span"], self.analysis.text, backward=30, forward=30)
         
-        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total
+        # Queue assignments
+        # Total is the max value match
+        total_match = m1 if m1["val"] == total else m2
+        self.local_assignments.append({"match": total_match, "type": "total"})
         
         if is_negated:
-            self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + part
-            self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + (total - part)
+            self.local_assignments.append({"match": part_match, "type": "not_covered"})
+            self.local_assignments.append({"match": {"val": max(0, total - part), "span": total_match["span"]}, "type": "covered"})
         else:
-            self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + part
-            self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + (total - part)
+            self.local_assignments.append({"match": part_match, "type": "covered"})
+            self.local_assignments.append({"match": {"val": max(0, total - part), "span": total_match["span"]}, "type": "not_covered"})
             
         self.data["note"] = (self.data["note"] or "") + f" | Local subset: {part} of {total}"
         return True
@@ -1693,6 +1691,22 @@ class ComplexCoverageAnalyzer:
             count_assignments.append(
                 {"match": c, "type": ctype, "seg_idx": seg_idx, "seg_text": seg_text}
             )
+            
+        # 4b. Inject Local Assignments (from _resolve_local_patterns)
+        if hasattr(self, "local_assignments") and self.local_assignments:
+            for la in self.local_assignments:
+                c = la["match"]
+                # Calculate segment info for these too
+                c_mid = (c["span"][0] + c["span"][1]) / 2
+                seg_idx = get_seg_idx(c_mid)
+                seg_text = ""
+                if 0 <= seg_idx < len(segments):
+                    s_start, s_end, _ = segments[seg_idx]
+                    seg_text = self.analysis.text[s_start:s_end].strip()
+                
+                count_assignments.append(
+                    {"match": c, "type": la["type"], "seg_idx": seg_idx, "seg_text": seg_text}
+                )
 
         # 5. Propagate Types (List Logic)
         # Sort by position
@@ -6393,6 +6407,13 @@ class UnionAnalyzer:
                         analysis, relevant_assignments
                     )
                     if len(splits) > 1:
+                        unique_scopes = set()
+                        for s in splits:
+                            c_code = s["countries"][0]["code"]
+                            unique_scopes.add((s["region"], c_code))
+                        if len(unique_scopes) <= 1:
+                            splits = []
+                            
                         for s in splits:
                             new_geo_context = {
                                 "region": s["region"],
