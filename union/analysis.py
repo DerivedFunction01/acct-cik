@@ -3900,14 +3900,17 @@ class UnionAnalyzer:
                 if len(target_parts) == len(groups):
                     s_counts = sorted(target_parts, key=lambda x: x["span"][0])
                     local_map = {}
+                    notes = ["Hierarchical Grouping"]
                     for c, group in zip(s_counts, groups):
                         head = group[0]
                         local_map[head["key"]] = c["val"]
                         children = group[1:]
                         if children:
-                            child_map = weighted_division(c["val"], children)
+                            child_map, c_note = weighted_division(c["val"], children)
                             local_map.update(child_map)
-                    return local_map, "Hierarchical Grouping"
+                            if c_note:
+                                notes.append(c_note)
+                    return local_map, " | ".join(notes)
             return None
 
         def try_list_grouping(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
@@ -3941,13 +3944,20 @@ class UnionAnalyzer:
                     s_counts = sorted(curr_parts, key=lambda x: x["span"][0])
                     local_map = {}
                     filtered_note = ""
+                    cluster_notes = []
                     for c, group in zip(s_counts, groups):
                         valid_group = self._remove_container_regions(group)
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
-                        group_map = weighted_division(c["val"], valid_group)
+                        group_map, g_note = weighted_division(c["val"], valid_group)
                         local_map.update(group_map)
-                    return local_map, "List Grouping" + filtered_note
+                        if g_note:
+                            cluster_notes.append(g_note)
+                    
+                    final_note = "List Grouping" + filtered_note
+                    if cluster_notes:
+                        final_note += " | " + "; ".join(cluster_notes)
+                    return local_map, final_note
             return None
 
         def try_naive_split(curr_parts, curr_entities) -> Optional[Tuple[Dict[str, float], str]]:
@@ -3957,8 +3967,11 @@ class UnionAnalyzer:
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
-                local_map = weighted_division(count_val, valid_entities)
-                return local_map, "Naive Split" + filtered_note
+                local_map, w_note = weighted_division(count_val, valid_entities)
+                final_note = "Naive Split" + filtered_note
+                if w_note:
+                    final_note += f" | {w_note}"
+                return local_map, final_note
             return None
 
         def resolve_subset(curr_parts, curr_entities) -> Tuple[Dict[str, float], str]:

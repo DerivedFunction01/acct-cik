@@ -3315,7 +3315,7 @@ REGION_WEIGHTS = _build_region_weights_map(_CODE_TO_WEIGHT)
 
 def weighted_division(
     val: float, entities: List[Dict[str, Any]]
-) -> Dict[str, float]:
+) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
     Applies hierarchical clustering:
@@ -3325,7 +3325,7 @@ def weighted_division(
     4. Distributes within clusters using smoothed weights (sqrt).
     """
     if not entities:
-        return {}
+        return {}, ""
 
     # 1. Map keys to raw weights
     key_to_weight = {}
@@ -3346,6 +3346,7 @@ def weighted_division(
     # 2. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
     groups = [] # List of dicts: {keys: [], weight: float, is_cluster: bool}
+    used_clusters = []
 
     # Sort composite regions by size (specificity) - smallest first
     sorted_composites = sorted(COMPOSITE_REGION_MAP.items(), key=lambda x: len(x[1]))
@@ -3364,6 +3365,7 @@ def weighted_division(
                 "weight": w_sum,
                 "is_cluster": True
             })
+            used_clusters.append(region_code)
             # Remove from remaining
             remaining_keys -= intersection
     
@@ -3387,7 +3389,7 @@ def weighted_division(
         remainder = int(val) - (split_val * len(entities))
         for i, e in enumerate(entities):
             final_distribution[e["key"]] = split_val + (1 if i < remainder else 0)
-        return final_distribution
+        return final_distribution, ""
 
     # Distribute to groups
     val_remaining = int(val)
@@ -3428,7 +3430,11 @@ def weighted_division(
             k = group["keys"][0]
             final_distribution[k] = group_share
 
-    return final_distribution
+    note = ""
+    if used_clusters:
+        note = f"Smoothed Clusters: {', '.join(used_clusters)}"
+
+    return final_distribution, note
 
 
 def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
