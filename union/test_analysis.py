@@ -141,7 +141,7 @@ consisting of 2,000 in Romania and Bulgaria, with the remaining in Slovakia. We 
 Extended Asia region, of which 3,000 are in Mongolia and 1,500 in Laos, with the remaining in Timor‑Leste and Brunei. 
 Our Caribbean and Lesser Antilles division includes 3,500 employees, with 1,200 in Saint Lucia, 1,000 in Dominica, and 
 the remaining in Grenada. In the Nordic Microstates cluster, we employ 1,100 workers, including 400 in Iceland, 300 in 
-the Faroe Islands, and the remaining in Åland. Our European Micro‑Territories group consists of 2,400 employees, with 1,000 
+the Faroe Islands. Our European Micro‑Territories group consists of 2,400 employees, with 1,000 
 in Luxembourg, 800 in Andorra, and the remaining in Liechtenstein. Finally, we have 4,200 employees in the Balkan 
 Extended Region, of which 1,800 are in Moldova and 1,200 in North Macedonia, with the remaining in Kosovo. We also have 
 5,000 employees across Belgium, Austria, and Portugal. Our Nordic operations employ 2,000 people in Norway, Denmark,
