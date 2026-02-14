@@ -365,7 +365,7 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
     + RELATIONSHIP_NEUTRAL_TERMS
 )
 
-BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", "relations?", "closely", "publically", "disclos(?:ed?|es|ing)", "disclosures?", "believe(?:s|d)?", "oppos(?:es?|ed|ing)"]
+BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", r"expect(?:ed|ing|s|ations?)?", r"relations?", "closely", "publically", r"disclos(?:ed?|es|ing)", r"disclosures?", r"believe(?:s|d)?", r"oppos(?:es?|ed|ing)"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
