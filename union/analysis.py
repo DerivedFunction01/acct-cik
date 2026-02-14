@@ -1752,7 +1752,7 @@ class Tracker:
         if len(countries) == 1:
             c = countries[0]
             code = c["code"]
-            
+
             # Check for disjoint regions (e.g. "US and Europe")
             is_disjoint = False
             if regions:
@@ -1762,7 +1762,7 @@ class Tracker:
                     if r_name and r_name != country_region_name:
                         is_disjoint = True
                         break
-            
+
             if not is_disjoint:
                 if code == "DOM":
                     code = self.domestic_country_code
@@ -2075,7 +2075,7 @@ class Tracker:
             if e.covered_count is None and e.percentage is not None:
                 # Apply if total is unknown OR matches the census (i.e. it's a country-wide rate)
                 if e.total_count is None or self._matches_census(e.total_count, census_total):
-                    
+
                     # Safety: Don't assume a segment covers the entire census, unless we only have a single segment
                     if e.scope == Scope.SEGMENT and e.total_count is None:
                         segment_count = sum(
@@ -2083,7 +2083,7 @@ class Tracker:
                         )
                         if segment_count > 1:
                             continue
-                    
+
                     # Also skip if census is missing (fallback handler will try broader scopes)
                     if census_total <= 0:
                         continue
@@ -2303,12 +2303,12 @@ class Tracker:
                 # Check mapping
                 if _CODE_TO_REGION.get(code) == region_name:
                     relevant.append(e)
-        
+
         if is_international_agg:
-             # Include other Region entries (e.g. Europe, Asia) to treat International as superset
-             for e in self.entries:
-                 if e.scope == Scope.REGION and e.key not in (Region.INTERNATIONAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value, Region.GLOBAL.value, Region.AGGREGATE.value):
-                     relevant.append(e)
+            # Include other Region entries (e.g. Europe, Asia) to treat International as superset
+            for e in self.entries:
+                if e.scope == Scope.REGION and e.key not in (Region.INTERNATIONAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value, Region.GLOBAL.value, Region.AGGREGATE.value):
+                    relevant.append(e)
         return relevant
 
     def _inject_placeholders(self, region_name: str):
@@ -2426,7 +2426,7 @@ class Tracker:
     def _route_domestic(self, target_country: Optional[str] = None):
         if target_country is None:
             target_country = self.domestic_country_code
-            
+
         # Fallback for truly unknown domestic code
         if target_country in ["DOM", "Domestic", "Unknown", None]:
             target_country = "US"
@@ -2477,44 +2477,44 @@ class Tracker:
 
         # Find International Entry (Scope.REGION)
         intl_entry = next((e for e in self.entries if e.scope == Scope.REGION and e.key == Region.INTERNATIONAL.value), None)
-        
+
         # If we don't have an International entry to fill, or it already has a total, skip
         if not intl_entry or intl_entry.total_count is not None:
             return
 
         # Calculate sum of other regions
         resolved_region_totals = {}
-        
+
         for r in Region:
             r_name = r.value
             if r_name in (Region.INTERNATIONAL.value, Region.UNKNOWN.value, Region.AGGREGATE.value, Region.GLOBAL.value, Region.DOMESTIC.value):
                 continue
-                
+
             # 1. Check for Region Entry
             r_entry = next((e for e in self.entries if e.scope == Scope.REGION and e.key == r_name), None)
             if r_entry and r_entry.total_count:
                 resolved_region_totals[r_name] = r_entry.total_count
                 continue
-                
+
             # 2. Sum Countries (using max per country code to avoid duplicates)
             c_entries = [e for e in self.entries if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name]
-            
+
             c_totals = {}
             for e in c_entries:
                 if e.total_count:
                     c_totals[e.key] = max(c_totals.get(e.key, 0), e.total_count)
-            
+
             if c_totals:
                 resolved_region_totals[r_name] = sum(c_totals.values())
 
         sum_others = sum(resolved_region_totals.values())
-        
+
         if sum_others < self.global_total:
             gap = self.global_total - sum_others
             if gap > 0:
                 intl_entry.total_count = gap
                 self.resolution_log.append(f"Resolved International Total: {gap} (Global {self.global_total} - Others {sum_others})")
-                
+
                 if intl_entry.percentage is not None:
                     intl_entry.covered_count = round((intl_entry.percentage / 100.0) * gap)
                     self.resolution_log.append(f"Resolved International Count: {intl_entry.percentage}% of {gap}")
@@ -2529,7 +2529,7 @@ class Tracker:
         # 1. Identify negated scopes
         negated_keys = set()
         negated_geos = set()
-        
+
         for e in self.entries:
             if e.is_negated:
                 negated_keys.add(e.key)
@@ -2542,14 +2542,14 @@ class Tracker:
             # Also allow if it's an existing dummy (1.0%) that needs a count calculated
             is_candidate = (e.is_union_record and e.percentage is None and e.covered_count is None and e.not_covered_count is None and not e.is_negated)
             is_existing_dummy = (e.is_union_record and e.percentage == 1.0 and e.covered_count is None and not e.is_negated)
-            
+
             if is_candidate or is_existing_dummy:
                 # Check negation conflicts (Key or Related Geo)
                 if e.key not in negated_keys and not any(g in negated_geos for g in e.related_geo_codes):
                     if e.percentage is None:
                         # Try to find rate from external data
                         rate = None
-                        
+
                         # 3. Try Segment (Country::...)
                         if isinstance(e.key, str):
                             code = e.key.split("::")[0]
@@ -2590,48 +2590,67 @@ class Tracker:
         for region_name in sorted_regions:
             region_total = self.region_totals[region_name]
             self._resolve_single_region(region_name, region_total)
-            
+
         # 3. Resolve International Gap
         self._resolve_international_gap()
-        
+
         # 4. Apply dummy percentages (Final fallback for backfilled totals)
         self._apply_dummy_union_percentage()
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
         self._apply_fallback_denominators()
-                         
+
     def _apply_fallback_denominators(self):
         """
         Applies a conservative denominator (0.1% of population) to entries that have a percentage
         but lack a total count (usually due to safety checks preventing census inheritance).
         Uses weights to scale the population if inheriting from a broader scope.
+        Distributes population if multiple segments map to the same scope.
         """
-        global_weight = sum(REGION_WEIGHTS.values())
+        global_weight = sum(
+            REGION_WEIGHTS.get(r.value, 0.0)
+            for r in [
+                Region.NORTH_AMERICA,
+                Region.EUROPE,
+                Region.ASIA_PACIFIC,
+                Region.LATIN_AMERICA,
+                Region.MIDDLE_EAST_AFRICA,
+                Region.INTERNATIONAL,
+            ]
+        )
+
+        # Group candidates by scope to distribute population
+        candidates_by_scope = {}
 
         for e in self.entries:
             # Only target entries with percentage but no counts
-            if e.percentage is not None and e.total_count is None and e.covered_count is None:
-                
-                # Determine base population for fallback
-                base_pop = 0.0
-                geo_name = "Unknown"
-                
-                # Determine Target Weight
-                target_weight = 0.0
+            if (
+                e.percentage is not None
+                and e.total_count is None
+                and e.covered_count is None
+            ):
+
+                # Determine Target Scope
                 country_code = None
-                
-                # Try to find relevant population
+                scope_key = None
+                scope_type = None
+
                 # 1. Country Level
                 if e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
                     country_code = e.key.split("::")[0]
+                    scope_key = country_code
+                    scope_type = Scope.COUNTRY.value
                 elif e.scope == Scope.COUNTRY:
                     country_code = e.key
-                
-                if country_code:
-                    target_weight = _CODE_TO_WEIGHT.get(country_code, 0.0)
+                    scope_key = country_code
+                    scope_type = Scope.COUNTRY.value
                 elif e.scope == Scope.REGION and e.key:
-                    target_weight = REGION_WEIGHTS.get(e.key, 0.0)
-                
+                    scope_key = e.key
+                    scope_type = Scope.REGION.value
+                else:
+                    scope_key = Scope.GLOBAL
+                    scope_type = Scope.GLOBAL.value
+            
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
                 if country_code:
@@ -2641,8 +2660,8 @@ class Tracker:
                         scopes_to_check.add(r_name)
                 elif e.scope == Scope.REGION and e.key:
                     scopes_to_check.add(e.key)
-                scopes_to_check.add("GLO")
-                scopes_to_check.add(Scope.GLOBAL.value)
+                # scopes_to_check.add("GLO")
+                # scopes_to_check.add(Scope.GLOBAL.value)
 
                 is_scope_negated = False
                 for check_e in self.entries:
@@ -2659,7 +2678,11 @@ class Tracker:
                         in_scope = True
                     else:
                         # If we are targeting a country, include any segment entries like "CN::..."
-                        if country_code and isinstance(check_e.key, str) and check_e.key.startswith(f"{country_code}::"):
+                        if (
+                            country_code
+                            and isinstance(check_e.key, str)
+                            and check_e.key.startswith(f"{country_code}::")
+                        ):
                             in_scope = True
                         # If check_e is a country whose region is in scopes_to_check, include it
                         if not in_scope and isinstance(check_e.key, str):
@@ -2672,68 +2695,99 @@ class Tracker:
 
                     if (check_e.is_negated or has_zero) and in_scope:
                         is_scope_negated = True
-                        self.resolution_log.append(f"Skipped fallback for {e.key}: Negation or zero found for {check_e.key}")
+                        self.resolution_log.append(
+                            f"Skipped fallback for {e.key}: Negation or zero found for {check_e.key}"
+                        )
                         break
-                
+
                 if is_scope_negated:
                     continue
 
-                source_weight = 0.0
+                # Add to candidates
+                key = (scope_type, scope_key)
+                if key not in candidates_by_scope:
+                    candidates_by_scope[key] = []
+                candidates_by_scope[key].append(e)
 
-                if country_code:
-                    geo_name = country_code
-                    base_pop = self.country_totals.get(country_code, 0.0)
-                    if base_pop > 0:
-                        source_weight = target_weight
-                    
-                    # 2. Region Level (if country empty)
-                    if base_pop <= 0:
-                        r_name = _CODE_TO_REGION.get(country_code)
-                        if r_name:
-                            base_pop = self.region_totals.get(r_name, 0.0)
-                            geo_name = r_name
-                            source_weight = REGION_WEIGHTS.get(r_name, 0.0)
-                
-                elif e.scope == Scope.REGION:
-                    geo_name = e.key
-                    base_pop = self.region_totals.get(e.key, 0.0) if e.key is not None else 0
-                    if base_pop > 0:
-                        source_weight = target_weight
+        # Process groups
+        for (scope_type, scope_key), group in candidates_by_scope.items():
+            base_pop = 0.0
+            geo_name = "Unknown"
+            target_weight = 0.0
+            source_weight = 0.0
 
-                # 3. Global Level
-                if base_pop <= 0:
-                    base_pop = self.global_total
-                    geo_name = "Global"
-                    source_weight = global_weight
-
+            # Determine Base Population & Weights
+            if scope_type == Scope.COUNTRY.value:
+                geo_name = scope_key
+                target_weight = _CODE_TO_WEIGHT.get(scope_key, 0.0)
+                base_pop = self.country_totals.get(scope_key, 0.0)
                 if base_pop > 0:
-                    # Scale population if source is broader than target
-                    estimated_pop = base_pop
-                    is_weighted_estimate = False
-                    if source_weight > 0 and target_weight > 0:
-                        # If source is significantly larger (parent scope)
-                        if source_weight > target_weight * 1.05:
-                            estimated_pop = base_pop * (target_weight / source_weight)
-                            is_weighted_estimate = True
-                        elif source_weight >= target_weight * 0.95:
-                            # Same scope (approx equal weights)
-                            is_weighted_estimate = True
+                    source_weight = target_weight
 
-                    # Determine final denominator
-                    # Use full estimate if weighted/scaled OR if scopes match explicitly
-                    scopes_match = (country_code and geo_name == country_code) or \
-                                   (e.scope == Scope.REGION and geo_name == e.key)
-                    
-                    if is_weighted_estimate or scopes_match:
-                        small_denom = max(1.0, round(estimated_pop))
-                    else:
-                        small_denom = max(1.0, round(estimated_pop * 0.001))
+                # Fallback to Region
+                if base_pop <= 0:
+                    r_name = _CODE_TO_REGION.get(scope_key)
+                    if r_name:
+                        base_pop = self.region_totals.get(r_name, 0.0)
+                        geo_name = r_name
+                        source_weight = REGION_WEIGHTS.get(r_name, 0.0)
 
+            elif scope_type == Scope.REGION.value:
+                geo_name = scope_key
+                target_weight = REGION_WEIGHTS.get(scope_key, 0.0)
+                base_pop = self.region_totals.get(scope_key, 0.0)
+                if base_pop > 0:
+                    source_weight = target_weight
+
+            # Fallback to Global
+            if base_pop <= 0:
+                base_pop = self.global_total
+                geo_name = "Global"
+                source_weight = global_weight
+                # If target weight wasn't set (e.g. Global scope target), set it
+                if scope_type == Scope.GLOBAL.value:
+                    target_weight = global_weight
+
+            if base_pop > 0:
+                # Scale population if source is broader than target
+                estimated_pop = base_pop
+                is_weighted_estimate = False
+                if source_weight > 0 and target_weight > 0:
+                    # If source is significantly larger (parent scope)
+                    if source_weight > target_weight * 1.05:
+                        estimated_pop = base_pop * (target_weight / source_weight)
+                        is_weighted_estimate = True
+                    elif source_weight >= target_weight * 0.95:
+                        # Same scope (approx equal weights)
+                        is_weighted_estimate = True
+
+                # Distribute among segments
+                num_segments = len(group)
+                if num_segments > 1:
+                    estimated_pop /= num_segments
+
+                # Determine final denominator
+                # Use full estimate if weighted/scaled OR if scopes match explicitly
+                scopes_match = (scope_type == Scope.COUNTRY.value and geo_name == scope_key) or (
+                    scope_type == Scope.REGION.value and geo_name == scope_key
+                )
+
+                if is_weighted_estimate or scopes_match:
+                    small_denom = max(1.0, round(estimated_pop))
+                else:
+                    small_denom = max(1.0, round(estimated_pop * 0.001))
+
+                for e in group:
                     e.total_count = small_denom
                     e.covered_count = round((e.percentage / 100.0) * small_denom)
-                    
-                    log_msg = f"Resolved COUNT for {e.key} using 0.1% fallback: {e.percentage}% of {small_denom}"
-                    if estimated_pop != base_pop:
+
+                    log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
+                    if num_segments > 1:
+                        log_msg += f" (Distributed among {num_segments} segments)"
+
+                    # Check if scaled (approx check due to float)
+                    total_allocated = estimated_pop * num_segments
+                    if abs(total_allocated - base_pop) > 1.0:
                         log_msg += f" (Scaled from {base_pop} {geo_name} by weight {target_weight:.4f}/{source_weight:.4f})"
                     else:
                         log_msg += f" (Base {base_pop} from {geo_name})"
@@ -2749,7 +2803,7 @@ class Tracker:
                 parts_sum = e.covered_count + e.not_covered_count
                 if parts_sum > e.total_count * 1.05: # 5% tolerance
                     self.resolution_log.append(f"Contradiction (Arithmetic): {e.key} parts ({parts_sum}) exceed total ({e.total_count})")
-            
+
             # Percentage vs Count consistency
             if e.total_count and e.percentage is not None and e.covered_count is not None:
                 implied = (e.percentage / 100.0) * e.total_count
@@ -2764,7 +2818,7 @@ class Tracker:
                 if _CODE_TO_REGION.get(c_code) == region_name
             )
             if c_sum > r_total * 1.05:
-                 self.resolution_log.append(f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})")
+                self.resolution_log.append(f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})")
 
     def validate(self):
         """
@@ -2776,12 +2830,12 @@ class Tracker:
                 if e.covered_count is not None and e.covered_count > e.total_count:
                     self.resolution_log.append(f"Validation: Reduced covered for {e.key} from {e.covered_count} to {e.total_count} (Covered > Total)")
                     e.covered_count = e.total_count
-                
+
                 # 1. Check not Covered vs Total
                 if e.not_covered_count is not None and e.not_covered_count > e.total_count:
                     self.resolution_log.append(f"Validation: Reduced not covered for {e.key} from {e.not_covered_count} to {e.total_count} (Not Covered > Total)")
                     e.not_covered_count = e.total_count
-                
+
                 # 2. Check Sum of Parts vs Total
                 parts_sum = (e.covered_count or 0.0) + (e.not_covered_count or 0.0)
                 if parts_sum > e.total_count * 1.02:
@@ -2926,12 +2980,12 @@ class Tracker:
                                 log(
                                     f"            → Aggregated segments: {seg_cov}/{seg_tot}"
                                 )
-                        
+
                         # Fallback: Check for Segment Percentages if no counts
                         if not c_has_local_data and segs:
                             valid_seg_pcts = [s.percentage for s in segs if s.percentage is not None]
                             if valid_seg_pcts:
-                                # If single segment or multiple, use the first/avg. 
+                                # If single segment or multiple, use the first/avg.
                                 # For single segment (common case), this is accurate.
                                 if len(valid_seg_pcts) == 1:
                                     c_pct_only = valid_seg_pcts[0]
@@ -2992,7 +3046,7 @@ class Tracker:
         for r_name, res in region_results.items():
             if r_name in (Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value, Region.AGGREGATE.value):
                 continue
-            
+
             sum_specific_total += res["total"]
             sum_specific_covered += res["covered"]
 
@@ -3003,7 +3057,7 @@ class Tracker:
                 sum_rest_covered += res["covered"]
 
         intl_res = region_results.get(Region.INTERNATIONAL.value, {"covered": 0.0, "total": 0.0})
-        
+
         # 3. Determine if International is Global
         is_intl_global = False
         if intl_res["total"] > 0:
@@ -3034,7 +3088,7 @@ class Tracker:
                 non_dom_covered = sum_rest_covered
                 if intl_res["total"] > 0:
                     log(f"    ℹ Sum of Rest ({sum_rest_total}) >= International ({intl_res['total']}). Using Rest Specifics.")
-            
+
             bottom_up_total = dom_region_res["total"] + non_dom_total
             bottom_up_covered = dom_region_res["covered"] + non_dom_covered
 
@@ -3118,7 +3172,7 @@ class Tracker:
             if Region.INTERNATIONAL.value in metrics["derived_regional_coverage"]:
                 metrics["likely_percentage"] = metrics["derived_regional_coverage"][Region.INTERNATIONAL.value]
                 log(f"  ✓ Fallback: Using International regional percentage: {metrics['likely_percentage']}%")
-            
+
             # B. If only one region exists (e.g. Domestic/US), assume it represents the whole
             elif len(metrics["derived_regional_coverage"]) == 1:
                 r_name = list(metrics["derived_regional_coverage"].keys())[0]
@@ -3129,16 +3183,16 @@ class Tracker:
         # Calculate Domestic and derive International (Global - Domestic)
         intl_key = Region.INTERNATIONAL.value
         dom_key = Region.DOMESTIC.value
-        
+
         if intl_key not in metrics["derived_regional_coverage"] or dom_key not in metrics["derived_regional_coverage"]:
             log("\n[STEP 4] Calculating Domestic & International Metrics...")
-            
+
             # 1. Calculate Domestic Data (Aggregated)
             dom_covered = 0.0
             dom_total = 0.0
             dom_found = False
             target_dom_code = self.domestic_country_code
-            
+
             # A. Check Country Entry
             c_entry = next((e for e in self.entries if e.scope == Scope.COUNTRY and e.key == target_dom_code), None)
             if c_entry and (c_entry.covered_count is not None or c_entry.percentage is not None):
@@ -3150,7 +3204,7 @@ class Tracker:
                     dom_covered = (c_entry.percentage / 100.0) * c_entry.total_count
                     dom_total = c_entry.total_count
                     dom_found = True
-            
+
             # B. Check Segments (if no country data found)
             if not dom_found:
                 segs = [s for s in self.entries if s.scope == Scope.SEGMENT and s.key and s.key.startswith(f"{target_dom_code}::")]
@@ -3160,7 +3214,7 @@ class Tracker:
                     # If country entry exists but has no coverage data, use its total if larger
                     if c_entry and c_entry.total_count:
                         seg_tot = max(seg_tot, c_entry.total_count)
-                    
+
                     if seg_cov > 0 or seg_tot > 0:
                         dom_covered = seg_cov
                         dom_total = seg_tot
@@ -3169,29 +3223,29 @@ class Tracker:
             # 2. Identify Global Data
             glob_covered = None
             glob_total = None
-            
+
             if global_entry:
                 if global_entry.covered_count is not None:
                     glob_covered = global_entry.covered_count
                 elif global_entry.percentage is not None and global_entry.total_count:
                     glob_covered = (global_entry.percentage / 100.0) * global_entry.total_count
                 glob_total = global_entry.total_count
-            
+
             # Fallback to bottom-up / census
             if glob_covered is None: glob_covered = bottom_up_covered
             if glob_total is None or glob_total == 0: 
                 glob_total = self.global_total if self.global_total > 0 else bottom_up_total
-                
+
             # 3. Store Domestic & Calculate Residual
             if dom_found and dom_total > 0:
                 dom_pct = round((dom_covered / dom_total) * 100.0, 2)
                 metrics["derived_regional_coverage"][dom_key] = dom_pct
                 log(f"  ✓ Domestic ({target_dom_code}): {dom_pct}% ({dom_covered:.0f}/{dom_total:.0f})")
-            
+
             if dom_found and glob_total > 0:
                 intl_covered = max(0.0, (glob_covered or 0.0) - dom_covered)
                 intl_total = max(0.0, glob_total - dom_total)
-                
+
                 # Only proceed if we have a meaningful international population
                 if intl_key not in metrics["derived_regional_coverage"]:
                     if intl_total > 0 and intl_total > (glob_total * 0.01):
