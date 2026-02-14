@@ -2836,14 +2836,14 @@ TAX_HAVEN_CODES = {
     "MU",  # Mauritius
     "PA",  # Panama
 }
-
+TAX_HAVEN_PENALTY = 0.05  # Reduce weight by 80% for tax havens
 # Additional locations to penalize in weight calculations (but not treat as tax havens for home country detection)
 EXTRA_WEIGHT_PENALTY_CODES = {
     "LU": 0.25,  # Luxembourg
     "IE": 0.40,  # Ireland
     "NL": 0.70,  # Netherlands
     "CH": 0.70,  # Switzerland
-    "HK": 0.05,  # Hong Kong
+    "HK": TAX_HAVEN_PENALTY,  # Hong Kong
     "SG": 0.40,  # Singapore
 }
 
@@ -2854,8 +2854,6 @@ BUSINESS_BOOSTER = {
     "KR": 1.5,  # South Korea – real corporate presence to boost it vs Japan
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
-
-TAX_HAVEN_PENALTY = 0.05  # Reduce weight by 80% for tax havens
 
 class RegionMatcher:
     """
