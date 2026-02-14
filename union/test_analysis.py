@@ -16,7 +16,7 @@ from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNum
 ITEM_1 = """
 TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
-our total employee base reached approximately 38,500 across all regions.
+our total employee base reached approximately 44,000 across all regions.
 
 In our United States operations, which employ 16,800 workers, approximately 22% 
 (3,696 employees) are represented by labor unions. Our largest unionized segment 
