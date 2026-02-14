@@ -2636,7 +2636,7 @@ class Tracker:
                 unique_entities.remove(d)
 
         # Parameters
-        UNIT_BASE = 200.0
+        UNIT_BASE = 100.0
         INTL_BOOSTER = 1.0
         BOOSTER_STEP = 0.01
         
@@ -3013,8 +3013,8 @@ class Tracker:
         log("STARTING METRICS CALCULATION (BOTTOM-UP PRIORITY)")
         log("=" * 80)
 
-        # 1. Aggregate Regions (Bottom-Up FIRST)
-        log("\n[STEP 1] Aggregating Regions (Bottom-Up Priority)...")
+        # 1. Aggregate Regions
+        log("\n[STEP 1] Aggregating Regions...")
         region_results = {}
 
         for region in Region:
@@ -3024,140 +3024,167 @@ class Tracker:
                 continue
 
             log(f"\n  Processing Region: {r_name}")
-            r_covered = 0.0
-            r_total = 0.0
+            
+            # [A] Calculate Bottom-Up Aggregation (Countries)
+            c_agg_covered = 0.0
+            c_agg_total = 0.0
+            c_has_data = False
             region_pure_pcts = []  # Store percentages found without counts
-            has_data = False
 
-            # A. Check Region-Level Entry
-            log(f"    [A] Checking region-level entry...")
+            log(f"    [A] Aggregating country-level entries for {r_name}...")
+            c_entries = [
+                e
+                for e in self.entries
+                if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name
+            ]
+            log(f"      Found {len(c_entries)} country entries")
+
+            # Find countries implied by segments that don't have explicit entries
+            existing_codes = {e.key for e in c_entries}
+            segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
+            for s in segment_entries:
+                if s.key and "::" in s.key:
+                    code = s.key.split("::")[0]
+                    if code not in existing_codes and _CODE_TO_REGION.get(code) == r_name:
+                        # Create a dummy entry for iteration
+                        dummy = Entry(scope=Scope.COUNTRY, key=code)
+                        c_entries.append(dummy)
+                        existing_codes.add(code)
+
+            for c in c_entries:
+                log(f"        Processing country: {c.key}")
+                c_cov = 0.0
+                c_tot = 0.0
+                c_has_local_data = False
+                c_pct_only = None
+
+                if c.covered_count is not None:
+                    c_cov = c.covered_count
+                    c_tot = c.total_count if c.total_count else 0.0
+                    c_has_local_data = True
+                    log(f"          → Using covered_count: {c_cov}/{c_tot}")
+                elif c.percentage is not None and c.total_count:
+                    c_cov = (c.percentage / 100.0) * c.total_count
+                    c_tot = c.total_count
+                    c_has_local_data = True
+                    log(
+                        f"          → Calculated from percentage: {c.percentage}% of {c_tot} = {c_cov}"
+                    )
+
+                # Check Segments for this country
+                if not c_has_local_data:
+                    log(f"          → Checking segments for {c.key}...")
+                    segs = [
+                        s
+                        for s in self.entries
+                        if s.scope == Scope.SEGMENT
+                        and s.key
+                        and s.key.startswith(f"{c.key}::")
+                    ]
+                    log(f"            Found {len(segs)} segments")
+                    if segs:
+                        seg_cov = sum(s.covered_count for s in segs if s.covered_count)
+                        seg_tot = (
+                            c.total_count
+                            if c.total_count
+                            else sum(s.total_count for s in segs if s.total_count)
+                        )
+
+                        if seg_cov > 0 or seg_tot > 0:
+                            c_cov = seg_cov
+                            c_tot = seg_tot
+                            c_has_local_data = True
+                            log(
+                                f"            → Aggregated segments: {seg_cov}/{seg_tot}"
+                            )
+
+                    # Fallback: Check for Segment Percentages if no counts
+                    if not c_has_local_data and segs:
+                        valid_seg_pcts = [s.percentage for s in segs if s.percentage is not None]
+                        if valid_seg_pcts:
+                            # If single segment or multiple, use the first/avg.
+                            # For single segment (common case), this is accurate.
+                            if len(valid_seg_pcts) == 1:
+                                c_pct_only = valid_seg_pcts[0]
+                                log(f"            → Found segment percentage: {c_pct_only}%")
+                            else:
+                                # Simple average for multiple unweighted segments
+                                c_pct_only = sum(valid_seg_pcts) / len(valid_seg_pcts)
+                                log(f"            → Found avg segment percentage: {c_pct_only:.2f}%")
+
+                # If still no local data (counts), check if country itself has percentage
+                if not c_has_local_data and c_pct_only is None:
+                    if c.percentage is not None:
+                        c_pct_only = c.percentage
+                        log(f"          → Found country percentage: {c_pct_only}%")
+
+                if c_has_local_data:
+                    c_agg_covered += c_cov
+                    c_agg_total += c_tot
+                    c_has_data = True
+                    log(
+                        f"          ✓ Added to bottom-up total. Sum now: {c_agg_covered}/{c_agg_total}"
+                    )
+                elif c_pct_only is not None:
+                    region_pure_pcts.append(c_pct_only)
+
+            # [B] Check Region-Level Entry
+            log(f"    [B] Checking region-level entry...")
             r_entry = next(
                 (e for e in self.entries if e.scope == Scope.REGION and e.key == r_name),
                 None,
             )
+            
+            r_covered = 0.0
+            r_total = 0.0
+            has_data = False
 
-            if r_entry and (
-                r_entry.covered_count is not None or r_entry.percentage is not None
-            ):
+            # [C] Reconcile Bottom-Up vs Top-Down
+            use_regional = False
+            
+            if r_entry and (r_entry.covered_count is not None or r_entry.percentage is not None):
                 log(f"      ✓ Found region entry: {r_entry.key}")
+                
+                # Extract Regional Data
+                td_covered = 0.0
+                td_total = 0.0
+                td_has_data = False
+                
                 if r_entry.covered_count is not None:
-                    r_covered = r_entry.covered_count
-                    r_total = r_entry.total_count if r_entry.total_count else 0.0
-                    has_data = True
-                    log(f"        → Using covered_count: {r_covered}/{r_total}")
+                    td_covered = r_entry.covered_count
+                    td_total = r_entry.total_count if r_entry.total_count else 0.0
+                    td_has_data = True
                 elif r_entry.percentage is not None and r_entry.total_count:
-                    r_covered = (r_entry.percentage / 100.0) * r_entry.total_count
-                    r_total = r_entry.total_count
-                    has_data = True
-                    log(
-                        f"        → Calculated from percentage: {r_entry.percentage}% of {r_total} = {r_covered}"
-                    )
+                    td_covered = (r_entry.percentage / 100.0) * r_entry.total_count
+                    td_total = r_entry.total_count
+                    td_has_data = True
+                
+                # Decision Logic
+                if td_has_data:
+                    # If Bottom-Up Total is significantly larger than Regional Total, prefer Bottom-Up
+                    # (Implies Region entry is partial or outdated, while countries are specific)
+                    if c_has_data and c_agg_total > td_total * 1.05:
+                        log(f"      ⚠ Contradiction: Sum of Countries ({c_agg_total}) > Region Total ({td_total}). Using Bottom-Up.")
+                        use_regional = False
+                    else:
+                        use_regional = True
+                        r_covered = td_covered
+                        r_total = td_total
+                        has_data = True
+                        log(f"      → Using Regional Entry (Preferred): {r_covered}/{r_total}")
                 elif r_entry.percentage is not None:
+                    # Store percentage if we have no other data
                     metrics["derived_regional_coverage"][r_name] = r_entry.percentage
-                    log(
-                        f"        → Stored percentage only (no total): {r_entry.percentage}%"
-                    )
+                    log(f"      → Stored percentage only (no total): {r_entry.percentage}%")
             else:
                 log(f"      ✗ No region-level entry found")
 
-            # B. If no region-level data, sum Country-Level Entries
-            if not has_data:
-                log(f"    [B] Aggregating country-level entries for {r_name}...")
-                c_entries = [
-                    e
-                    for e in self.entries
-                    if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name
-                ]
-                log(f"      Found {len(c_entries)} country entries")
-
-                # NEW: Find countries implied by segments that don't have explicit entries
-                existing_codes = {e.key for e in c_entries}
-                segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
-                for s in segment_entries:
-                    if s.key and "::" in s.key:
-                        code = s.key.split("::")[0]
-                        if code not in existing_codes and _CODE_TO_REGION.get(code) == r_name:
-                            # Create a dummy entry for iteration
-                            dummy = Entry(scope=Scope.COUNTRY, key=code)
-                            c_entries.append(dummy)
-                            existing_codes.add(code)
-
-                for c in c_entries:
-                    log(f"        Processing country: {c.key}")
-                    c_cov = 0.0
-                    c_tot = 0.0
-                    c_has_local_data = False
-                    c_pct_only = None
-
-                    if c.covered_count is not None:
-                        c_cov = c.covered_count
-                        c_tot = c.total_count if c.total_count else 0.0
-                        c_has_local_data = True
-                        log(f"          → Using covered_count: {c_cov}/{c_tot}")
-                    elif c.percentage is not None and c.total_count:
-                        c_cov = (c.percentage / 100.0) * c.total_count
-                        c_tot = c.total_count
-                        c_has_local_data = True
-                        log(
-                            f"          → Calculated from percentage: {c.percentage}% of {c_tot} = {c_cov}"
-                        )
-
-                    # Check Segments for this country
-                    if not c_has_local_data:
-                        log(f"          → Checking segments for {c.key}...")
-                        segs = [
-                            s
-                            for s in self.entries
-                            if s.scope == Scope.SEGMENT
-                            and s.key
-                            and s.key.startswith(f"{c.key}::")
-                        ]
-                        log(f"            Found {len(segs)} segments")
-                        if segs:
-                            seg_cov = sum(s.covered_count for s in segs if s.covered_count)
-                            seg_tot = (
-                                c.total_count
-                                if c.total_count
-                                else sum(s.total_count for s in segs if s.total_count)
-                            )
-
-                            if seg_cov > 0 or seg_tot > 0:
-                                c_cov = seg_cov
-                                c_tot = seg_tot
-                                c_has_local_data = True
-                                log(
-                                    f"            → Aggregated segments: {seg_cov}/{seg_tot}"
-                                )
-
-                        # Fallback: Check for Segment Percentages if no counts
-                        if not c_has_local_data and segs:
-                            valid_seg_pcts = [s.percentage for s in segs if s.percentage is not None]
-                            if valid_seg_pcts:
-                                # If single segment or multiple, use the first/avg.
-                                # For single segment (common case), this is accurate.
-                                if len(valid_seg_pcts) == 1:
-                                    c_pct_only = valid_seg_pcts[0]
-                                    log(f"            → Found segment percentage: {c_pct_only}%")
-                                else:
-                                    # Simple average for multiple unweighted segments
-                                    c_pct_only = sum(valid_seg_pcts) / len(valid_seg_pcts)
-                                    log(f"            → Found avg segment percentage: {c_pct_only:.2f}%")
-
-                    # If still no local data (counts), check if country itself has percentage
-                    if not c_has_local_data and c_pct_only is None:
-                        if c.percentage is not None:
-                            c_pct_only = c.percentage
-                            log(f"          → Found country percentage: {c_pct_only}%")
-
-                    if c_has_local_data:
-                        r_covered += c_cov
-                        r_total += c_tot
-                        has_data = True
-                        log(
-                            f"          ✓ Added to region total. Region now: {r_covered}/{r_total}"
-                        )
-                    elif c_pct_only is not None:
-                        region_pure_pcts.append(c_pct_only)
+            # If not using regional (either didn't exist, or was contradicted), use Bottom-Up
+            if not use_regional and c_has_data:
+                r_covered = c_agg_covered
+                r_total = c_agg_total
+                has_data = True
+                log(f"      → Using Bottom-Up Aggregation: {r_covered}/{r_total}")
 
             # Try to derive region percentage from pure percentages if no counts found
             if not has_data and region_pure_pcts:
