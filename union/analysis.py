@@ -1456,11 +1456,6 @@ def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
     """
     Determines if the sentence is simple enough for the SimpleCoverageAnalyzer.
     """
-    # 1. No mixed signals (Union AND Non-Union/Negation)
-    has_union = bool(analysis.union_terms or analysis.coverage_terms)
-    has_negation = bool(analysis.negation_terms)
-    if has_union and has_negation:
-        return False
 
     # 2. No Ratios (implies calculation)
     if analysis.ratios:
