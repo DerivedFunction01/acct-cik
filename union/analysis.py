@@ -17,7 +17,8 @@ from extraction import (
 )
 from defs.region_regex import (
     REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION, 
-    weighted_division, _CODE_TO_LABOR_RATE, REGION_LABOR_RATES
+    weighted_division, _CODE_TO_LABOR_RATE, REGION_LABOR_RATES,
+    _CODE_TO_WEIGHT, REGION_WEIGHTS
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -2603,7 +2604,10 @@ class Tracker:
         """
         Applies a conservative denominator (0.1% of population) to entries that have a percentage
         but lack a total count (usually due to safety checks preventing census inheritance).
+        Uses weights to scale the population if inheriting from a broader scope.
         """
+        global_weight = sum(REGION_WEIGHTS.values())
+
         for e in self.entries:
             # Only target entries with percentage but no counts
             if e.percentage is not None and e.total_count is None and e.covered_count is None:
@@ -2612,13 +2616,21 @@ class Tracker:
                 base_pop = 0.0
                 geo_name = "Unknown"
                 
+                # Determine Target Weight
+                target_weight = 0.0
+                country_code = None
+                
                 # Try to find relevant population
                 # 1. Country Level
-                country_code = None
                 if e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
                     country_code = e.key.split("::")[0]
                 elif e.scope == Scope.COUNTRY:
                     country_code = e.key
+                
+                if country_code:
+                    target_weight = _CODE_TO_WEIGHT.get(country_code, 0.0)
+                elif e.scope == Scope.REGION and e.key:
+                    target_weight = REGION_WEIGHTS.get(e.key, 0.0)
                 
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
@@ -2666,9 +2678,13 @@ class Tracker:
                 if is_scope_negated:
                     continue
 
+                source_weight = 0.0
+
                 if country_code:
                     geo_name = country_code
                     base_pop = self.country_totals.get(country_code, 0.0)
+                    if base_pop > 0:
+                        source_weight = target_weight
                     
                     # 2. Region Level (if country empty)
                     if base_pop <= 0:
@@ -2676,21 +2692,38 @@ class Tracker:
                         if r_name:
                             base_pop = self.region_totals.get(r_name, 0.0)
                             geo_name = r_name
+                            source_weight = REGION_WEIGHTS.get(r_name, 0.0)
                 
                 elif e.scope == Scope.REGION:
                     geo_name = e.key
                     base_pop = self.region_totals.get(e.key, 0.0) if e.key is not None else 0
+                    if base_pop > 0:
+                        source_weight = target_weight
 
                 # 3. Global Level
                 if base_pop <= 0:
                     base_pop = self.global_total
                     geo_name = "Global"
+                    source_weight = global_weight
 
                 if base_pop > 0:
-                    small_denom = max(1.0, round(base_pop * 0.001))
+                    # Scale population if source is broader than target
+                    estimated_pop = base_pop
+                    if source_weight > 0 and target_weight > 0:
+                        # If source is significantly larger (parent scope)
+                        if source_weight > target_weight * 1.05:
+                            estimated_pop = base_pop * (target_weight / source_weight)
+
+                    small_denom = max(1.0, round(estimated_pop * 0.001))
                     e.total_count = small_denom
                     e.covered_count = round((e.percentage / 100.0) * small_denom)
-                    self.resolution_log.append(f"Resolved COUNT for {e.key} using 0.1% fallback: {e.percentage}% of {small_denom} (Base {base_pop} from {geo_name})")
+                    
+                    log_msg = f"Resolved COUNT for {e.key} using 0.1% fallback: {e.percentage}% of {small_denom}"
+                    if estimated_pop != base_pop:
+                        log_msg += f" (Scaled from {base_pop} {geo_name} by weight {target_weight:.4f}/{source_weight:.4f})"
+                    else:
+                        log_msg += f" (Base {base_pop} from {geo_name})"
+                    self.resolution_log.append(log_msg)
 
     def _check_contradictions(self):
         """
