@@ -2202,7 +2202,7 @@ class Tracker:
 
                         if not targets:
                             # Determine if key is a Region Name
-                            is_region = any(r.value == code for r in Region)
+                            is_region = any(r.value == code for r in Region) or code in REGION_CODES
                             scope = Scope.REGION if is_region else Scope.COUNTRY
 
                             if scope == Scope.REGION:
@@ -2646,13 +2646,6 @@ class Tracker:
             e.scope == Scope.COUNTRY and e.key == self.domestic_country_code 
             for e in self.entries
         )
-        if not dom_entry_exists:
-            self.entries.append(Entry(
-                scope=Scope.COUNTRY,
-                key=self.domestic_country_code,
-                is_explicit=False
-            ))
-            self.resolution_log.append(f"Injected placeholder for domestic country: {self.domestic_country_code}")
 
         # Base for home country
         virtual_total = 1000.0
@@ -2772,6 +2765,16 @@ class Tracker:
                     self.country_totals[key] = val
         if note:
             self.resolution_log.append(f"Distributed Virtual Pool: {note}")
+        
+        if not dom_entry_exists:
+            self.entries.append(Entry(
+                scope=Scope.COUNTRY,
+                key=self.domestic_country_code,
+                is_explicit=False,
+                total_count=self.country_totals.get(self.domestic_country_code, 0),
+                sent_idx=0
+            ))
+            self.resolution_log.append(f"Injected placeholder for domestic country: {self.domestic_country_code}")
 
         # Restore totals for removed generic regions based on sum of constituents
         for removed_key in to_remove:
