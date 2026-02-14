@@ -960,12 +960,12 @@ class ComplexCoverageAnalyzer:
 
     def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
         self.analysis = analysis
-        self.total_count = total_count
+        self.context_total = total_count
         self.data = {
             "percentage": None,
             "employee_count_covered": None,
             "employee_count_not_covered": None,
-            "employee_count_total": total_count,
+            "employee_count_total": None,
             "negated": False,
             "negation_type": None,
             "type": CoverageType.NONE.value,
@@ -1008,6 +1008,10 @@ class ComplexCoverageAnalyzer:
 
         # 6. Calculate Count from Percentage
         self._calculate_count_from_percentage()
+
+        # 6.5 Fallback to context total if no total found
+        if self.data["employee_count_total"] is None and self.context_total:
+            self.data["employee_count_total"] = self.context_total
 
         # 7. Handle Negation (if no data yet)
         self._handle_negation()
@@ -1719,38 +1723,64 @@ class ComplexCoverageAnalyzer:
                     self.data["note"] = note
 
         total_candidates = []
+        new_parts_sum = 0.0
+
         for item in count_assignments:
             ctype = item["type"]
             val = item["match"]["val"]
             if ctype == "covered":
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
+                new_parts_sum += val
                 logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
+                new_parts_sum += val
                 logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":
                 total_candidates.append(val)
                 logic_notes.append(f"Assigned {val} to total")
 
         if total_candidates:
-            self.data["employee_count_total"] = sum(total_candidates)
+            # 1. Check for internal hierarchy in total_candidates (e.g. [3100, 1800, 1300] -> 3100)
             if len(total_candidates) > 1:
+                max_cand = max(total_candidates)
+                others_sum = sum(total_candidates) - max_cand
+                if others_sum > 0 and abs(max_cand - others_sum) / max_cand < 0.10:
+                    total_candidates = [max_cand]
+                    logic_notes.append(f"Collapsed total candidates to {max_cand} (sum of others)")
+
+            # 2. Check against existing data (Parent vs Disjoint)
+            current_total = self.data["employee_count_total"] or 0
+            
+            if len(total_candidates) == 1:
+                candidate = total_candidates[0]
+                implied_sum = current_total + new_parts_sum
+                
+                # If candidate matches (Current Total + New Parts), it's a Parent Total
+                if implied_sum > 0 and abs(candidate - implied_sum) / implied_sum < 0.10:
+                    self.data["employee_count_total"] = max(candidate, implied_sum)
+                    logic_notes.append(f"Identified parent total {self.data['employee_count_total']} (matches parts {current_total} + {new_parts_sum})")
+                else:
+                    # Disjoint: Accumulate
+                    self.data["employee_count_total"] = current_total + candidate
+            else:
+                # Multiple disjoint totals
+                self.data["employee_count_total"] = current_total + sum(total_candidates)
                 logic_notes.append(f"Summed totals: {total_candidates}")
 
-        if (
-            self.data["employee_count_covered"] is not None
-            and self.data["employee_count_not_covered"] is not None
-            and not self.data["employee_count_total"]
-        ):
-            self.data["employee_count_total"] = (
-                self.data["employee_count_covered"]
-                + self.data["employee_count_not_covered"]
-            )
-            logic_notes.append(
-                f"Inferred total {self.data['employee_count_total']} from parts"
-            )
+        # Inferred Total Logic (Parts > Total)
+        parts_sum = (self.data["employee_count_covered"] or 0) + (self.data["employee_count_not_covered"] or 0)
+        current_total = self.data["employee_count_total"] or 0
+        
+        # Only infer if we have at least one part and the sum exceeds current total
+        if parts_sum > 0 and parts_sum > current_total:
+             # Only infer if we have both parts OR if total is missing
+             has_both = (self.data["employee_count_covered"] is not None and self.data["employee_count_not_covered"] is not None)
+             if has_both or current_total == 0:
+                self.data["employee_count_total"] = parts_sum
+                logic_notes.append(f"Inferred total {parts_sum} from parts")
 
         if logic_notes:
             current_note = self.data["note"] or ""
