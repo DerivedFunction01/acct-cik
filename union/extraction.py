@@ -418,7 +418,7 @@ QUALITATIVE_MEMBERSHIP = [
 # Triggers only when needed as last resort, to avoid converting 100% x COUNT -> Qualitative.value
 QUALITATIVE_ALL_TERMS = [
     QualitativeTerm(
-        core_terms=["all"],
+        core_terms=[add_restrictions("all", lookaheads=[r"-"], lookahead_sep="")],
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=False,
