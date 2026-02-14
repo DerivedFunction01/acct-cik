@@ -1396,7 +1396,7 @@ class ComplexCoverageAnalyzer:
             # Find segment index
             c_mid = (c["span"][0] + c["span"][1]) / 2
             seg_idx = get_seg_idx(c_mid)
-            
+
             seg_text = ""
             if 0 <= seg_idx < len(segments):
                 s_start, s_end, _ = segments[seg_idx]
@@ -1415,12 +1415,12 @@ class ComplexCoverageAnalyzer:
         def is_connected(idx1, idx2):
             if is_global_context:
                 return True
-            
+
             s1 = count_assignments[idx1]["seg_idx"]
             s2 = count_assignments[idx2]["seg_idx"]
             if s1 == s2:
                 return True
-            
+
             # Allow connection across soft delimiters (commas) but not hard ones
             start, end = min(s1, s2), max(s1, s2)
             for i in range(start, end):
@@ -1437,7 +1437,9 @@ class ComplexCoverageAnalyzer:
             ):
                 if is_connected(i, i + 1):
                     count_assignments[i + 1]["type"] = count_assignments[i]["type"]
-                    logic_notes.append(f"Propagated {count_assignments[i]['type']} Forward")
+                    logic_notes.append(
+                        f"Propagated {count_assignments[i]['type']} Forward"
+                    )
 
         # Backward Propagation
         for i in range(len(count_assignments) - 1, 0, -1):
@@ -1447,7 +1449,9 @@ class ComplexCoverageAnalyzer:
             ):
                 if is_connected(i, i - 1):
                     count_assignments[i - 1]["type"] = count_assignments[i]["type"]
-                    logic_notes.append(f"Propagated {count_assignments[i]['type']} Backward")
+                    logic_notes.append(
+                        f"Propagated {count_assignments[i]['type']} Backward"
+                    )
 
         self.data["_count_assignments"] = count_assignments
 
@@ -1456,9 +1460,11 @@ class ComplexCoverageAnalyzer:
         has_not_covered = self.data["employee_count_not_covered"] is not None
         has_total = self.data["employee_count_total"] is not None
 
-        can_calculate_pct = (has_covered and has_total) or \
-                            (has_not_covered and has_total) or \
-                            (has_covered and has_not_covered)
+        can_calculate_pct = (
+            (has_covered and has_total)
+            or (has_not_covered and has_total)
+            or (has_covered and has_not_covered)
+        )
 
         for p in percents:
             if can_calculate_pct:
@@ -1511,7 +1517,9 @@ class ComplexCoverageAnalyzer:
                 self.data["employee_count_covered"]
                 + self.data["employee_count_not_covered"]
             )
-            logic_notes.append(f"Inferred total {self.data['employee_count_total']} from parts")
+            logic_notes.append(
+                f"Inferred total {self.data['employee_count_total']} from parts"
+            )
 
         if logic_notes:
             current_note = self.data["note"] or ""
@@ -1692,6 +1700,12 @@ def determine_geo_context(
         regions = set()
         locations_by_country = {}  # code -> set of locations
 
+        # Pass 1: Identify strong (specific) codes in this sentence to filter redundant INT_ codes
+        strong_codes = set()
+        for m in explicit_matches:
+            if m.geo_code and not m.geo_code.startswith("INT_") and m.geo_code not in ["INT", "GLO"]:
+                strong_codes.add(m.geo_code)
+
         unusual_combo = False
         conflict_notes = []
 
@@ -1700,6 +1714,33 @@ def determine_geo_context(
                 if m.geo_code not in locations_by_country:
                     locations_by_country[m.geo_code] = set()
                 locations_by_country[m.geo_code].add(m.city)
+            
+            # Refine INT_ codes (e.g. INT_DE) using context
+            if m.geo_code and m.geo_code.startswith("INT_") and m.geo_code in INT_LANGUAGE_MAP:
+                allowed = INT_LANGUAGE_MAP[m.geo_code]
+                # 1. If a specific country from this group is already explicit in this sentence, skip the generic INT_ code
+                if strong_codes.intersection(allowed):
+                    continue
+                
+                # 2. If not, check if we can inherit a specific country from the previous context
+                if last_context:
+                    last_countries = last_context.get("countries", [])
+                    match = next((lc for lc in last_countries if lc["code"] in allowed), None)
+                    if match:
+                        # Inherit specific country details
+                        # We construct a synthetic match-like object for processing
+                        m_code = match["code"]
+                        m_name = match["name"]
+                        # Update region based on the inherited country
+                        m_region_name = _CODE_TO_REGION.get(m_code, Region.UNKNOWN.value)
+                        # Find enum from value (inefficient but safe)
+                        m_region = next((r for r in Region if r.value == m_region_name), Region.UNKNOWN)
+                        
+                        # Override current match properties for the loop
+                        m.geo_code = m_code
+                        m.country = m_name
+                        m.region = m_region
+
             if m.country and m.geo_code not in seen_codes:
                 seen_codes.add(m.geo_code)
 
@@ -1797,16 +1838,24 @@ def determine_geo_context(
             if m.geo_code in ["INT", "GLO"] and last_context:
                 last_region = last_context.get("region")
                 last_countries = last_context.get("countries", [])
-                
-                is_specific_prev = (
-                    last_region not in [Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.UNKNOWN.value, Region.AGGREGATE.value]
-                    or (last_countries and last_countries[0]["code"] not in ["INT", "GLO", "DOM"])
+
+                is_specific_prev = last_region not in [
+                    Region.INTERNATIONAL.value,
+                    Region.GLOBAL.value,
+                    Region.UNKNOWN.value,
+                    Region.AGGREGATE.value,
+                ] or (
+                    last_countries
+                    and last_countries[0]["code"] not in ["INT", "GLO", "DOM"]
                 )
-                
+
                 if is_specific_prev:
                     strong_global_modifiers = {"global", "international"}
-                    has_global_mod = any(mod.lower() in strong_global_modifiers for mod in analysis.total_modifiers)
-                    
+                    has_global_mod = any(
+                        mod.lower() in strong_global_modifiers
+                        for mod in analysis.total_modifiers
+                    )
+
                     if not has_global_mod:
                         ctx = last_context.copy()
                         ctx["specificity"] = Specificity.INHERITED.value
@@ -2229,7 +2278,10 @@ class Tracker:
         return base_threshold
 
     def _matches_census(
-        self, val: Optional[float] = None, census: Optional[float] = None, threshold: float = 0.05
+        self,
+        val: Optional[float] = None,
+        census: Optional[float] = None,
+        threshold: float = 0.05,
     ) -> bool:
         """
         Checks if value matches census within threshold or rounding error.
@@ -2610,6 +2662,16 @@ class Tracker:
                 self.resolution_log.append(
                     f"Derived TOTAL for {name} ({e.key}): {derived_total} from count/pct"
                 )
+            elif (
+                e.not_covered_count is not None
+                and e.percentage is None
+                and e.covered_count is None
+            ):
+                e.total_count = e.not_covered_count
+                known_sum += e.not_covered_count
+                self.resolution_log.append(
+                    f"Derived TOTAL for {name} ({e.key}): Filled total count from not covered: {e.not_covered_count}"
+                )
             else:
                 unknowns.append(e)
 
@@ -2742,7 +2804,7 @@ class Tracker:
         e.g. "80 not covered" when we already have "20 covered" out of 100.
         """
         to_remove = []
-        
+
         # Group by normalized key (parent entity) to compare entries for the same entity or its segments
         by_parent: Dict[str, List[Entry]] = {}
         for e in entries:
@@ -2752,63 +2814,79 @@ class Tracker:
             if parent_key not in by_parent:
                 by_parent[parent_key] = []
             by_parent[parent_key].append(e)
-            
+
         for parent, group in by_parent.items():
             if len(group) < 2:
                 continue
-            
+
             # 1. Check Not Covered vs (Total - Covered)
             # Find entries with Total and Covered (Source of Truth)
-            sources: List[Entry] = [e for e in group if e.total_count is not None and e.covered_count is not None]
-            
+            sources: List[Entry] = [
+                e
+                for e in group
+                if e.total_count is not None and e.covered_count is not None
+            ]
+
             # Find entries with Not Covered (Candidates for removal)
             targets: List[Entry] = [e for e in group if e.not_covered_count is not None]
-            
+
             for t in targets:
-                if t in sources: # Don't remove self if it has both
+                if t in sources:  # Don't remove self if it has both
                     continue
-                    
+
                 val = t.not_covered_count
                 t_total = t.total_count
-                
+
                 for s in sources:
-                    if s is t: continue
+                    if s is t:
+                        continue
                     implied_not_covered = (s.total_count or 0) - (s.covered_count or 0)
-                    
+
                     if self._matches_census(val, implied_not_covered):
                         # If keys differ (e.g. Segment_0 vs Segment_1), enforce stricter check:
                         # The target's Total must match the source's Implied Not Covered.
                         if s.key != t.key:
-                            if t_total is not None and self._matches_census(t_total, implied_not_covered):
+                            if t_total is not None and self._matches_census(
+                                t_total, implied_not_covered
+                            ):
                                 to_remove.append(t)
-                                self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from {s.key})")
+                                self.resolution_log.append(
+                                    f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from {s.key})"
+                                )
                                 break
                         else:
                             # Same key: standard redundancy check
                             to_remove.append(t)
-                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from another entry)")
+                            self.resolution_log.append(
+                                f"Dropped redundant entry for {t.key}: {val} not covered (matches {s.total_count} - {s.covered_count} from another entry)"
+                            )
                             break
 
             # 2. Check Covered vs Covered (with equal or larger Total)
-            covered_entries: List[Entry] = [e for e in group if e.covered_count is not None]
-            
+            covered_entries: List[Entry] = [
+                e for e in group if e.covered_count is not None
+            ]
+
             for t in covered_entries:
-                if t in to_remove: continue
-                
+                if t in to_remove:
+                    continue
+
                 val = t.covered_count
                 t_total = t.total_count or 0
-                
+
                 for s in covered_entries:
-                    if s is t: continue
-                    if s in to_remove: continue
-                    
+                    if s is t:
+                        continue
+                    if s in to_remove:
+                        continue
+
                     s_val = s.covered_count
                     s_total = s.total_count or 0
-                    
+
                     if self._matches_census(val, s_val):
                         should_remove_t = False
                         reason = ""
-                        
+
                         if s_total > t_total:
                             should_remove_t = True
                             reason = f"matches {s.covered_count} from {s.key} with larger total {s.total_count}"
@@ -2828,19 +2906,23 @@ class Tracker:
                             elif entries.index(s) < entries.index(t):
                                 should_remove_t = True
                                 reason = f"duplicate of {s.key}"
-                        
+
                         if should_remove_t:
                             to_remove.append(t)
-                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} covered ({reason})")
+                            self.resolution_log.append(
+                                f"Dropped redundant entry for {t.key}: {val} covered ({reason})"
+                            )
                             break
 
                     # Case B: Covered Count matches Total Count (Misclassification)
                     if s_total > 0 and self._matches_census(val, s_total):
                         if s_val and s_val < s_total:
                             to_remove.append(t)
-                            self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} covered (matches total from {s.key}, likely misclassified total)")
+                            self.resolution_log.append(
+                                f"Dropped redundant entry for {t.key}: {val} covered (matches total from {s.key}, likely misclassified total)"
+                            )
                             break
-        
+
         for e in to_remove:
             if e in self.entries:
                 self.entries.remove(e)
@@ -2908,7 +2990,11 @@ class Tracker:
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
             # Also skip GLO (Global) as it is a container for everything
-            if country_code in REGION_CODES or country_code == "GLO" or (country_code == r.value for r in Region):
+            if (
+                country_code in REGION_CODES
+                or country_code == "GLO"
+                or (country_code == r.value for r in Region)
+            ):
                 # self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region/container code.")
                 return
             if census_total > 0:
@@ -4677,14 +4763,23 @@ class UnionAnalyzer:
                         region, country, code = info
 
                         # Refine generic union code using context
-                        if code in ["INT", "GLO"]:
+                        if code in ["INT", "GLO"] or (code.startswith("INT_") and code in INT_LANGUAGE_MAP):
                             ctx_countries = geo_context.get("countries", [])
-                            if len(ctx_countries) == 1:
-                                c_ctx = ctx_countries[0]
+                            
+                            # Determine allowed codes if it's a language group
+                            allowed = INT_LANGUAGE_MAP[code] if code.startswith("INT_") else None
+                            
+                            # Find matching countries in context
+                            matches = []
+                            for c_ctx in ctx_countries:
                                 c_code = c_ctx.get("code")
                                 if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value]:
-                                    code = c_code
-                                    country = c_ctx.get("name", country)
+                                    if allowed is None or c_code in allowed:
+                                        matches.append((c_code, c_ctx.get("name")))
+
+                            if len(matches) == 1:
+                                code = matches[0][0]
+                                country = matches[0][1]
 
                         r_val = region.value
                         if code != info[2]:
@@ -5332,7 +5427,7 @@ class UnionAnalyzer:
             splits = []
             for item, g in zip(s_assign, s_geos):
                 obj = g["obj"]
-                
+
                 note = f"Mapped to {obj.country}"
                 splits.append(
                     {
@@ -5871,7 +5966,12 @@ class UnionAnalyzer:
                                     if len(ctx_countries) > 0:
                                         c_ctx = ctx_countries[0]
                                         c_code = c_ctx.get("code")
-                                        if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value]:
+                                        if c_code and c_code not in [
+                                            "INT",
+                                            "GLO",
+                                            "DOM",
+                                            Region.UNKNOWN.value,
+                                        ]:
                                             code = c_code
 
                                 prev_val = (
