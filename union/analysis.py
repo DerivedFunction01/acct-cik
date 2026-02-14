@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass, field
 
 from extraction import (
+    CONSIST_REGEX,
     NEGATION_REGEX,
     OR_REGEX,
     SUBSET_REGEX,
@@ -245,7 +246,8 @@ class SimpleCoverageAnalyzer:
         Case 4: 60% are unionized, for/from our 1000 employees. (Covered Count is PCT * COUNT) [for/from] (reverse)
         Case 5: 60% are unionized, representing 1000 employees. (Covered Count is COUNT)
         Case 6: 60% are 1000 union employees. (no of, etc) (Covered Count is COUNT)
-        Case 7: 60% of employees are unionized, and/with employment of 10,000 people. (Covered Count is PCT * COUNT)
+        Case 7: 60% are unionized, consisting of 1000 union employees. (CONSIST OF) (Covered Count is COUNT)
+        Case 8: 60% of employees are unionized, and/with employment of 10,000 people. (Covered Count is PCT * COUNT)
 
         """
         pct = analysis.percentages[0]
@@ -274,8 +276,11 @@ class SimpleCoverageAnalyzer:
         # Determine if 'count' represents the Total population
         is_count_total = False
 
+        # 0.1 X% ... consists 1000
+        if CONSIST_REGEX.search(between) and pct_before_cnt:
+            is_count_total = True
         # 1. Explicit "OR" relationship (Equivalence -> Count is Subset)
-        if OR_REGEX.search(between):
+        elif OR_REGEX.search(between):
             is_count_total = False
             notes.append("Logic: OR/BY detected -> Count is Covered")
         # 2. Explicit "OF" relationship (Partitive -> Count is Total)

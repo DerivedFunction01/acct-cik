@@ -80,8 +80,8 @@ REMAIN_REGEX = build_regex(
     [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", r"other", r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
 )
 
-
-OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?", r"and"])
+CONSIST_REGEX = build_regex([r"consist(?:s|ed|ing)?"])
+OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?", r"and", r";"])
 OR_REGEX = build_regex([r"or", r"\(", r"\)"])
 TOT_PCT_CNT_REGEX = build_regex([r"by", r"(?:we|a)re", r"ha(?:s|d|ve)"])
 TOTAL_MODIFIER_REGEX = build_regex(
@@ -105,7 +105,8 @@ QUALITATIVE_MULTIPLIERS = [
     (build_regex([r"almost", r"nearly", r"virtually"]), 0.95),
     (build_regex([r"(?:slightly|just)\s+(?:under|below)", r"less\s+than"]), 0.90),
     (build_regex([r"materially\s+less\s+than"]), 0.80),
-    (build_regex([r"(?:slightly|just)\s+(?:over|above)", r"more\s+than"]), 1.10),
+    (build_regex([r"(?:slightly|just)\s+(?:over|above)", r"(?:greater|more)\s+than"]), 1.10),
+    (build_regex([r"materially\s+(?:greater|more|higher)"]), 1.20),
 ]
 
 # Worker Count Pattern: Number + (optional gap) + Worker Term
