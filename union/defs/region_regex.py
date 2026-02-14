@@ -3453,6 +3453,21 @@ def weighted_division(
 
         key_to_weight[key] = w
 
+    # Dynamic Domestic Adjustment
+    if domestic_country and domestic_country in key_to_weight and len(entities) > 1:
+        dom_w = key_to_weight[domestic_country]
+        total_w = sum(key_to_weight.values())
+        
+        # If domestic share is low (< 35%) despite booster, force it up.
+        if total_w > 0:
+            share = dom_w / total_w
+            if share < 0.35:
+                others_w = total_w - dom_w
+                # Target 40% share: new_dom / (others + new_dom) = 0.4 => new_dom = 0.4 * others / 0.6
+                new_dom_w = others_w * (0.4 / 0.6)
+                key_to_weight[domestic_country] = new_dom_w
+                note += f" | Domestic dynamic boost to 40% (was {share:.4%}). "
+
     # 2. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
     groups = [] # List of dicts: {keys: [], weight: float, is_cluster: bool}
@@ -3475,7 +3490,7 @@ def weighted_division(
                 "weight": w_sum,
                 "is_cluster": True
             })
-            used_clusters.append(region_code)
+            used_clusters.append(f"{region_code}: {', '.join(cluster_keys)}")
             # Remove from remaining
             remaining_keys -= intersection
 
