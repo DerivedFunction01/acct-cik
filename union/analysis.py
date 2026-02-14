@@ -2722,6 +2722,9 @@ class Tracker:
                         break
 
                 if is_scope_negated:
+                    e.covered_count = 0.0
+                    e.percentage = 0.0
+                    self.resolution_log.append(f"Zeroed out {e.key} as safety measure due to negation.")
                     continue
 
                 # Add to candidates
