@@ -2565,7 +2565,7 @@ INTERNATIONAL = {
         code="GLO",
     ),
     Nation(
-        "Iberian",
+        "Iberian/LATAM",
         [],
         Region.INTERNATIONAL,
         [],
@@ -2747,6 +2747,7 @@ COMPOSITE_REGION_MAP = {
     ],
     "WEUROPE": ["GB", "IE", "FR", "BE", "NL", "LU", "DE", "AT", "CH"],
     "OCEANIA": ["AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "FM", "MH", "PW"],
+    "IBERIA": ["PT", "ES"]
 }
 COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
 
@@ -3145,50 +3146,50 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
     if df is None or "code" not in df.columns:
         return {}
 
-    # -------------------------------
-    # 🔥 MANUAL OVERRIDES GO HERE
-    # -------------------------------
-    manual_rows = {
-        # Example: Taiwan (TW)
-        # Values are in 0–1 scale (not 0–100)
-        "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
-        "XK": {"gdp_pct": 0.0001, "population_pct": 0.00022},
-        "GG": {"gdp_pct": 0.000008, "population_pct": 0.000035},
-        "JE": {"gdp_pct": 0.000013, "population_pct": 0.000073},
-    }
+    # # -------------------------------
+    # # 🔥 MANUAL OVERRIDES GO HERE
+    # # -------------------------------
+    # manual_rows = {
+    #     # Example: Taiwan (TW)
+    #     # Values are in 0–1 scale (not 0–100)
+    #     "TW": {"gdp_pct": 0.0084, "population_pct": 0.0029},
+    #     "XK": {"gdp_pct": 0.0001, "population_pct": 0.00022},
+    #     "GG": {"gdp_pct": 0.000008, "population_pct": 0.000035},
+    #     "JE": {"gdp_pct": 0.000013, "population_pct": 0.000073},
+    # }
 
-    # Ensure required columns exist
-    for c in ["gdp_pct", "population_pct"]:
-        if c not in df.columns:
-            df[c] = 0.0
+    # # Ensure required columns exist
+    # for c in ["gdp_pct", "population_pct"]:
+    #     if c not in df.columns:
+    #         df[c] = 0.0
 
-    df = df.fillna(0)
+    # df = df.fillna(0)
 
-    # Apply manual overrides
-    for code, vals in manual_rows.items():
-        if code in df["code"].values:
-            # Update existing row
-            df.loc[df["code"] == code, ["gdp_pct", "population_pct"]] = [
-                vals["gdp_pct"],
-                vals["population_pct"],
-            ]
-        else:
-            # Insert new row
-            df = pd.concat(
-                [
-                    df,
-                    pd.DataFrame(
-                        [
-                            {
-                                "code": code,
-                                "gdp_pct": vals["gdp_pct"],
-                                "population_pct": vals["population_pct"],
-                            }
-                        ]
-                    ),
-                ],
-                ignore_index=True,
-            )
+    # # Apply manual overrides
+    # for code, vals in manual_rows.items():
+    #     if code in df["code"].values:
+    #         # Update existing row
+    #         df.loc[df["code"] == code, ["gdp_pct", "population_pct"]] = [
+    #             vals["gdp_pct"],
+    #             vals["population_pct"],
+    #         ]
+    #     else:
+    #         # Insert new row
+    #         df = pd.concat(
+    #             [
+    #                 df,
+    #                 pd.DataFrame(
+    #                     [
+    #                         {
+    #                             "code": code,
+    #                             "gdp_pct": vals["gdp_pct"],
+    #                             "population_pct": vals["population_pct"],
+    #                         }
+    #                     ]
+    #                 ),
+    #             ],
+    #             ignore_index=True,
+    #         )
 
     # Compute composite weight
     df["weight"] = alpha * df["gdp_pct"] + (1 - alpha) * df["population_pct"]
