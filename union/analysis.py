@@ -1234,7 +1234,7 @@ class ComplexCoverageAnalyzer:
         matches = [m for m in self.analysis._matches if m["type"] in relevant_types]
         matches.sort(key=lambda x: x["span"][0])
         
-        if len(matches) < 3:
+        if len(matches) < 2:
             return consumed_indices
 
         # Sliding window of size 3
@@ -1266,20 +1266,143 @@ class ComplexCoverageAnalyzer:
                     self._apply_local_pattern(total_match=counts[1], part_match=counts[0], pct_match=percents[0])
                     consumed_indices.update(id(m) for m in window)
                     continue
+
+        # 2. Pair Patterns (2 items)
+        # Re-filter matches to exclude consumed ones
+        matches = [m for m in matches if id(m) not in consumed_indices]
+        
+        if len(matches) >= 2:
+            for i in range(len(matches) - 1):
+                m1 = matches[i]
+                m2 = matches[i+1]
+                
+                if id(m1) in consumed_indices or id(m2) in consumed_indices:
+                    continue
+                
+                types = {m1["type"], m2["type"]}
+                has_count = (MatchType.WORKER_COUNT in types or MatchType.NUMBER in types)
+                has_percent = MatchType.PERCENT in types
+                
+                if has_count and has_percent:
+                    # Check distance (e.g. 50 chars)
+                    dist = m2["span"][0] - m1["span"][1]
+                    if dist < 50:
+                        # Check for hard delimiters
+                        text_between = self.analysis.text[m1["span"][1]:m2["span"][0]]
+                        if ";" in text_between:
+                             continue
+                        
+                        self._resolve_local_pair(m1, m2)
+                        consumed_indices.add(id(m1))
+                        consumed_indices.add(id(m2))
                     
         return consumed_indices
+
+    def _resolve_local_pair(self, m1, m2):
+        if m1["type"] == MatchType.PERCENT:
+            pct_match, count_match = m1, m2
+            pct_first = True
+        else:
+            pct_match, count_match = m2, m1
+            pct_first = False
+            
+        pct = pct_match["val"]
+        count = count_match["val"]
+        
+        if pct_first:
+            between = self.analysis.text[pct_match["span"][1]:count_match["span"][0]]
+        else:
+            between = self.analysis.text[count_match["span"][1]:pct_match["span"][0]]
+            
+        is_count_total = True # Default assumption
+        
+        # Heuristics
+        if OF_REGEX.search(between):
+            is_count_total = True 
+        elif OR_REGEX.search(between):
+            is_count_total = False 
+        elif CONSIST_REGEX.search(between) and pct_first:
+            is_count_total = False 
+        elif pct_first:
+            if "(" in between:
+                is_count_total = False
+            else:
+                is_count_total = True 
+        else:
+            is_count_total = True
+            
+        is_negated = check_local_negation(pct_match["span"], self.analysis.text, backward=30, forward=30)
+        
+        # Calculate values
+        if is_count_total:
+            total_val = count
+            subset_val = round((pct / 100.0) * count)
+            if is_negated:
+                not_covered_val = subset_val
+                covered_val = total_val - subset_val
+            else:
+                covered_val = subset_val
+                not_covered_val = total_val - subset_val
+            note_suffix = "(Total)"
+        else:
+            # Count is subset
+            subset_val = count
+            if pct > 0:
+                total_val = round(count / (pct / 100.0))
+            else:
+                total_val = count # Avoid div by zero
+            
+            if is_negated:
+                not_covered_val = subset_val
+                covered_val = total_val - subset_val
+            else:
+                covered_val = subset_val
+                not_covered_val = total_val - subset_val
+            note_suffix = "(Subset)"
+
+        # Accumulate
+        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total_val
+        self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + covered_val
+        self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + not_covered_val
+        
+        if self.data["percentage"] is None:
+             self.data["percentage"] = pct
+             self.data["type"] = CoverageType.EXPLICIT_PERCENT.value
+        else:
+             # Multiple percentages -> Calculated type
+             self.data["percentage"] = None # Force recalculation from accumulated counts
+             self.data["type"] = CoverageType.CALCULATED.value
+             
+        self.data["note"] = (self.data["note"] or "") + f" | Local pair: {pct}%/{count} {note_suffix}"
 
     def _apply_local_pattern(self, total_match, part_match, pct_match):
         # Determine if Part is Covered or Not Covered based on local context
         is_negated = check_local_negation(pct_match["span"], self.analysis.text, backward=30, forward=30)
         
-        # Calculate remainder
-        remainder = total_match["val"] - part_match["val"]
+        total_val = total_match["val"]
+        part_val = part_match["val"]
+        pct_val = pct_match["val"]
         
-        apply_coverage_logic(self.data, total=total_match["val"], subset=part_match["val"], is_negated=is_negated)
+        if is_negated:
+            not_covered_val = part_val
+            covered_val = total_val - part_val
+        else:
+            covered_val = part_val
+            not_covered_val = total_val - part_val
+            
+        # Accumulate
+        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total_val
+        self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + covered_val
+        self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + not_covered_val
         
-        self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_match['val']} is {pct_match['val']}% of {total_match['val']}"
+        if self.data["percentage"] is None:
+             self.data["percentage"] = pct_val
+             self.data["type"] = CoverageType.CALCULATED.value
+        else:
+             self.data["percentage"] = None
+             self.data["type"] = CoverageType.CALCULATED.value
         
+        self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_val} is {pct_val}% of {total_val}"
 
     def _resolve_mixed_coverage(self, counts: List[float] = [], excluded_match_ids: Set[int] = set()):
         """
