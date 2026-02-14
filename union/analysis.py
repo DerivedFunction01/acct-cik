@@ -2370,7 +2370,7 @@ class Tracker:
                     is_explicit=False,
                     is_negated=True
                 ))
-                self.resolution_log.append(f"Inferred 0% coverage for {country_code}: Census {census_total} exists but no union entries found.")
+                # self.resolution_log.append(f"Inferred 0% coverage for {country_code}: Census {census_total} exists but no union entries found.")
             return
         # Check if sum of segments exceeds census total (indicating census was just a large segment)
         segments = [
@@ -2415,7 +2415,7 @@ class Tracker:
                     is_explicit=False,
                     is_negated=True
                 ))
-                self.resolution_log.append(f"Inferred 0% coverage for {region_name}: Census {region_total} exists but no union entries found.")
+                # self.resolution_log.append(f"Inferred 0% coverage for {region_name}: Census {region_total} exists but no union entries found.")
             return
         self._resolve_overlaps_list(region_name, entries)
 
@@ -2666,6 +2666,10 @@ class Tracker:
                 is_scope_negated = False
                 for check_e in self.entries:
                     if check_e is e:
+                        continue
+
+                    # Ignore system-generated placeholders (sent_idx == -1) to avoid blocking based on inference
+                    if check_e.sent_idx == -1:
                         continue
 
                     # Check for explicit negation OR zero coverage (count/pct) in the scope
