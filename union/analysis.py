@@ -2895,25 +2895,66 @@ class Tracker:
                 log(f"    ✗ No data found for region {r_name}")
 
         # Resolve Overlaps (International vs Specific Regions)
-        # Sum specific regions (NA, EU, APAC, LATAM, MEA)
-        specific_regions = [r.value for r in Region if r not in (Region.INTERNATIONAL, Region.GLOBAL, Region.DOMESTIC, Region.UNKNOWN)]
-        
-        sum_specific_covered = sum(region_results.get(r, {}).get("covered", 0.0) for r in specific_regions)
-        sum_specific_total = sum(region_results.get(r, {}).get("total", 0.0) for r in specific_regions)
-        
+        # 1. Identify Domestic Region
+        domestic_region_name = None
+        if self.domestic_country_code:
+            domestic_region_name = _CODE_TO_REGION.get(self.domestic_country_code)
+
+        # 2. Partition Regions
+        dom_region_res = {"covered": 0.0, "total": 0.0}
+        sum_rest_covered = 0.0
+        sum_rest_total = 0.0
+        sum_specific_total = 0.0
+        sum_specific_covered = 0.0
+
+        for r_name, res in region_results.items():
+            if r_name in (Region.INTERNATIONAL.value, Region.GLOBAL.value, Region.DOMESTIC.value, Region.UNKNOWN.value):
+                continue
+            
+            sum_specific_total += res["total"]
+            sum_specific_covered += res["covered"]
+
+            if r_name == domestic_region_name:
+                dom_region_res = res
+            else:
+                sum_rest_total += res["total"]
+                sum_rest_covered += res["covered"]
+
         intl_res = region_results.get(Region.INTERNATIONAL.value, {"covered": 0.0, "total": 0.0})
         
-        # Logic: If International Total > Sum of Specifics, assume International is the superset (Rest of World)
-        # Otherwise, assume Specifics provide better granularity or International is just a subset/synonym
-        if intl_res["total"] > sum_specific_total:
-            bottom_up_total = intl_res["total"]
-            bottom_up_covered = intl_res["covered"]
-            log(f"    ℹ International ({intl_res['total']}) > Sum of Specifics ({sum_specific_total}). Using International as Non-Domestic Total.")
+        # 3. Determine if International is Global
+        is_intl_global = False
+        if intl_res["total"] > 0:
+            # A. Matches explicit Global Total
+            if self.global_total > 0 and self._matches_census(intl_res["total"], self.global_total, threshold=0.10):
+                is_intl_global = True
+            # B. Heuristic: Much larger than Rest AND close to Total Specifics
+            elif intl_res["total"] > (sum_rest_total * 1.5) and self._matches_census(intl_res["total"], sum_specific_total, threshold=0.20):
+                is_intl_global = True
+
+        if is_intl_global:
+            if intl_res["total"] >= sum_specific_total:
+                bottom_up_total = intl_res["total"]
+                bottom_up_covered = intl_res["covered"]
+                log(f"    ℹ International ({intl_res['total']}) identified as Global and >= Sum of Specifics ({sum_specific_total}). Using International.")
+            else:
+                bottom_up_total = sum_specific_total
+                bottom_up_covered = sum_specific_covered
+                log(f"    ℹ International ({intl_res['total']}) identified as Global but < Sum of Specifics ({sum_specific_total}). Using Specifics.")
         else:
-            bottom_up_total = sum_specific_total
-            bottom_up_covered = sum_specific_covered
-            if intl_res["total"] > 0:
-                log(f"    ℹ Sum of Specifics ({sum_specific_total}) >= International ({intl_res['total']}). Using Specifics.")
+            # International is Non-Domestic
+            if intl_res["total"] > sum_rest_total:
+                non_dom_total = intl_res["total"]
+                non_dom_covered = intl_res["covered"]
+                log(f"    ℹ International ({intl_res['total']}) > Sum of Rest ({sum_rest_total}). Using International as Non-Domestic.")
+            else:
+                non_dom_total = sum_rest_total
+                non_dom_covered = sum_rest_covered
+                if intl_res["total"] > 0:
+                    log(f"    ℹ Sum of Rest ({sum_rest_total}) >= International ({intl_res['total']}). Using Rest Specifics.")
+            
+            bottom_up_total = dom_region_res["total"] + non_dom_total
+            bottom_up_covered = dom_region_res["covered"] + non_dom_covered
 
         # Add Domestic (should be 0 if routed to US/NA, but add if present as distinct region)
         dom_res = region_results.get(Region.DOMESTIC.value, {"covered": 0.0, "total": 0.0})
