@@ -774,6 +774,7 @@ EUROPE = {
             Location("Burnaston", ["burnaston"]),
             Location("Wales", ["wales"]),
             Location("Northern Ireland", ["northern ireland"]),
+            Location("English Channel", ["english channel"]),
         ],
         [
             "Unite the Union",
