@@ -81,9 +81,9 @@ REMAIN_REGEX = build_regex(
 )
 
 
-OF_REGEX = build_regex([r"(?:out\s+)?of"])
-OR_REGEX = build_regex([r"or", r"\(", r"\)", r"by"])
-
+OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?", r"and"])
+OR_REGEX = build_regex([r"or", r"\(", r"\)"])
+TOT_PCT_CNT_REGEX = build_regex([r"by", r"(?:we|a)re", r"ha(?:s|d|ve)"])
 TOTAL_MODIFIER_REGEX = build_regex(
     [
         r"total",
@@ -180,6 +180,8 @@ SUBSET_REGEX = build_regex([
     r"includ(?:ing|es?)",
     r"compris(?:ing|es?|ed)",
     r"with",
+    r"from",
+    r"within",
     r"consist(?:ing|s|ed)?",
     r":"
     ]

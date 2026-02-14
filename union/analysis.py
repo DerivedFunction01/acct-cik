@@ -232,14 +232,20 @@ class SimpleCoverageAnalyzer:
         data: Dict[str, Any],
         notes: List[str],
     ):
-        """Handles cases with exactly one percentage and one count.
+        """Handles cases with exactly one percentage and one count. Follow standard grammatical flow
+        COUNT BEFORE PCT
         NO OR:
-            Case 1: We employ 10000 employees, 60% are unionized.  (Covered Count is PCT * COUNT)
-            Case 2: We employ 10000 unionzied employees, presenting 60% of the workforce. (Covered Count is COUNT)
+            Case 1: For 10000 employees, 60% are unionized.  (Covered Count is PCT * COUNT)
+            Case 2: 10000 are unionzied employees, representing 60% of the workforce. (Covered Count is COUNT)
         WITH OR:
             Case 3: We employ 10000 unionized employees, or 60% of out total workforce. (Covered Count is COUNT)
-        OF COUNT/ FALLBACK
-        Case 4: 60% of our 1000 employees are unionized. (Covered Count is PCT * COUNT)
+        
+        PCT BEFORE CNT
+        Case 4: 60% of our 1000 employees are unionized. (Covered Count is PCT * COUNT) [of]
+        Case 4: 60% are unionized, for/from our 1000 employees. (Covered Count is PCT * COUNT) [for/from] (reverse)
+        Case 5: 60% are unionized, representing 1000 employees. (Covered Count is COUNT)
+        Case 6: 60% are 1000 union employees. (no of, etc) (Covered Count is COUNT)
+        Case 7: 60% of employees are unionized, and/with employment of 10,000 people. (Covered Count is PCT * COUNT)
 
         """
         pct = analysis.percentages[0]
@@ -256,10 +262,11 @@ class SimpleCoverageAnalyzer:
         if not pct_match or not count_match:
             data["employee_count_total"] = count
             return
-
+        pct_before_cnt = False
         # Analyze relationship between matches
         p_span, c_span = pct_match["span"], count_match["span"]
         if p_span[1] <= c_span[0]:
+            pct_before_cnt = True
             between = analysis.text[p_span[1]:c_span[0]]
         else:
             between = analysis.text[c_span[1]:p_span[0]]
@@ -275,6 +282,8 @@ class SimpleCoverageAnalyzer:
         elif OF_REGEX.search(between):
             is_count_total = True
             notes.append("Logic: OF detected -> Count is Total")
+        elif pct_before_cnt:
+            is_count_total = True
         # 3. Proximity to Union Term (Heuristic)
         else:
             dist_pct = get_min_distance_to_matches(pct_match["span"], analysis._matches, UNION_MATCH_TYPES)
