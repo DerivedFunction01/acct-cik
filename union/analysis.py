@@ -2774,10 +2774,34 @@ class Tracker:
                     # If we have explicit entries, ignore the system placeholders for distribution
                     group = explicit_entries
 
+                # Calculate consumed population to avoid double counting / inflation
+                consumed_pop = 0.0
+                if scope_type == Scope.COUNTRY.value:
+                    for e in self.entries:
+                        # Check if entry is a segment of this country and has a total count
+                        if e.scope == Scope.SEGMENT and e.key and e.key.startswith(f"{scope_key}::"):
+                            if e.total_count is not None:
+                                consumed_pop += e.total_count
+
+                # Determine available population
+                available_pop = estimated_pop - consumed_pop
+                
+                # Decide whether to use the full available remainder or a conservative fallback
+                use_conservative = False
+                distributable_pop = 0.0
+
+                # If we have very little room left (or negative), force conservative mode
+                # We use 5% buffer or if consumed > estimated
+                if available_pop < (estimated_pop * 0.05):
+                    use_conservative = True
+                    distributable_pop = estimated_pop # Base for 0.1% calc
+                else:
+                    distributable_pop = available_pop
+
                 # Distribute among segments
                 num_segments = len(group)
                 if num_segments > 1:
-                    estimated_pop /= num_segments
+                    distributable_pop /= num_segments
 
                 # Determine final denominator
                 # Use full estimate if weighted/scaled OR if scopes match explicitly
@@ -2785,10 +2809,10 @@ class Tracker:
                     scope_type == Scope.REGION.value and geo_name == scope_key
                 )
 
-                if is_weighted_estimate or scopes_match:
-                    small_denom = max(1.0, round(estimated_pop))
+                if (is_weighted_estimate or scopes_match) and not use_conservative:
+                    small_denom = max(1.0, round(distributable_pop))
                 else:
-                    small_denom = max(1.0, round(estimated_pop * 0.001))
+                    small_denom = max(1.0, round(distributable_pop * 0.001))
 
                 for e in group:
                     e.total_count = small_denom
@@ -2797,9 +2821,12 @@ class Tracker:
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
                         log_msg += f" (Distributed among {num_segments} segments)"
+                    
+                    if use_conservative:
+                        log_msg += " (Conservative 0.1% - Scope Full)"
 
                     # Check if scaled (approx check due to float)
-                    total_allocated = estimated_pop * num_segments
+                    total_allocated = distributable_pop * num_segments
                     if abs(total_allocated - base_pop) > 1.0:
                         log_msg += f" (Scaled from {base_pop} {geo_name} by weight {target_weight:.4f}/{source_weight:.4f})"
                     else:
