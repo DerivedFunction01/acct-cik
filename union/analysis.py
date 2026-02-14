@@ -5760,6 +5760,8 @@ class UnionAnalyzer:
             is_strong_geo = geo_context["specificity"] in (
                 Specificity.EXPLICIT.value,
                 Specificity.INFERRED_UNION.value,
+                Specificity.EXPLICIT_INFERRED.value,
+                Specificity.INFERRED_LANG.value,
             )
             has_counts = bool(effective_counts)
 
