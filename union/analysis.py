@@ -1706,6 +1706,7 @@ class Entry:
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1 # The sentence index
     related_geo_codes: List[str] = field(default_factory=list)
+    is_dummy_percent: bool = False
 
 
 class Tracker:
@@ -2194,6 +2195,7 @@ class Tracker:
                         pct = (e.covered_count / denom) * 100.0
 
                 if pct is not None:
+
                     for code in e.related_geo_codes:
                         targets = [t for t in self.entries if t.key == code]
 
@@ -2220,13 +2222,17 @@ class Tracker:
                         for t in targets:
                             # Only overwrite if no specific data
                             if t.percentage is None and t.covered_count is None and not t.is_negated:
-                                t.percentage = pct
-                                t.is_qualitative = e.is_qualitative
-                                self.resolution_log.append(f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}")
+                                if not e.is_dummy_percent:
+                                    t.percentage = pct
+                                    t.is_qualitative = e.is_qualitative
+                                    self.resolution_log.append(f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}")
 
-                                # Calculate count if total is known
-                                if t.total_count:
-                                    t.covered_count = round((pct / 100.0) * t.total_count)
+                                    # Calculate count if total is known
+                                    if t.total_count:
+                                        t.covered_count = round((pct / 100.0) * t.total_count)
+
+                                if e.is_union_record:
+                                    t.is_union_record = True
 
     def _resolve_geographic_gaps(self, name: str, region_total: float, entries: List[Entry]):
         """
@@ -2565,10 +2571,12 @@ class Tracker:
                         if rate is not None:
                             e.percentage = round(rate * 100, 2)
                             e.is_qualitative = True # Still qualitative/inferred
+                            e.is_dummy_percent = True
                             self.resolution_log.append(f"Applied inferred rate {e.percentage}% to {e.key} (Source: External Est. Data)")
                         else:
                             e.percentage = 1.0
                             e.is_qualitative = True
+                            e.is_dummy_percent = True
                             self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
 
     def _calculate_missing_covered_counts(self):
