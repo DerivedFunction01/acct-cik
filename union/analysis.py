@@ -2836,7 +2836,7 @@ class Tracker:
 
                     # Case B: Covered Count matches Total Count (Misclassification)
                     if s_total > 0 and self._matches_census(val, s_total):
-                        if s_val < s_total:
+                        if s_val and s_val < s_total:
                             to_remove.append(t)
                             self.resolution_log.append(f"Dropped redundant entry for {t.key}: {val} covered (matches total from {s.key}, likely misclassified total)")
                             break
@@ -5334,12 +5334,6 @@ class UnionAnalyzer:
                 obj = g["obj"]
                 
                 note = f"Mapped to {obj.country}"
-                if item.get("seg_text"):
-                    seg_snippet = item["seg_text"]
-                    if len(seg_snippet) > 40:
-                        seg_snippet = seg_snippet[:40] + "..."
-                    note += f" [Seg: '{seg_snippet}']"
-
                 splits.append(
                     {
                         "val": item["match"]["val"],
