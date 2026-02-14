@@ -82,8 +82,7 @@ def refine_generic_code(
                 matches.append(cand)
                 seen_codes.add(c_code)
     
-    # Only refine if exactly one match found to avoid ambiguity
-    if len(matches) == 1:
+    if len(matches) > 0:
         return matches[0]["code"], matches[0].get("name")
     
     return code, None
