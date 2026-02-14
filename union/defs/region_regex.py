@@ -3323,7 +3323,7 @@ def _build_region_weights_map(country_weights):
             if nation.code in ["INT", "DOM", "GLO"]:
                 continue
             # Heuristic: If nation name matches region name or is a known container
-            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "NA"]:
+            if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
                 if nation.region.value in r_weights:
                     r_weights[nation.code] = r_weights[nation.region.value]
                     # Also update the country-level map for the region code itself
@@ -3375,7 +3375,7 @@ def _build_region_labor_rates_map(country_rates, country_weights):
         for nation in r_set:
             if nation.code in ["INT", "DOM", "GLO"]:
                 continue
-            if nation.name in [r.value for r in Region] or nation.code in ["EU", "APAC", "LATAM", "NA"]:
+            if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
                 if nation.region.value in r_rates:
                     r_rates[nation.code] = r_rates[nation.region.value]
                     # Also update the country-level map for the region code itself
