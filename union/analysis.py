@@ -49,6 +49,45 @@ from defs.union_regex import (
     UNION_REGEX,
 )
 
+def refine_generic_code(
+    code: str, 
+    candidates: List[Dict[str, Any]]
+) -> Tuple[str, Optional[str]]:
+    """
+    Refines a generic code (INT, GLO, INT_*) based on a list of candidate countries.
+    Returns (refined_code, refined_name). If no refinement, returns (code, None).
+    """
+    if not code:
+        return code, None
+        
+    allowed = None
+    if code.startswith("INT_") and code in INT_LANGUAGE_MAP:
+        allowed = INT_LANGUAGE_MAP[code]
+    elif code in ["INT", "GLO"]:
+        allowed = None # Any specific country is allowed
+    else:
+        return code, None
+
+    matches = []
+    seen_codes = set()
+    
+    for cand in candidates:
+        c_code = cand.get("code")
+        # Filter out generic/container codes from candidates
+        if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value, Region.AGGREGATE.value]:
+            if c_code in seen_codes:
+                continue
+            # If allowed is set, code must be in it. If allowed is None (INT/GLO), any specific code works.
+            if allowed is None or c_code in allowed:
+                matches.append(cand)
+                seen_codes.add(c_code)
+    
+    # Only refine if exactly one match found to avoid ambiguity
+    if len(matches) == 1:
+        return matches[0]["code"], matches[0].get("name")
+    
+    return code, None
+
 GENERIC_WORKER_TERMS = {
     "employee",
     "worker",
@@ -1725,12 +1764,12 @@ def determine_geo_context(
                 # 2. If not, check if we can inherit a specific country from the previous context
                 if last_context:
                     last_countries = last_context.get("countries", [])
-                    match = next((lc for lc in last_countries if lc["code"] in allowed), None)
-                    if match:
+                    refined_code, refined_name = refine_generic_code(m.geo_code, last_countries)
+                    if refined_code != m.geo_code:
                         # Inherit specific country details
                         # We construct a synthetic match-like object for processing
-                        m_code = match["code"]
-                        m_name = match["name"]
+                        m_code = refined_code
+                        m_name = refined_name
                         # Update region based on the inherited country
                         m_region_name = _CODE_TO_REGION.get(m_code, Region.UNKNOWN.value)
                         # Find enum from value (inefficient but safe)
@@ -1880,26 +1919,15 @@ def determine_geo_context(
 
             # Try to resolve against last_context if available
             if last_context and last_context.get("countries") and m.geo_code:
-                allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
-                # Find first country in last_context that matches the language
-                matching_country = next(
-                    (
-                        c
-                        for c in last_context["countries"]
-                        if c["code"] in allowed_codes
-                    ),
-                    None,
-                )
-                if matching_country:
-                    region_name = _CODE_TO_REGION.get(
-                        matching_country["code"], Region.UNKNOWN.value
-                    )
+                refined_code, refined_name = refine_generic_code(m.geo_code, last_context["countries"])
+                if refined_code != m.geo_code:
+                    region_name = _CODE_TO_REGION.get(refined_code, Region.UNKNOWN.value)
                     return {
                         "region": region_name,
-                        "countries": [matching_country],
+                        "countries": [{"code": refined_code, "name": refined_name}],
                         "specificity": Specificity.INFERRED_LANG.value,
                         "union_name_indicator": m.text,
-                        "note": f"Resolved language term '{m.text}' to {matching_country['name']} from context",
+                        "note": f"Resolved language term '{m.text}' to {refined_name} from context",
                     }
 
             return {
@@ -4763,23 +4791,12 @@ class UnionAnalyzer:
                         region, country, code = info
 
                         # Refine generic union code using context
-                        if code in ["INT", "GLO"] or (code.startswith("INT_") and code in INT_LANGUAGE_MAP):
+                        if code:
                             ctx_countries = geo_context.get("countries", [])
-                            
-                            # Determine allowed codes if it's a language group
-                            allowed = INT_LANGUAGE_MAP[code] if code.startswith("INT_") else None
-                            
-                            # Find matching countries in context
-                            matches = []
-                            for c_ctx in ctx_countries:
-                                c_code = c_ctx.get("code")
-                                if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value]:
-                                    if allowed is None or c_code in allowed:
-                                        matches.append((c_code, c_ctx.get("name")))
-
-                            if len(matches) == 1:
-                                code = matches[0][0]
-                                country = matches[0][1]
+                            refined_code, refined_name = refine_generic_code(code, ctx_countries)
+                            if refined_code != code:
+                                code = refined_code
+                                country = refined_name or country
 
                         r_val = region.value
                         if code != info[2]:
@@ -5394,12 +5411,11 @@ class UnionAnalyzer:
 
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
                 # Refine INT_ codes
-                if obj.geo_code and obj.geo_code.startswith("INT_") and obj.geo_code in INT_LANGUAGE_MAP:
-                    allowed = INT_LANGUAGE_MAP[obj.geo_code]
-                    intersection = set(strong_codes.keys()).intersection(allowed)
-                    if len(intersection) == 1:
-                        target_code = list(intersection)[0]
-                        obj = strong_codes[target_code]
+                if obj.geo_code:
+                    candidates = [{"code": o.geo_code, "name": o.country} for o in strong_codes.values()]
+                    refined_code, _ = refine_generic_code(obj.geo_code, candidates)
+                    if refined_code != obj.geo_code:
+                        obj = strong_codes[refined_code]
 
                 # Use Region Name for generic accumulators, Code for countries
                 key = obj.geo_code
@@ -5435,12 +5451,11 @@ class UnionAnalyzer:
 
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
                 # Refine INT_ codes
-                if obj.geo_code and obj.geo_code.startswith("INT_") and obj.geo_code in INT_LANGUAGE_MAP:
-                    allowed = INT_LANGUAGE_MAP[obj.geo_code]
-                    intersection = set(strong_codes.keys()).intersection(allowed)
-                    if len(intersection) == 1:
-                        target_code = list(intersection)[0]
-                        obj = strong_codes[target_code]
+                if obj.geo_code:
+                    candidates = [{"code": o.geo_code, "name": o.country} for o in strong_codes.values()]
+                    refined_code, _ = refine_generic_code(obj.geo_code, candidates)
+                    if refined_code != obj.geo_code:
+                        obj = strong_codes[refined_code]
 
                 aligned_geos.append({"obj": obj, "span": raw["span"]})
         else:
@@ -5989,18 +6004,11 @@ class UnionAnalyzer:
                                 region, country, code = info
 
                                 # Refine generic union code using context
-                                if code in ["INT", "GLO"]:
+                                if code:
                                     ctx_countries = geo_context.get("countries", [])
-                                    if len(ctx_countries) > 0:
-                                        c_ctx = ctx_countries[0]
-                                        c_code = c_ctx.get("code")
-                                        if c_code and c_code not in [
-                                            "INT",
-                                            "GLO",
-                                            "DOM",
-                                            Region.UNKNOWN.value,
-                                        ]:
-                                            code = c_code
+                                    refined_code, _ = refine_generic_code(code, ctx_countries)
+                                    if refined_code != code:
+                                        code = refined_code
 
                                 prev_val = (
                                     previous_totals.get(code, 0)
