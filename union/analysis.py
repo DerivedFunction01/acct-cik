@@ -2256,8 +2256,11 @@ class Tracker:
 
             # Validation: Ensure we don't assign a regional gap to a segment
             if target.scope == Scope.SEGMENT:
-                self.resolution_log.append(f"Skipped GEO GAP for {name}: Target {target.key} is a SEGMENT.")
-                return
+                # Allow if this is the only explicit segment (excluding system placeholders)
+                explicit_entries = [e for e in entries if e.sent_idx != -1]
+                if len(explicit_entries) > 1:
+                    self.resolution_log.append(f"Skipped GEO GAP for {name}: Target {target.key} is a SEGMENT among multiple segments.")
+                    return
 
             gap = region_total - known_sum
 
@@ -2764,6 +2767,12 @@ class Tracker:
                     elif source_weight >= target_weight * 0.95:
                         # Same scope (approx equal weights)
                         is_weighted_estimate = True
+
+                # Filter out system placeholders if explicit entries exist in the group
+                explicit_entries = [e for e in group if e.sent_idx != -1]
+                if explicit_entries:
+                    # If we have explicit entries, ignore the system placeholders for distribution
+                    group = explicit_entries
 
                 # Distribute among segments
                 num_segments = len(group)
