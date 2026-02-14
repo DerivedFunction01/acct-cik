@@ -2712,6 +2712,18 @@ INT_LANGUAGE_MAP = {
     },
 }
 
+IGNORED_REGIONS = {
+    Region.UNKNOWN,
+    Region.UNKNOWN.value,
+    Region.AGGREGATE,
+    Region.AGGREGATE.value,
+    Region.GLOBAL,
+    Region.GLOBAL.value,
+    Region.INTERNATIONAL,
+    Region.INTERNATIONAL.value,
+    "INT", "GLO", "DOM",
+}
+
 COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
@@ -3301,8 +3313,8 @@ def _build_region_weights_map(country_weights):
 
                 if is_composite and nation.region != Region.INTERNATIONAL:
                     continue
-
-                if nation.code in ["INT", "DOM", "GLO"]:
+                
+                if nation.code in IGNORED_REGIONS:
                     continue
 
                 r_val = nation.region.value
@@ -3320,7 +3332,7 @@ def _build_region_weights_map(country_weights):
     for r_set in all_regions:
         for nation in r_set:
             # Skip INT, DOM, GLO from inheriting region weights
-            if nation.code in ["INT", "DOM", "GLO"]:
+            if nation.code in IGNORED_REGIONS:
                 continue
             # Heuristic: If nation name matches region name or is a known container
             if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
@@ -3373,7 +3385,7 @@ def _build_region_labor_rates_map(country_rates, country_weights):
     # Map Region Codes
     for r_set in all_regions:
         for nation in r_set:
-            if nation.code in ["INT", "DOM", "GLO"]:
+            if nation.code in IGNORED_REGIONS:
                 continue
             if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
                 if nation.region.value in r_rates:

@@ -28,6 +28,7 @@ from defs.region_regex import (
     _CODE_TO_WEIGHT,
     REGION_WEIGHTS,
     COMPOSITE_REGION_MAP,
+    IGNORED_REGIONS,
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -74,7 +75,7 @@ def refine_generic_code(
     for cand in candidates:
         c_code = cand.get("code")
         # Filter out generic/container codes from candidates
-        if c_code and c_code not in ["INT", "GLO", "DOM", Region.UNKNOWN.value, Region.AGGREGATE.value]:
+        if c_code and c_code not in IGNORED_REGIONS:
             if c_code in seen_codes:
                 continue
             # If allowed is set, code must be in it. If allowed is None (INT/GLO), any specific code works.
@@ -3034,13 +3035,13 @@ class Tracker:
             if e.scope == Scope.REGION and e.key == region_name:
                 relevant.append(e)
                 continue
-
+            
             # 2. Child Country Match
             code = None
             if e.scope == Scope.COUNTRY:
                 code = e.key
             elif e.scope == Scope.SEGMENT:
-                # Try to extract code from "US::UAW" or "North America::Pilots"
+                # Try to extract code from "US::UAW" or "North America::Pilots" 
                 if e.key:
                     parts = e.key.split("::")
                     if parts[0] == region_name:
@@ -3056,13 +3057,7 @@ class Tracker:
         if is_international_agg:
             # Include other Region entries (e.g. Europe, Asia) to treat International as superset
             for e in self.entries:
-                if e.scope == Scope.REGION and e.key not in (
-                    Region.INTERNATIONAL.value,
-                    Region.DOMESTIC.value,
-                    Region.UNKNOWN.value,
-                    Region.GLOBAL.value,
-                    Region.AGGREGATE.value,
-                ):
+                if e.scope == Scope.REGION and e.key not in IGNORED_REGIONS and e.key != Region.DOMESTIC.value:
                     relevant.append(e)
         return relevant
 
@@ -3703,15 +3698,7 @@ class Tracker:
                 if e.scope == Scope.SEGMENT and "::" in key:
                     key = key.split("::")[0]
 
-                if key and key not in (
-                    Region.GLOBAL.value,
-                    Region.GLOBAL,
-                    Region.AGGREGATE.value,
-                    Scope.AGGREGATE,
-                    Region.AGGREGATE,
-                    Region.UNKNOWN,
-                    Region.UNKNOWN.value,
-                ):
+                if key and key not in IGNORED_REGIONS:
                     unique_entities.add(key)
 
         for code in self.mentioned_countries:
@@ -3841,14 +3828,7 @@ class Tracker:
             )
 
             # Skip International/Global as they are aggregates of regions and handled elsewhere
-            if key_str in (
-                Region.INTERNATIONAL.value,
-                Region.GLOBAL.value,
-                "INT",
-                "GLO",
-                "International",
-                "Global",
-            ):
+            if key_str in IGNORED_REGIONS or key_str == Region.INTERNATIONAL.value:
                 continue
 
             region_sum = 0.0
@@ -4255,11 +4235,7 @@ class Tracker:
 
         for region in Region:
             r_name = region.value
-            if r_name in [
-                Region.UNKNOWN.value,
-                Region.AGGREGATE.value,
-                Region.GLOBAL.value,
-            ]:
+            if r_name in IGNORED_REGIONS:
                 log(f"  ⊘ Skipping 'Unknown'/'Aggregate'/'Global' region")
                 continue
 
@@ -4482,13 +4458,7 @@ class Tracker:
         sum_specific_covered = 0.0
 
         for r_name, res in region_results.items():
-            if r_name in (
-                Region.INTERNATIONAL.value,
-                Region.GLOBAL.value,
-                Region.DOMESTIC.value,
-                Region.UNKNOWN.value,
-                Region.AGGREGATE.value,
-            ):
+            if r_name in IGNORED_REGIONS or r_name in (Region.INTERNATIONAL.value, Region.DOMESTIC.value):
                 continue
 
             sum_specific_total += res["total"]
