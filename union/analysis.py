@@ -3062,35 +3062,47 @@ class Tracker:
                 log(f"  ✓ Fallback: Using single region ({r_name}) percentage: {metrics['likely_percentage']}%")
 
         # [STEP 4] Derive International Coverage (Residual)
-        # If International is not explicitly calculated, derive it as Global - Domestic
+        # Calculate Domestic and derive International (Global - Domestic)
         intl_key = Region.INTERNATIONAL.value
-        if intl_key not in metrics["derived_regional_coverage"]:
-            log("\n[STEP 4] Attempting to derive International coverage (Residual)...")
+        dom_key = Region.DOMESTIC.value
+        
+        if intl_key not in metrics["derived_regional_coverage"] or dom_key not in metrics["derived_regional_coverage"]:
+            log("\n[STEP 4] Calculating Domestic & International Metrics...")
             
-            # 1. Identify Domestic Data
+            # 1. Calculate Domestic Data (Aggregated)
             dom_covered = 0.0
             dom_total = 0.0
             dom_found = False
+            target_dom_code = self.domestic_country_code
             
-            # Check for Domestic Country or Region
-            dom_entries = [
-                e for e in self.entries 
-                if e.key and (e.key.startswith(self.domestic_country_code)
-                or e.key.startswith(Region.DOMESTIC.value))
-            ]
-            
-            for e in dom_entries:
-                if e.covered_count is not None:
-                    dom_covered += e.covered_count
-                    dom_total += (e.total_count or 0.0)
+            # A. Check Country Entry
+            c_entry = next((e for e in self.entries if e.scope == Scope.COUNTRY and e.key == target_dom_code), None)
+            if c_entry and (c_entry.covered_count is not None or c_entry.percentage is not None):
+                if c_entry.covered_count is not None:
+                    dom_covered = c_entry.covered_count
+                    dom_total = c_entry.total_count or 0.0
                     dom_found = True
-                elif e.percentage is not None and e.total_count:
-                    dom_covered += (e.percentage / 100.0) * e.total_count
-                    dom_total += e.total_count
+                elif c_entry.percentage is not None and c_entry.total_count:
+                    dom_covered = (c_entry.percentage / 100.0) * c_entry.total_count
+                    dom_total = c_entry.total_count
                     dom_found = True
             
+            # B. Check Segments (if no country data found)
+            if not dom_found:
+                segs = [s for s in self.entries if s.scope == Scope.SEGMENT and s.key and s.key.startswith(f"{target_dom_code}::")]
+                if segs:
+                    seg_cov = sum(s.covered_count for s in segs if s.covered_count)
+                    seg_tot = sum(s.total_count for s in segs if s.total_count)
+                    # If country entry exists but has no coverage data, use its total if larger
+                    if c_entry and c_entry.total_count:
+                        seg_tot = max(seg_tot, c_entry.total_count)
+                    
+                    if seg_cov > 0 or seg_tot > 0:
+                        dom_covered = seg_cov
+                        dom_total = seg_tot
+                        dom_found = True
+
             # 2. Identify Global Data
-            # Prefer explicit global entry for coverage
             glob_covered = None
             glob_total = None
             
@@ -3105,16 +3117,22 @@ class Tracker:
             if glob_covered is None: glob_covered = bottom_up_covered
             if glob_total is None or glob_total == 0: glob_total = self.global_total
                 
-            # 3. Calculate Residual
+            # 3. Store Domestic & Calculate Residual
+            if dom_found and dom_total > 0:
+                dom_pct = round((dom_covered / dom_total) * 100.0, 2)
+                metrics["derived_regional_coverage"][dom_key] = dom_pct
+                log(f"  ✓ Domestic ({target_dom_code}): {dom_pct}% ({dom_covered:.0f}/{dom_total:.0f})")
+            
             if dom_found and glob_total > 0:
                 intl_covered = max(0.0, (glob_covered or 0.0) - dom_covered)
                 intl_total = max(0.0, glob_total - dom_total)
                 
                 # Only proceed if we have a meaningful international population
-                if intl_total > 0 and intl_total > (glob_total * 0.01):
-                    intl_pct = round((intl_covered / intl_total) * 100.0, 2)
-                    metrics["derived_regional_coverage"][intl_key] = intl_pct
-                    log(f"  ✓ Derived International: {intl_pct}% ({intl_covered:.0f}/{intl_total:.0f}) [Global ({glob_covered:.0f}/{glob_total:.0f}) - Domestic ({dom_covered:.0f}/{dom_total:.0f})]")
+                if intl_key not in metrics["derived_regional_coverage"]:
+                    if intl_total > 0 and intl_total > (glob_total * 0.01):
+                        intl_pct = round((intl_covered / intl_total) * 100.0, 2)
+                        metrics["derived_regional_coverage"][intl_key] = intl_pct
+                        log(f"  ✓ Derived International: {intl_pct}% ({intl_covered:.0f}/{intl_total:.0f}) [Global ({glob_covered:.0f}/{glob_total:.0f}) - Domestic ({dom_covered:.0f}/{dom_total:.0f})]")
             else:
                 log("  ✗ Cannot derive International: Missing Domestic data or Global Total")
 
