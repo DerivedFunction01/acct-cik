@@ -1299,6 +1299,22 @@ class ComplexCoverageAnalyzer:
                         self._resolve_local_pair(m1, m2)
                         consumed_indices.add(id(m1))
                         consumed_indices.add(id(m2))
+                        continue
+
+                # Pattern B: Count + Count (Subset)
+                is_count_1 = m1["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                is_count_2 = m2["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                
+                if is_count_1 and is_count_2:
+                    dist = m2["span"][0] - m1["span"][1]
+                    if dist < 50:
+                        text_between = self.analysis.text[m1["span"][1]:m2["span"][0]]
+                        if ";" in text_between:
+                            continue
+                        
+                        if self._resolve_local_two_counts(m1, m2, text_between):
+                            consumed_indices.add(id(m1))
+                            consumed_indices.add(id(m2))
                     
         return consumed_indices
 
@@ -1407,6 +1423,41 @@ class ComplexCoverageAnalyzer:
              self.data["type"] = CoverageType.CALCULATED.value
         
         self.data["note"] = (self.data["note"] or "") + f" | Local match: {part_val} is {pct_val}% of {total_val}"
+
+    def _resolve_local_two_counts(self, m1, m2, text_between) -> bool:
+        """
+        Resolves 'Count of Count' patterns (e.g. '20 of 100').
+        Returns True if resolved.
+        """
+        # Check for explicit subset relationship
+        is_subset = False
+        if OF_REGEX.search(text_between):
+            is_subset = True
+        elif check_local_regex(m1["span"], self.analysis.text, OF_REGEX, backward=25, forward=0):
+            is_subset = True
+            
+        if not is_subset:
+            return False
+            
+        c1, c2 = m1["val"], m2["val"]
+        total = max(c1, c2)
+        part = min(c1, c2)
+        
+        # Determine which match is the part for negation checking
+        part_match = m1 if m1["val"] == part else m2
+        is_negated = check_local_negation(part_match["span"], self.analysis.text, backward=30, forward=30)
+        
+        self.data["employee_count_total"] = (self.data["employee_count_total"] or 0) + total
+        
+        if is_negated:
+            self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + part
+            self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + (total - part)
+        else:
+            self.data["employee_count_covered"] = (self.data["employee_count_covered"] or 0) + part
+            self.data["employee_count_not_covered"] = (self.data["employee_count_not_covered"] or 0) + (total - part)
+            
+        self.data["note"] = (self.data["note"] or "") + f" | Local subset: {part} of {total}"
+        return True
 
     def _resolve_mixed_coverage(self, counts: List[float] = [], excluded_match_ids: Set[int] = set()):
         """
