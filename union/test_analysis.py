@@ -131,7 +131,7 @@ ITEM_COMBINED = """
 ITEM 1. BUSINESS
 
 We have 10,000 employees in the Asia‑Pacific region, of which 6,000 are in China and 2,000 are in India, 
-with the remaining in Japan and the Poland. Our Central American workforce consists of 2,000 employees in 
+with the remaining in Japan and the Phillipines. Our Central American workforce consists of 2,000 employees in 
 Costa Rica and Guatemala, and 4,000 in Panama. We employ approximately 8,000 workers in Atlantic financial jurisdictions, 
 including 5,000 in Bermuda and 2,000 in the Cayman Islands, with the remaining in the British Virgin Islands. Our workforce 
 includes 500 employees in Canada, compared to 1,000 in the United Kingdom and 200 in South Korea. In Southeast Asia, 
@@ -234,7 +234,7 @@ if __name__ == "__main__":
     print("Cleaned Text:\n")
     print(cleaned_combined)
     print("-" * 40)
-
+    analyzer.domestic_country_code = "CN"
     analysis_output_combined = analyzer.analyze_paragraph(
         cleaned_combined, item_type="item1", reporting_year=reporting_year
     )
