@@ -16,7 +16,8 @@ from extraction import (
     REMAIN_REGEX,
 )
 from defs.region_regex import (
-    REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION, _CODE_TO_WEIGHT, REGION_WEIGHTS, weighted_division
+    REGION_CODES, Region, INT_LANGUAGE_MAP, GeoSource, _CODE_TO_REGION, 
+    weighted_division, _CODE_TO_LABOR_RATE, REGION_LABOR_RATES
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -2545,9 +2546,25 @@ class Tracker:
                 # Check negation conflicts (Key or Related Geo)
                 if e.key not in negated_keys and not any(g in negated_geos for g in e.related_geo_codes):
                     if e.percentage is None:
-                        e.percentage = 1.0
-                        e.is_qualitative = True
-                        self.resolution_log.append(f"Applied dummy 1.0% to {e.key} based on union record presence")
+                        # Try to find rate from external data
+                        rate = None
+                        
+                        # 3. Try Segment (Country::...)
+                        if isinstance(e.key, str):
+                            code = e.key.split("::")[0]
+                            if code in _CODE_TO_LABOR_RATE:
+                                rate = _CODE_TO_LABOR_RATE[code]
+                            elif code in REGION_LABOR_RATES:
+                                rate = REGION_LABOR_RATES[code]
+
+                        if rate is not None:
+                            e.percentage = round(rate * 100, 2)
+                            e.is_qualitative = True # Still qualitative/inferred
+                            self.resolution_log.append(f"Applied inferred rate {e.percentage}% to {e.key} (Source: External Est. Data)")
+                        else:
+                            e.percentage = 1.0
+                            e.is_qualitative = True
+                            self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
 
     def resolve_coverage(self):
         """
