@@ -3425,7 +3425,7 @@ def weighted_division(
 
     # 1. Map keys to raw weights
     key_to_weight = {}
-    note = ""
+    note = "" if not use_labor_weights else "Labor weights applied. "
     for e in entities:
         key = e["key"]
         w = 0.0005  # Default weight (small country)
