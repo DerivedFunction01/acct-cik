@@ -2709,12 +2709,26 @@ class Tracker:
                 if base_pop > 0:
                     # Scale population if source is broader than target
                     estimated_pop = base_pop
+                    is_weighted_estimate = False
                     if source_weight > 0 and target_weight > 0:
                         # If source is significantly larger (parent scope)
                         if source_weight > target_weight * 1.05:
                             estimated_pop = base_pop * (target_weight / source_weight)
+                            is_weighted_estimate = True
+                        elif source_weight >= target_weight * 0.95:
+                            # Same scope (approx equal weights)
+                            is_weighted_estimate = True
 
-                    small_denom = max(1.0, round(estimated_pop * 0.001))
+                    # Determine final denominator
+                    # Use full estimate if weighted/scaled OR if scopes match explicitly
+                    scopes_match = (country_code and geo_name == country_code) or \
+                                   (e.scope == Scope.REGION and geo_name == e.key)
+                    
+                    if is_weighted_estimate or scopes_match:
+                        small_denom = max(1.0, round(estimated_pop))
+                    else:
+                        small_denom = max(1.0, round(estimated_pop * 0.001))
+
                     e.total_count = small_denom
                     e.covered_count = round((e.percentage / 100.0) * small_denom)
                     
