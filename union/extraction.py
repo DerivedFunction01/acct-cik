@@ -415,10 +415,9 @@ QUALITATIVE_MEMBERSHIP = [
 QUALITATIVE_ALL_TERMS = [
     QualitativeTerm(
         core_terms=["all"],
-        suffix_terms=["of", "are", "were"],
         positive_pct=100.0,
         negated_pct=None,
-        requires_suffix=True,
+        requires_suffix=False,
         lower_bound=100.0,
         upper_bound=100.0,
         is_all=True,
@@ -433,7 +432,7 @@ QUALITATIVE_ALL_TERMS = [
         is_all=True,
     ),
     QualitativeTerm(
-        core_terms=[r"every(?:[- ]?one)?", r"all"],
+        core_terms=[r"every(?:[- ]?one)?"],
         suffix_terms=WORKER_TERMS,
         positive_pct=100.0,
         negated_pct=None,
