@@ -2548,6 +2548,17 @@ class Tracker:
 
         # 2. Apply dummy to qualifying entries
         for e in self.entries:
+            # Skip Aggregates from dummy percentage application
+            if e.scope == Scope.AGGREGATE or e.key == Region.AGGREGATE.value:
+                continue
+
+            # Skip International if we have specific international countries
+            # This prevents "International" dummy entries from diluting specific data
+            if e.key == Region.INTERNATIONAL.value:
+                has_specific_intl = any(c for c in self.mentioned_countries if c not in ["DOM", self.domestic_country_code, "GLO", "INT", Region.INTERNATIONAL.value])
+                if has_specific_intl:
+                    continue
+
             # Check basic criteria: Union record, no data, not already negated
             # Also allow if it's an existing dummy (1.0%) that needs a count calculated
             is_candidate = (e.is_union_record and e.percentage is None and e.covered_count is None and e.not_covered_count is None and not e.is_negated)
@@ -2574,10 +2585,10 @@ class Tracker:
                             e.is_dummy_percent = True
                             self.resolution_log.append(f"Applied inferred rate {e.percentage}% to {e.key} (Source: External Est. Data)")
                         else:
-                            e.percentage = 0
+                            e.percentage = 1.0
                             e.is_qualitative = True
                             e.is_dummy_percent = True
-                            # self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
+                            self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
 
     def _calculate_missing_covered_counts(self):
         """
@@ -3225,6 +3236,9 @@ class Tracker:
                 non_dom_covered = sum_rest_covered
                 if intl_res["total"] > 0:
                     log(f"    ℹ Sum of Rest ({sum_rest_total}) >= International ({intl_res['total']}). Using Rest Specifics.")
+                    if Region.INTERNATIONAL.value in metrics["derived_regional_coverage"]:
+                        del metrics["derived_regional_coverage"][Region.INTERNATIONAL.value]
+                        log("      ⊘ Dropped International from derived metrics (Redundant)")
 
             bottom_up_total = dom_region_res["total"] + non_dom_total
             bottom_up_covered = dom_region_res["covered"] + non_dom_covered
