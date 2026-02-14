@@ -2753,6 +2753,30 @@ class Tracker:
         if note:
             self.resolution_log.append(f"Distributed Virtual Pool: {note}")
 
+        # Restore totals for removed generic regions based on sum of constituents
+        for removed_key in to_remove:
+            # Normalize key
+            key_str = removed_key.value if isinstance(removed_key, Enum) else str(removed_key)
+            
+            # Skip International/Global as they are aggregates of regions and handled elsewhere
+            if key_str in (Region.INTERNATIONAL.value, Region.GLOBAL.value, "INT", "GLO", "International", "Global"):
+                continue
+
+            region_sum = 0.0
+            constituents = []
+            
+            # Determine canonical region name
+            target_region = _CODE_TO_REGION.get(key_str, key_str)
+            
+            for code, count in self.country_totals.items():
+                if _CODE_TO_REGION.get(code) == target_region:
+                    region_sum += count
+                    constituents.append(code)
+            
+            if region_sum > 0:
+                self.region_totals[key_str] = region_sum
+                self.resolution_log.append(f"Restored total for '{key_str}': {region_sum} (Sum of {', '.join(constituents)})")
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
