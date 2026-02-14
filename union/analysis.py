@@ -2578,12 +2578,12 @@ class Tracker:
                             for code in self.mentioned_countries:
                                 if code not in REGION_CODES and _CODE_TO_REGION.get(code) in [region_name, e.key]:
                                     relevant_countries.append(code)
-                            
+
                             if relevant_countries:
                                 total_weight = 0.0
                                 weighted_rate_sum = 0.0
                                 used_codes = []
-                                
+
                                 for code in relevant_countries:
                                     if code in _CODE_TO_LABOR_RATE and code in _CODE_TO_WEIGHT:
                                         w = _CODE_TO_WEIGHT[code]
@@ -2591,7 +2591,7 @@ class Tracker:
                                         weighted_rate_sum += r * w
                                         total_weight += w
                                         used_codes.append(code)
-                                
+
                                 if total_weight > 0:
                                     rate = weighted_rate_sum / total_weight
                                     self.resolution_log.append(f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of: {', '.join(used_codes)}")
@@ -2636,7 +2636,7 @@ class Tracker:
 
         # Base for home country
         virtual_total = 1000.0
-        
+
         # Identify unique geographic entities mentioned
         unique_entities = set()
         for e in self.entries:
@@ -2644,10 +2644,10 @@ class Tracker:
                 key = str(e.key)
                 if e.scope == Scope.SEGMENT and "::" in key:
                     key = key.split("::")[0]
-                
+
                 if key and key not in (Region.GLOBAL.value, Region.GLOBAL, Region.AGGREGATE.value, Scope.AGGREGATE, Region.AGGREGATE, Region.UNKNOWN, Region.UNKNOWN.value):
                     unique_entities.add(key)
-        
+
         for code in self.mentioned_countries:
             if code and code not in ("DOM", "GLO"):
                 unique_entities.add(code)
@@ -2664,58 +2664,92 @@ class Tracker:
         UNIT_BASE = 100.0
         INTL_BOOSTER = 1.0
         BOOSTER_STEP = 0.01
-        
+
         sorted_entities = sorted(list(unique_entities))
         log_details = []
-        
+
         for entity in sorted_entities:
             weight = 0.005
             if entity in _CODE_TO_WEIGHT:
                 weight = _CODE_TO_WEIGHT[entity]
             elif entity in REGION_WEIGHTS:
                 weight = REGION_WEIGHTS[entity]
-            
+
             # Dynamic contribution
             contribution = UNIT_BASE * (1 + (weight * 10)) * INTL_BOOSTER
             virtual_total += contribution
-            
+
             log_details.append(f"{entity}(w={weight:.2f})")
-            
+
             INTL_BOOSTER += BOOSTER_STEP
 
         self.global_total = round(virtual_total)
-        
+
         log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
         if len(log_details) > 5:
-             log_msg += f" Details: {', '.join(log_details[:5])}..."
+            log_msg += f" Details: {', '.join(log_details[:5])}..."
         else:
-             log_msg += f" Details: {', '.join(log_details)}"
-             
-        self.resolution_log.append(log_msg)
+            log_msg += f" Details: {', '.join(log_details)}"
 
+        self.resolution_log.append(log_msg)
+        # Filter out generic regions if specific countries exist
+        # e.g. If "Europe" and "Germany" are present, remove "Europe"
+        to_remove = set()
+
+        # Pre-calculate region mapping
+        entity_regions = {}
+        for e in unique_entities:
+            if e in [r.value for r in Region]:
+                entity_regions[e] = e
+            else:
+                entity_regions[e] = _CODE_TO_REGION.get(e)
+        if any(e.key != self.domestic_country_code for e in self.entries):
+            # Remove international
+            to_remove |= {Region.INTERNATIONAL.value, Region.INTERNATIONAL, "INT"}
+        for r in list(unique_entities):
+            is_region_key = (r in [reg.value for reg in Region]) or (r in REGION_CODES)
+            if is_region_key:
+                r_canonical = entity_regions.get(r)
+                if r_canonical:
+                    for other in unique_entities:
+                        if other == r:
+                            continue
+                        is_other_region = (other in [reg.value for reg in Region]) or (
+                            other in REGION_CODES
+                        )
+                        if (
+                            not is_other_region
+                            and entity_regions.get(other) == r_canonical
+                        ):
+                            to_remove.add(r)
+                            self.resolution_log.append(
+                                f"Virtual Pool: Removed generic '{r}' in favor of specific countries."
+                            )
+                            break
+
+        unique_entities -= to_remove
         # Distribute to populate country/region totals for fallback
         dist_entities = [{"key": self.domestic_country_code}]
-        for entity in sorted_entities:
+        for entity in unique_entities:
             dist_entities.append({"key": entity})
-            
+
         distribution, note = weighted_division(
             self.global_total, 
             dist_entities, 
             use_labor_weights=False, 
             domestic_country=self.domestic_country_code
         )
-        
+
         for key, val in distribution.items():
             # Determine if region or country
             is_region = key in REGION_CODES or key in [r.value for r in Region]
-            
+
             if is_region:
                 if self.region_totals.get(key, 0) == 0:
                     self.region_totals[key] = val
             else:
                 if self.country_totals.get(key, 0) == 0:
                     self.country_totals[key] = val
-        
         if note:
             self.resolution_log.append(f"Distributed Virtual Pool: {note}")
 
@@ -2808,7 +2842,7 @@ class Tracker:
                 else:
                     scope_key = Scope.GLOBAL
                     scope_type = Scope.GLOBAL.value
-            
+
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
                 if country_code:
@@ -2943,7 +2977,7 @@ class Tracker:
 
                 # Determine available population
                 available_pop = estimated_pop - consumed_pop
-                
+
                 # Decide whether to use the full available remainder or a conservative fallback
                 use_conservative = False
                 distributable_pop = 0.0
@@ -2979,7 +3013,7 @@ class Tracker:
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
                         log_msg += f" (Distributed among {num_segments} segments)"
-                    
+
                     if use_conservative:
                         log_msg += " (Conservative 0.1% - Scope Full)"
 
@@ -3074,7 +3108,7 @@ class Tracker:
                 continue
 
             log(f"\n  Processing Region: {r_name}")
-            
+
             # [A] Calculate Bottom-Up Aggregation (Countries)
             c_agg_covered = 0.0
             c_agg_total = 0.0
@@ -3184,22 +3218,22 @@ class Tracker:
                 (e for e in self.entries if e.scope == Scope.REGION and e.key == r_name),
                 None,
             )
-            
+
             r_covered = 0.0
             r_total = 0.0
             has_data = False
 
             # [C] Reconcile Bottom-Up vs Top-Down
             use_regional = False
-            
+
             if r_entry and (r_entry.covered_count is not None or r_entry.percentage is not None):
                 log(f"      ✓ Found region entry: {r_entry.key}")
-                
+
                 # Extract Regional Data
                 td_covered = 0.0
                 td_total = 0.0
                 td_has_data = False
-                
+
                 if r_entry.covered_count is not None:
                     td_covered = r_entry.covered_count
                     td_total = r_entry.total_count if r_entry.total_count else 0.0
@@ -3208,7 +3242,7 @@ class Tracker:
                     td_covered = (r_entry.percentage / 100.0) * r_entry.total_count
                     td_total = r_entry.total_count
                     td_has_data = True
-                
+
                 # Decision Logic
                 if td_has_data:
                     # If Bottom-Up Total is significantly larger than Regional Total, prefer Bottom-Up
