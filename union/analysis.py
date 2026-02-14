@@ -2359,8 +2359,9 @@ class Tracker:
         ]
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
-            if country_code in REGION_CODES:
-                self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region code.")
+            # Also skip GLO (Global) as it is a container for everything
+            if country_code in REGION_CODES or country_code == "GLO":
+                # self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region/container code.")
                 return
             if census_total > 0:
                 self.entries.append(Entry(
@@ -2570,6 +2571,16 @@ class Tracker:
                             e.is_qualitative = True
                             self.resolution_log.append(f"Applied dummy 1.0% to {e.key} (No external rate found)")
 
+    def _calculate_missing_covered_counts(self):
+        """
+        Calculates covered_count for entries that have both total_count and percentage
+        but lack covered_count.
+        """
+        for e in self.entries:
+            if e.total_count is not None and e.percentage is not None and e.covered_count is None:
+                e.covered_count = round((e.percentage / 100.0) * e.total_count)
+                self.resolution_log.append(f"Calculated covered count for {e.key}: {e.percentage}% of {e.total_count} -> {e.covered_count}")
+
     def resolve_coverage(self):
         """
         Fills in missing info for countries and regions.
@@ -2599,6 +2610,9 @@ class Tracker:
 
         # 4. Apply dummy percentages (Final fallback for backfilled totals)
         self._apply_dummy_union_percentage()
+
+        # 4.5 Calculate missing covered counts (for entries with Total + Pct but no Covered)
+        self._calculate_missing_covered_counts()
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
         self._apply_fallback_denominators()
@@ -3294,6 +3308,10 @@ class Tracker:
                         log(f"  ✓ Derived International: {intl_pct}% ({intl_covered:.0f}/{intl_total:.0f}) [Global ({glob_covered:.0f}/{glob_total:.0f}) - Domestic ({dom_covered:.0f}/{dom_total:.0f})]")
             else:
                 log("  ✗ Cannot derive International: Missing Domestic data or Global Total")
+
+        # Ensure Global is in derived_regional_coverage with the final likely_percentage
+        if metrics["likely_percentage"] is not None:
+             metrics["derived_regional_coverage"]["Global"] = metrics["likely_percentage"]
 
         log("\n" + "=" * 80)
         log("FINAL METRICS:")
