@@ -1374,29 +1374,38 @@ class ComplexCoverageAnalyzer:
                         if dist < 50:
                             is_negated = True
 
-            cov = self.data["employee_count_covered"] or 0
-            not_cov = self.data["employee_count_not_covered"] or 0
-            # if either of them have numbers, increase the denominator
-            if cov or not_cov:
-                denominator += cov + not_cov
-
-            if denominator > 0:
-                raw_pct = (numerator / denominator) * 100
-                self.data["employee_count_total"] = denominator
+            # Existing counts
+            existing_cov = self.data["employee_count_covered"] or 0
+            existing_not_cov = self.data["employee_count_not_covered"] or 0
+            
+            # Ratio components
+            if is_negated:
+                ratio_not_cov = numerator
+                ratio_cov = denominator - numerator
+            else:
+                ratio_cov = numerator
+                ratio_not_cov = denominator - numerator
+            
+            # Combine
+            final_cov = existing_cov + ratio_cov
+            final_not_cov = existing_not_cov + ratio_not_cov
+            final_total = final_cov + final_not_cov
+            
+            if final_total > 0:
+                self.data["employee_count_covered"] = final_cov
+                self.data["employee_count_not_covered"] = final_not_cov
+                self.data["employee_count_total"] = final_total
+                
+                pct = (final_cov / final_total) * 100.0
+                self.data["percentage"] = round(pct, 2)
                 self.data["type"] = CoverageType.CALCULATED.value
-
+                
+                neg_str = " (negated)" if is_negated else ""
+                self.data["note"] = f"Calculated from ratio: {numerator}/{denominator}{neg_str} + existing counts"
                 if is_negated:
-                    self.data["percentage"] = round(100.0 - raw_pct, 2)
-                    self.data["employee_count_not_covered"] = numerator
-                    self.data["employee_count_covered"] = denominator - numerator
                     self.data["negated"] = True
                     self.data["negation_type"] = NegationType.NOT_COVERED.value
-                    self.data["note"] = f"Calculated from ratio (negated): {numerator}/{denominator}"
-                else:
-                    self.data["percentage"] = round(raw_pct, 2)
-                    self.data["employee_count_covered"] = numerator
-                    self.data["employee_count_not_covered"] = denominator - numerator
-                    self.data["note"] = f"Calculated from ratio: {numerator}/{denominator}"
+
 
     def _calculate_percentage_from_counts(self):
         if (
