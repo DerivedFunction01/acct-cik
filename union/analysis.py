@@ -1721,7 +1721,7 @@ class Tracker:
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
-        self.mentioned_countries: set[str] = set()
+        self.mentioned_countries: set[str] = {domestic_country_code} if domestic_country_code else set()
         self.domestic_country_code = domestic_country_code
 
     def update(
@@ -2381,7 +2381,7 @@ class Tracker:
                     is_explicit=False,
                     is_negated=True
                 ))
-                # self.resolution_log.append(f"Inferred 0% coverage for {country_code}: Census {census_total} exists but no union entries found.")
+                self.resolution_log.append(f"Inferred 0% coverage for {country_code}: Census {census_total} exists but no union entries found.")
             return
         # Check if sum of segments exceeds census total (indicating census was just a large segment)
         segments = [
@@ -2634,6 +2634,20 @@ class Tracker:
         if not has_unions:
             return
 
+        # Ensure domestic entry exists so it gets populated with the distributed total
+        # instead of defaulting to 0% coverage in _resolve_single_country
+        dom_entry_exists = any(
+            e.scope == Scope.COUNTRY and e.key == self.domestic_country_code 
+            for e in self.entries
+        )
+        if not dom_entry_exists:
+            self.entries.append(Entry(
+                scope=Scope.COUNTRY,
+                key=self.domestic_country_code,
+                is_explicit=False
+            ))
+            self.resolution_log.append(f"Injected placeholder for domestic country: {self.domestic_country_code}")
+
         # Base for home country
         virtual_total = 1000.0
 
@@ -2781,6 +2795,11 @@ class Tracker:
         """
         Fills in missing info for countries and regions.
         """
+        # 0. Inject Virtual Pool if empty (for Union Name only cases)
+        # Must be done before resolving countries/regions so they have totals to work with
+        if self.global_total == 0:
+            self._inject_virtual_global_pool()
+
         # 0. Resolve Domestic
         self._route_domestic()
         # 0.1 Apply dummy percentages for union records with no data
