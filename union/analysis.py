@@ -2195,7 +2195,7 @@ class Tracker:
                     if denom and denom > 0:
                         pct = (e.covered_count / denom) * 100.0
 
-                if pct is not None:
+                if pct is not None or e.is_union_record:
 
                     for code in e.related_geo_codes:
                         targets = [t for t in self.entries if t.key == code]
@@ -2229,7 +2229,7 @@ class Tracker:
                         for t in targets:
                             # Only overwrite if no specific data
                             if t.percentage is None and t.covered_count is None and not t.is_negated:
-                                if not e.is_dummy_percent:
+                                if pct is not None and not e.is_dummy_percent:
                                     t.percentage = pct
                                     t.is_qualitative = e.is_qualitative
                                     self.resolution_log.append(f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}")
