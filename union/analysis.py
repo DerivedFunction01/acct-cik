@@ -2570,13 +2570,11 @@ class Tracker:
                 if e.key not in negated_keys and not any(g in negated_geos for g in e.related_geo_codes):
                     if e.percentage is None:
                         # Try to find rate from external data
-                        rate = None
-
+                        rate = None             
                         # 2. Try calculating from mentioned countries in the region
                         if e.scope == Scope.REGION or e.key in [r.value for r in Region]:
                             region_name = e.key
                             relevant_countries = []
-                            print(self.mentioned_countries if e.key == "Europe" else "")
                             for code in self.mentioned_countries:
                                 if code not in REGION_CODES and _CODE_TO_REGION.get(code) in [region_name, e.key]:
                                     relevant_countries.append(code)
