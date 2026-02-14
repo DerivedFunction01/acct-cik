@@ -1377,6 +1377,12 @@ class ComplexCoverageAnalyzer:
             # Existing counts
             existing_cov = self.data["employee_count_covered"] or 0
             existing_not_cov = self.data["employee_count_not_covered"] or 0
+            existing_total = self.data["employee_count_total"] or 0
+
+            # If the ratio represents a population smaller than what we've already found, ignore it
+            if denominator < existing_cov or denominator < existing_not_cov or (existing_total > 0 and denominator < existing_total):
+                self.data["note"] = f"Ignored ratio (likely breakdown)"
+                return
             
             # Ratio components
             if is_negated:
