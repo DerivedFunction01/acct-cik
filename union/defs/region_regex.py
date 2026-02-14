@@ -3292,6 +3292,19 @@ def _build_region_weights_map(country_weights):
     for r_set in all_regions:
         for nation in r_set:
             if nation.code and nation.code in country_weights:
+                # Skip composite/container codes for standard regions to avoid double counting
+                # (e.g. Don't add "DACH" weight to "Europe" if we already added DE, AT, CH)
+                # But keep them for INTERNATIONAL since it relies on language composites
+                is_composite = (nation.code in COMPOSITE_REGION_MAP) or (
+                    nation.code in REGION_CODES
+                )
+
+                if is_composite and nation.region != Region.INTERNATIONAL:
+                    continue
+
+                if nation.code in ["INT", "DOM", "GLO"]:
+                    continue
+
                 r_val = nation.region.value
                 if r_val not in region_to_codes:
                     region_to_codes[r_val] = []
