@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 class Region(Enum):
-    NORTH_AMERICA = "US/Canada"
+    NORTH_AMERICA = "North America (US/CA)"
     LATIN_AMERICA = "Latin America"
     EUROPE = "Europe"
     MIDDLE_EAST_AFRICA = "Middle East/Africa"

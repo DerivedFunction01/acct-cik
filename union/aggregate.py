@@ -80,8 +80,8 @@ def process_row(row):
                     def extract_region_metrics(keys, suffix):
                         res[f"pct_{suffix}"] = get_region_val(regions_pct, keys)
 
-                    extract_region_metrics([Region.NORTH_AMERICA.value, "US/Canada"], "north_america")
-                    extract_region_metrics([Region.EUROPE.value], "europe")
+                    extract_region_metrics([Region.NORTH_AMERICA.value, "North America"], "north_america")
+                    extract_region_metrics([Region.EUROPE.value], "Europe")
                     extract_region_metrics([Region.ASIA_PACIFIC.value, "Asia"], "asia")
                     extract_region_metrics([Region.LATIN_AMERICA.value], "latam")
                     extract_region_metrics([Region.MIDDLE_EAST_AFRICA.value, "Africa"], "mea")

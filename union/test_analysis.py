@@ -130,18 +130,28 @@ attract talent and maintain customer relationships, particularly among customers
 ITEM_COMBINED = """
 ITEM 1. BUSINESS
 
-We have 10,000 employees in the Asia‑Pacific region, of which 6,000 are in China and 2,000 are in India, with the remaining in Japan and the Philippines.
-Our Central American workforce consists of 2,000 employees in Puerto Rico and Mexico, and 4,000 in the Dominican Republic.
-We employ approximately 8,000 workers in Latin American territories, including 2,000 in Panama and 5,000 in Bermuda, with the remaining in Suriname.
-Our workforce includes 500 employees in Canada, compared to 1,000 in the United Kingdom and 200 in South Korea.
-In Southeast Asia, we have 900 employees located in Vietnam, Thailand, and Malaysia.
-We have 5,000 employees in Mainland Europe, consisting of 3,000 in Germany, Italy, and Sweden, and 2,000 in France.
-We have an additional 5,000 employees in Eastern Europe, consisting of 2,000 in Russia and Belarus, with the remaining in Ukraine.
-We also maintain 7,500 employees in the Extended Asia region, of which 3,000 are in Mongolia and 1,500 in Laos, with the remaining in Timor‑Leste and Brunei.
-Our Caribbean and Lesser Antilles division includes 3,500 employees, with 1,200 in Saint Kitts and Nevis, 1,000 in Antigua and Barbuda, and the remaining in Grenada.
-In the Nordic Microstates cluster, we employ 1,100 workers, including 400 in Iceland, 300 in the Faroe Islands, and the remaining in Åland.
-Our European Micro‑Territories group consists of 2,400 employees, with 1,000 in Luxembourg, 800 in Andorra, and the remaining in Liechtenstein.
-Finally, we have 4,200 employees in the Balkan Extended Region, of which 1,800 are in Moldova and 1,200 in North Macedonia, with the remaining in Kosovo.
+We have 10,000 employees in the Asia‑Pacific region, of which 6,000 are in China and 2,000 are in India, 
+with the remaining in Japan and the Poland. Our Central American workforce consists of 2,000 employees in 
+Costa Rica and Guatemala, and 4,000 in Panama. We employ approximately 8,000 workers in Atlantic financial jurisdictions, 
+including 5,000 in Bermuda and 2,000 in the Cayman Islands, with the remaining in the British Virgin Islands. Our workforce 
+includes 500 employees in Canada, compared to 1,000 in the United Kingdom and 200 in South Korea. In Southeast Asia, 
+we have 900 employees located in Vietnam, Thailand, and Malaysia. We have 5,000 employees in Mainland Europe, 
+consisting of 3,000 in Germany, Italy, and Sweden, and 2,000 in France. We have an additional 5,000 employees in Eastern Europe, 
+consisting of 2,000 in Romania and Bulgaria, with the remaining in Slovakia. We also maintain 7,500 employees in the
+Extended Asia region, of which 3,000 are in Mongolia and 1,500 in Laos, with the remaining in Timor‑Leste and Brunei. 
+Our Caribbean and Lesser Antilles division includes 3,500 employees, with 1,200 in Saint Lucia, 1,000 in Dominica, and 
+the remaining in Grenada. In the Nordic Microstates cluster, we employ 1,100 workers, including 400 in Iceland, 300 in 
+the Faroe Islands, and the remaining in Åland. Our European Micro‑Territories group consists of 2,400 employees, with 1,000 
+in Luxembourg, 800 in Andorra, and the remaining in Liechtenstein. Finally, we have 4,200 employees in the Balkan 
+Extended Region, of which 1,800 are in Moldova and 1,200 in North Macedonia, with the remaining in Kosovo. We also have 
+5,000 employees across Belgium, Austria, and Portugal. Our Nordic operations employ 2,000 people in Norway, Denmark,
+Finland, and Estonia. In South America, we have 1,500 workers in Chile and Peru, and 800 in Suriname and Bolivia. 
+We employ 10,000 staff in Taiwan, Singapore, and Hong Kong. Our workforce includes 4,000 employees in Ireland, Netherlands, 
+and Switzerland. We have 3,000 employees in Poland and Czech Republic, and 2,000 in Hungary and Ukraine. In North America, we have 15,000 employees in 
+the United States, Mexico, and Puerto Rico. Our Southeast Asia division has 2,500 workers in Cambodia, Myanmar, 
+Indonesia, and the Maldives. We employ 1,200 people in Australia and New Zealand. In the Middle East, we have 900 employees in 
+UAE, Saudi Arabia, and Qatar. We also maintain 3,000 employees in Israel, Jordan, and Oman. In Sub‑Saharan Africa, we have 2,200 
+employees in Kenya, Ghana, and Tanzania.
 """
 
 
@@ -229,11 +239,10 @@ if __name__ == "__main__":
         cleaned_combined, item_type="item1", reporting_year=reporting_year
     )
     
-    print(json.dumps(analysis_output_combined.get("items", []), indent=2))
-    print("\nSUMMARY:\n")
-    print(json.dumps(analysis_output_combined.get("summary", {}), indent=2))
-    print("=" * 80)
-
+    for item in analysis_output_combined.get("items", []):
+        print(item["sentence"])
+        print(item.get("census_note") or item.get("note"))
+        print()
 
     # Item 1A
     cleaned_text = cleaner.clean(ITEM_1A)
