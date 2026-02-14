@@ -3115,7 +3115,8 @@ class Tracker:
             
             # Fallback to bottom-up / census
             if glob_covered is None: glob_covered = bottom_up_covered
-            if glob_total is None or glob_total == 0: glob_total = self.global_total
+            if glob_total is None or glob_total == 0: 
+                glob_total = self.global_total if self.global_total > 0 else bottom_up_total
                 
             # 3. Store Domestic & Calculate Residual
             if dom_found and dom_total > 0:
