@@ -988,8 +988,8 @@ class ComplexCoverageAnalyzer:
         is_negated = False
         pct_match = next((m for m in self.analysis._matches if m["type"] == MatchType.PERCENT and m["val"] == pct), None)
         if pct_match and self.analysis.negation_terms:
-             if check_local_negation(pct_match["span"], self.analysis.text, backward=50, forward=50):
-                 is_negated = True
+            if check_local_negation(pct_match["span"], self.analysis.text, backward=50, forward=50):
+                is_negated = True
 
         # Check 1: small / large ~= pct
         if abs(ratio_subset_total - pct) < 2.0:
@@ -1118,13 +1118,13 @@ class ComplexCoverageAnalyzer:
         # Check which segments have coverage terms
         segments_with_context = set()
         for m in positives + negatives:
-             mid = (m["span"][0] + m["span"][1]) / 2
-             s_idx = get_seg_idx(mid)
-             segments_with_context.add(s_idx)
-        
+            mid = (m["span"][0] + m["span"][1]) / 2
+            s_idx = get_seg_idx(mid)
+            segments_with_context.add(s_idx)
+
         # If only one segment has union/coverage terms, apply them globally
         is_global_context = len(segments_with_context) <= 1
-        
+
         logic_notes = []
         if is_global_context:
             logic_notes.append("Global Context")
@@ -1201,7 +1201,7 @@ class ComplexCoverageAnalyzer:
                 # Look immediately before the percent for "of whom" pattern isn't captured by regex usually
                 # But we can check text between last count and this percent
                 pass
-        
+
         # We'll check this dynamically during assignment
         def is_followed_by_subset_indicator(count_match):
             # Look ahead for "of whom", "of which" before the next count or end of sentence
@@ -1236,11 +1236,11 @@ class ComplexCoverageAnalyzer:
             search_totals = totals if is_global_context else [t for t in totals if t["span"][0] >= seg_start and t["span"][1] <= seg_end]
 
             for p in search_positives:
-                    candidates.append(("covered", p))
+                candidates.append(("covered", p))
             for n in search_negatives:
-                    candidates.append(("not_covered", n))
+                candidates.append(("not_covered", n))
             for t in search_totals:
-                    candidates.append(("total", t))
+                candidates.append(("total", t))
 
             for c_type, m in candidates:
                 m_start, m_end = m["span"]
@@ -1293,9 +1293,9 @@ class ComplexCoverageAnalyzer:
                 if is_connected(i, i - 1):
                     count_assignments[i - 1]["type"] = count_assignments[i]["type"]
                     logic_notes.append("Propagated Backward")
-                    
+
         self.data["_count_assignments"] = count_assignments
-        
+
         for p in percents:
             ptype = get_nearest_type_in_segment(p["span"])
             adj_val, note = apply_qualitative_multipliers(
@@ -1339,7 +1339,7 @@ class ComplexCoverageAnalyzer:
                 self.data["employee_count_covered"]
                 + self.data["employee_count_not_covered"]
             )
-            
+
         if logic_notes:
             current_note = self.data["note"] or ""
             sep = " | " if current_note else ""
@@ -1352,13 +1352,51 @@ class ComplexCoverageAnalyzer:
     def _handle_ratios(self):
         if self.analysis.ratios:
             numerator, denominator = self.analysis.ratios[0]
+
+            # Find match for context
+            ratio_match = next(
+                (m for m in self.analysis._matches 
+                 if m["type"] == MatchType.RATIO and m["val"] == (numerator, denominator)), 
+                None
+            )
+
+            is_negated = False
+            if ratio_match:
+                if self.analysis.negation_terms:
+                    if check_local_negation(ratio_match["span"], self.analysis.text, backward=50):
+                        is_negated = True
+                    else:
+                        dist = get_min_distance_to_matches(
+                            ratio_match["span"], 
+                            self.analysis._matches, 
+                            [MatchType.NON_UNION, MatchType.NON_COVERAGE]
+                        )
+                        if dist < 50:
+                            is_negated = True
+
+            cov = self.data["employee_count_covered"] or 0
+            not_cov = self.data["employee_count_not_covered"] or 0
+            # if either of them have numbers, increase the denominator
+            if cov or not_cov:
+                denominator += cov + not_cov
+
             if denominator > 0:
-                pct = (numerator / denominator) * 100
-                self.data["percentage"] = round(pct, 2)
-                self.data["type"] = CoverageType.CALCULATED.value
-                self.data["employee_count_covered"] = numerator
+                raw_pct = (numerator / denominator) * 100
                 self.data["employee_count_total"] = denominator
-                self.data["note"] = f"Calculated from ratio: {numerator}/{denominator}"
+                self.data["type"] = CoverageType.CALCULATED.value
+
+                if is_negated:
+                    self.data["percentage"] = round(100.0 - raw_pct, 2)
+                    self.data["employee_count_not_covered"] = numerator
+                    self.data["employee_count_covered"] = denominator - numerator
+                    self.data["negated"] = True
+                    self.data["negation_type"] = NegationType.NOT_COVERED.value
+                    self.data["note"] = f"Calculated from ratio (negated): {numerator}/{denominator}"
+                else:
+                    self.data["percentage"] = round(raw_pct, 2)
+                    self.data["employee_count_covered"] = numerator
+                    self.data["employee_count_not_covered"] = denominator - numerator
+                    self.data["note"] = f"Calculated from ratio: {numerator}/{denominator}"
 
     def _calculate_percentage_from_counts(self):
         if (
