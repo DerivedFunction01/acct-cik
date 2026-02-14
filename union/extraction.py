@@ -82,7 +82,7 @@ REMAIN_REGEX = build_regex(
 
 
 OF_REGEX = build_regex([r"(?:out\s+)?of"])
-OR_REGEX = build_regex([r"or"])
+OR_REGEX = build_regex([r"or", r"\(", r"\)", r"by"])
 
 TOTAL_MODIFIER_REGEX = build_regex(
     [
@@ -97,6 +97,7 @@ TOTAL_MODIFIER_REGEX = build_regex(
         r"full",
         r"whole",
         r"employ(?:s|ed|ees?)?",
+        r"equal(?:s|ed|ing)?"
     ]
 )
 
