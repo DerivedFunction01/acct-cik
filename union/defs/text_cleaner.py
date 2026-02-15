@@ -1041,7 +1041,7 @@ class ContextualNumberCleaner:
         ]
         union_id_pattern = build_alternation(union_identifiers)
         self.union_id_regex = re.compile(
-            rf"\b({union_id_pattern})\s+(?:(?:No\.|#)\s*)?{number_range}\b",
+            rf"\b({union_id_pattern})\s+(?:Union\s*)?(?:(?:No\.|#)\s*)?{number_range}\b",
             re.IGNORECASE,
         )
 
