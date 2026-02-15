@@ -3434,6 +3434,14 @@ def weighted_division(
     if not entities:
         return {}, ""
 
+    # 0. Pre-allocate min headcount
+    original_val = val
+    pre_allocated = {}
+    if val >= len(entities):
+        for e in entities:
+            pre_allocated[e["key"]] = 1.0
+        val -= len(entities)
+
     # 1. Map keys to raw weights
     key_to_weight = {}
     note = "" if not use_labor_weights else "Labor weights applied. "
@@ -3473,7 +3481,7 @@ def weighted_division(
             CLUSTER_MAX = 8.0     # Cluster size where boost fades to 0
             
             # Factor 1: Population (Small pop -> High boost)
-            pop_factor = 1.0 / (1.0 + (val / POP_PIVOT))
+            pop_factor = 1.0 / (1.0 + (original_val / POP_PIVOT))
             
             # Factor 2: Cluster Size (Small cluster -> High boost)
             cluster_size = len(entities)
@@ -3482,12 +3490,17 @@ def weighted_division(
             # Factor 3: Share Risk (Low share -> High boost)
             share_factor = 1.0 - raw_share
             
+            # Additive Boost (Ensure baseline share for tiny populations)
+            additive_boost = 0.0
+            if original_val < 2500:
+                additive_boost = 0.20 * (1.0 - (original_val / 2500.0))
+
             # Calculate Booster
             booster = 1.0 + (MAX_BOOST - 1.0) * pop_factor * cluster_factor * share_factor
             
-            if booster > 1.05:
-                key_to_weight[domestic_country] *= booster
-                note += f"Domestic {domestic_country} boosted x{booster:.2f} (Pop:{int(val)}, N:{cluster_size}, Share:{raw_share:.1%}). "
+            if booster > 1.05 or additive_boost > 0:
+                key_to_weight[domestic_country] = (key_to_weight[domestic_country] * booster) + additive_boost
+                note += f"Domestic {domestic_country} boosted x{booster:.2f} +{additive_boost:.3f} (Pop:{int(original_val)}, N:{cluster_size}, Share:{raw_share:.1%}). "
 
     # 3. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
@@ -3535,6 +3548,10 @@ def weighted_division(
         remainder = int(val) - (split_val * len(entities))
         for i, e in enumerate(entities):
             final_distribution[e["key"]] = split_val + (1 if i < remainder else 0)
+            
+        # Add pre-allocated counts
+        for k, v in pre_allocated.items():
+            final_distribution[k] = final_distribution.get(k, 0) + v
         return final_distribution, ""
 
     # Distribute to groups
@@ -3575,6 +3592,10 @@ def weighted_division(
             # Single entity
             k = group["keys"][0]
             final_distribution[k] = group_share
+
+    # 5. Add pre-allocated counts
+    for k, v in pre_allocated.items():
+        final_distribution[k] = final_distribution.get(k, 0) + v
 
     if used_clusters:
         note += f"Smoothed Clusters: {', '.join(used_clusters)}"
