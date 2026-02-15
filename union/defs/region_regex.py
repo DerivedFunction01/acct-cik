@@ -2,7 +2,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 import re
 from typing import Dict, List, Optional, Tuple, Any
-from defs.regex_lib import add_restrictions, build_compound, build_regex, to_build_alternation
+from defs.regex_lib import (
+    add_restrictions,
+    build_compound,
+    build_regex,
+    to_build_alternation,
+)
 import pandas as pd
 from pathlib import Path
 
@@ -42,7 +47,7 @@ class Nation:
     unions: list[str] = field(default_factory=list)
     keywords: list[str] = field(default_factory=list)
     code: str = ""
-    weight: float = 0.005 # 0.5%
+    weight: float = 0.005  # 0.5%
 
     def __hash__(self):
         return hash(self.name)
@@ -77,9 +82,11 @@ NORTH_AMERICA = {
             "silicon valley",
             "twin cities",
             "appalachia",
-            to_build_alternation(add_restrictions(
-                r"american?", lookbehinds=[r"central", r"latin", r"south"]
-            )),            
+            to_build_alternation(
+                add_restrictions(
+                    r"american?", lookbehinds=[r"central", r"latin", r"south"]
+                )
+            ),
         ],
         Region.NORTH_AMERICA,
         [
@@ -1365,7 +1372,11 @@ EUROPE = {
         ["estonia", "estonian"],
         Region.EUROPE,
         [Location("Tallinn", ["tallinn"])],
-        ["IMTAL", "Estonian Industrial and Metalworkers' Union", "Eesti Industriaal-ja Metallitöötajate Ametiühingute Liit"],
+        [
+            "IMTAL",
+            "Estonian Industrial and Metalworkers' Union",
+            "Eesti Industriaal-ja Metallitöötajate Ametiühingute Liit",
+        ],
         ["Ametiühingute", "Liit", "Töötajate"],
         code="EE",
     ),
@@ -1535,17 +1546,66 @@ ASIA_PACIFIC = {
             "Korean Confederation of Trade Unions",
             "FKTU",
             "Federation of Korean Trade Unions",
+            "Nodongjo",
+            "Rodongjo",
+            "Nodongjohap",
+            "Nojo",
+            "Johap",
+            "Chohap",
+            "Danche gyoseop",
+            "Nosa",
+            "Geurroja",
+            "Bijeonggyujik",
+            "Jeonggyujik",
+            "Pagaen geullo",
         ],
         [
             "Chaebol",
+            "Jaebeol",
             "Nodong",
-            "Johap",
+            "Rodong",
+            "Gieop",
+            "Giup",
+            "Kiup",
+            "Daegieop",
+            "Junggyeon gieop",
+            "Jungso gieop",
+            "Gyeyolsa",
+            "Jiju hoesa",
+            "Saneop danji",
+            "Saneop geongyeong",
+            "Sannop",
+            "Sannop-eop",
+            "Jejo",
+            "Jejo-eop",
+            "Jung-gong-eop",
+            "Joseon-eop",
+            "Bandochae",
+            "Jeonja bubun",
+            "Bupumsa",
+            "Gongjang",
+            "Saengsan line",
+            "Saengsan neungnyeok",
+            "Goyong Nodongbu",
+            "Sanup Tonghaebu",
+            "Gongjeong Gyeongjae Wiwonhoe",
+            "Guksae Cheong",
         ],
         code="KR",
     ),
     Nation(
         "China",
-        ["china", "chinese", "prc", "p.r.c.", "people's republic of china", "yuan", "renminbi", "rmb", "cny"],
+        [
+            "china",
+            "chinese",
+            "prc",
+            "p.r.c.",
+            "people's republic of china",
+            "yuan",
+            "renminbi",
+            "rmb",
+            "cny",
+        ],
         Region.ASIA_PACIFIC,
         [
             Location("Shanghai", ["shanghai"]),
@@ -1562,7 +1622,6 @@ ASIA_PACIFIC = {
             Location("Ningbo", ["ningbo"]),
             Location("Changchun", ["changchun"]),  # Major Auto Hub
             Location("Fujian", ["fujian"]),  # Major Auto Hub
-            
         ],
         ["All-China Federation of Trade Unions", "ACFTU"],
         ["Gonghui"],
@@ -1798,13 +1857,22 @@ ASIA_PACIFIC = {
     Nation("Nepal", ["nepal", "nepalese"], Region.ASIA_PACIFIC, code="NP"),
     Nation("New Caledonia", ["new caledonia"], Region.ASIA_PACIFIC, code="NC"),
     Nation("North Korea", ["north korea", "dprk"], Region.ASIA_PACIFIC, code="KP"),
-    Nation("Northern Mariana Islands", ["northern mariana islands"], Region.ASIA_PACIFIC, code="MP"),
+    Nation(
+        "Northern Mariana Islands",
+        ["northern mariana islands"],
+        Region.ASIA_PACIFIC,
+        code="MP",
+    ),
     Nation("Palau", ["palau", "palauan"], Region.ASIA_PACIFIC, code="PW"),
-    Nation("Papua New Guinea", ["papua new guinea", "png"], Region.ASIA_PACIFIC, code="PG"),
+    Nation(
+        "Papua New Guinea", ["papua new guinea", "png"], Region.ASIA_PACIFIC, code="PG"
+    ),
     Nation("Samoa", ["samoa", "samoan"], Region.ASIA_PACIFIC, code="WS"),
     Nation("Solomon Islands", ["solomon islands"], Region.ASIA_PACIFIC, code="SB"),
     Nation("Sri Lanka", ["sri lanka", "sri lankan"], Region.ASIA_PACIFIC, code="LK"),
-    Nation("Timor-Leste", ["timor-leste", "east timor"], Region.ASIA_PACIFIC, code="TL"),
+    Nation(
+        "Timor-Leste", ["timor-leste", "east timor"], Region.ASIA_PACIFIC, code="TL"
+    ),
     Nation("Tonga", ["tonga", "tongan"], Region.ASIA_PACIFIC, code="TO"),
     Nation("Tuvalu", ["tuvalu", "tuvaluan"], Region.ASIA_PACIFIC, code="TV"),
     Nation("Vanuatu", ["vanuatu", "vanuatuan"], Region.ASIA_PACIFIC, code="VU"),
@@ -2125,9 +2193,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "North Africa",
-        [
-            "north africa", "northern africa"
-        ],
+        ["north africa", "northern africa"],
         Region.MIDDLE_EAST_AFRICA,
         code="NAFRICA",
     ),
@@ -2703,7 +2769,13 @@ INTERNATIONAL = {
             "Federasi",
             "Konfederasi",
             "Dernek",
-            "Buruh", "Pekerja", "Kerja", "Işçileri", "Çalışma", "Emek", "Ummal",
+            "Buruh",
+            "Pekerja",
+            "Kerja",
+            "Işçileri",
+            "Çalışma",
+            "Emek",
+            "Ummal",
         ],
         code="INT_MUSLIM",
     ),
@@ -2720,14 +2792,52 @@ INTERNATIONAL = {
 
 INT_LANGUAGE_MAP = {
     "INT_IBERIA": {
-        "BR", "PT", "ES", "MX", "AR", "CL", "CO", "PE", "VE", "EC", "GT", "DO", "CR", "PA", "UY", "BO", "PY"
+        "BR",
+        "PT",
+        "ES",
+        "MX",
+        "AR",
+        "CL",
+        "CO",
+        "PE",
+        "VE",
+        "EC",
+        "GT",
+        "DO",
+        "CR",
+        "PA",
+        "UY",
+        "BO",
+        "PY",
     },
     "INT_FR": {"FR", "BE", "CH", "CA"},
     "INT_IT": {"IT", "CH", "SM", "VA"},
     "INT_DE": {"DE", "AT", "CH", "LI", "LU"},
     "INT_NL": {"NL", "BE", "SR"},
     "INT_MUSLIM": {
-        "ID", "PK", "BD", "TR", "EG", "IR", "SA", "MY", "IQ", "AF", "DZ", "MA", "SD", "YE", "SY", "TN", "JO", "LB", "KW", "OM", "QA", "BH", "AE"
+        "ID",
+        "PK",
+        "BD",
+        "TR",
+        "EG",
+        "IR",
+        "SA",
+        "MY",
+        "IQ",
+        "AF",
+        "DZ",
+        "MA",
+        "SD",
+        "YE",
+        "SY",
+        "TN",
+        "JO",
+        "LB",
+        "KW",
+        "OM",
+        "QA",
+        "BH",
+        "AE",
     },
 }
 
@@ -2740,7 +2850,9 @@ IGNORED_REGIONS = {
     Region.GLOBAL.value,
     Region.INTERNATIONAL,
     Region.INTERNATIONAL.value,
-    "INT", "GLO", "DOM",
+    "INT",
+    "GLO",
+    "DOM",
 }
 
 COMPOSITE_REGION_MAP = {
@@ -2748,105 +2860,438 @@ COMPOSITE_REGION_MAP = {
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
     "G20": [
-        "AR", "AU", "BR", "CA", "CN", "FR", "DE", "IN", "ID", "IT",
-        "JP", "KR", "MX", "RU", "SA", "ZA", "TR", "GB", "US", "EU", "Europe", "NA", "North America"
+        "AR",
+        "AU",
+        "BR",
+        "CA",
+        "CN",
+        "FR",
+        "DE",
+        "IN",
+        "ID",
+        "IT",
+        "JP",
+        "KR",
+        "MX",
+        "RU",
+        "SA",
+        "ZA",
+        "TR",
+        "GB",
+        "US",
+        "EU",
+        "Europe",
+        "NA",
+        "North America",
     ],
     "AFRICA": [
-        "ZA", "NG", "EG", "DZ", "MA", "KE", "ET", "GH", "CI", "TZ",
-        "AO", "CM", "TN", "CD", "UG", "SD", "LY", "SN", "ZM", "ZW",
-        "BF", "ML", "BW", "MZ", "GA", "GN", "TD", "MG", "BJ", "RW",
-        "CG", "NE", "MW", "MR", "TG", "SL", "SO", "SS", "ER", "SZ",
-        "BI", "DJ", "LR", "CF", "CV", "LS", "GM", "GW", "SC", "KM",
-        "ST", "GQ",
+        "ZA",
+        "NG",
+        "EG",
+        "DZ",
+        "MA",
+        "KE",
+        "ET",
+        "GH",
+        "CI",
+        "TZ",
+        "AO",
+        "CM",
+        "TN",
+        "CD",
+        "UG",
+        "SD",
+        "LY",
+        "SN",
+        "ZM",
+        "ZW",
+        "BF",
+        "ML",
+        "BW",
+        "MZ",
+        "GA",
+        "GN",
+        "TD",
+        "MG",
+        "BJ",
+        "RW",
+        "CG",
+        "NE",
+        "MW",
+        "MR",
+        "TG",
+        "SL",
+        "SO",
+        "SS",
+        "ER",
+        "SZ",
+        "BI",
+        "DJ",
+        "LR",
+        "CF",
+        "CV",
+        "LS",
+        "GM",
+        "GW",
+        "SC",
+        "KM",
+        "ST",
+        "GQ",
     ],
     "GCC": ["SA", "AE", "KW", "QA", "BH", "OM"],
     "ASEAN": ["ID", "TH", "MY", "SG", "PH", "VN", "BN", "KH", "LA", "MM"],
     "SASIA": ["IN", "PK", "BD", "LK", "NP", "BT", "MV", "AF"],
     "EASIA": ["CN", "JP", "KR", "KP", "TW", "MN", "HK", "MO"],
-    "ME": ["SA", "AE", "IL", "IR", "IQ", "JO", "LB", "KW", "OM", "QA", "YE", "SY", "BH", "TR"],
+    "ME": [
+        "SA",
+        "AE",
+        "IL",
+        "IR",
+        "IQ",
+        "JO",
+        "LB",
+        "KW",
+        "OM",
+        "QA",
+        "YE",
+        "SY",
+        "BH",
+        "TR",
+    ],
     "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"],
-    "SAMERICA": ["AR", "BO", "BR", "CL", "CO", "EC", "GY", "PY", "PE", "SR", "UY", "VE"],
+    "SAMERICA": [
+        "AR",
+        "BO",
+        "BR",
+        "CL",
+        "CO",
+        "EC",
+        "GY",
+        "PY",
+        "PE",
+        "SR",
+        "UY",
+        "VE",
+    ],
     "CAMERICA": ["BZ", "CR", "SV", "GT", "HN", "NI", "PA"],
-    "CARIBBEAN": ["AG", "AW", "BS", "BB", "BM", "VG", "KY", "CU", "CW", "DM", "DO", "GD", "HT", "JM", "KN", "LC", "MF", "PR", "VC", "SX", "TT", "TC", "VI"],
+    "CARIBBEAN": [
+        "AG",
+        "AW",
+        "BS",
+        "BB",
+        "BM",
+        "VG",
+        "KY",
+        "CU",
+        "CW",
+        "DM",
+        "DO",
+        "GD",
+        "HT",
+        "JM",
+        "KN",
+        "LC",
+        "MF",
+        "PR",
+        "VC",
+        "SX",
+        "TT",
+        "TC",
+        "VI",
+    ],
     "NORDIC": ["DK", "FI", "IS", "NO", "SE"],
     "BENELUX": ["BE", "NL", "LU"],
     "DACH": ["DE", "AT", "CH"],
     "NAMERICA": ["US", "CA", "MX"],
     "EEUROPE": [
-        "PL", "CZ", "SK", "HU", "RO", "BG", "RU", "UA", "BY", "MD", 
-        "EE", "LV", "LT", "SI", "HR", "BA", "RS", "ME", "MK", "AL", "XK"
+        "PL",
+        "CZ",
+        "SK",
+        "HU",
+        "RO",
+        "BG",
+        "RU",
+        "UA",
+        "BY",
+        "MD",
+        "EE",
+        "LV",
+        "LT",
+        "SI",
+        "HR",
+        "BA",
+        "RS",
+        "ME",
+        "MK",
+        "AL",
+        "XK",
     ],
     "WEUROPE": ["GB", "IE", "FR", "BE", "NL", "LU", "DE", "AT", "CH"],
-    "OCEANIA": ["AU", "NZ", "FJ", "PG", "SB", "VU", "WS", "TO", "TV", "KI", "NR", "FM", "MH", "PW"],
-    "IBERIA": ["PT", "ES"]
+    "OCEANIA": [
+        "AU",
+        "NZ",
+        "FJ",
+        "PG",
+        "SB",
+        "VU",
+        "WS",
+        "TO",
+        "TV",
+        "KI",
+        "NR",
+        "FM",
+        "MH",
+        "PW",
+    ],
+    "IBERIA": ["PT", "ES"],
 }
-COMPOSITE_REGION_MAP["SSA"] = [c for c in COMPOSITE_REGION_MAP["AFRICA"] if c not in COMPOSITE_REGION_MAP["NAFRICA"]]
+COMPOSITE_REGION_MAP["SSA"] = [
+    c
+    for c in COMPOSITE_REGION_MAP["AFRICA"]
+    if c not in COMPOSITE_REGION_MAP["NAFRICA"]
+]
 
 # MEA is ME + AFRICA
-COMPOSITE_REGION_MAP["MEA"] = list(set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"]))
+COMPOSITE_REGION_MAP["MEA"] = list(
+    set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"])
+)
 
 # Worker terms, Union terms, gap
 INT_UNION_MAP = {
     "INT_IBERIA": (
         [
-            "Trabalhadores", "Trabajadores", "Operários", "Obrer(?:o|a)s?", "Empregados", "Empleados", "Funcion(?:á|a)rios", "Personal",
-            "Metalúrgicos", "Siderúrgicos", "Petroleiros", "Petroleros", "Químicos", "Bancários", "Bancarios",
-            "Ferroviários", "Ferroviarios", "Portuários", "Portuarios", "Rurais", "Rurales", "Têxteis", "Mineiros", "Mineros",
-            "Automotivos", "Automotrices", "Construção", "Construcción", "Comércio", "Comercio", "Transportes", "Transporte", "Correios", "Correos",
-            "Siderurgia", "Petróleo", "Gás", "Carvão", "Carbón", "Minas", "Automóvel", "Energia", "Energía", "Sindical", "Nacional",
+            "Trabalhadores",
+            "Trabajadores",
+            "Operários",
+            "Obrer(?:o|a)s?",
+            "Empregados",
+            "Empleados",
+            "Funcion(?:á|a)rios",
+            "Personal",
+            "Metalúrgicos",
+            "Siderúrgicos",
+            "Petroleiros",
+            "Petroleros",
+            "Químicos",
+            "Bancários",
+            "Bancarios",
+            "Ferroviários",
+            "Ferroviarios",
+            "Portuários",
+            "Portuarios",
+            "Rurais",
+            "Rurales",
+            "Têxteis",
+            "Mineiros",
+            "Mineros",
+            "Automotivos",
+            "Automotrices",
+            "Construção",
+            "Construcción",
+            "Comércio",
+            "Comercio",
+            "Transportes",
+            "Transporte",
+            "Correios",
+            "Correos",
+            "Siderurgia",
+            "Petróleo",
+            "Gás",
+            "Carvão",
+            "Carbón",
+            "Minas",
+            "Automóvel",
+            "Energia",
+            "Energía",
+            "Sindical",
+            "Nacional",
         ],
-        ["Sindicato", "Federação", "Federaci(?:ó|o)n", "Confederação", "Confederaci(?:ó|o)n", "União", "Uni(?:ó|o)n", "Central", "Associação", "Asociaci(?:ó|o)n", "Comisi(?:ó|o)nes"],
+        [
+            "Sindicato",
+            "Federação",
+            "Federaci(?:ó|o)n",
+            "Confederação",
+            "Confederaci(?:ó|o)n",
+            "União",
+            "Uni(?:ó|o)n",
+            "Central",
+            "Associação",
+            "Asociaci(?:ó|o)n",
+            "Comisi(?:ó|o)nes",
+        ],
         r"(?:\s+(?:del?|dos?|das?|des?|e|y|para|los?|las?|el|os|as|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_FR": (
         [
-            "Travailleurs", "Salariés", "Employés", "Personnel", "Ouvriers",
-            "Métallurgistes", "Sidérurgistes", "Pétroliers", "Chimistes", "Bancaires",
-            "Cheminots", "Portuaires", "Agricoles", "Mineurs",
-            "Transports", "Postes",
-            "Métallurgie", "Sidérurgie", "Pétrole", "Gaz", "Charbon", "Mines", "Bâtiment", "Énergie",
+            "Travailleurs",
+            "Salariés",
+            "Employés",
+            "Personnel",
+            "Ouvriers",
+            "Métallurgistes",
+            "Sidérurgistes",
+            "Pétroliers",
+            "Chimistes",
+            "Bancaires",
+            "Cheminots",
+            "Portuaires",
+            "Agricoles",
+            "Mineurs",
+            "Transports",
+            "Postes",
+            "Métallurgie",
+            "Sidérurgie",
+            "Pétrole",
+            "Gaz",
+            "Charbon",
+            "Mines",
+            "Bâtiment",
+            "Énergie",
         ],
         ["Syndicat", "Fédération", "Confédération", "Union", "Centrale", "Association"],
         r"(?:\s+(?:du|des?|et|pour|les?|la|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_IT": (
         [
-            "Lavoratori", "Dipendenti", "Operai", "Impiegati", "Personale", "Addetti",
-            "Metalmeccanici", "Chimici", "Edili", "Tessili", "Bancari",
-            "Ferrovieri", "Portuali", "Agricoli", "Minatori",
-            "Automobilistici", "Costruzioni", "Commercio", "Trasporti", "Poste",
-            "Metallo", "Petrolio", "Carbone", "Miniere",
+            "Lavoratori",
+            "Dipendenti",
+            "Operai",
+            "Impiegati",
+            "Personale",
+            "Addetti",
+            "Metalmeccanici",
+            "Chimici",
+            "Edili",
+            "Tessili",
+            "Bancari",
+            "Ferrovieri",
+            "Portuali",
+            "Agricoli",
+            "Minatori",
+            "Automobilistici",
+            "Costruzioni",
+            "Commercio",
+            "Trasporti",
+            "Poste",
+            "Metallo",
+            "Petrolio",
+            "Carbone",
+            "Miniere",
         ],
-        ["Sindacato", "Federazione", "Confederazione", "Unione", "Associazione", "Lega", "Camera", "Organizzazione"],
+        [
+            "Sindacato",
+            "Federazione",
+            "Confederazione",
+            "Unione",
+            "Associazione",
+            "Lega",
+            "Camera",
+            "Organizzazione",
+        ],
         r"(?:\s+(?:dei|degli|delle|di|del|della|e|per|il|lo|la|i|gli|le|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_DE": (
         [
-            "Arbeitnehmer", "Arbeiter", "Angestellte", "Beschäftigte", "Personal", "Mitarbeiter",
-            "Metall", "Chemie", "Bergbau", "Energie", "Bau", "Dienstleistung",
-            "Eisenbahn", "Nahrung", "Genuss", "Gaststätten", "Erziehung", "Wissenschaft",
-            "Polizei", "Post", "Logistik", "Verkehr", "Banken", "Versicherung",
-            "Textil", "Bekleidung", "Holz", "Kunststoff",
+            "Arbeitnehmer",
+            "Arbeiter",
+            "Angestellte",
+            "Beschäftigte",
+            "Personal",
+            "Mitarbeiter",
+            "Metall",
+            "Chemie",
+            "Bergbau",
+            "Energie",
+            "Bau",
+            "Dienstleistung",
+            "Eisenbahn",
+            "Nahrung",
+            "Genuss",
+            "Gaststätten",
+            "Erziehung",
+            "Wissenschaft",
+            "Polizei",
+            "Post",
+            "Logistik",
+            "Verkehr",
+            "Banken",
+            "Versicherung",
+            "Textil",
+            "Bekleidung",
+            "Holz",
+            "Kunststoff",
         ],
-        ["Gewerkschaft", "Bund", "Verband", "Vereinigung", "Industriegewerkschaft", "IG"],
+        [
+            "Gewerkschaft",
+            "Bund",
+            "Verband",
+            "Vereinigung",
+            "Industriegewerkschaft",
+            "IG",
+        ],
         r"(?:\s+(?:der|des|dem|den|für|im|in|und|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_NL": (
         [
-            "Werknemers", "Arbeiders", "Personeel", "Medewerkers", "Bedienden",
-            "Metaal", "Bouw", "Vervoer", "Spoorwegen", "Havens", "Chemie", "Onderwijs", "Zorg",
-            "Politie", "Banken", "Verzekeringen", "Textiel", "Voeding", "Landbouw",
+            "Werknemers",
+            "Arbeiders",
+            "Personeel",
+            "Medewerkers",
+            "Bedienden",
+            "Metaal",
+            "Bouw",
+            "Vervoer",
+            "Spoorwegen",
+            "Havens",
+            "Chemie",
+            "Onderwijs",
+            "Zorg",
+            "Politie",
+            "Banken",
+            "Verzekeringen",
+            "Textiel",
+            "Voeding",
+            "Landbouw",
         ],
-        ["Vakbond", "Bond", "Unie", "Federatie", "Vereniging", "Centrale", "Vakcentrale", "Vakbeweging"],
+        [
+            "Vakbond",
+            "Bond",
+            "Unie",
+            "Federatie",
+            "Vereniging",
+            "Centrale",
+            "Vakcentrale",
+            "Vakbeweging",
+        ],
         r"(?:\s+(?:van|de|het|en|voor|in|op|&|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_MUSLIM": (
         [
-            "Buruh", "Pekerja", "Kerja", "Işçileri", "Çalışma", "Emek", "Ummal",
+            "Buruh",
+            "Pekerja",
+            "Kerja",
+            "Işçileri",
+            "Çalışma",
+            "Emek",
+            "Ummal",
         ],
         [
-            "Serikat", "Kesatuan", "Sendikasi", "Sendika", "Ittihad", "Niqabat", "Federasyonu", "Konfederasyonu",
-            "Persatuan", "Sekerja", "Birliği", "Persekutuan", "Asosiasi", "Federasi", "Konfederasi", "Dernek"
+            "Serikat",
+            "Kesatuan",
+            "Sendikasi",
+            "Sendika",
+            "Ittihad",
+            "Niqabat",
+            "Federasyonu",
+            "Konfederasyonu",
+            "Persatuan",
+            "Sekerja",
+            "Birliği",
+            "Persekutuan",
+            "Asosiasi",
+            "Federasi",
+            "Konfederasi",
+            "Dernek",
         ],
         r"(?:\s+(?:al|el|ul|dan|ve|wa|&|[A-Z][\w-]*)){0,3}\s+",
     ),
@@ -2898,6 +3343,7 @@ BUSINESS_BOOSTER = {
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
 
+
 class RegionMatcher:
     """
     Compiles regexes for Regions, Nations, and Specific Unions.
@@ -2919,16 +3365,19 @@ class RegionMatcher:
 
     regex_detector_regex = re.compile(r"[\^\$\*\+\?\{\}\[\]\\\|\(\)]")
     _compiled = False
+
     def __init__(self):
         if not RegionMatcher._compiled:
             RegionMatcher._compile()
 
     @classmethod
-    def get_location(cls, text: str) -> Optional[Tuple[Region, str, Optional[str], str]]:
+    def get_location(
+        cls, text: str
+    ) -> Optional[Tuple[Region, str, Optional[str], str]]:
         lower = text.lower()
         if lower in cls.location_map:
             return cls.location_map[lower]
-        
+
         for pattern, info in cls.regex_location_map.items():
             if re.fullmatch(pattern, text, re.IGNORECASE):
                 return info
@@ -3087,7 +3536,7 @@ class RegionMatcher:
                             else:
                                 cls.location_map[phrase.lower()] = info
                             region_geo_phrases.add(phrase)
-            
+
             if region_geo_phrases:
                 pattern_str = (
                     r"\b(?:" + "|".join(safe_escape(region_geo_phrases)) + r")\b"
@@ -3096,9 +3545,7 @@ class RegionMatcher:
 
         # Compile Specific Union Regex
         if union_phrases:
-            pattern_str = (
-                r"\b(?:" + "|".join(safe_escape(union_phrases)) + r")\b"
-            )
+            pattern_str = r"\b(?:" + "|".join(safe_escape(union_phrases)) + r")\b"
             cls.specific_union_regex = re.compile(pattern_str, re.IGNORECASE)
 
         cls._compiled = True
@@ -3159,6 +3606,8 @@ MAJOR_CURRENCIES = {
     "MXN": {"symbols": ["Mex$"], "names": ["mexican peso"], "prefix": True},
     "BRL": {"symbols": ["R$", "BRL"], "names": ["brazilian real"], "prefix": True},
 }
+
+
 def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
     """
     Loads GDP and Population percentages to calculate a composite weight.
@@ -3244,7 +3693,7 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
     for code in TAX_HAVEN_CODES:
         if code in df["code"].values:
             df.loc[df["code"] == code, "weight"] *= TAX_HAVEN_PENALTY
-            
+
     # Apply Specific Penalties
     for code, penalty in EXTRA_WEIGHT_PENALTY_CODES.items():
         if code in df["code"].values:
@@ -3260,13 +3709,14 @@ def _load_external_weights(csv_filename="gdp_pop_pct.csv", alpha=0.55):
 
 _EXTERNAL_WEIGHTS, _CODE_TO_LABOR_RATE = _load_external_weights()
 
+
 def _build_code_to_weight_map():
     mapping = {}
     external_weights = _EXTERNAL_WEIGHTS
     # Add language buckets from INT_LANGUAGE_MAP
     for code, countries in INT_LANGUAGE_MAP.items():
         COMPOSITE_REGION_MAP[code] = list(countries)
-        
+
     defined_codes = set()
 
     all_regions = [
@@ -3295,7 +3745,9 @@ def _build_code_to_weight_map():
 
     if missing_definitions:
         try:
-            pd.DataFrame(missing_definitions).to_csv("undefined_countries.csv", index=False)
+            pd.DataFrame(missing_definitions).to_csv(
+                "undefined_countries.csv", index=False
+            )
         except Exception:
             pass
 
@@ -3318,6 +3770,7 @@ def _build_code_to_weight_map():
 
 _CODE_TO_WEIGHT = _build_code_to_weight_map()
 
+
 def _build_region_weights_map(country_weights):
     """Aggregates country weights to determine region weights."""
     r_weights = {}
@@ -3327,7 +3780,12 @@ def _build_region_weights_map(country_weights):
 
     # 1. Group codes by Region
     all_regions = [
-        NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, MIDDLE_EAST_AFRICA, INTERNATIONAL
+        NORTH_AMERICA,
+        EUROPE,
+        ASIA_PACIFIC,
+        LATIN_AMERICA,
+        MIDDLE_EAST_AFRICA,
+        INTERNATIONAL,
     ]
 
     for r_set in all_regions:
@@ -3342,7 +3800,7 @@ def _build_region_weights_map(country_weights):
 
                 if is_composite and nation.region != Region.INTERNATIONAL:
                     continue
-                
+
                 if nation.code in IGNORED_REGIONS:
                     continue
 
@@ -3373,7 +3831,9 @@ def _build_region_weights_map(country_weights):
 
     return r_weights
 
+
 REGION_WEIGHTS = _build_region_weights_map(_CODE_TO_WEIGHT)
+
 
 def _build_region_labor_rates_map(country_rates, country_weights):
     """Aggregates country labor rates to determine region labor rates (weighted average)."""
@@ -3381,7 +3841,12 @@ def _build_region_labor_rates_map(country_rates, country_weights):
     region_to_codes = {}
 
     all_regions = [
-        NORTH_AMERICA, EUROPE, ASIA_PACIFIC, LATIN_AMERICA, MIDDLE_EAST_AFRICA, INTERNATIONAL
+        NORTH_AMERICA,
+        EUROPE,
+        ASIA_PACIFIC,
+        LATIN_AMERICA,
+        MIDDLE_EAST_AFRICA,
+        INTERNATIONAL,
     ]
 
     for r_set in all_regions:
@@ -3442,15 +3907,24 @@ def _build_region_labor_rates_map(country_rates, country_weights):
             country_rates[code] = avg_rate
             r_rates[code] = avg_rate
         elif count > 0:
-            avg_rate = sum(country_rates[c] for c in constituents if c in country_rates) / count
+            avg_rate = (
+                sum(country_rates[c] for c in constituents if c in country_rates)
+                / count
+            )
             country_rates[code] = avg_rate
             r_rates[code] = avg_rate
 
     return r_rates
 
+
 REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
+
+
 def weighted_division(
-    val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False, domestic_country: Optional[str] = None
+    val: float,
+    entities: List[Dict[str, Any]],
+    use_labor_weights: bool = False,
+    domestic_country: Optional[str] = None,
 ) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
@@ -3511,40 +3985,44 @@ def weighted_division(
     if domestic_country and domestic_country in key_to_weight and len(entities) > 1:
         raw_dom_w = key_to_weight[domestic_country]
         raw_total_w = sum(key_to_weight.values())
-        
+
         if raw_total_w > 0:
             raw_share = raw_dom_w / raw_total_w
-            
+
             # Parameters for dynamic boosting
-            MAX_BOOST = 6.0       # Max multiplier
-            POP_PIVOT = 5000.0    # Population where boost strength halves
-            CLUSTER_MAX = 8.0     # Cluster size where boost fades to 0
-            
+            MAX_BOOST = 6.0  # Max multiplier
+            POP_PIVOT = 5000.0  # Population where boost strength halves
+            CLUSTER_MAX = 8.0  # Cluster size where boost fades to 0
+
             # Factor 1: Population (Small pop -> High boost)
             pop_factor = 1.0 / (1.0 + (original_val / POP_PIVOT))
-            
+
             # Factor 2: Cluster Size (Small cluster -> High boost)
             cluster_size = len(entities)
             cluster_factor = max(0.0, 1.0 - (cluster_size - 2) / (CLUSTER_MAX - 2))
-            
+
             # Factor 3: Share Risk (Low share -> High boost)
             share_factor = 1.0 - raw_share
-            
+
             # Additive Boost (Ensure baseline share for tiny populations)
             additive_boost = 0.0
             if original_val < 2500:
                 additive_boost = 0.20 * (1.0 - (original_val / 2500.0))
 
             # Calculate Booster
-            booster = 1.0 + (MAX_BOOST - 1.0) * pop_factor * cluster_factor * share_factor
-            
+            booster = (
+                1.0 + (MAX_BOOST - 1.0) * pop_factor * cluster_factor * share_factor
+            )
+
             if booster > 1.05 or additive_boost > 0:
-                key_to_weight[domestic_country] = (key_to_weight[domestic_country] * booster) + additive_boost
+                key_to_weight[domestic_country] = (
+                    key_to_weight[domestic_country] * booster
+                ) + additive_boost
                 note += f"Domestic {domestic_country} boosted x{booster:.2f} +{additive_boost:.3f} (Pop:{int(original_val)}, N:{cluster_size}, Share:{raw_share:.1%}). "
 
     # 3. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
-    groups = [] # List of dicts: {keys: [], weight: float, is_cluster: bool}
+    groups = []  # List of dicts: {keys: [], weight: float, is_cluster: bool}
     used_clusters = []
 
     # Sort composite regions by size (specificity) - smallest first
@@ -3559,22 +4037,14 @@ def weighted_division(
             cluster_keys = sorted(list(intersection))
             # Calculate raw weight sum of the cluster
             w_sum = sum(key_to_weight[k] for k in cluster_keys)
-            groups.append({
-                "keys": cluster_keys,
-                "weight": w_sum,
-                "is_cluster": True
-            })
+            groups.append({"keys": cluster_keys, "weight": w_sum, "is_cluster": True})
             used_clusters.append(f"{region_code}: {', '.join(cluster_keys)}")
             # Remove from remaining
             remaining_keys -= intersection
 
     # Add remaining as individual groups
     for k in sorted(list(remaining_keys)):
-        groups.append({
-            "keys": [k],
-            "weight": key_to_weight[k],
-            "is_cluster": False
-        })
+        groups.append({"keys": [k], "weight": key_to_weight[k], "is_cluster": False})
 
     # 3. Distribute val among groups based on group weights
     total_group_weight = sum(g["weight"] for g in groups)
@@ -3588,7 +4058,7 @@ def weighted_division(
         remainder = int(val) - (split_val * len(entities))
         for i, e in enumerate(entities):
             final_distribution[e["key"]] = split_val + (1 if i < remainder else 0)
-            
+
         # Add pre-allocated counts
         for k, v in pre_allocated.items():
             final_distribution[k] = final_distribution.get(k, 0) + v
@@ -3624,7 +4094,9 @@ def weighted_division(
                     if j == len(group["keys"]) - 1:
                         final_distribution[k] = sub_remaining
                     else:
-                        sub_share = (member_weights[k] / total_member_weight) * group_share
+                        sub_share = (
+                            member_weights[k] / total_member_weight
+                        ) * group_share
                         sub_share_int = int(round(sub_share))
                         final_distribution[k] = sub_share_int
                         sub_remaining -= sub_share_int
@@ -3643,16 +4115,18 @@ def weighted_division(
     return final_distribution, note
 
 
-def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] = None) -> List[List[Dict[str, Any]]]:
+def group_by_scope(
+    entities: List[Dict[str, Any]], target_count: Optional[int] = None
+) -> List[List[Dict[str, Any]]]:
     """
     Groups geographic entities into clusters based on scope hierarchy to match a target count.
     Used when the number of counts matches the number of 'scopes' but not the total number of entities.
-    
-    Example: 
+
+    Example:
       Entities: [International, Europe, China]
       Target: 1
       Result: [[International, Europe, China]] (International contains others)
-      
+
       Entities: [Domestic, International, Europe, China]
       Target: 2
       Result: [[Domestic], [International, Europe, China]]
@@ -3662,28 +4136,31 @@ def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] =
 
     # Sort by position in text
     sorted_entities = sorted(entities, key=lambda x: x["span"][0])
-    
+
     groups = []
-    
+
     for entity in sorted_entities:
         if not groups:
             groups.append([entity])
             continue
-            
+
         current_head = groups[-1][0]
-        
+
         # Check containment
         head_region = current_head.get("region_enum")
         child_region = entity.get("region_enum")
         child_key = entity.get("key")
-        
+
         is_child = False
-        
+
         if head_region == Region.GLOBAL:
             is_child = True
         elif head_region == Region.INTERNATIONAL:
             # International contains everything except Domestic and Global
-            if child_region not in (Region.DOMESTIC, Region.GLOBAL) and child_key != "DOM":
+            if (
+                child_region not in (Region.DOMESTIC, Region.GLOBAL)
+                and child_key != "DOM"
+            ):
                 is_child = True
         elif head_region in (Region.DOMESTIC, Region.UNKNOWN):
             # Domestic/Unknown usually doesn't contain other regions/countries in this context
@@ -3703,8 +4180,8 @@ def group_by_scope(entities: List[Dict[str, Any]], target_count: Optional[int] =
             groups[-1].append(entity)
         else:
             groups.append([entity])
-            
+
     if target_count is None or len(groups) == target_count:
         return groups
-        
+
     return []
