@@ -245,9 +245,10 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                 try:
                     processed = process_table(part.strip())
                     sentences = generate_primitive_sentences(processed)
-                    if sentences:
-                        paragraph = f'{TABLE_TOK} {" ".join(sentences)}'
-                        raw_blocks.append(paragraph)
+                    for sentence in sentences:
+                        sentence = strip_html_tags(sentence)
+                        if sentence.strip():
+                            raw_blocks.append(sentence)
                     else:
                         raw_blocks.append(strip_html_tags(part.strip()))
                 except Exception:
@@ -265,7 +266,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     filtered = []
     extracted_percents = []
-    
+
     for block in raw_blocks:
 
         # Clean the text to remove false positives (e.g. "Credit Union")
