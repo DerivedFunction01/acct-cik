@@ -2363,16 +2363,26 @@ class Tracker:
         )
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
+        self.country_keyword_counts: Dict[str, int] = {}
+        self._boosted_rate_cache: Dict[Tuple[float, Optional[str]], Tuple[float, float]] = {}
 
-
-    def _calculate_boosted_rate(self, base_rate: float) -> Tuple[float, float]:
+    def _calculate_boosted_rate(self, base_rate: float, key: Optional[str] = None) -> Tuple[float, float]:
         """
         Dynamically boosts an inferred base unionization rate using:
         1. A logistic keyword multiplier (saturating growth)
         2. A continuous elasticity factor based on the base rate
         """
+        cache_key = (base_rate, key)
+        if cache_key in self._boosted_rate_cache:
+            return self._boosted_rate_cache[cache_key]
 
         k = self.total_union_keywords  # e.g., 56 in your Autoliv case
+        k_specific = 0
+        if key:
+            k_specific = self.country_keyword_counts.get(key, 0)
+            if k_specific == 0 and isinstance(key, str) and "::" in key:
+                country_code = key.split("::")[0]
+                k_specific = self.country_keyword_counts.get(country_code, 0)
 
         # -----------------------------
         # 1. Logistic keyword multiplier
@@ -2380,11 +2390,22 @@ class Tracker:
         # L = max added multiplier (beyond 1.0)
         # s = steepness
         # m = midpoint 
-        L = 2.5
+        L = 2.0
         s = 0.35
         m = 10
 
-        keyword_multiplier = 1 + (L / (1 + math.exp(-s * (k - m))))
+        global_multiplier = 1 + (L / (1 + math.exp(-s * (k - m))))
+
+        # 2. Specific Multiplier (Logistic - smaller scale)
+        # Max boost 1.5x, steeper curve (kicks in at 1-2 keywords)
+        L_spec = 1.5
+        s_spec = 0.5
+        m_spec = 2
+        specific_multiplier = 1.0
+        if k_specific > 0:
+            specific_multiplier = 1 + (L_spec / (1 + math.exp(-s_spec * (k_specific - m_spec))))
+
+        keyword_multiplier = global_multiplier + (specific_multiplier - 1.0)
 
         # -----------------------------
         # 2. Base-rate elasticity
@@ -2405,6 +2426,7 @@ class Tracker:
         # -----------------------------
         boosted_rate = min(base_rate * multiplier, 0.95)
 
+        self._boosted_rate_cache[cache_key] = (boosted_rate, multiplier)
         return boosted_rate, multiplier
 
     def update(self, count: float, geo_context: Dict[str, Any]):
@@ -2551,6 +2573,14 @@ class Tracker:
             return
 
         self.total_union_keywords += keyword_count
+        
+        countries = geo_context.get("countries", [])
+        for c in countries:
+            code = c.get("code")
+            if code:
+                if code == "DOM":
+                    code = self.domestic_country_code
+                self.country_keyword_counts[code] = self.country_keyword_counts.get(code, 0) + keyword_count
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -3000,10 +3030,10 @@ class Tracker:
                             if e.is_union_record:
                                 t.is_union_record = True
 
-    def get_child_stats(self, region_identifier: str) -> Dict[str, float]:
+    def get_child_stats(self, region_identifier: str) -> Tuple[bool, Dict[str, float]]:
         """
         Calculates aggregated statistics for child countries in a region.
-        Returns {covered, not_covered, total}
+        Returns (has_children, {covered, not_covered, total})
         """
         target_countries = None
         region_name = None
@@ -3117,7 +3147,7 @@ class Tracker:
                 agg_not_covered += c_not_cov
                 agg_total += c_tot
 
-        return {
+        return bool(c_entries), {
             "covered": agg_covered,
             "not_covered": agg_not_covered,
             "total": agg_total,
@@ -3199,16 +3229,20 @@ class Tracker:
                         f"Resolved PCT for {name} ({target.key}): {target.covered_count}/{gap}"
                     )
 
-    def _get_region_entries(self, region_name: str) -> List[Entry]:
+    def _get_region_entries(self, region_identifier: str) -> List[Entry]:
+        region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
         relevant = []
         # Dynamic definition for International: Include all non-domestic regions
         is_international_agg = region_name == Region.INTERNATIONAL.value
 
         for e in self.entries:
             # 1. Direct Region Match
-            if e.scope == Scope.REGION and e.key == region_name:
-                relevant.append(e)
-                continue
+            if e.scope == Scope.REGION:
+                # Resolve entry key to canonical region name (e.g. EU -> Europe)
+                entry_region = _CODE_TO_REGION.get(e.key, e.key)
+                if entry_region == region_name:
+                    relevant.append(e)
+                    continue
             
             # 2. Child Country Match
             code = None
@@ -3235,12 +3269,13 @@ class Tracker:
                     relevant.append(e)
         return relevant
 
-    def _inject_placeholders(self, region_name: str):
+    def _inject_placeholders(self, region_identifier: str):
         """
         Injects placeholder entries for countries mentioned in text but missing from entries.
         This allows gap filling to attribute remaining counts to these countries.
         Also backfills total_count from country_totals for all country entries in the region.
         """
+        region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
         # 1. Inject missing mentioned countries
         existing_keys = {e.key for e in self.entries if e.scope == Scope.COUNTRY}
 
@@ -3472,11 +3507,7 @@ class Tracker:
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
             # Also skip GLO (Global) as it is a container for everything
-            if (
-                country_code in REGION_CODES
-                or country_code == "GLO"
-                or (country_code == r.value for r in Region)
-            ):
+            if country_code in REGION_CODES or country_code in IGNORED_REGIONS:
                 # self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region/container code.")
                 return
             if census_total > 0:
@@ -3526,7 +3557,9 @@ class Tracker:
         constituents = [e for e in relevant_entries if e.scope == Scope.SEGMENT]
         self._resolve_geographic_gaps(country_code, census_total, constituents)
 
-    def _resolve_single_region(self, region_name: str, region_total: float):
+    def _resolve_single_region(self, region_identifier: str, region_total: float):
+        region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
+        
         self._inject_placeholders(region_name)
         entries = self._get_region_entries(region_name)
         self._drop_redundant_entries(entries)
@@ -3655,13 +3688,7 @@ class Tracker:
 
         for r in Region:
             r_name = r.value
-            if r_name in (
-                Region.INTERNATIONAL.value,
-                Region.UNKNOWN.value,
-                Region.AGGREGATE.value,
-                Region.GLOBAL.value,
-                Region.DOMESTIC.value,
-            ):
+            if r_name in IGNORED_REGIONS or r_name == Region.DOMESTIC.value:
                 continue
 
             # 1. Check for Region Entry
@@ -3677,20 +3704,10 @@ class Tracker:
                 resolved_region_totals[r_name] = r_entry.total_count
                 continue
 
-            # 2. Sum Countries (using max per country code to avoid duplicates)
-            c_entries = [
-                e
-                for e in self.entries
-                if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name
-            ]
-
-            c_totals = {}
-            for e in c_entries:
-                if e.total_count:
-                    c_totals[e.key] = max(c_totals.get(e.key, 0), e.total_count)
-
-            if c_totals:
-                resolved_region_totals[r_name] = sum(c_totals.values())
+            # 2. Sum Countries (using get_child_stats for comprehensive aggregation)
+            has_children, stats = self.get_child_stats(r_name)
+            if has_children and stats["total"] > 0:
+                resolved_region_totals[r_name] = stats["total"]
 
         sum_others = sum(resolved_region_totals.values())
 
@@ -3741,14 +3758,7 @@ class Tracker:
                 has_specific_intl = any(
                     c
                     for c in self.mentioned_countries
-                    if c
-                    not in [
-                        "DOM",
-                        self.domestic_country_code,
-                        "GLO",
-                        "INT",
-                        Region.INTERNATIONAL.value,
-                    ]
+                    if c not in IGNORED_REGIONS and c != self.domestic_country_code
                 )
                 if has_specific_intl:
                     continue
@@ -3798,7 +3808,7 @@ class Tracker:
                                         w = _CODE_TO_WEIGHT[code]
                                         r = _CODE_TO_LABOR_RATE[code]
                                         # Use boosted rate for weighted average
-                                        boosted_r, _ = self._calculate_boosted_rate(r)
+                                        boosted_r, _ = self._calculate_boosted_rate(r, key=code)
                                         weighted_rate_sum += boosted_r * w
                                         total_weight += w
                                         used_codes.append(code)
@@ -3827,7 +3837,7 @@ class Tracker:
                             )
                         else:
                             base_rate = rate if rate is not None else 0.01
-                            boosted_rate, multiplier = self._calculate_boosted_rate(base_rate)
+                            boosted_rate, multiplier = self._calculate_boosted_rate(base_rate, key=e.key)
                             e.percentage = round(boosted_rate * 100, 2)
                             e.is_qualitative = True
                             e.is_dummy_percent = True
@@ -3883,7 +3893,7 @@ class Tracker:
                     unique_entities.add(key)
 
         for code in self.mentioned_countries:
-            if code and code not in ("DOM", "GLO"):
+            if code and code not in IGNORED_REGIONS:
                 unique_entities.add(code)
 
         # Remove domestic from set
@@ -4196,7 +4206,7 @@ class Tracker:
             # If targeting a region, check if we already have child data.
             # If so, skip fallback to avoid conflicting with bottom-up aggregation.
             if scope_type == Scope.REGION.value:
-                child_stats = self.get_child_stats(scope_key)
+                _, child_stats = self.get_child_stats(scope_key)
                 if (
                     child_stats["total"] > 0
                     or child_stats["covered"] > 0
