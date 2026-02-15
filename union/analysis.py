@@ -960,9 +960,10 @@ class ComplexCoverageAnalyzer:
     # Uses a different subset regex made for percentage cases
     subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those)\b", re.IGNORECASE)
 
-    def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float]):
+    def __init__(self, analysis: SentenceAnalysis, total_count: Optional[float], domestic_country_code: str = "US"):
         self.analysis = analysis
         self.context_total = total_count
+        self.domestic_country_code = domestic_country_code
         self.data = {
             "percentage": None,
             "employee_count_covered": None,
@@ -5509,6 +5510,35 @@ class UnionAnalyzer:
 
         return parts, sentence_total, proximity_map
 
+    def _is_contained(self, container_key: str, item_key: str) -> bool:
+        """
+        Checks if item_key is geographically contained within container_key.
+        """
+        if not container_key or not item_key:
+            return False
+        if container_key == item_key:
+            return True
+            
+        # Global/International contains everything except Domestic
+        if container_key in [Region.INTERNATIONAL.value, Region.GLOBAL.value, "INT", "GLO"]:
+            if item_key in [Region.DOMESTIC.value, "DOM", "Domestic", self.domestic_country_code]:
+                return False
+            if item_key in [Region.GLOBAL.value, "GLO"]:
+                return False
+            return True
+            
+        # Region contains its countries
+        item_region = _CODE_TO_REGION.get(item_key, item_key)
+        container_region = _CODE_TO_REGION.get(container_key, container_key)
+        
+        if container_region == item_region:
+             # Only if container is actually a Region entity
+             is_container_region = (container_key in [r.value for r in Region]) or (container_key in REGION_CODES)
+             if is_container_region:
+                 is_item_region = (item_key in [r.value for r in Region]) or (item_key in REGION_CODES)
+                 return not is_item_region
+        return False
+
     def _remove_container_regions(
         self, entities: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
@@ -5522,25 +5552,14 @@ class UnionAnalyzer:
         keep_indices = set()
         for i, e1 in enumerate(entities):
             is_container_of_others = False
-
-            # Determine region of e1
-            # e1["key"] could be "Europe", "EU", "RU", etc.
-            r1 = _CODE_TO_REGION.get(e1["key"], e1["key"])
-
-            # Is e1 a Region?
-            is_region_1 = (e1["key"] in [r.value for r in Region]) or (
-                e1["key"] in REGION_CODES
-            )
-
-            if is_region_1:
-                for j, e2 in enumerate(entities):
-                    if i == j:
-                        continue
-                    r2 = _CODE_TO_REGION.get(e2["key"])
-                    # If e2 maps to e1's region name
-                    if r2 and r2 == r1:
-                        is_container_of_others = True
-                        break
+            
+            for j, e2 in enumerate(entities):
+                if i == j:
+                    continue
+                
+                if self._is_contained(e1["key"], e2["key"]):
+                    is_container_of_others = True
+                    break
 
             if not is_container_of_others:
                 keep_indices.add(i)
@@ -5560,38 +5579,22 @@ class UnionAnalyzer:
             containers = []
             others = []
 
+            # Identify potential containers
             for i, e in enumerate(entities):
-                is_region = False
-                if "region_enum" in e:
-                    r_val = e["region_enum"].value
-                    # It is a container if the key is the region name or a region code
-                    if e["key"] == r_val or e["key"] in REGION_CODES:
-                        is_region = True
-
-                if is_region:
-                    containers.append(i)
-                else:
-                    others.append(i)
-
-            # If exactly one container and it contains all others
-            if len(containers) == 1 and others:
-                c_idx = containers[0]
-                container_region = entities[c_idx].get("region_enum")
-
-                all_contained = True
-                for o_idx in others:
-                    other = entities[o_idx]
-                    if (
-                        "region_enum" not in other
-                        or other["region_enum"] != container_region
-                    ):
+                # Check if this entity contains ALL others
+                contains_all = True
+                for j, other in enumerate(entities):
+                    if i == j: continue
+                    if not self._is_contained(e["key"], other["key"]):
                         all_contained = False
                         break
-
-                if all_contained:
-                    return [
-                        e for i, e in enumerate(entities) if i != c_idx
-                    ], "Removed Redundant Container"
+                
+                if contains_all:
+                    containers.append(i)
+            
+            if len(containers) == 1:
+                c_idx = containers[0]
+                return [e for i, e in enumerate(entities) if i != c_idx], "Removed Redundant Container"
 
         return entities, ""
 
@@ -6746,7 +6749,7 @@ class UnionAnalyzer:
         Handles complex scenarios: mixed coverage, ratios, inferred totals, etc.
         (Placeholder for the complex logic to be re-added/refined)
         """
-        analyzer = self.complex_analyzer_cls(analysis, total_count)
+        analyzer = self.complex_analyzer_cls(analysis, total_count, self.domestic_country_code)
         return analyzer.analyze()
 
     def _analyze_item1a(
