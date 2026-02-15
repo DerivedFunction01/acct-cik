@@ -2398,7 +2398,7 @@ class Tracker:
         global_multiplier = 1 + (L / (1 + math.exp(-s * (k - m))))
 
         # 2. Specific Multiplier (Logistic - smaller scale)
-        # Max boost 1.5x, steeper curve (kicks in at 1-2 keywords)
+        # Max boost, steeper curve (kicks in at 1-2 keywords)
         L_spec = 1.25
         s_spec = 0.5
         m_spec = 2
