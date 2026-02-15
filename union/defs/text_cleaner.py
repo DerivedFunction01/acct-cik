@@ -524,6 +524,11 @@ class MinimalTextCleaner:
     # Regex for acronyms with dots (2-5 letters) e.g. U.S., U.S.A.
     acronym_pattern = re.compile(r"\b(?:[A-Z]\.){2,5}")
 
+    # Covid normalization
+    covid_pattern = re.compile(
+        r"\b(?:(?:covid|coronavirus)(?:[\s-]*(?:19|2019))?|SARS-CoV-2)\b", re.IGNORECASE
+    )
+
     def __init__(self):
         pass
 
@@ -541,10 +546,10 @@ class MinimalTextCleaner:
         text = match.group(0)
         parts = text.split('/')
         last = parts[-1]
-        
+
         # Determine if we should treat the last part as a year
         is_year = False
-        
+
         if len(parts) >= 3:
             is_year = True
         elif len(parts) == 2:
@@ -555,17 +560,17 @@ class MinimalTextCleaner:
                     is_year = True
                 elif len(last) == 2 and last.isdigit() and int(last) > 31:
                     is_year = True
-        
+
         if not is_year:
             return " "
-        
+
         year = None
         if len(last) == 4 and last.isdigit():
             year = int(last)
         elif len(last) == 2 and last.isdigit():
             val = int(last)
             year = (2000 + val) if 0 <= val <= 35 else (1900 + val)
-        
+
         if year and 1900 <= year <= 2100:
             return f" {year} "
         return " "
@@ -765,6 +770,9 @@ class MinimalTextCleaner:
             # 2. False Positives
             for pat, repl in self.false_positives:
                 paragraph = pat.sub(repl.capitalize(), paragraph)
+
+            # Normalize Covid
+            paragraph = self.covid_pattern.sub("covid", paragraph)
 
             # 3. Company Name
             if company_name:
@@ -2159,6 +2167,14 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "<PAGE>", None),
                 (TestType.NOT_CONTAINS, "2", None),
                 (TestType.NOT_CONTAINS, "7", None),
+            ],
+        ),
+        # Test 31: Covid Normalization
+        TestCase(
+            name="Covid Normalization",
+            input_text="Due to Covid-19, COVID 19, and Coronavirus impacts.",
+            validations=[
+                (TestType.CONTAINS, "Due to covid, covid, and covid impacts.", None),
             ],
         ),
     ]
