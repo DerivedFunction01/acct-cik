@@ -32,7 +32,7 @@ from defs.union_regex import (
     LOOSE_TITLE_PREFIX_REGEX,
     DIVERSITY_TERMS,
 )
-from defs.region_regex import Region, RegionMatcher, GeoSource
+from defs.region_regex import Region, RegionMatcher, GeoSource, INT_LANGUAGE_MAP, _CODE_TO_REGION
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
@@ -1315,6 +1315,40 @@ class UnionExtractor:
                 )
                 if not has_data:
                     analysis.is_relevant = False
+
+        # Post-processing: Resolve INT_* union matches using explicit geo matches in the same sentence
+        explicit_map = {
+            m.geo_code: m.country
+            for m in analysis.geo_matches
+            if m.geo_code
+        }
+
+        if explicit_map:
+            for m in analysis.geo_matches:
+                if (
+                    m.source_type == GeoSource.INFERRED_UNION
+                    and m.geo_code
+                    and m.geo_code.startswith("INT_")
+                ):
+                    allowed_countries = INT_LANGUAGE_MAP.get(m.geo_code)
+                    if allowed_countries:
+                        # Find intersection
+                        common = set(explicit_map.keys()).intersection(allowed_countries)
+                        if common:
+                            # Pick one (e.g. the first one)
+                            target_code = list(common)[0]
+                            m.geo_code = target_code
+                            m.country = explicit_map[target_code]
+
+                            # Update region if possible
+                            region_name = _CODE_TO_REGION.get(target_code)
+                            if region_name:
+                                # Try to find enum
+                                for r in Region:
+                                    if r.value == region_name:
+                                        m.region = r
+                                        break
+
         # print(analysis)
         return analysis
 
