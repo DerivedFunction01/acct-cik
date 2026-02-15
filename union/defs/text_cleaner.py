@@ -1280,37 +1280,70 @@ class ConcisenessCleaner:
 
         return "\n\n".join(processed)
 
+
+COMPANY_TOKEN = "the Company"
 class CompanyCleaner:
     def __init__(self):
         self.cleaner = MinimalTextCleaner()
         # Regex to find potential company name occurrences in text (Title Case phrases)
-        # Matches words starting with Uppercase, optionally followed by more Uppercase words
-        # or connectors like &, of, and, the.
         self.candidate_pattern = re.compile(
-            r"\b[A-Z][\w\-\']+(?:\s+(?:&|and|of|the|[A-Z][\w\-\']+))*\b"
+            r"\b[A-Z1-9][\w\-\']*(?:\s+(?:&|and|of|the|[A-Z1-9][\w\-\']+))*\b"
         )
         self.numeric_firms_regex = None
         self.union_firms_regex = None
+        self._numeric_firm_list = []  # Store list for fuzzy matching
+        self._union_firm_list = []
         self._load_numeric_firms()
 
+    def _generate_flexible_pattern(self, name: str) -> str:
+        """Generate regex pattern that matches word-number variations."""
+        tokens = re.split(r'[^a-zA-Z0-9]+', name)
+        tokens = [t for t in tokens if t]
+
+        if not tokens:
+            return re.escape(name)
+
+        parts = []
+        for token in tokens:
+            opts = {re.escape(token)}
+            lower = token.lower()
+
+            # Word <-> Digit conversion using MinimalTextCleaner's dictionary
+            if lower in MinimalTextCleaner.num_words:
+                opts.add(str(MinimalTextCleaner.num_words[lower]))
+            elif token.isdigit():
+                val = int(token)
+                for k, v in MinimalTextCleaner.num_words.items():
+                    if v == val:
+                        opts.add(k)
+                        opts.add(k.capitalize())
+                        break
+            parts.append(f"(?:{'|'.join(opts)})")
+
+        # Join with flexible separator (space, hyphen, dot, comma)
+        return r"[\s\-\.,]*".join(parts)
+
     def _load_numeric_firms(self):
+        """Load numeric and union firms from CSV file."""
         candidates = [
             Path("numeric_firm_names.csv"),
             Path("union/numeric_firm_names.csv"),
             Path(__file__).parent.parent / "numeric_firm_names.csv"
         ]
-        
+
         file_path = None
         for p in candidates:
             if p.exists():
                 file_path = p
                 break
-        
+
         if not file_path:
             return
 
         numeric_names = set()
         union_names = set()
+        numeric_list = []
+        union_list = []
 
         try:
             with open(file_path, "r", encoding="utf-8") as f:
@@ -1321,41 +1354,69 @@ class CompanyCleaner:
                         name = name.strip()
                         if len(name) < 3:
                             continue
-                        
-                        # Remove punctuation to count words correctly (e.g. "Union," -> "Union")
+
+                        # Remove punctuation to count words correctly
                         clean_name = re.sub(r'[^\w\s]', '', name)
                         tokens = clean_name.split()
-                        
+
                         is_union = any(t.lower() in ('union', 'unions') for t in tokens)
 
+                        # Generate prefixes for partial matching
+                        prefixes = {name}
+                        if len(tokens) > 2:
+                            parts = name.split()
+                            for i in range(2, len(parts)):
+                                prefix = " ".join(parts[:i])
+                                prefix_lower = prefix.lower()
+                                if prefix_lower in ["credit union", "labor union", "trade union", "european union", "soviet union"]:
+                                    continue
+                                if prefix_lower.endswith((" of", " and", " &", " for")):
+                                    continue
+                                prefixes.add(prefix)
+
                         if is_union:
-                            # Union Logic: Require at least 2 tokens
                             if len(tokens) < 2:
                                 continue
-                            
-                            # Add full name
-                            union_names.add(re.escape(name))
 
-                            # Add prefixes of length >= 2 tokens to allow partial matching
-                            # e.g. "Union Texas Petroleum" -> "Union Texas"
-                            if len(tokens) > 2:
+                            # Generate sliding windows for unions
+                            # E.g., "Tri Union Development Corp" -> ["Tri Union Development Corp", "Tri Union Development", "Union Development Corp", "Union Development"]
+                            union_windows = set(prefixes)
+
+                            if len(tokens) >= 2:
                                 parts = name.split()
-                                for i in range(2, len(parts)):
-                                    prefix = " ".join(parts[:i])
-                                    # Filter out generic/bad prefixes
-                                    prefix_lower = prefix.lower()
-                                    if prefix_lower in ["credit union", "labor union", "trade union", "european union", "soviet union"]:
-                                        continue
-                                    if prefix_lower.endswith((" of", " and", " &", " for")):
-                                        continue
-                                    union_names.add(re.escape(prefix))
+                                # Generate all 2+ token windows
+                                for start in range(len(parts)):
+                                    for end in range(start + 2, len(parts) + 1):
+                                        window = " ".join(parts[start:end])
+                                        window_lower = window.lower()
+
+                                        # Filter out generic/bad windows
+                                        if window_lower in ["credit union", "labor union", "trade union", "european union", "soviet union"]:
+                                            continue
+                                        if window_lower.endswith((" of", " and", " &", " for")):
+                                            continue
+
+                                        union_windows.add(window)
+
+                            for p in union_windows:
+                                pattern = self._generate_flexible_pattern(p)
+                                union_names.add(pattern)
+                                union_list.append(p)
                         else:
-                            # Standard Numeric Logic
-                            numeric_names.add(re.escape(name))
+                            # Numeric firms still use prefix matching
+                            for p in prefixes:
+                                pattern = self._generate_flexible_pattern(p)
+                                numeric_names.add(pattern)
+                                numeric_list.append(p)
 
         except Exception:
             pass
 
+        # Store lists for fuzzy matching
+        self._numeric_firm_list = numeric_list
+        self._union_firm_list = union_list
+
+        # Build regex patterns from flexible patterns
         if numeric_names:
             sorted_names = sorted(list(numeric_names), key=len, reverse=True)
             self.numeric_firms_regex = re.compile(
@@ -1369,11 +1430,61 @@ class CompanyCleaner:
             )
 
     def clean_numeric_names(self, text: str) -> str:
+        """
+        Clean numeric firm names (e.g., "Seven Eleven", "Six Flags").
+        Uses both regex patterns and fuzzy matching to catch aliases/shortforms.
+        Replaces with COMPANY_TOKEN, NOT with converted numbers.
+        """
+        # First pass: Exact pattern matching
         if self.numeric_firms_regex:
-            return self.numeric_firms_regex.sub(COMPANY_TOKEN, text)
+            text = self.numeric_firms_regex.sub(COMPANY_TOKEN, text)
+
+        # Second pass: Fuzzy match remaining Title Case phrases against numeric firm list
+        # This catches aliases and shortforms not in the regex
+        if self._numeric_firm_list:
+            matches = list(self.candidate_pattern.finditer(text))
+            replacements = []
+
+            for m in matches:
+                candidate = m.group(0)
+                if len(candidate) < 2:
+                    continue
+
+                cand_lower = candidate.lower()
+
+                # Check each numeric firm in the list for fuzzy match
+                for firm_name in self._numeric_firm_list:
+                    firm_lower = firm_name.lower()
+                    ratio = difflib.SequenceMatcher(None, cand_lower, firm_lower).ratio()
+
+                    # 0.85+ threshold for fuzzy match
+                    if ratio >= 0.50:
+                        replacements.append(m.span())
+                        break
+
+            # Apply replacements in reverse order to maintain indices
+            for start, end in sorted(replacements, reverse=True):
+                text = text[:start] + COMPANY_TOKEN + text[end:]
+
         return text
 
     def clean_union_firms(self, text: str) -> str:
+        """
+        Clean union firms with strict matching:
+        - Exact regex pattern match (from CSV)
+        - Searches for 2+ token windows that match union patterns
+        - Title Case or All Caps enforcement
+        - Does NOT use fuzzy matching for unions
+        
+        Example matches:
+        - "Union Texas" → matches "Union Texas"
+        - "Tri Union Development" → matches "Union Development"
+        - "Shearson Union Square" → matches "Union Square"
+        
+        Non-matches:
+        - "union employees" (lowercase)
+        - "Union of X" (filtered out in _load_numeric_firms)
+        """
         if not self.union_firms_regex:
             return text
 
@@ -1392,7 +1503,7 @@ class CompanyCleaner:
         if not text:
             return text
 
-        # 1. Clean standard numeric firms (Case Insensitive)
+        # 1. Clean standard numeric firms (Case Insensitive, with fuzzy matching)
         text = self.clean_numeric_names(text)
 
         # 2. Clean Union firms (Case Sensitive / Title Case enforced)
@@ -1400,25 +1511,25 @@ class CompanyCleaner:
 
         if not company_name:
             return text
-        
+
         # Normalize the company name (strip suffixes like Inc., Corp.)
         normalized_name = self.cleaner.normalize_company_name(company_name)
         if len(normalized_name) < 3:
             return text
-            
+
         target_lower = normalized_name.lower()
-        
+
         matches = list(self.candidate_pattern.finditer(text))
         replacements = []
-        
+
         for m in matches:
             candidate = m.group(0)
-            if len(candidate) < 3:
+            if len(candidate) < 2:
                 continue
-                
+
             cand_lower = candidate.lower()
             is_match = False
-            
+
             # 1. Exact Match
             if cand_lower == target_lower:
                 is_match = True
@@ -1429,15 +1540,15 @@ class CompanyCleaner:
             elif len(target_lower) > 4 and len(cand_lower) > 4:
                 if target_lower.startswith(cand_lower) or cand_lower.startswith(target_lower):
                     is_match = True
-            
+
             if is_match:
                 replacements.append(m.span())
-        
+
         # Apply replacements in reverse order to maintain indices
         out_text = text
         for start, end in reversed(replacements):
             out_text = out_text[:start] + COMPANY_TOKEN + out_text[end:]
-            
+
         return out_text
 
 

@@ -10,7 +10,7 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 
 import json
 from analysis import UnionAnalyzer
-from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
+from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
 ITEM_1 = [
@@ -101,9 +101,11 @@ We also have several instructors who are members of Local 140 of the Internation
 
 Under 15 labor contracts, we employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
 
-Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
+Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees at Captial One remain unionized, though the exact number is not material to our risk profile.
 
-We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven, 3M, and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven, Take Two, 3M, and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+
+In Canada, we work closely with Union Texas employees on extraction operations, and maintain service agreements with Brooklyn Union and Atlantic Union for utility and financial services respectively.
 
 EUROPEAN OPERATIONS
 
@@ -138,7 +140,7 @@ In Southeast Asia (Thailand, Vietnam, Malaysia), we employ approximately 8,000 w
 GLOBAL SUMMARY
 
 We do not provide a precise global unionization rate, as certain regional operations do not disclose specific metrics for competitive or operational reasons. We believe our diversified geographic footprint and largely non-unionized workforce provide flexibility for operational efficiency.""",
-"""
+    """
 The Company offers fair terms and conditions of employment. The Company's overall purpose, Code of Conduct, talent development strategies, and employment policies support the principles in the United Nations Universal Declaration of Human Rights, and the International Labor Organization’s Fundamental Principles and Labor Standards.
 
 The Company considers its relationship with its employees to be good. While there have been a small number of minor labor disputes historically, such disputes have not had a significant or lasting impact on the Company's relationship with its employees, and customer perception of its employee practices or its business results. 
@@ -244,6 +246,7 @@ if __name__ == "__main__":
     currency_remover = CurrencyRemover()
     contextual_cleaner = ContextualNumberCleaner()
     conciseness_cleaner = ConcisenessCleaner()
+    company_cleaner = CompanyCleaner()
 
     # Reporting year context
     reporting_year = 2023
@@ -255,7 +258,8 @@ if __name__ == "__main__":
 
     for item in ITEM_1:
         # Clean the text
-        cleaned_text = cleaner.clean(item)
+        cleaned_text = company_cleaner.clean(item, company_name)
+        cleaned_text = cleaner.clean(cleaned_text, company_name)
         cleaned_text = currency_remover.clean(cleaned_text)
         cleaned_text = contextual_cleaner.clean(cleaned_text)
         cleaned_text = conciseness_cleaner.clean(cleaned_text)
@@ -313,7 +317,7 @@ if __name__ == "__main__":
     cleaned_combined = currency_remover.clean(cleaned_combined)
     cleaned_combined = contextual_cleaner.clean(cleaned_combined)
     cleaned_combined = conciseness_cleaner.clean(cleaned_combined)
-    
+
     print("Cleaned Text:\n")
     print(cleaned_combined)
     print("-" * 40)
@@ -321,7 +325,7 @@ if __name__ == "__main__":
     analysis_output_combined = analyzer.analyze_paragraph(
         cleaned_combined, item_type="item1", reporting_year=reporting_year
     )
-    
+
     for item in analysis_output_combined.get("items", []):
         print(item["sentence"])
         print(item.get("census_note") or item.get("note"))
