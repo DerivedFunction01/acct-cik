@@ -95,15 +95,15 @@ Our U.S. operations employ a significant workforce engaged in manufacturing and 
 
 In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour.
 
-Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
+Our East Coast distribution centers employ logistics personnel who are unionized and covered by 15 independent labor unions. We do not disclose the exact headcount at this time due to operational sensitivity.
 
 We also have several instructors who are members of Local 140 of the International Union of Instructors.
 
-We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
+Under 15 labor contracts, we employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
 
 Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
 
-We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
 
 EUROPEAN OPERATIONS
 
