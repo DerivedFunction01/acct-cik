@@ -9,7 +9,7 @@ from typing import List, Optional, Set, Tuple, Any
 from tqdm import tqdm
 
 # Import definitions
-from defs.union_regex import EXCLUSION_REGEX, UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX
+from defs.union_regex import EXCLUSION_REGEX, UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX, LOOSE_DYNAMIC_UNION_REGEX
 from defs.region_regex import (
     NORTH_AMERICA,
     EUROPE,
@@ -214,6 +214,32 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
                 output.append(part)
     return output
 
+def is_relevant_paragraph(text: str, allow_risk: bool = False) -> bool:
+    """
+    Checks if the paragraph contains relevant union/risk keywords.
+    Uses global regexes initialized in worker.
+    """
+    # 1. Generic Union Terms (Case-Insensitive)
+    if UNION_REGEX.search(text):
+        return True
+
+    # 2. Risk Terms (if allowed) - Lighter than specific/dynamic regexes
+    if allow_risk and RISK_REGEX.search(text):
+        return True
+
+    # 3. Specific Union Names from Regions (Case-Sensitive)
+    # FILTER_REGEX is global, initialized in worker
+    if FILTER_REGEX and FILTER_REGEX.search(text):
+        return True
+
+    # 4. Dynamic Union Names (Strict & Loose)
+    if DYNAMIC_UNION_REGEX.search(text):
+        return True
+    if LOOSE_DYNAMIC_UNION_REGEX.search(text):
+        return True
+
+    return False
+
 def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False, home_country: Optional[str] = None) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
@@ -296,13 +322,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
             continue
 
-        # Check generic union regex (case-insensitive), specific terms (case-sensitive), or dynamic regex
-        is_match = UNION_REGEX.search(cleaned_block) or FILTER_REGEX.search(cleaned_block) or DYNAMIC_UNION_REGEX.search(cleaned_block)
-
-        if not is_match and allow_risk:
-            is_match = RISK_REGEX.search(cleaned_block)
-
-        if is_match:
+        if is_relevant_paragraph(cleaned_block, allow_risk):
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
             for sent in SENTENCE_SPLIT_PATTERN.split(block):
