@@ -3496,14 +3496,21 @@ class Tracker:
                 and country_entry.percentage is None
                 and not country_entry.is_union_record
             ):
-
-                country_entry.covered_count = 0.0
-                country_entry.not_covered_count = country_entry.total_count
-                country_entry.percentage = 0.0
-                country_entry.is_negated = True
-                self.resolution_log.append(
-                    f"Inferred 0% coverage for {country_code} (Placeholder with Total)"
+                # Only infer 0% if no segments have data
+                has_segment_data = any(
+                    e.scope == Scope.SEGMENT
+                    and (e.covered_count is not None or e.percentage is not None or e.is_union_record)
+                    for e in relevant_entries
                 )
+
+                if not has_segment_data:
+                    country_entry.covered_count = 0.0
+                    country_entry.not_covered_count = country_entry.total_count
+                    country_entry.percentage = 0.0
+                    country_entry.is_negated = True
+                    self.resolution_log.append(
+                        f"Inferred 0% coverage for {country_code} (Placeholder with Total)"
+                    )
 
         if not relevant_entries:
             # Check if this is a region code (container) to avoid zeroing out composites
