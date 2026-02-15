@@ -4119,6 +4119,20 @@ class Tracker:
 
         # Process groups
         for (scope_type, scope_key), group in candidates_by_scope.items():
+            # If targeting a region, check if we already have child data.
+            # If so, skip fallback to avoid conflicting with bottom-up aggregation.
+            if scope_type == Scope.REGION.value:
+                child_stats = self.get_child_stats(scope_key)
+                if (
+                    child_stats["total"] > 0
+                    or child_stats["covered"] > 0
+                    or child_stats["not_covered"] > 0
+                ):
+                    self.resolution_log.append(
+                        f"Skipped fallback for {scope_key}: Child data exists (Total: {child_stats['total']})"
+                    )
+                    continue
+
             base_pop = 0.0
             geo_name = "Unknown"
             target_weight = 0.0
