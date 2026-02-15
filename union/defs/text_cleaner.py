@@ -891,6 +891,7 @@ class ContextualNumberCleaner:
             r"contracts?",
             r"agreements?",
             r"unions",
+            r"labor\s+unions?",
         ]
 
         asset_pattern = build_alternation(asset_terms)
