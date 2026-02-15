@@ -39,6 +39,8 @@ LAST_HEADER_PATTERN = build_regex([
     "income",
     "asset",
     "liability",
+    "status",
+    "date",
     ]
 )
 

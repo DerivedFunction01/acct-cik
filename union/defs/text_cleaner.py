@@ -1084,6 +1084,10 @@ class ContextualNumberCleaner:
             rf"\b({number_range})\s+(?:remaining|other)\b",
             re.IGNORECASE
         )
+        
+        # 10. [1-20] (labor) unions? (.|:|;) (number of unions, ending)
+        # [1-20] (labor)? (union)? contracts/agreements
+        
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:

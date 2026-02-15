@@ -249,8 +249,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                         sentence = strip_html_tags(sentence)
                         if sentence.strip():
                             raw_blocks.append(sentence)
-                    else:
-                        raw_blocks.append(strip_html_tags(part.strip()))
                 except Exception:
                     raw_blocks.append(strip_html_tags(part.strip()))
 
