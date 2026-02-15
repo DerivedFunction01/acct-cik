@@ -887,7 +887,10 @@ class ContextualNumberCleaner:
             r"units?",
             r"products",
             r"disputes?",
-            r"compan(?:y|ies)"
+            r"compan(?:y|ies)",
+            r"contracts?",
+            r"agreements?",
+            r"unions",
         ]
 
         asset_pattern = build_alternation(asset_terms)
@@ -989,6 +992,7 @@ class ContextualNumberCleaner:
             r"hours?",
             r"annum",
             r"annual",
+            r"periods?",
         ]
         time_unit_pattern = build_alternation(time_units)
 
@@ -1061,16 +1065,16 @@ class ContextualNumberCleaner:
 
         # 8. Diversity Percentages
         diversity_pattern = build_alternation(DIVERSITY_TERMS)
-        
+
         # stripping union stats that happen to be near diversity terms.
         div_gap = r"(?:(?!(?:and|&)\b)[\'\w-]+\s+){0,10}"
-        
+
         # Matches: "20% [of workforce are] women"
         self.diversity_pre_regex = re.compile(
             rf"\b{percent_range}\s+({div_gap}{diversity_pattern})\b",
             re.IGNORECASE
         )
-        
+
         # Matches: "women [comprise] 20%"
         self.diversity_post_regex = re.compile(
             rf"\b({diversity_pattern}\s+{div_gap}){percent_range}",
@@ -1087,7 +1091,7 @@ class ContextualNumberCleaner:
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
-            
+
         def union_id_replacer(m):
             ident = m.group(1)
             # Default to US unless explicitly Canada
