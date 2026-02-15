@@ -1,4 +1,5 @@
 from enum import Enum
+import math
 from typing import List, Dict, Any, Optional, Set, Tuple, Union
 import re
 from dataclasses import dataclass, field
@@ -2363,6 +2364,49 @@ class Tracker:
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
 
+
+    def _calculate_boosted_rate(self, base_rate: float) -> Tuple[float, float]:
+        """
+        Dynamically boosts an inferred base unionization rate using:
+        1. A logistic keyword multiplier (saturating growth)
+        2. A continuous elasticity factor based on the base rate
+        """
+
+        k = self.total_union_keywords  # e.g., 56 in your Autoliv case
+
+        # -----------------------------
+        # 1. Logistic keyword multiplier
+        # -----------------------------
+        # L = max added multiplier (beyond 1.0)
+        # s = steepness
+        # m = midpoint 
+        L = 2.5
+        s = 0.35
+        m = 10
+
+        keyword_multiplier = 1 + (L / (1 + math.exp(-s * (k - m))))
+
+        # -----------------------------
+        # 2. Base-rate elasticity
+        # -----------------------------
+        # Low base rates → high elasticity
+        # High base rates → low elasticity
+        elasticity = 1 / math.sqrt(base_rate + 1e-6)
+        elasticity = min(elasticity, 5.0)  # safety cap
+
+        # -----------------------------
+        # 3. Combine signals
+        # -----------------------------
+        # Elasticity scales how much of the keyword multiplier applies.
+        multiplier = 1 + (keyword_multiplier - 1) * (elasticity / 5.0)
+
+        # -----------------------------
+        # 4. Final boosted rate
+        # -----------------------------
+        boosted_rate = min(base_rate * multiplier, 0.95)
+
+        return boosted_rate, multiplier
+
     def update(self, count: float, geo_context: Dict[str, Any]):
         # 1. Update Lookups (Keep for analyze_block usage)
         # This logic is simplified to just maintain max values for lookups
@@ -3725,6 +3769,7 @@ class Tracker:
                 if e.key not in negated_keys and not any(
                     g in negated_geos for g in e.related_geo_codes
                 ):
+                    is_region_calc = False
                     if e.percentage is None:
                         # Try to find rate from external data
                         rate = None
@@ -3752,14 +3797,17 @@ class Tracker:
                                     ):
                                         w = _CODE_TO_WEIGHT[code]
                                         r = _CODE_TO_LABOR_RATE[code]
-                                        weighted_rate_sum += r * w
+                                        # Use boosted rate for weighted average
+                                        boosted_r, _ = self._calculate_boosted_rate(r)
+                                        weighted_rate_sum += boosted_r * w
                                         total_weight += w
                                         used_codes.append(code)
 
                                 if total_weight > 0:
                                     rate = weighted_rate_sum / total_weight
+                                    is_region_calc = True
                                     self.resolution_log.append(
-                                        f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of: {', '.join(used_codes)}"
+                                        f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of boosted rates: {', '.join(used_codes)}"
                                     )
 
                         # 3. Try Segment (Country::...)
@@ -3770,30 +3818,23 @@ class Tracker:
                             elif code in REGION_LABOR_RATES:
                                 rate = REGION_LABOR_RATES[code]
 
-                        base_rate = rate if rate is not None else 0.01
-                        
-                        raw_multiplier = 1.0 + (self.total_union_keywords * 0.05)
-                        
-                        if base_rate < 0.05:
-                            cap = 5.0
-                        elif base_rate < 0.10:
-                            cap = 4.0
-                        elif base_rate < 0.20:
-                            cap = 3.0
+                        if is_region_calc and rate is not None:
+                            e.percentage = round(rate * 100, 2)
+                            e.is_qualitative = True
+                            e.is_dummy_percent = True
+                            self.resolution_log.append(
+                                f"Applied inferred rate {e.percentage}% to {e.key} (Aggregated from boosted constituents)"
+                            )
                         else:
-                            cap = 2.5
-                            
-                        multiplier = min(raw_multiplier, cap)
-                        boosted_rate = min(base_rate * multiplier, 0.95)
-                        
-                        e.percentage = round(boosted_rate * 100, 2)
-                        e.is_qualitative = True
-                        e.is_dummy_percent = True
-                        
-                        source_desc = "External Data" if rate is not None else "Default"
-                        self.resolution_log.append(
-                            f"Applied inferred rate {e.percentage}% to {e.key} ({source_desc} {base_rate*100:.1f}% x {multiplier:.2f} booster from {self.total_union_keywords} keywords)"
-                        )
+                            base_rate = rate if rate is not None else 0.01
+                            boosted_rate, multiplier = self._calculate_boosted_rate(base_rate)
+                            e.percentage = round(boosted_rate * 100, 2)
+                            e.is_qualitative = True
+                            e.is_dummy_percent = True
+                            source_desc = "External Data" if rate is not None else "Default"
+                            self.resolution_log.append(
+                                f"Applied inferred rate {e.percentage}% to {e.key} ({source_desc} {base_rate*100:.1f}% x {multiplier:.2f} booster from {self.total_union_keywords} keywords)"
+                            )
 
     def _calculate_missing_covered_counts(self):
         """
