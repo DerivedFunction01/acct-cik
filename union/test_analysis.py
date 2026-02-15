@@ -105,6 +105,8 @@ Our corporate headquarters employs 50,000 administrative, sales, and technical s
 
 We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven, Take Two, 3M, and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
 
+Finally, we may also hire contractors: 10 7 Eleven employees, 20 Six Flags workers, and 15 others.
+
 In Canada, we work closely with Union Texas employees on extraction operations, and maintain service agreements with Brooklyn Union and Atlantic Union for utility and financial services respectively.
 
 EUROPEAN OPERATIONS
