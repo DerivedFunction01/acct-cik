@@ -34,7 +34,7 @@ def clean_spaces_and_punctuation(text: str) -> str:
     return text
 
 
-def normalize_quotes(text: str) -> str:
+def normalize_unicode(text: str) -> str:
     """
     Normalize common Unicode single and double quotation marks to ASCII
     straight quotes. Handles curly quotes and prime characters often
@@ -778,7 +778,7 @@ class MinimalTextCleaner:
             paragraph = clean_spaces_and_punctuation(paragraph)
 
             # Normalize Unicode quotes to ASCII straight quotes
-            paragraph = normalize_quotes(paragraph)
+            paragraph = normalize_unicode(paragraph)
 
             # 2. Normalize Acronyms (Early)
             paragraph = self.normalize_acronyms(paragraph)
@@ -1171,6 +1171,9 @@ class ContextualNumberCleaner:
             rf"\b(?:{number_range}|{percent_range})\s+((?:{contract_context})?{contract_nouns})\b",
             re.IGNORECASE,
         )
+        
+        # 11. Small digits followed by char (e.g. "4-S", "4 S")
+        self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
@@ -1203,6 +1206,7 @@ class ContextualNumberCleaner:
             )  # CONSOLIDATED union pattern
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
+            paragraph = self.small_digit_pattern.sub(" ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
