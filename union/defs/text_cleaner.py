@@ -216,6 +216,7 @@ class MinimalTextCleaner:
     month_only_pattern = re.compile(rf"\b(?:{months_pattern_str})\b")
 
     year_pattern = YEAR_REGEX
+    slash_date_pattern = re.compile(r"\b(?:\d{1,2}/)+\d{2,4}\b")
 
     # Word to number mappings
     num_words = {
@@ -530,6 +531,39 @@ class MinimalTextCleaner:
             name = self.name_suffix_pattern.sub("", name)
         return name
 
+    def _convert_slash_date(self, match):
+        text = match.group(0)
+        parts = text.split('/')
+        last = parts[-1]
+        
+        # Determine if we should treat the last part as a year
+        is_year = False
+        
+        if len(parts) >= 3:
+            is_year = True
+        elif len(parts) == 2:
+            first = parts[0]
+            # If first part is a month, check if second part is ambiguous (<= 31)
+            if first.isdigit() and 1 <= int(first) <= 12:
+                if len(last) == 4:
+                    is_year = True
+                elif len(last) == 2 and last.isdigit() and int(last) > 31:
+                    is_year = True
+        
+        if not is_year:
+            return " "
+        
+        year = None
+        if len(last) == 4 and last.isdigit():
+            year = int(last)
+        elif len(last) == 2 and last.isdigit():
+            val = int(last)
+            year = (2000 + val) if 0 <= val <= 35 else (1900 + val)
+        
+        if year and 1900 <= year <= 2100:
+            return f" {year} "
+        return " "
+
     def _convert_hyphenated_fraction(self, match):
         """
         Convert hyphenated fractions like "three-fourths" to "75%"
@@ -756,6 +790,7 @@ class MinimalTextCleaner:
             paragraph = self.bullet_pattern.sub(" ", paragraph)
 
             # 4b. Date and Year Removal
+            paragraph = self.slash_date_pattern.sub(self._convert_slash_date, paragraph)
             paragraph = self.date_md_pattern.sub(" ", paragraph)
             paragraph = self.date_dm_pattern.sub(" ", paragraph)
             paragraph = self.month_only_pattern.sub(" ", paragraph)
