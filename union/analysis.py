@@ -2361,6 +2361,7 @@ class Tracker:
             {domestic_country_code} if domestic_country_code else set()
         )
         self.domestic_country_code = domestic_country_code
+        self.total_union_keywords: int = 0
 
     def update(self, count: float, geo_context: Dict[str, Any]):
         # 1. Update Lookups (Keep for analyze_block usage)
@@ -2497,12 +2498,15 @@ class Tracker:
         is_negated: bool = False,
         is_union_record: bool = False,
         sentence_index: int = -1,
+        keyword_count: int = 0,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
         """
         if sentence_index < 0:
             return
+
+        self.total_union_keywords += keyword_count
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -3766,20 +3770,30 @@ class Tracker:
                             elif code in REGION_LABOR_RATES:
                                 rate = REGION_LABOR_RATES[code]
 
-                        if rate is not None:
-                            e.percentage = round(rate * 100, 2)
-                            e.is_qualitative = True  # Still qualitative/inferred
-                            e.is_dummy_percent = True
-                            self.resolution_log.append(
-                                f"Applied inferred rate {e.percentage}% to {e.key} (Source: External Est. Data)"
-                            )
+                        base_rate = rate if rate is not None else 0.01
+                        
+                        raw_multiplier = 1.0 + (self.total_union_keywords * 0.05)
+                        
+                        if base_rate < 0.05:
+                            cap = 5.0
+                        elif base_rate < 0.10:
+                            cap = 4.0
+                        elif base_rate < 0.20:
+                            cap = 3.0
                         else:
-                            e.percentage = 1.0
-                            e.is_qualitative = True
-                            e.is_dummy_percent = True
-                            self.resolution_log.append(
-                                f"Applied dummy 1.0% to {e.key} (No external rate found)"
-                            )
+                            cap = 2.5
+                            
+                        multiplier = min(raw_multiplier, cap)
+                        boosted_rate = min(base_rate * multiplier, 0.95)
+                        
+                        e.percentage = round(boosted_rate * 100, 2)
+                        e.is_qualitative = True
+                        e.is_dummy_percent = True
+                        
+                        source_desc = "External Data" if rate is not None else "Default"
+                        self.resolution_log.append(
+                            f"Applied inferred rate {e.percentage}% to {e.key} ({source_desc} {base_rate*100:.1f}% x {multiplier:.2f} booster from {self.total_union_keywords} keywords)"
+                        )
 
     def _calculate_missing_covered_counts(self):
         """
@@ -5115,6 +5129,7 @@ class UnionAnalyzer:
                     is_negated=cov.get("negated", False),
                     is_union_record=item.get("is_union", False),
                     sentence_index=item.get("sentence_index", -1),
+                    keyword_count=len(item.get("keyword_matched") or []),
                 )
 
             # Resolve missing coverage data using collected totals
