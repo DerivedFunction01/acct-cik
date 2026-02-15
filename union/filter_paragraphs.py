@@ -18,7 +18,7 @@ from defs.region_regex import (
     MIDDLE_EAST_AFRICA,
     INTERNATIONAL,
 )
-from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner
+from defs.text_cleaner import MinimalTextCleaner, CurrencyRemover, ContextualNumberCleaner, ConcisenessCleaner, CompanyCleaner
 from defs.table_processor import TABLE_TOK, process_table
 from defs.table_sentences import generate_primitive_sentences
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex
@@ -99,16 +99,18 @@ CURRENCY_REMOVER = None
 CONTEXTUAL_CLEANER = None
 CONCISENESS_CLEANER = None
 EXTRACTOR = None
+COMPANY_CLEANER = None
 
 def init_worker():
     """Initializer for worker processes to compile regex once."""
-    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER, CONCISENESS_CLEANER, EXTRACTOR
+    global FILTER_REGEX, CLEANER, CURRENCY_REMOVER, CONTEXTUAL_CLEANER, CONCISENESS_CLEANER, EXTRACTOR, COMPANY_CLEANER
     FILTER_REGEX = compile_filtering_regex()
     CLEANER = MinimalTextCleaner()
     CURRENCY_REMOVER = CurrencyRemover()
     CONTEXTUAL_CLEANER = ContextualNumberCleaner()
     CONCISENESS_CLEANER = ConcisenessCleaner()
     EXTRACTOR = UnionExtractor()
+    COMPANY_CLEANER = CompanyCleaner()
 
 def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
     # For plain text paragraph extraction, sometimes the text is merged accidentally, so we have a mega chunk
@@ -227,6 +229,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
     assert CONTEXTUAL_CLEANER is not None
     assert CONCISENESS_CLEANER is not None
     assert EXTRACTOR is not None
+    assert COMPANY_CLEANER is not None
 
     # Flatten and split content
     raw_blocks = []
@@ -267,10 +270,13 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     for block in raw_blocks:
 
+        # Pre-clean company names using fuzzy matching
+        cleaned_block = COMPANY_CLEANER.clean(block, company_name)
+
         # Clean the text to remove false positives (e.g. "Credit Union")
         # and normalize company names
         cleaned_block = CLEANER.clean(
-            block, 
+            cleaned_block, 
             company_name=company_name, 
             reporting_year=year
         )
