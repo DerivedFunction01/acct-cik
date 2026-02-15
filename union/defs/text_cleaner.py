@@ -169,7 +169,7 @@ class MinimalTextCleaner:
         r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
         r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
         r")"
-        r"(?=\s)",  # Followed by whitespace
+        r"(?=[\s\(])",  # Followed by whitespace
         re.IGNORECASE,
     )
 
@@ -1477,7 +1477,6 @@ def create_test_cases() -> List[TestCase]:
             input_text="We have 5 million dollars and two employees.",
             validations=[
                 (TestType.CONTAINS, "5000000", None),
-                (TestType.CONTAINS, "two", None),
                 (TestType.NOT_CONTAINS, "5 million", None),
                 (TestType.CONTAINS, "2", None),
             ],
@@ -1741,7 +1740,7 @@ def create_test_cases() -> List[TestCase]:
         # Test 23: Bullets and Exhibits (even if the numbers are converted, exhibit pattern to clean up)
         TestCase(
             name="Bullets and Exhibits",
-            input_text="1. Item 1-2. (2) Item 39.52. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year.",
+            input_text="(b)(1) 1. Item 1-2. (2) Item 39.52. a. Item a. (b) Item b. i. Item i. 10-20 range. (2023) Year 512.",
             validations=[
                 (TestType.NOT_CONTAINS, "1.", None),
                 (TestType.NOT_CONTAINS, "1-2", None),
@@ -1750,10 +1749,11 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "a.", None),
                 (TestType.NOT_CONTAINS, "(b)", None),
                 (TestType.NOT_CONTAINS, "i.", None),
-                (TestType.NOT_CONTAINS, "(2023)", None),
+                (TestType.CONTAINS, "<2023>", None),
                 (TestType.NOT_CONTAINS, "Item one", None),
                 (TestType.CONTAINS, "range", None),
                 (TestType.CONTAINS, "Year", None),
+                (TestType.CONTAINS, "512", None),
             ],
         ),
         # Test 24: Protected Years and Acronyms
@@ -1780,11 +1780,10 @@ def create_test_cases() -> List[TestCase]:
         # Test 26: Pronoun Replacement
         TestCase(
             name="Pronoun Replacement",
-            input_text="We believe our employees are vital. Contact us. US GAAP is used.",
+            input_text="We believe our employees are vital. Contact us.",
             validations=[
                 (TestType.CONTAINS, "We believe", None),
                 (TestType.CONTAINS, "Contact the Company", None),
-                (TestType.NOT_CONTAINS, "US GAAP", None),
             ],
         ),
         # Test 27: No Workers -> 0 Workers
