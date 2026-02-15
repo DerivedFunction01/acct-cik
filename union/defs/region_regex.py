@@ -1522,12 +1522,41 @@ ASIA_PACIFIC = {
             "JAM",
             "Japanese Association of Metal and Allied Workers",
             "Roudou Kumiai",
+            "Rodo Kumiai",  # common alt spelling
+            "Rodo Kumia",  # variant
+            "Zenroren",  # National Confederation of Trade Unions
+            "Zenrokyo",  # National Trade Union Council
+            "Domei",  # historical but still appears in filings
+            "Shokugyo Kumiai",  # occupational union
+            "Sangyo Kumiai",  # industrial union
+            "Jigyousho Kumiai",  # workplace union
+            "Roso",  # labor union (abbrev)
+            "Roso Domei",  # labor union federation
+            "Kigyōbetsu Kumiai",  # enterprise union
+            "Kigyō Roso",  # enterprise labor union
+            "Roren",  # federation of labor unions
+            "Rengo Roren",  # appears in some filings
+            "Kumiai Iin",  # union ,committee
+            "Kumiai Soshiki",  # union organization
         ],
         [
-            "Shunto",
-            "Karoshi",
+            "Shunto",  # spring wage offensive
+            "Karoshi",  # death from overwork
             "Roudou",
-            "Kumiai",
+            "Rodo",  # variant
+            "Roudousha",  # worker
+            "Rodosha",  # variant
+            "Roudou Kijun",  # labor standards
+            "Rodo Kijun",  # variant
+            "Roudou Jikan",  # working hours
+            "Rodo Jikan",  # variant
+            "Koyo",  # employment
+            "Koyo Keiyaku",  # employment contract
+            "Hiseiki",  # non‑regular worker
+            "Seiki",  # regular worker
+            "Haken",  # dispatched labor
+            "Haken Rodosha",  # dispatched worker
+            "Kumiai",  # generic “association/union” but NOT specific enough to imply an organization
         ],
         code="JP",
     ),
@@ -1623,8 +1652,25 @@ ASIA_PACIFIC = {
             Location("Changchun", ["changchun"]),  # Major Auto Hub
             Location("Fujian", ["fujian"]),  # Major Auto Hub
         ],
-        ["All-China Federation of Trade Unions", "ACFTU"],
-        ["Gonghui"],
+        [
+            "All-China Federation of Trade Unions",
+            "ACFTU",
+        ],
+        [
+            "Laodong",  # labor
+            "Laogong",  # worker
+            "Laodongzhe",  # laborer
+            "Laodongli",  # labor force
+            "Laodong Hetong",  # labor contract
+            "Laowu",  # labor service
+            "Laowu Hetong",  # service contract
+            "Waidiren",  # migrant worker
+            "Gongren",  # worker
+            "Zhigong",  # staff/employee
+            "Gonghui",  # 工会 — generic "union", but used in union context
+            "Zonggonghui",  # 总工会 — general union / federation
+            "Gonghui Lianhehui",  # 工会联合会 — union federation (appears occasionally)
+        ],
         code="CN",
     ),
     Nation(
