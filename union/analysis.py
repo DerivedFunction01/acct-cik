@@ -2952,6 +2952,110 @@ class Tracker:
                             if e.is_union_record:
                                 t.is_union_record = True
 
+    def get_child_stats(self, region_name: str) -> Dict[str, float]:
+        """
+        Calculates aggregated statistics for child countries in a region.
+        Returns {covered, not_covered, total}
+        """
+        agg_covered = 0.0
+        agg_not_covered = 0.0
+        agg_total = 0.0
+
+        # 1. Identify relevant country entries (Explicit or Implied by Segments)
+        c_entries = [
+            e
+            for e in self.entries
+            if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == region_name
+        ]
+
+        existing_codes = {e.key for e in c_entries}
+        segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
+
+        # Find implied countries from segments
+        for s in segment_entries:
+            if s.key and "::" in s.key:
+                code = s.key.split("::")[0]
+                if (
+                    code not in existing_codes
+                    and _CODE_TO_REGION.get(code) == region_name
+                ):
+                    dummy = Entry(scope=Scope.COUNTRY, key=code)
+                    c_entries.append(dummy)
+                    existing_codes.add(code)
+
+        for c in c_entries:
+            c_cov = 0.0
+            c_not_cov = 0.0
+            c_tot = 0.0
+            c_has_local_data = False
+
+            # A. Check Country Entry Data
+            if c.covered_count is not None:
+                c_cov = c.covered_count
+                c_tot = c.total_count if c.total_count else 0.0
+                c_not_cov = (
+                    c.not_covered_count
+                    if c.not_covered_count is not None
+                    else max(0.0, c_tot - c_cov)
+                )
+                c_has_local_data = True
+            elif c.percentage is not None and c.total_count:
+                c_cov = (c.percentage / 100.0) * c.total_count
+                c_tot = c.total_count
+                c_not_cov = max(0.0, c_tot - c_cov)
+                c_has_local_data = True
+            elif c.not_covered_count is not None:
+                c_not_cov = c.not_covered_count
+                c_tot = c.total_count if c.total_count else c_not_cov
+                c_cov = (
+                    c.covered_count
+                    if c.covered_count is not None
+                    else max(0.0, c_tot - c_not_cov)
+                )
+                c_has_local_data = True
+
+            # B. Check Segments (Override/Augment if segments provide better resolution)
+            if not c_has_local_data:
+                segs = [
+                    s
+                    for s in self.entries
+                    if s.scope == Scope.SEGMENT
+                    and s.key
+                    and s.key.startswith(f"{c.key}::")
+                ]
+                if segs:
+                    seg_cov = sum(s.covered_count for s in segs if s.covered_count)
+                    seg_not_cov = sum(
+                        s.not_covered_count for s in segs if s.not_covered_count
+                    )
+                    seg_tot = (
+                        c.total_count
+                        if c.total_count
+                        else sum(s.total_count for s in segs if s.total_count)
+                    )
+
+                    if seg_cov > 0 or seg_not_cov > 0 or seg_tot > 0:
+                        c_cov = seg_cov
+                        c_not_cov = seg_not_cov
+                        c_tot = seg_tot
+                        if c_tot > 0:
+                            if c_cov > 0 and c_not_cov == 0:
+                                c_not_cov = max(0.0, c_tot - c_cov)
+                            elif c_not_cov > 0 and c_cov == 0:
+                                c_cov = max(0.0, c_tot - c_not_cov)
+                        c_has_local_data = True
+
+            if c_has_local_data:
+                agg_covered += c_cov
+                agg_not_covered += c_not_cov
+                agg_total += c_tot
+
+        return {
+            "covered": agg_covered,
+            "not_covered": agg_not_covered,
+            "total": agg_total,
+        }
+
     def _resolve_geographic_gaps(
         self, name: str, region_total: float, entries: List[Entry]
     ):
