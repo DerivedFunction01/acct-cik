@@ -221,6 +221,7 @@ class MinimalTextCleaner:
 
     year_pattern = YEAR_REGEX
     slash_date_pattern = re.compile(r"\b(?:\d{1,2}/)+\d{2,4}\b")
+    year_range_short_pattern = re.compile(r"\b((?:19|20)\d{2})-(\d{2})\b")
 
     # Word to number mappings
     num_words = {
@@ -795,6 +796,7 @@ class MinimalTextCleaner:
 
             # 4b. Date and Year Removal
             paragraph = self.slash_date_pattern.sub(self._convert_slash_date, paragraph)
+            paragraph = self.year_range_short_pattern.sub(r" <\1> ", paragraph)
             paragraph = self.date_md_pattern.sub(" ", paragraph)
             paragraph = self.date_dm_pattern.sub(" ", paragraph)
             paragraph = self.month_only_pattern.sub(" ", paragraph)
@@ -2087,6 +2089,15 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.CONTAINS, "<2024>", None),
                 (TestType.CONTAINS, "US", None),
                 (TestType.CONTAINS, "i.e.", None),
+            ],
+        ),
+        # Test 24b: Year Range Short (2023-24)
+        TestCase(
+            name="Year Range Short",
+            input_text="During the 2023-24 fiscal year.",
+            validations=[
+                (TestType.CONTAINS, "<2023>", None),
+                (TestType.NOT_CONTAINS, "-24", None),
             ],
         ),
         # Test 25: None of -> 0% of, All are -> 100%
