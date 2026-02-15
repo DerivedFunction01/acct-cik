@@ -4087,7 +4087,7 @@ class Tracker:
 
     def _apply_fallback_denominators(self):
         """
-        Applies a conservative denominator (0.1% of population) to entries that have a percentage
+        Applies a conservative denominator to entries that have a percentage
         but lack a total count (usually due to safety checks preventing census inheritance).
         Uses weights to scale the population if inheriting from a broader scope.
         Distributes population if multiple segments map to the same scope.
@@ -4298,7 +4298,7 @@ class Tracker:
                 # We use 5% buffer or if consumed > estimated
                 if available_pop < (estimated_pop * 0.05):
                     use_conservative = True
-                    distributable_pop = estimated_pop  # Base for 0.1% calc
+                    distributable_pop = estimated_pop  # Base for calc
                 else:
                     distributable_pop = available_pop
 
