@@ -9,7 +9,7 @@ from defs.regex_lib import (
     build_regex,
     YEAR_REGEX,
 )
-from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS, DIVERSITY_TERMS
+from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS, DIVERSITY_TERMS, SUFFIX_AGREEMENTS, SUFFIX_ORGS
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
@@ -1120,8 +1120,31 @@ class ContextualNumberCleaner:
             re.IGNORECASE
         )
         
-        # 10. [1-20] (labor) unions? (.|:|;) (number of unions, ending)
-        # [1-20] (labor)? (union)? contracts/agreements
+        # 10. Small counts of unions/contracts (1-20) to prevent accidental ratio/count confusion
+        # e.g. "1 labor contract", "2 unions"
+        small_num = r"\b(?:[1-9]|1\d|20)\b"
+        
+        # Contracts/Agreements
+        contract_context = r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining)\s+)?"
+        contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
+        
+        self.small_contract_regex = re.compile(
+            rf"\b{small_num}\s+((?:{contract_context})?{contract_nouns})\b",
+            re.IGNORECASE
+        )
+
+        # Unions count
+        plural_unions = r"(?:(?:labor|trade)\s+)?unions"
+        singular_unions = r"(?:(?:labor|trade)\s+)?union"
+        
+        self.small_union_plural_regex = re.compile(
+            rf"\b{small_num}\s+({plural_unions})\b",
+            re.IGNORECASE
+        )
+        self.small_union_singular_regex = re.compile(
+            rf"\b{small_num}\s+({singular_unions})(?=[,\.;\:\!\?])",
+            re.IGNORECASE
+        )
         
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
@@ -1152,6 +1175,9 @@ class ContextualNumberCleaner:
             paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = self.bargaining_unit_regex.sub(r" \1 ", paragraph)
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
+            paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
+            paragraph = self.small_union_plural_regex.sub(r" \1 ", paragraph)
+            paragraph = self.small_union_singular_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
