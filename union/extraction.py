@@ -184,6 +184,7 @@ SUBSET_REGEX = build_regex([
     r"compris(?:ing|es?|ed)",
     r",\s+with",
     r"from",
+    r"connection with",
     r"within",
     r"consist(?:ing|s|ed)?",
     r":"

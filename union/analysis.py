@@ -1808,6 +1808,40 @@ class ComplexCoverageAnalyzer:
                 logic_notes.append(f"Assigned {val} to total")
 
         if total_candidates:
+            # 0. Check for subset/overlap indicators in single-country context
+            # Re-gather assignments to check text between
+            total_assignments = [item for item in count_assignments if item["type"] == "total"]
+            total_assignments.sort(key=lambda x: x["match"]["span"][0])
+            
+            explicit_countries = {
+                m.geo_code
+                for m in self.analysis.geo_matches
+                if m.source_type == GeoSource.EXPLICIT and m.geo_code not in REGION_CODES and m.geo_code not in IGNORED_REGIONS
+            }
+            is_single_country = len(explicit_countries) == 1
+
+            if len(total_assignments) > 1 and is_single_country:
+                has_overlap_indicator = False
+                for i in range(len(total_assignments) - 1):
+                    m1 = total_assignments[i]["match"]
+                    m2 = total_assignments[i+1]["match"]
+                    text_between = self.analysis.text[m1["span"][1]:m2["span"][0]]
+                    
+                    # Check for subset indicators
+                    if SUBSET_REGEX.search(text_between):
+                        has_overlap_indicator = True
+                        break
+                    
+                    # Check for unbalanced parentheses (m2 is inside m1)
+                    if text_between.count("(") > text_between.count(")"):
+                        has_overlap_indicator = True
+                        break
+                
+                if has_overlap_indicator:
+                    max_cand = max(total_candidates)
+                    total_candidates = [max_cand]
+                    logic_notes.append(f"Collapsed total candidates to {max_cand} (single country, overlap indicator)")
+
             # 1. Check for internal hierarchy in total_candidates (e.g. [3100, 1800, 1300] -> 3100)
             if len(total_candidates) > 1:
                 max_cand = max(total_candidates)
