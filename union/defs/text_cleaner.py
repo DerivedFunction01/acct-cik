@@ -541,6 +541,9 @@ class MinimalTextCleaner:
     covid_pattern = re.compile(
         r"\b(?:(?:covid|coronavirus)(?:[\s-]*(?:19|2019))?|SARS-CoV-2)\b", re.IGNORECASE
     )
+    
+    # Float pattern: Matches 1.5, 10.00, but NOT 1.5% (lookahead protects %)
+    float_pattern = re.compile(r"\b\d+\.\d+\b(?!%)")
 
     def __init__(self):
         pass
@@ -2202,6 +2205,17 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "-100-", None),
                 (TestType.CONTAINS, "10-20", None),
                 (TestType.CONTAINS, "10-year", None),
+            ],
+        ),
+        # Test 33: Float Removal
+        TestCase(
+            name="Float Removal",
+            input_text="We have 1.5 issues and 10.00 problems but 25.5% growth and 100 employees.",
+            validations=[
+                (TestType.NOT_CONTAINS, "1.5", None),
+                (TestType.NOT_CONTAINS, "10.00", None),
+                (TestType.CONTAINS, "25.5%", None),
+                (TestType.CONTAINS, "100", None),
             ],
         ),
     ]
