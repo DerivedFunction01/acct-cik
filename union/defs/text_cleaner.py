@@ -167,6 +167,7 @@ class MinimalTextCleaner:
         r"-\d{3}-|"
         r"\d{1}-|"
         r"\d{4}-\d{1}|"
+        r"\d{4}-[A-Z0-9]*[A-Z][A-Z0-9]*|"
         # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
         r"\d{1,2}(?:\.|\)|\:)|"
         # 3. Roman numerals and letters -> STRIP
