@@ -3245,7 +3245,7 @@ class Tracker:
             or (
                 e.scope == Scope.SEGMENT
                 and e.key
-                and e.key.startswith(f"{country_code}::")
+                and e.key.startswith(country_code)
             )
         ]
 
