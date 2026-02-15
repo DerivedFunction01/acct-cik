@@ -2880,15 +2880,18 @@ class Tracker:
 
                 # Try to derive percentage from counts if missing
                 if pct is None and e.covered_count is not None:
-                    denom = e.total_count
-                    if not denom:
-                        # Try summing known totals of constituents
-                        denom = sum(
-                            self.country_totals.get(c, 0) for c in e.related_geo_codes
-                        )
+                    if e.covered_count == 0:
+                        pct = 0.0
+                    else:
+                        denom = e.total_count
+                        if not denom:
+                            # Try summing known totals of constituents
+                            denom = sum(
+                                self.country_totals.get(c, 0) for c in e.related_geo_codes
+                            )
 
-                    if denom and denom > 0:
-                        pct = (e.covered_count / denom) * 100.0
+                        if denom and denom > 0:
+                            pct = (e.covered_count / denom) * 100.0
 
                 if pct is not None or e.is_union_record:
 
@@ -2931,7 +2934,7 @@ class Tracker:
                             if (
                                 t.percentage is None
                                 and t.covered_count is None
-                                and not t.is_negated
+                                and (not t.is_negated or (pct is not None and pct == 0.0))
                             ):
                                 if pct is not None and not e.is_dummy_percent:
                                     t.percentage = pct
