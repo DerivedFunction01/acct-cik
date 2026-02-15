@@ -3409,6 +3409,7 @@ BUSINESS_BOOSTER = {
     "TW": 1.5,  # Taiwan – real manufacturing + tech hub
     "IL": 1.5,  # Israel – high complexity, real tech footprint
     "KR": 1.5,  # South Korea – real corporate presence to boost it vs Japan
+    "JP": 1.2,  # Japan to extend its dominance
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
 
@@ -4062,6 +4063,14 @@ def weighted_division(
             MAX_BOOST = 6.0  # Max multiplier
             POP_PIVOT = 5000.0  # Population where boost strength halves
             CLUSTER_MAX = 8.0  # Cluster size where boost fades to 0
+
+            # Incorporate BUSINESS_BOOSTER to extend dominance
+            biz_boost = BUSINESS_BOOSTER.get(domestic_country, 1.0)
+            if biz_boost > 1.0:
+                MAX_BOOST *= biz_boost * 2
+                POP_PIVOT *= biz_boost * 3
+                CLUSTER_MAX *= biz_boost
+                note += f"Extended Booster (x{biz_boost}). "
 
             # Factor 1: Population (Small pop -> High boost)
             pop_factor = 1.0 / (1.0 + (original_val / POP_PIVOT))
