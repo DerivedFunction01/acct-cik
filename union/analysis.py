@@ -4316,7 +4316,7 @@ class Tracker:
                 if (is_weighted_estimate or scopes_match) and not use_conservative:
                     small_denom = max(1.0, round(distributable_pop))
                 else:
-                    small_denom = max(1.0, round(distributable_pop * 0.001))
+                    small_denom = max(1.0, round(distributable_pop * 0.0005))
 
                 for e in group:
                     e.total_count = small_denom
@@ -4327,7 +4327,7 @@ class Tracker:
                         log_msg += f" (Distributed among {num_segments} segments)"
 
                     if use_conservative:
-                        log_msg += " (Conservative 0.1% - Scope Full)"
+                        log_msg += " (Conservative 0.05% - Scope Full)"
 
                     # Check if scaled (approx check due to float)
                     total_allocated = distributable_pop * num_segments
