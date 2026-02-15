@@ -2952,21 +2952,34 @@ class Tracker:
                             if e.is_union_record:
                                 t.is_union_record = True
 
-    def get_child_stats(self, region_name: str) -> Dict[str, float]:
+    def get_child_stats(self, region_identifier: str) -> Dict[str, float]:
         """
         Calculates aggregated statistics for child countries in a region.
         Returns {covered, not_covered, total}
         """
+        target_countries = None
+        region_name = None
+
+        if region_identifier in COMPOSITE_REGION_MAP:
+            target_countries = set(COMPOSITE_REGION_MAP[region_identifier])
+        else:
+            # Resolve code to region name if possible (e.g. "EU" -> "Europe")
+            region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
+
         agg_covered = 0.0
         agg_not_covered = 0.0
         agg_total = 0.0
 
         # 1. Identify relevant country entries (Explicit or Implied by Segments)
-        c_entries = [
-            e
-            for e in self.entries
-            if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == region_name
-        ]
+        c_entries = []
+        for e in self.entries:
+            if e.scope == Scope.COUNTRY:
+                if target_countries:
+                    if e.key in target_countries:
+                        c_entries.append(e)
+                elif region_name:
+                    if _CODE_TO_REGION.get(e.key) == region_name:
+                        c_entries.append(e)
 
         existing_codes = {e.key for e in c_entries}
         segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
@@ -2975,13 +2988,19 @@ class Tracker:
         for s in segment_entries:
             if s.key and "::" in s.key:
                 code = s.key.split("::")[0]
-                if (
-                    code not in existing_codes
-                    and _CODE_TO_REGION.get(code) == region_name
-                ):
-                    dummy = Entry(scope=Scope.COUNTRY, key=code)
-                    c_entries.append(dummy)
-                    existing_codes.add(code)
+                if code not in existing_codes:
+                    is_match = False
+                    if target_countries:
+                        if code in target_countries:
+                            is_match = True
+                    elif region_name:
+                        if _CODE_TO_REGION.get(code) == region_name:
+                            is_match = True
+
+                    if is_match:
+                        dummy = Entry(scope=Scope.COUNTRY, key=code)
+                        c_entries.append(dummy)
+                        existing_codes.add(code)
 
         for c in c_entries:
             c_cov = 0.0
