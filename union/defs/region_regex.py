@@ -2794,7 +2794,7 @@ INT_UNION_MAP = {
             "Travailleurs", "Salariés", "Employés", "Personnel", "Ouvriers",
             "Métallurgistes", "Sidérurgistes", "Pétroliers", "Chimistes", "Bancaires",
             "Cheminots", "Portuaires", "Agricoles", "Mineurs",
-            "Construction", "Commerce", "Transports", "Postes",
+            "Transports", "Postes",
             "Métallurgie", "Sidérurgie", "Pétrole", "Gaz", "Charbon", "Mines", "Bâtiment", "Énergie",
         ],
         ["Syndicat", "Fédération", "Confédération", "Union", "Centrale", "Association"],
