@@ -132,6 +132,7 @@ REPRESENTATION_TERMS = [
 ]
 
 GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
+LOOSE_GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|and|[A-Z][\'\w-]*)){0,3}\s+"
 
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
@@ -176,6 +177,17 @@ _CORE_DYNAMIC_PATTERN = build_alternation(
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
 DYNAMIC_UNION_REGEX = build_regex([DYNAMIC_UNION_PATTERN], ignore_case=False)
+
+# Loose version with 'and' in gap
+_LOOSE_CORE_DYNAMIC_PATTERN = build_alternation(
+    [
+        build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=LOOSE_GAP),
+        build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=LOOSE_GAP),
+        build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=LOOSE_GAP),
+    ]
+)
+LOOSE_DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_LOOSE_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
+LOOSE_DYNAMIC_UNION_REGEX = build_regex([LOOSE_DYNAMIC_UNION_PATTERN], ignore_case=False)
 
 FX_DYNAMIC_UNION_REGEX = build_regex(_foreign_dynamic, ignore_case=True)
 

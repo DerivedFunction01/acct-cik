@@ -18,6 +18,7 @@ from defs.union_regex import (
     UNION_REGEX,
     RISK_REGEX,
     DYNAMIC_UNION_REGEX,
+    LOOSE_DYNAMIC_UNION_REGEX,
     FX_DYNAMIC_UNION_REGEX,
     WORKER_TERMS,
     NON_COVERAGE_REGEX,
@@ -1016,6 +1017,15 @@ class UnionExtractor:
 
         process_matches(
             DYNAMIC_UNION_REGEX,
+            MatchType.UNION_NAME,
+            expand_dynamic_match,
+            dynamic_union_side_effect,
+            update_working_text=True,
+        )
+
+        # 4a. Extract Loose Dynamic Union Names (Pattern-based with 'and')
+        process_matches(
+            LOOSE_DYNAMIC_UNION_REGEX,
             MatchType.UNION_NAME,
             expand_dynamic_match,
             dynamic_union_side_effect,
