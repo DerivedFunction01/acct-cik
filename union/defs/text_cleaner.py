@@ -1,5 +1,7 @@
 import re
 import difflib
+import csv
+from pathlib import Path
 from typing import Any, Optional, List, Tuple, Dict
 from dataclasses import dataclass
 from enum import Enum
@@ -1281,58 +1283,155 @@ class ConcisenessCleaner:
 class CompanyCleaner:
     def __init__(self):
         self.cleaner = MinimalTextCleaner()
-        # Regex to tokenize words, preserving hyphens and apostrophes but ignoring other punctuation
-        self.token_pattern = re.compile(r"\b[\w\-\']+\b")
+        # Regex to find potential company name occurrences in text (Title Case phrases)
+        # Matches words starting with Uppercase, optionally followed by more Uppercase words
+        # or connectors like &, of, and, the.
+        self.candidate_pattern = re.compile(
+            r"\b[A-Z][\w\-\']+(?:\s+(?:&|and|of|the|[A-Z][\w\-\']+))*\b"
+        )
+        self.numeric_firms_regex = None
+        self.union_firms_regex = None
+        self._load_numeric_firms()
+
+    def _load_numeric_firms(self):
+        candidates = [
+            Path("numeric_firm_names.csv"),
+            Path("union/numeric_firm_names.csv"),
+            Path(__file__).parent.parent / "numeric_firm_names.csv"
+        ]
+        
+        file_path = None
+        for p in candidates:
+            if p.exists():
+                file_path = p
+                break
+        
+        if not file_path:
+            return
+
+        numeric_names = set()
+        union_names = set()
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    name = row.get("core_name")
+                    if name:
+                        name = name.strip()
+                        if len(name) < 3:
+                            continue
+                        
+                        # Remove punctuation to count words correctly (e.g. "Union," -> "Union")
+                        clean_name = re.sub(r'[^\w\s]', '', name)
+                        tokens = clean_name.split()
+                        
+                        is_union = any(t.lower() in ('union', 'unions') for t in tokens)
+
+                        if is_union:
+                            # Union Logic: Require at least 2 tokens
+                            if len(tokens) < 2:
+                                continue
+                            
+                            # Add full name
+                            union_names.add(re.escape(name))
+
+                            # Add prefixes of length >= 2 tokens to allow partial matching
+                            # e.g. "Union Texas Petroleum" -> "Union Texas"
+                            if len(tokens) > 2:
+                                parts = name.split()
+                                for i in range(2, len(parts)):
+                                    prefix = " ".join(parts[:i])
+                                    # Filter out generic/bad prefixes
+                                    prefix_lower = prefix.lower()
+                                    if prefix_lower in ["credit union", "labor union", "trade union", "european union", "soviet union"]:
+                                        continue
+                                    if prefix_lower.endswith((" of", " and", " &", " for")):
+                                        continue
+                                    union_names.add(re.escape(prefix))
+                        else:
+                            # Standard Numeric Logic
+                            numeric_names.add(re.escape(name))
+
+        except Exception:
+            pass
+
+        if numeric_names:
+            sorted_names = sorted(list(numeric_names), key=len, reverse=True)
+            self.numeric_firms_regex = re.compile(
+                r"\b(?:" + "|".join(sorted_names) + r")\b", re.IGNORECASE
+            )
+
+        if union_names:
+            sorted_unions = sorted(list(union_names), key=len, reverse=True)
+            self.union_firms_regex = re.compile(
+                r"\b(?:" + "|".join(sorted_unions) + r")\b", re.IGNORECASE
+            )
+
+    def clean_numeric_names(self, text: str) -> str:
+        if self.numeric_firms_regex:
+            return self.numeric_firms_regex.sub(COMPANY_TOKEN, text)
+        return text
+
+    def clean_union_firms(self, text: str) -> str:
+        if not self.union_firms_regex:
+            return text
+
+        def repl(m):
+            val = m.group(0)
+            # Enforce Title Case or All Caps for Union matches
+            # This prevents "union employees" (lowercase) from being replaced
+            # while allowing "Union Texas" or "UNION TEXAS"
+            if val[0].isupper():
+                return COMPANY_TOKEN
+            return val
+
+        return self.union_firms_regex.sub(repl, text)
 
     def clean(self, text: str, company_name: Optional[str] = None) -> str:
-        if not text or not company_name:
+        if not text:
+            return text
+
+        # 1. Clean standard numeric firms (Case Insensitive)
+        text = self.clean_numeric_names(text)
+
+        # 2. Clean Union firms (Case Sensitive / Title Case enforced)
+        text = self.clean_union_firms(text)
+
+        if not company_name:
             return text
         
         # Normalize the company name (strip suffixes like Inc., Corp.)
         normalized_name = self.cleaner.normalize_company_name(company_name)
-        
-        # Tokenize using regex to handle punctuation consistently
-        target_tokens = [m.group(0) for m in self.token_pattern.finditer(normalized_name)]
-        
-        # Keep up to the first 3 tokens
-        target_tokens = target_tokens[:3]
-        
-        if not target_tokens:
+        if len(normalized_name) < 3:
             return text
             
-        target_phrase = " ".join(target_tokens)
+        target_lower = normalized_name.lower()
         
-        # Avoid matching very short names/acronyms to prevent false positives (e.g. "Gap", "IBM")
-        if len(target_phrase) < 4:
-            return text
-            
-        # Find all word tokens in the text
-        matches = list(self.token_pattern.finditer(text))
-        n = len(target_tokens)
-        
-        if len(matches) < n:
-            return text
-            
+        matches = list(self.candidate_pattern.finditer(text))
         replacements = []
-        i = 0
         
-        while i <= len(matches) - n:
-            # Construct candidate phrase from n consecutive tokens
-            # This captures the text range from the start of the first token to the end of the last
-            start_idx = matches[i].start()
-            end_idx = matches[i + n - 1].end()
+        for m in matches:
+            candidate = m.group(0)
+            if len(candidate) < 3:
+                continue
+                
+            cand_lower = candidate.lower()
+            is_match = False
             
-            candidate = text[start_idx:end_idx]
+            # 1. Exact Match
+            if cand_lower == target_lower:
+                is_match = True
+            # 2. Fuzzy Match
+            elif difflib.SequenceMatcher(None, cand_lower, target_lower).ratio() >= 0.85:
+                is_match = True
+            # 3. Prefix Match (Shortened names)
+            elif len(target_lower) > 4 and len(cand_lower) > 4:
+                if target_lower.startswith(cand_lower) or cand_lower.startswith(target_lower):
+                    is_match = True
             
-            # Check similarity using difflib
-            # We compare the candidate text against the target phrase
-            ratio = difflib.SequenceMatcher(None, candidate.lower(), target_phrase.lower()).ratio()
-            
-            if ratio >= 0.85:
-                replacements.append((start_idx, end_idx))
-                i += n  # Skip these tokens to avoid overlapping matches
-            else:
-                i += 1
+            if is_match:
+                replacements.append(m.span())
         
         # Apply replacements in reverse order to maintain indices
         out_text = text
