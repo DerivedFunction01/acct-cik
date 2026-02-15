@@ -160,10 +160,10 @@ class MinimalTextCleaner:
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
         r"(?:"
+        r"\(\d{1,2}\)|"
         r"-\d{3}-|"
         # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
-        #    Uses negative lookahead to protect 19xx and 20xx
-        r"(?!(?:19|20)\d{2})\d+(?:\.|\)|\:)|"
+        r"\d{1,2}(?:\.|\)|\:)|"
         # 3. Roman numerals and letters -> STRIP
         r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
         r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
