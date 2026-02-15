@@ -160,8 +160,6 @@ class MinimalTextCleaner:
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
         r"(?:"
-        # 1. Capture years/numbers with parentheses: (2023) -> STRIP
-        r"\(\d+\)|" 
         r"-\d{3}-|"
         # 2. Capture numbers with period/colon ONLY if NOT a year: 1., 1: -> STRIP
         #    Uses negative lookahead to protect 19xx and 20xx
@@ -888,6 +886,7 @@ class ContextualNumberCleaner:
             r"units?",
             r"products",
             r"disputes?",
+            r"compan(?:y|ies)"
         ]
 
         asset_pattern = build_alternation(asset_terms)
@@ -895,7 +894,7 @@ class ContextualNumberCleaner:
 
         # Define number and range patterns
         num = r"\d+(?:\.\d+)?"
-        sep = r"\s*(?:-|to|–|—)\s*"
+        sep = r"\s*(?:-|to|–|—|of)\s*"
 
         # Captures: 10, 10-20, 10 to 20
         number_range = rf"{num}(?:{sep}{num})?"
@@ -923,7 +922,7 @@ class ContextualNumberCleaner:
         combined_negative = rf"(?!{next_worker_simple}|{next_worker_after_second})"
 
         self.asset_regex = re.compile(
-            rf"\b{number_range}\s+({asset_chain})\b{combined_negative}",
+            rf"\b(?:{number_range}|{percent_range})\s+({asset_chain})\b{combined_negative}",
             re.IGNORECASE,
         )
 
