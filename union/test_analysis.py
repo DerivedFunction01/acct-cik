@@ -103,7 +103,7 @@ Under 15 labor contracts, we employ flight crew personnel under ALPA, all of who
 
 Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
 
-We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. At 7 Eleven, 3M, and Six Flags, Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
 
 EUROPEAN OPERATIONS
 

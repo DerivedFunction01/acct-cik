@@ -989,9 +989,10 @@ class ContextualNumberCleaner:
 
         change_pattern = build_alternation(CHANGE_TERMS)
 
-        # Matches: "10% increase"
+        # Matches: "10% of the increase"
         self.change_pre_regex = re.compile(
-            rf"\b{percent_range}\s+({change_pattern})\b", re.IGNORECASE
+            rf"\b{percent_range}((?:\s+[\'\w-]+){{0,2}}\s+{change_pattern})\b",
+            re.IGNORECASE,
         )
 
         # Matches: "increase of approx 10%" or "increase by 10% to 30%"
@@ -1012,13 +1013,13 @@ class ContextualNumberCleaner:
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
             rf"(?:\s+[\'\w-]+){{0,8}}\s+"  # up to N filler words
-            rf"{number_range}\b",
+            rf"(?:{number_range}|{percent_range})\b",
             re.IGNORECASE,
         )
 
         # 100 layoffs, etc
         self.personnel_event_reverse_regex = re.compile(
-            rf"\b{number_range}"
+            rf"\b(?:{number_range}|{percent_range})"
             rf"(?:\s+[\'\w-]+){{0,8}}\s+"  # up to N filler words
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
@@ -1061,7 +1062,7 @@ class ContextualNumberCleaner:
 
         # Matches: "3 year [contract]", "3-year [extension]", "0.25 per [hour]"
         self.duration_regex = re.compile(
-            rf"\b{number_range}\s*(?:[-]|per)?\s*{time_unit_pattern}(?:\s+({duration_context_pattern}))?\b",
+            rf"\b(?:{number_range}|{percent_range})\s*(?:[-]|per)?\s*{time_unit_pattern}(?:\s+({duration_context_pattern}))?\b",
             re.IGNORECASE,
         )
 
@@ -1069,7 +1070,7 @@ class ContextualNumberCleaner:
         # Preserves the context ("of which", gap text, event) while removing the number.
         self.subset_event_regex = re.compile(
             rf"\b(of\s+(?:which|whom|those)|includ(?:ing|es?)|compris(?:ing|es?))\s+"
-            rf"{number_range}"
+            rf"(?:{number_range}|{percent_range})"
             rf"([,\s]+(?:[\'\w-]+\s+){{0,15}})"
             rf"({personnel_event_pattern})\b",
             re.IGNORECASE,
@@ -1135,7 +1136,7 @@ class ContextualNumberCleaner:
         contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
 
         self.small_contract_regex = re.compile(
-            rf"\b{number_range}\s+((?:{contract_context})?{contract_nouns})\b",
+            rf"\b(?:{number_range}|{percent_range})\s+((?:{contract_context})?{contract_nouns})\b",
             re.IGNORECASE,
         )
 
