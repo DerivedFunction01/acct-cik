@@ -1122,7 +1122,7 @@ class ContextualNumberCleaner:
         
         # 10. Small counts of unions/contracts (1-20) to prevent accidental ratio/count confusion
         # e.g. "1 labor contract", "2 unions"
-        small_num = r"\b(?:[1-9]|1\d|20)\b"
+        small_num = r"\b(?:[1-9]|[1-2]\d)\b"
         
         # Contracts/Agreements
         contract_context = r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining)\s+)?"
