@@ -13,7 +13,8 @@ from analysis import UnionAnalyzer
 from defs.text_cleaner import CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
-ITEM_1 = """
+ITEM_1 = [
+    """
 TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
 our total employee base reached approximately 44,000 across all regions.
@@ -83,7 +84,72 @@ Overall, our global unionization rate stands at approximately 24% of our total w
 We believe our labor relations profile is stable, with no significant pending negotiations 
 or anticipated labor disputes. We remain committed to fair labor practices and transparent 
 engagement with employee representative bodies.
+""",
+    """ITEM 1. BUSINESS
+
+TechAdvance Manufacturing operates a global business across manufacturing, logistics, and technology. As of December 31, 2023, we employ approximately 200,000 employees worldwide, compared to 250,000 in 2022. Of our workforce, less than 1% are Traditionalists (born before 1928), 12% are Baby Boomers (born 1928-1945), 37% are Generation X (born 1965-1980), 42% are Millennials (born 1981-1996) and less than 9% are Generation Z (born after 1997). 
+
+UNITED STATES OPERATIONS
+
+Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
+
+In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour.
+
+Our East Coast distribution centers employ logistics personnel who are unionized. We do not disclose the exact headcount at this time due to operational sensitivity.
+
+We also have several instructors who are members of Local 140 of the International Union of Instructors.
+
+We employ flight crew personnel under ALPA, all of whom are unionized. However, we have not separately disclosed the number of such employees in recent filings.
+
+Our corporate headquarters employs 50,000 administrative, sales, and technical staff. A portion of these corporate employees remain unionized, though the exact number is not material to our risk profile.
+
+We employ approximately 20,000 warehouse and fulfillment center workers across multiple U.S. locations. Union representation in these facilities varies by location; we monitor labor activity closely but do not separately report unionization rates for this workforce segment.
+
+EUROPEAN OPERATIONS
+
+We maintain operations across Europe, employing approximately 6,000 workers.
+
+In France, we operate a manufacturing facility. French labor law requires substantial employee representation through works councils and collective agreements. We employ approximately 2,500 workers at this location, substantially all of whom participate in mandatory industry-wide bargaining.
+
+In Germany, we operate two principal locations employing 3,500 workers total. Our Hamburg plant employs 2,000 workers with IG Metall membership. Our Munich office employs 1,500 workers subject to German codetermination requirements.
+
+We maintain operations in the United Kingdom. A portion of our U.K. workforce is represented by trade unions, though specific unionization rates are not disclosed.
+
+LATIN AMERICAN OPERATIONS
+
+We employ approximately 3,000 workers across Latin America.
+
+In Mexico, we operate manufacturing facilities. We do not publicly disclose the unionization status of these operations due to local business practices.
+
+In Brazil, we employ approximately 1,200 workers. Our Brazilian operations are subject to annual industry-wide union negotiations, but exact unionization rates remain proprietary.
+
+ASIA-PACIFIC OPERATIONS
+
+We employ approximately 85,000 workers across Asia-Pacific, primarily in technology and manufacturing.
+
+In India, our Bangalore technology hub employs 45,000 software engineers and support staff. None of our employees have union representation at this facility.
+
+In China, we employ 20,000 workers across multiple manufacturing sites. All of these operations fall under the All-China Federation of Trade Unions (ACFTU) framework as required by law. We maintain zero formal collective bargaining agreements with our Chinese workforce.
+
+In Japan, we employ 12,000 workers. These employees participate in annual Shunto wage negotiations but remain entirely non-unionized in formal terms.
+
+In Southeast Asia (Thailand, Vietnam, Malaysia), we employ approximately 8,000 workers across manufacturing and logistics hubs. Union representation in this region is minimal to non-existent, though we continue to monitor labor developments.
+
+GLOBAL SUMMARY
+
+We do not provide a precise global unionization rate, as certain regional operations do not disclose specific metrics for competitive or operational reasons. We believe our diversified geographic footprint and largely non-unionized workforce provide flexibility for operational efficiency.""",
 """
+The Company offers fair terms and conditions of employment. The Company's overall purpose, Code of Conduct, talent development strategies, and employment policies support the principles in the United Nations Universal Declaration of Human Rights, and the International Labor Organization’s Fundamental Principles and Labor Standards.
+
+The Company considers its relationship with its employees to be good. While there have been a small number of minor labor disputes historically, such disputes have not had a significant or lasting impact on the Company's relationship with its employees, and customer perception of its employee practices or its business results. 
+
+Major unions in Europe to which some of the Company's employees belong include: IG Metall in Germany; Unite the union in the United Kingdom; Confédération Générale des Travailleurs (CGT), Confédération Française Démocratique du Travail (CFDT), Confédération Française de l’Encadrement Confédération Générale des cadres (CFE-CGC), Force Ouvrière (FO), Confédération Française des Travailleurs Chrétiens (CFTC), Solidaires, Unitaires, Démocratiques (SUD) and Conféderation Autonome du Travail (CAT) in France; Union General de Trabajadores (UGT), Union Sindical Obrera (USO), Comisiones Obereras (CCOO) and Confederacion General de Trabajadores (CGT) in Spain; IF Metall, Unionen, Sveriges Ingenjörer and Ledarna in Sweden; Industriaal- ja Metallitöötajate Ametiühingute Liit (IMTAL) in Estonia; Vasas Szakszervezeti Szövetség (Hungarian Metallworkers‘ Federation) in Hungary; Samorzadny NiezalezĪny Zwiazek Zawodowy Pracownikow and Zakladowa Organizacja Związkowa NSZZ Solidarnosc in Poland; National Union of Metal Workers South Africa (NUMSA) in South Africa; Union Générale des Travailleurs Tunisiens (UGTT) and Union des travailleurs Tunisiens (UTT) in Tunisia, and Türk Metal Sendikasi in Turkey. 
+
+In addition, the Company’s employees in other regions are represented by the following unions: Unifor in Canada; Sindicato de Jornaleros y Obreros Industriales y de la Industria Maquiladora de H.Matamoros, Tamaulipas (CTM); Sindicato Nacional de Trabajadores de la Industria Metalúrgica y Similares, Federación Valle de Toluca (CTM); Sindicato Nacional “Nueva Cultura Laboral” de trabajadores de la fabricación, manufactura, ensamble de autopartes mecánicas y eléctricas y componentes de la Industria Automotriz, C.R.O.C.; Sindicato Nacional de Trabajadores de la Industria Arnesera, Eléctrica, Automotriz y Aeronáutica de la República Mexicana; “Nueva Cultura Laboral” “de trabajadores de la fabricación, manufactura, ensamble de autopartes mecánicas y eléctricas y componentes de la industria Automotriz (CROC); Sindicato Nacional de Trabajadores de la Industria de Autopartes en General y/o Similares, Conexos y sus Servicios de la República Mexicana, in Mexico; Sindicato Industrial de Trabajadores de la Transformación, Construcción, Automotriz, Agropecuaria, Plásticos y de la Industria en General, del Comercio y Servicios, Similares, anexos y conexos del Estado de Querétaro “Ángel Castillo Resendiz”; Sindicato dos Metalúrgicos de Taubaté e Região in Brazil; Autoliv India Employees Association, Bangalore & Mysore in India; Korean Metal Workers Union (FKTU) in South Korea; Autoliv Japan Roudou Kumiai in Japan, and All-China Federation of Trade Unions in China. 
+
+In many European countries, Canada, Mexico, Brazil and South Korea, wages, salaries and general working conditions are negotiated with local unions and/or are subject to centrally negotiated collective bargaining agreements. The terms of the Company's various agreements with unions typically range between one to three years. Some of the Company's subsidiaries in Europe, Canada, Mexico, Brazil and South Korea must negotiate with the applicable local unions with respect to important changes in operations, working and employment conditions. Twice a year, members of the Company’s management conduct a meeting with the European Works Council (EWC) to provide employee representatives with important information about the Company and a forum for the exchange of ideas and opinions. In many Asia Pacific countries, the central or regional governments provide guidance each year for salary adjustments or statutory minimum wage for workers. The Company's employees may join associations in accordance with local legislation and rules, although the level of unionization varies significantly throughout its operations.
+""",
+]
 
 ITEM_1A = """
 
@@ -187,57 +253,58 @@ if __name__ == "__main__":
     print("=" * 80)
     print()
 
-    # Clean the text
-    cleaned_text = cleaner.clean(ITEM_1)
-    cleaned_text = currency_remover.clean(cleaned_text)
-    cleaned_text = contextual_cleaner.clean(cleaned_text)
-    cleaned_text = conciseness_cleaner.clean(cleaned_text)
-    print("="* 80)
-    print("Cleaned Text:\n")
-    print(cleaned_text)
-    print("\n" + "=" * 80)
+    for item in ITEM_1:
+        # Clean the text
+        cleaned_text = cleaner.clean(item)
+        cleaned_text = currency_remover.clean(cleaned_text)
+        cleaned_text = contextual_cleaner.clean(cleaned_text)
+        cleaned_text = conciseness_cleaner.clean(cleaned_text)
+        print("="* 80)
+        print("Cleaned Text:\n")
+        print(cleaned_text)
+        print("\n" + "=" * 80)
 
-    # Analyze with context
-    analysis_output = analyzer.analyze_paragraph(
-        cleaned_text, item_type="item1", reporting_year=reporting_year
-    )
+        # Analyze with context
+        analysis_output = analyzer.analyze_paragraph(
+            cleaned_text, item_type="item1", reporting_year=reporting_year
+        )
 
-    results = analysis_output.get("items", [])
-    summary = analysis_output.get("summary", {})
+        results = analysis_output.get("items", [])
+        summary = analysis_output.get("summary", {})
 
-    # Pretty print results
-    print(f"Total Sentences Extracted: {len(results)}\n")
-    print(json.dumps(results, indent=2))
+        # Pretty print results
+        print(f"Total Sentences Extracted: {len(results)}\n")
+        print(json.dumps(results, indent=2))
 
-    print("\n" + "=" * 80)
-    print("\nCALCULATED SUMMARY:\n")
-    print(json.dumps(summary, indent=2))
+        print("\n" + "=" * 80)
+        print("\nCALCULATED SUMMARY:\n")
+        print(json.dumps(summary, indent=2))
 
-    # Summary statistics
-    print("\n" + "=" * 80)
-    print("\nSUMMARY STATISTICS:\n")
+        # Summary statistics
+        print("\n" + "=" * 80)
+        print("\nSUMMARY STATISTICS:\n")
 
-    total_with_percentage = len(
-        [r for r in results if r.get("coverage_data", {}).get("percentage")]
-    )
-    total_with_counts = len(
-        [r for r in results if r.get("coverage_data", {}).get("employee_count_covered")]
-    )
-    negated_items = len(
-        [r for r in results if r.get("coverage_data", {}).get("negated")]
-    )
-    inherited_geo = len(
-        [
-            r
-            for r in results
-            if r.get("geographic_context", {}).get("specificity") == "INHERITED_PREV"
-        ]
-    )
+        total_with_percentage = len(
+            [r for r in results if r.get("coverage_data", {}).get("percentage")]
+        )
+        total_with_counts = len(
+            [r for r in results if r.get("coverage_data", {}).get("employee_count_covered")]
+        )
+        negated_items = len(
+            [r for r in results if r.get("coverage_data", {}).get("negated")]
+        )
+        inherited_geo = len(
+            [
+                r
+                for r in results
+                if r.get("geographic_context", {}).get("specificity") == "INHERITED_PREV"
+            ]
+        )
 
-    print(f"Sentences with explicit/calculated percentage: {total_with_percentage}")
-    print(f"Sentences with employee counts: {total_with_counts}")
-    print(f"Negated coverage statements: {negated_items}")
-    print(f"Inherited geographic context: {inherited_geo}")
+        print(f"Sentences with explicit/calculated percentage: {total_with_percentage}")
+        print(f"Sentences with employee counts: {total_with_counts}")
+        print(f"Negated coverage statements: {negated_items}")
+        print(f"Inherited geographic context: {inherited_geo}")
 
     # Combined Consistency Test
     print("\n" + "=" * 80)
