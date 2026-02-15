@@ -1308,8 +1308,9 @@ class CompanyCleaner:
             opts = {re.escape(token)}
             parts.append(f"(?:{'|'.join(opts)})")
 
-        # Join with flexible separator (space, hyphen, dot, comma)
-        return r"[\s\-\.,]*".join(parts)
+        # Join with flexible separator (space, hyphen, dot only - NOT comma)
+        # Comma breaks the pattern naturally at sentence/phrase boundaries
+        return r"[\s\-]*".join(parts)
 
     def _load_numeric_firms(self):
         """Load numeric and union firms from CSV file."""
