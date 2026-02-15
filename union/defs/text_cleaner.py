@@ -75,6 +75,8 @@ class WebTextCleaner:
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
         (re.compile(r"(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)", re.IGNORECASE), "fracture"),
         (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
+        (re.compile(r"\b(?:kosher|orthodox|kashrut)\s+unions?\b", re.IGNORECASE), "certification"),
+        (re.compile(r"\bUnion\s+of\s+Orthodox\s+(?:Jewish\s+)?(?:Congregations)?\b", re.IGNORECASE), "certification"),
         (
             build_regex(
                 [
