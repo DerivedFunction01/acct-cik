@@ -2391,9 +2391,9 @@ class Tracker:
         # L = max added multiplier (beyond 1.0)
         # s = steepness
         # m = midpoint 
-        L = 1.75
+        L = 1.5
         s = 0.35
-        m = 10
+        m = 5
 
         global_multiplier = 1 + (L / (1 + math.exp(-s * (k - m))))
 
