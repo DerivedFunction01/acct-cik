@@ -18,6 +18,7 @@ from defs.union_regex import (
     UNION_REGEX,
     RISK_REGEX,
     DYNAMIC_UNION_REGEX,
+    FX_DYNAMIC_UNION_REGEX,
     WORKER_TERMS,
     NON_COVERAGE_REGEX,
     NON_UNION_REGEX,
@@ -1017,6 +1018,15 @@ class UnionExtractor:
             DYNAMIC_UNION_REGEX,
             MatchType.UNION_NAME,
             expand_dynamic_match,
+            dynamic_union_side_effect,
+            update_working_text=True,
+        )
+
+        # 4b. Extract Foreign/Dynamic Union Names (Case-Insensitive)
+        process_matches(
+            FX_DYNAMIC_UNION_REGEX,
+            MatchType.UNION_NAME,
+            None,
             dynamic_union_side_effect,
             update_working_text=True,
         )
