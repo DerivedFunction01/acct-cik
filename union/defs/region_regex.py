@@ -3420,8 +3420,6 @@ def _build_region_labor_rates_map(country_rates, country_weights):
     return r_rates
 
 REGION_LABOR_RATES = _build_region_labor_rates_map(_CODE_TO_LABOR_RATE, _CODE_TO_WEIGHT)
-DOMESTIC_BOOSTER = 2.5
-DOMESTIC_MAX = 4
 def weighted_division(
     val: float, entities: List[Dict[str, Any]], use_labor_weights: bool = False, domestic_country: Optional[str] = None
 ) -> Tuple[Dict[str, float], str]:
@@ -3439,7 +3437,6 @@ def weighted_division(
     # 1. Map keys to raw weights
     key_to_weight = {}
     note = "" if not use_labor_weights else "Labor weights applied. "
-    use_booster = len(entities) < DOMESTIC_MAX
     for e in entities:
         key = e["key"]
         w = 0.0005  # Default weight (small country)
@@ -3460,30 +3457,39 @@ def weighted_division(
 
             w *= rate
 
-        # Apply Domestic Booster
-        if (domestic_country and key == domestic_country):
-            if use_booster:
-                w *= DOMESTIC_BOOSTER
-            note = f"Domestic: {domestic_country} boosted (x{DOMESTIC_BOOSTER}). " if use_booster else f"Too many entities. Booster (x{DOMESTIC_BOOSTER}) not applied for {domestic_country}. "
-
         key_to_weight[key] = w
 
-    # Dynamic Domestic Adjustment
+    # 2. Apply Dynamic Domestic Booster
     if domestic_country and domestic_country in key_to_weight and len(entities) > 1:
-        dom_w = key_to_weight[domestic_country]
-        total_w = sum(key_to_weight.values())
+        raw_dom_w = key_to_weight[domestic_country]
+        raw_total_w = sum(key_to_weight.values())
         
-        # If domestic share is low (< 35%) despite booster, force it up.
-        if total_w > 0:
-            share = dom_w / total_w
-            if share < 0.35 and use_booster:
-                others_w = total_w - dom_w
-                # Target 40% share: new_dom / (others + new_dom) = 0.4 => new_dom = 0.4 * others / 0.6
-                new_dom_w = others_w * (0.4 / 0.6)
-                key_to_weight[domestic_country] = new_dom_w
-                note += f" | Domestic dynamic boost to 40% (was {share:.4%}). "
+        if raw_total_w > 0:
+            raw_share = raw_dom_w / raw_total_w
+            
+            # Parameters for dynamic boosting
+            MAX_BOOST = 6.0       # Max multiplier
+            POP_PIVOT = 5000.0    # Population where boost strength halves
+            CLUSTER_MAX = 8.0     # Cluster size where boost fades to 0
+            
+            # Factor 1: Population (Small pop -> High boost)
+            pop_factor = 1.0 / (1.0 + (val / POP_PIVOT))
+            
+            # Factor 2: Cluster Size (Small cluster -> High boost)
+            cluster_size = len(entities)
+            cluster_factor = max(0.0, 1.0 - (cluster_size - 2) / (CLUSTER_MAX - 2))
+            
+            # Factor 3: Share Risk (Low share -> High boost)
+            share_factor = 1.0 - raw_share
+            
+            # Calculate Booster
+            booster = 1.0 + (MAX_BOOST - 1.0) * pop_factor * cluster_factor * share_factor
+            
+            if booster > 1.05:
+                key_to_weight[domestic_country] *= booster
+                note += f"Domestic {domestic_country} boosted x{booster:.2f} (Pop:{int(val)}, N:{cluster_size}, Share:{raw_share:.1%}). "
 
-    # 2. Identify Clusters
+    # 3. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
     groups = [] # List of dicts: {keys: [], weight: float, is_cluster: bool}
     used_clusters = []
