@@ -181,6 +181,17 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
+    # Page number artifacts (e.g. -10-, 4-, -4-, 10-)
+    page_number_pattern = re.compile(
+        r"(?:(?<=^)|(?<=\s))"
+        r"(?:"
+        r"-\d{1,3}-|"
+        r"\d{1,3}-"
+        r")"
+        r"(?=\s|$)",
+        re.IGNORECASE,
+    )
+
     # Date and Year Patterns
     months = [
         "January",
@@ -804,6 +815,7 @@ class MinimalTextCleaner:
             paragraph = self.exhibit_pattern.sub(" ", paragraph)
             paragraph = self.page_pattern.sub(" ", paragraph)
             paragraph = self.bullet_pattern.sub(" ", paragraph)
+            paragraph = self.page_number_pattern.sub(" ", paragraph)
 
             # 4b. Date and Year Removal
             paragraph = self.slash_date_pattern.sub(self._convert_slash_date, paragraph)
@@ -2177,6 +2189,19 @@ def create_test_cases() -> List[TestCase]:
             input_text="Due to Covid-19, COVID 19, and Coronavirus impacts.",
             validations=[
                 (TestType.CONTAINS, "Due to covid, covid, and covid impacts.", None),
+            ],
+        ),
+        # Test 32: Page Number Removal
+        TestCase(
+            name="Page Number Removal",
+            input_text="Text 4- text -4- text 10- text -100- text 10-20 text 10-year.",
+            validations=[
+                (TestType.NOT_CONTAINS, "4-", None),
+                (TestType.NOT_CONTAINS, "-4-", None),
+                (TestType.NOT_CONTAINS, "10- ", None),
+                (TestType.NOT_CONTAINS, "-100-", None),
+                (TestType.CONTAINS, "10-20", None),
+                (TestType.CONTAINS, "10-year", None),
             ],
         ),
     ]
