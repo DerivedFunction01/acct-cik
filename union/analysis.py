@@ -2391,7 +2391,7 @@ class Tracker:
         # L = max added multiplier (beyond 1.0)
         # s = steepness
         # m = midpoint 
-        L = 2.0
+        L = 1.75
         s = 0.35
         m = 10
 
@@ -2399,7 +2399,7 @@ class Tracker:
 
         # 2. Specific Multiplier (Logistic - smaller scale)
         # Max boost 1.5x, steeper curve (kicks in at 1-2 keywords)
-        L_spec = 1.5
+        L_spec = 1.25
         s_spec = 0.5
         m_spec = 2
         specific_multiplier = 1.0
