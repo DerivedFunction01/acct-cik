@@ -931,16 +931,7 @@ EUROPE = {
             Location("Kocaeli", ["kocaeli", "izmit"]),  # Industrial hub
         ],
         ["Türk Metal", "Türk Metal Sendikasi", "DISK", "HAK-IS", "TURK-IS"],
-        [
-            "Sendikasi",
-            "Işçileri",
-            "Çalışma",
-            "Emek",
-            "Dernek",
-            "Federasyonu",
-            "Konfederasyonu",
-            "Birliği",
-        ],
+        [],
         code="TR",
     ),
     Nation(
@@ -1661,7 +1652,7 @@ ASIA_PACIFIC = {
             Location("Penang", ["penang"]),  # Tech Hub
         ],
         ["MTUC", "Malaysian Trades Union Congress"],
-        ["Kerja", "Buruh", "Kesatuan", "Persatuan", "Persekutuan", "Sekerja"],
+        [],
         code="MY",
     ),
     Nation(
@@ -1711,7 +1702,7 @@ ASIA_PACIFIC = {
             Location("Medan", ["medan"]),
         ],
         [],
-        ["Serikat", "Buruh", "Pekerja", "Kerja", "Asosiasi", "Federasi", "Konfederasi"],
+        [],
         code="ID",
     ),
     Nation(
@@ -2574,8 +2565,8 @@ INTERNATIONAL = {
             "Contrato Colectivo",
             "Convenio Colectivo",
             "Negociação coletiva",
-            "Negociación colectiva"
-            ],
+            "Negociación colectiva",
+        ],
         keywords=[
             "Delegados",
             "Mineração",
@@ -2602,7 +2593,6 @@ INTERNATIONAL = {
             "Gremios",
             "Huelga",
             "Comisiones Obereras",
-
         ],
         code="INT_IBERIA",
     ),
@@ -2695,7 +2685,26 @@ INTERNATIONAL = {
         Region.INTERNATIONAL,
         [],
         [],
-        ["Muslim"],
+        [
+            "Muslim",
+            "Serikat",
+            "Kesatuan",
+            "Sendikasi",
+            "Sendika",
+            "Ittihad",
+            "Niqabat",
+            "Federasyonu",
+            "Konfederasyonu",
+            "Persatuan",
+            "Sekerja",
+            "Birliği",
+            "Persekutuan",
+            "Asosiasi",
+            "Federasi",
+            "Konfederasi",
+            "Dernek",
+            "Buruh", "Pekerja", "Kerja", "Işçileri", "Çalışma", "Emek", "Ummal",
+        ],
         code="INT_MUSLIM",
     ),
     Nation(
@@ -2830,6 +2839,16 @@ INT_UNION_MAP = {
         ],
         ["Vakbond", "Bond", "Unie", "Federatie", "Vereniging", "Centrale", "Vakcentrale", "Vakbeweging"],
         r"(?:\s+(?:van|de|het|en|voor|in|op|&|[A-Z][\w-]*)){0,3}\s+",
+    ),
+    "INT_MUSLIM": (
+        [
+            "Buruh", "Pekerja", "Kerja", "Işçileri", "Çalışma", "Emek", "Ummal",
+        ],
+        [
+            "Serikat", "Kesatuan", "Sendikasi", "Sendika", "Ittihad", "Niqabat", "Federasyonu", "Konfederasyonu",
+            "Persatuan", "Sekerja", "Birliği", "Persekutuan", "Asosiasi", "Federasi", "Konfederasi", "Dernek"
+        ],
+        r"(?:\s+(?:al|el|ul|dan|ve|wa|&|[A-Z][\w-]*)){0,3}\s+",
     ),
 }
 REGION_CODES = {
