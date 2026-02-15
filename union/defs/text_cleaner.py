@@ -888,10 +888,6 @@ class ContextualNumberCleaner:
             r"products",
             r"disputes?",
             r"compan(?:y|ies)",
-            r"contracts?",
-            r"agreements?",
-            r"unions",
-            r"labor\s+unions?",
         ]
 
         asset_pattern = build_alternation(asset_terms)

@@ -259,6 +259,7 @@ DIVERSITY_TERMS = [
     r"Millennials?",
     r"Baby\s+Boomers?",
     r"Traditionalists?",
+    r"(?:self[- ])?identif(?:y|ied)"
 ]
 
 class LABOR_TERMS:
