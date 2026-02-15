@@ -954,7 +954,9 @@ class ContextualNumberCleaner:
         # fulfillment center workers"). This restricts the negative lookahead to
         # only the directly relevant patterns instead of an arbitrary word window.
         next_worker_simple = rf"\s+(?:{worker_pattern})\b"
-        next_worker_after_second = rf"\s*(?:,|and|&|/|or|-)\s*(?:[\'\w-]+\s+){{0,2}}(?:{worker_pattern})\b"
+        next_worker_after_second = (
+            rf"\s*(?:,|and|&|/|or|-)\s*(?:[\'\w-]+\s+){{0,2}}(?:{worker_pattern})\b"
+        )
         combined_negative = rf"(?!{next_worker_simple}|{next_worker_after_second})"
 
         self.asset_regex = re.compile(
@@ -962,20 +964,29 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
-        # Extended pattern to prevent matching "5 union members" or "5 union-represented"
+        # 2. Union Patterns (CONSOLIDATED)
+        # Handles:
+        # - "5 unions" or "5 union" with optional labor/trade prefix
+        # - Blocks patterns like "5 union members" or "5 union-represented"
+        # - Matches at word boundaries or before punctuation
+        union_prefixes = r"(?:(?:labor|trade)\s+)?"
         union_adj_blockers = build_alternation(
             WORKER_TERMS
             + [r"members?", r"represented", r"covered", r"based", r"affiliated"]
         )
-        self.union_num_regex = re.compile(
-            rf"\b{number_range}\s+(unions?\b(?!(?:[\s-]+)(?:{union_adj_blockers})))",
+        self.union_regex = re.compile(
+            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,2}}({union_prefixes}(?:unions?))"
+            rf"(?!(?:[\s-]+)(?:{union_adj_blockers}))"
+            rf"(?=[,\.;\:\!\?]|\s|$)",
             re.IGNORECASE,
         )
+
         # Matches: "12 [separate] bargaining units", "12 [employee] bargaining units"
         self.bargaining_unit_regex = re.compile(
             rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,5}}bargaining\s+units?)\b",
             re.IGNORECASE,
         )
+
         change_pattern = build_alternation(CHANGE_TERMS)
 
         # Matches: "10% increase"
@@ -1073,7 +1084,7 @@ class ContextualNumberCleaner:
             r"councils?",
             r"chapters?",
             r"branches?",
-            r"propositions?", # California proposition
+            r"propositions?",  # California proposition
         ]
         union_id_pattern = build_alternation(union_identifiers)
         self.union_id_regex = re.compile(
@@ -1103,49 +1114,30 @@ class ContextualNumberCleaner:
 
         # Matches: "20% [of workforce are] women"
         self.diversity_pre_regex = re.compile(
-            rf"\b{percent_range}\s+({div_gap}{diversity_pattern})\b",
-            re.IGNORECASE
+            rf"\b{percent_range}\s+({div_gap}{diversity_pattern})\b", re.IGNORECASE
         )
 
         # Matches: "women [comprise] 20%"
         self.diversity_post_regex = re.compile(
-            rf"\b({diversity_pattern}\s+{div_gap}){percent_range}",
-            re.IGNORECASE
+            rf"\b({diversity_pattern}\s+{div_gap}){percent_range}", re.IGNORECASE
         )
 
         # 9. Remaining/Other Stripper
         # Matches: "1000 [remaining] employees" -> "1000 employees"
         self.remaining_cleaner_regex = re.compile(
-            rf"\b({number_range})\s+(?:remaining|other)\b",
-            re.IGNORECASE
-        )
-        
-        # 10. Small counts of unions/contracts (1-20) to prevent accidental ratio/count confusion
-        # e.g. "1 labor contract", "2 unions"
-        small_num = r"\b(?:[1-9]|[1-2]\d)\b"
-        
-        # Contracts/Agreements
-        contract_context = r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining)\s+)?"
-        contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
-        
-        self.small_contract_regex = re.compile(
-            rf"\b{small_num}\s+((?:{contract_context})?{contract_nouns})\b",
-            re.IGNORECASE
+            rf"\b({number_range})\s+(?:remaining|other)\b", re.IGNORECASE
         )
 
-        # Unions count
-        plural_unions = r"(?:(?:labor|trade)\s+)?unions"
-        singular_unions = r"(?:(?:labor|trade)\s+)?union"
-        
-        self.small_union_plural_regex = re.compile(
-            rf"\b{small_num}\s+({plural_unions})\b",
-            re.IGNORECASE
+        # 10. Small Contract Counts (1-20) to prevent accidental ratio/count confusion
+        contract_context = (
+            r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining)\s+)?"
         )
-        self.small_union_singular_regex = re.compile(
-            rf"\b{small_num}\s+({singular_unions})(?=[,\.;\:\!\?])",
-            re.IGNORECASE
+        contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
+
+        self.small_contract_regex = re.compile(
+            rf"\b{number_range}\s+((?:{contract_context})?{contract_nouns})\b",
+            re.IGNORECASE,
         )
-        
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
@@ -1172,12 +1164,12 @@ class ContextualNumberCleaner:
             paragraph = self.birth_year_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_pre_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_post_regex.sub(r" \1 ", paragraph)
-            paragraph = self.union_num_regex.sub(r" \1 ", paragraph)
             paragraph = self.bargaining_unit_regex.sub(r" \1 ", paragraph)
+            paragraph = self.union_regex.sub(
+                r" \1 ", paragraph
+            )  # CONSOLIDATED union pattern
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
-            paragraph = self.small_union_plural_regex.sub(r" \1 ", paragraph)
-            paragraph = self.small_union_singular_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
