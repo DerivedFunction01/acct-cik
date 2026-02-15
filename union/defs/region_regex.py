@@ -2575,13 +2575,6 @@ INTERNATIONAL = {
             "Convenio Colectivo",
             "Negociação coletiva",
             "Negociación colectiva"
-            "Comisiones Obereras",
-            "Sindicato",
-            "Trabalho",
-            "Trabajo",
-            "Greve",
-            "Gremios",
-             "Huelga",
             ],
         keywords=[
             "Delegados",
@@ -2602,6 +2595,13 @@ INTERNATIONAL = {
             "Ferroviários",
             "Ferrocarril",
             "Ferroviarios",
+            "Sindicato",
+            "Trabalho",
+            "Trabajo",
+            "Greve",
+            "Gremios",
+            "Huelga",
+            "Comisiones Obereras",
 
         ],
         code="INT_IBERIA",
