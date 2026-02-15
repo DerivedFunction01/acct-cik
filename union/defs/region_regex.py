@@ -3468,11 +3468,15 @@ def weighted_division(
         key_to_weight[key] = w
 
     # Pre-smoothing for small populations to reduce dominance of large nations
-    if original_val < 1000:
-        smoothing_power = 0.8
-        for k in key_to_weight:
-            key_to_weight[k] = key_to_weight[k] ** smoothing_power
-        note += f"Small Pop Smoothing (x^{smoothing_power}). "
+    # Only apply if domestic share is small (avoid dampening if domestic is already dominant like US/CN)
+    if original_val < 1000 and domestic_country and domestic_country in key_to_weight:
+        raw_dom = key_to_weight[domestic_country]
+        raw_total = sum(key_to_weight.values())
+        if raw_total > 0 and (raw_dom / raw_total) < 0.25:
+            smoothing_power = 0.8
+            for k in key_to_weight:
+                key_to_weight[k] = key_to_weight[k] ** smoothing_power
+            note += f"Small Pop Smoothing (x^{smoothing_power}). "
 
     # 2. Apply Dynamic Domestic Booster
     if domestic_country and domestic_country in key_to_weight and len(entities) > 1:
