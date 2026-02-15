@@ -1691,11 +1691,33 @@ ASIA_PACIFIC = {
             "INTUC",
             "BMS",
             "Bharatiya Mazdoor Sangh",
+            "Hind Mazdoor Sabha",
+            "UTUC",  # United Trade Union Congress
+            "UTUC-LS",  # Lenin Sarani faction
+            "LPF",  # Labour Progressive Federation
+            "SEWA",  # Self-Employed Women's Association
+            "AICCTU",  # All India Central Council of Trade Unions
+            "AIUTUC",  # All India United Trade Union Centre
+            "TUCI",  # Trade Union Centre of India
+            "Mazdoor Union",  # generic but union-specific
+            "Mazdoor Sabha",  # labor union
+            "Kamgar Union",  # common in Maharashtra
+            "Kamgar Sangh",  # labor association
+            "Karmachari Union",  # employee union
+            "Karmachari Sangh",  # employee association
         ],
         [
             "Standing Orders",
             "Industrial Disputes Act",
             "Trade Unions Act",
+            "Mazdoor",  # worker
+            "Kamgar",  # worker
+            "Karmachari",  # employee
+            "Shramik",  # laborer
+            "Samvida",  # contract/temporary
+            "Theka Mazdoor",  # contract labor
+            "Prabandhan",  # management
+            "Sangathan",  # organization (generic)
         ],
         code="IN",
     ),
