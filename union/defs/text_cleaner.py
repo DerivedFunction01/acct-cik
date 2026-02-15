@@ -1306,18 +1306,6 @@ class CompanyCleaner:
         parts = []
         for token in tokens:
             opts = {re.escape(token)}
-            lower = token.lower()
-
-            # Word <-> Digit conversion using MinimalTextCleaner's dictionary
-            if lower in MinimalTextCleaner.num_words:
-                opts.add(str(MinimalTextCleaner.num_words[lower]))
-            elif token.isdigit():
-                val = int(token)
-                for k, v in MinimalTextCleaner.num_words.items():
-                    if v == val:
-                        opts.add(k)
-                        opts.add(k.capitalize())
-                        break
             parts.append(f"(?:{'|'.join(opts)})")
 
         # Join with flexible separator (space, hyphen, dot, comma)
@@ -1458,7 +1446,7 @@ class CompanyCleaner:
                     ratio = difflib.SequenceMatcher(None, cand_lower, firm_lower).ratio()
 
                     # 0.85+ threshold for fuzzy match
-                    if ratio >= 0.50:
+                    if ratio >= 0.85:
                         replacements.append(m.span())
                         break
 
