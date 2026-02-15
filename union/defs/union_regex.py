@@ -265,6 +265,7 @@ DIVERSITY_TERMS = [
     r"whites?",
     r"blacks?",
     r"indigenous",
+    r"jew(?:s|ish)",
     r"lgbtq?",
     r"underrepresented",
     build_compound(r"gen(?:eration|\.)?", [r"Z", r"X", r"Y", r"W"]),
