@@ -370,6 +370,18 @@ class SimpleTableProcessor:
                 if local_idx < len(row) and row[local_idx]
             ]
             col_type = self._detect_primitive_type(sample_cells)
+
+            # Refine "value" type using header hints
+            if col_type == "value" and header_text:
+                header_lower = header_text.lower()
+                if any(s in header_text for s in PREFIX_SYMBOLS | SUFFIX_SYMBOLS):
+                    col_type = "dollar"
+                else:
+                    for code, props in MAJOR_CURRENCIES.items():
+                        if code.lower() in header_lower or any(n in header_lower for n in props.get("names", [])):
+                            col_type = "dollar"
+                            break
+
             col_map[local_idx] = col_type
 
         return filtered_rows, col_map, col_headers
