@@ -801,7 +801,7 @@ EUROPE = {
     ),
     Nation(
         "Norway",
-        ["norway", "norwegian"],
+        ["norway", "norwegian", "norge"],
         Region.EUROPE,
         [
             Location("Oslo", ["oslo"]),
@@ -820,7 +820,7 @@ EUROPE = {
     ),
     Nation(
         "Sweden",
-        ["sweden", "swedish"],
+        ["sweden", "swedish", "sverige"],
         Region.EUROPE,
         [
             Location("Stockholm", ["stockholm"]),
@@ -856,10 +856,10 @@ EUROPE = {
         ],
         code="SE",
     ),
-    Nation("Denmark", ["denmark", "danish"], Region.EUROPE, code="DK"),
+    Nation("Denmark", ["denmark", "danish", "danmark"], Region.EUROPE, code="DK"),
     Nation(
         "Denmark",
-        ["denmark", "danish"],
+        ["denmark", "danish", "danmark"],
         Region.EUROPE,
         [],
         [],
@@ -868,7 +868,7 @@ EUROPE = {
     ),
     Nation(
         "Poland",
-        ["poland", "polish"],
+        ["poland", "polish", "polska"],
         Region.EUROPE,
         [
             Location("Warsaw", ["warsaw"]),
@@ -896,7 +896,7 @@ EUROPE = {
     ),
     Nation(
         "Hungary",
-        ["hungary", "hungarian"],
+        ["hungary", "hungarian", "magyarország", "magyarorszag"],
         Region.EUROPE,
         [
             Location("Budapest", ["budapest"]),
@@ -912,7 +912,7 @@ EUROPE = {
     ),
     Nation(
         "Czech Republic",
-        ["czech republic", "czechia", "czech"],
+        ["czech republic", "czechia", "czech", "česká republika", "ceska republika", "česko", "cesko"],
         Region.EUROPE,
         [
             Location("Prague", ["prague", "praha"]),
@@ -929,7 +929,7 @@ EUROPE = {
     ),
     Nation(
         "Turkey",
-        ["turkey", "turkish", "lira"],
+        ["turkey", "turkish", "lira", "türkiye", "turkiye"],
         Region.EUROPE,
         [
             Location("Istanbul", ["istanbul"]),
@@ -979,10 +979,10 @@ EUROPE = {
         ],
         code="BG",
     ),
-    Nation("Romania", ["romania", "romanian"], Region.EUROPE, code="RO"),
+    Nation("Romania", ["romania", "romanian", "românia"], Region.EUROPE, code="RO"),
     Nation(
         "Romania",
-        ["romania", "romanian"],
+        ["romania", "romanian", "românia"],
         Region.EUROPE,
         [],
         [],
@@ -1079,7 +1079,7 @@ EUROPE = {
     # --- ITALY ---
     Nation(
         "Italy",
-        ["italy", "italian"],
+        ["italy", "italian", "italia"],
         Region.EUROPE,
         [
             Location("Milan", ["milan"]),
@@ -1121,7 +1121,7 @@ EUROPE = {
     ),
     Nation(
         "Spain",
-        ["spain", "spanish"],
+        ["spain", "spanish", "España"],
         Region.EUROPE,
         [
             Location("Madrid", ["madrid"]),
@@ -1152,7 +1152,7 @@ EUROPE = {
     ),
     Nation(
         "Netherlands",
-        ["netherlands", "dutch", "holland"],
+        ["netherlands", "dutch", "holland", "nederland"],
         Region.EUROPE,
         [
             Location("Amsterdam", ["amsterdam"]),
@@ -1180,7 +1180,7 @@ EUROPE = {
     # --- OTHER EUROPEAN NATIONS ---
     Nation(
         "Switzerland",
-        ["switzerland", "swiss", "chf"],
+        ["switzerland", "swiss", "chf", "schweiz", "suisse", "svizzera"],
         Region.EUROPE,
         [
             Location("Zurich", ["zurich"]),
@@ -1197,7 +1197,7 @@ EUROPE = {
     ),
     Nation(
         "Belgium",
-        ["belgium", "belgian"],
+        ["belgium", "belgian", "belgique", "belgië", "belgie"],
         Region.EUROPE,
         [
             Location("Brussels", ["brussels"]),
@@ -1214,7 +1214,7 @@ EUROPE = {
     ),
     Nation(
         "Austria",
-        ["austria", "austrian"],
+        ["austria", "austrian", "österreich", "oesterreich"],
         Region.EUROPE,
         [
             Location("Vienna", ["vienna"]),
@@ -1260,7 +1260,7 @@ EUROPE = {
     ),
     Nation(
         "Greece",
-        ["greece", "greek"],
+        ["greece", "greek", "hellas", "ellada"],
         Region.EUROPE,
         [
             Location("Athens", ["athens", "athina"]),
@@ -1277,7 +1277,7 @@ EUROPE = {
     ),
     Nation(
         "Finland",
-        ["finland", "finnish"],
+        ["finland", "finnish", "suomi"],
         Region.EUROPE,
         [
             Location("Helsinki", ["helsinki"]),
@@ -1316,7 +1316,7 @@ EUROPE = {
     ),
     Nation(
         "Luxembourg",
-        ["luxembourg", "luxembourgish"],
+        ["luxembourg", "luxembourgish", "lëtzebuerg", "letzebuerg"],
         Region.EUROPE,
         [Location("Luxembourg City", ["luxembourg city"])],
         code="LU",
@@ -1370,7 +1370,7 @@ EUROPE = {
     ),
     Nation(
         "Estonia",
-        ["estonia", "estonian"],
+        ["estonia", "estonian", "eesti"],
         Region.EUROPE,
         [Location("Tallinn", ["tallinn"])],
         [
@@ -1383,14 +1383,14 @@ EUROPE = {
     ),
     Nation(
         "Latvia",
-        ["latvia", "latvian"],
+        ["latvia", "latvian", "latvija"],
         Region.EUROPE,
         [Location("Riga", ["riga"])],
         code="LV",
     ),
     Nation(
         "Lithuania",
-        ["lithuania", "lithuanian"],
+        ["lithuania", "lithuanian", "lietuva"],
         Region.EUROPE,
         [Location("Vilnius", ["vilnius"]), Location("Kaunas", ["kaunas"])],
         code="LT",
@@ -1457,11 +1457,11 @@ EUROPE = {
         Region.EUROPE,
         code="BA",
     ),
-    Nation("Croatia", ["croatia", "croatian"], Region.EUROPE, code="HR"),
+    Nation("Croatia", ["croatia", "croatian", "hrvatska"], Region.EUROPE, code="HR"),
     Nation("Faroe Islands", ["faroe islands", "faroese"], Region.EUROPE, code="FO"),
     Nation("Gibraltar", ["gibraltar"], Region.EUROPE, code="GI"),
     Nation("Greenland", ["greenland", "greenlandic"], Region.EUROPE, code="GL"),
-    Nation("Iceland", ["iceland", "icelandic"], Region.EUROPE, code="IS"),
+    Nation("Iceland", ["iceland", "icelandic", "ísland"], Region.EUROPE, code="IS"),
     Nation("Montenegro", ["montenegro", "montenegrin"], Region.EUROPE, code="ME"),
     Nation(
         "North Macedonia",
@@ -1470,9 +1470,9 @@ EUROPE = {
         code="MK",
     ),
     Nation("San Marino", ["san marino", "sammarinese"], Region.EUROPE, code="SM"),
-    Nation("Serbia", ["serbia", "serbian"], Region.EUROPE, code="RS"),
-    Nation("Slovakia", ["slovakia", "slovak"], Region.EUROPE, code="SK"),
-    Nation("Slovenia", ["slovenia", "slovenian"], Region.EUROPE, code="SI"),
+    Nation("Serbia", ["serbia", "serbian", "srbija"], Region.EUROPE, code="RS"),
+    Nation("Slovakia", ["slovakia", "slovak", "slovensko"], Region.EUROPE, code="SK"),
+    Nation("Slovenia", ["slovenia", "slovenian", "slovenija"], Region.EUROPE, code="SI"),
 }
 ASIA_PACIFIC = {
     Nation(
@@ -1507,7 +1507,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "Japan",
-        ["japan", "japanese", "yen", "jpy"],
+        ["japan", "japanese", "yen", "jpy", "nihon", "nippon"],
         Region.ASIA_PACIFIC,
         [
             Location("Tokyo", ["tokyo"]),
@@ -1759,7 +1759,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "Vietnam",
-        ["vietnam", "vietnamese"],
+        ["vietnam", "vietnamese", "việt nam"],
         Region.ASIA_PACIFIC,
         [
             Location("Ho Chi Minh City", ["ho chi minh city", "hcmc", "saigon"]),
@@ -1810,7 +1810,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "Philippines",
-        ["philippines", "philippine", "filipino"],
+        ["philippines", "philippine", "filipino", "pilipinas"],
         Region.ASIA_PACIFIC,
         [
             Location("Manila", ["manila"]),
@@ -1835,7 +1835,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "New Zealand",
-        ["new zealand", "nz"],
+        ["new zealand", "nz", "aotearoa"],
         Region.ASIA_PACIFIC,
         [
             Location("Auckland", ["auckland"]),
@@ -1979,7 +1979,7 @@ LATIN_AMERICA = {
     ),
     Nation(
         "Mexico",
-        ["mexico", "mexican"],
+        ["mexico", "mexican", "méxico"],
         Region.LATIN_AMERICA,
         [
             Location("Mexico City", ["mexico city", "cdmx"]),
@@ -2015,11 +2015,11 @@ LATIN_AMERICA = {
     ),
     Nation(
         "Brazil",
-        ["brazil", "brazilian", "reais", "brl"],
+        ["brazil", "bra(?:z|s)ilian", "reais", "brl", "Brasil"],
         Region.LATIN_AMERICA,
         [
             Location("Sao Paulo", ["sao paulo"]),
-            Location("Rio de Janeiro", ["rio de janeiro", "rio"]),
+            Location("Rio de Janeiro", ["rio de janeiro"]),
             Location("Sao Bernardo do Campo", ["sao bernardo do campo"]),  # Auto Hub
             Location("Curitiba", ["curitiba"]),
             Location("Belo Horizonte", ["belo horizonte"]),
@@ -2092,7 +2092,7 @@ LATIN_AMERICA = {
     ),
     Nation(
         "Peru",
-        ["peru", "peruvian"],
+        ["peru", "peruvian", "perú"],
         Region.LATIN_AMERICA,
         [
             Location("Lima", ["lima"]),
@@ -2118,7 +2118,7 @@ LATIN_AMERICA = {
     Nation("Guatemala", ["guatemala", "guatemalan"], Region.LATIN_AMERICA, code="GT"),
     Nation(
         "Dominican Republic",
-        ["dominican republic", "dominican"],
+        ["dominican republic", "dominican", "república dominicana", "republica dominicana"],
         Region.LATIN_AMERICA,
         code="DO",
     ),
@@ -2132,7 +2132,7 @@ LATIN_AMERICA = {
     Nation(
         "Costa Rica", ["costa rica", "costa rican"], Region.LATIN_AMERICA, code="CR"
     ),
-    Nation("Panama", ["panama", "panamanian"], Region.LATIN_AMERICA, code="PA"),
+    Nation("Panama", ["panama", "panamanian", "panamá"], Region.LATIN_AMERICA, code="PA"),
     Nation("Uruguay", ["uruguay", "uruguayan"], Region.LATIN_AMERICA, code="UY"),
     Nation("Bolivia", ["bolivia", "bolivian"], Region.LATIN_AMERICA, code="BO"),
     Nation("Paraguay", ["paraguay", "paraguayan"], Region.LATIN_AMERICA, code="PY"),
@@ -2352,7 +2352,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Morocco",
-        ["morocco", "moroccan"],
+        ["morocco", "moroccan", "maroc"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Casablanca", ["casablanca"]),
@@ -2405,7 +2405,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Tunisia",
-        ["tunisia", "tunisian"],
+        ["tunisia", "tunisian", "tunisie"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Tunis", ["tunis"]),
@@ -2457,7 +2457,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Algeria",
-        ["algeria", "algerian"],
+        ["algeria", "algerian", "algérie", "algerie"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Algiers", ["algiers"]),
