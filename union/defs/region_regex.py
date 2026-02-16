@@ -4066,11 +4066,17 @@ def weighted_division(
 
             # Incorporate BUSINESS_BOOSTER to extend dominance
             biz_boost = BUSINESS_BOOSTER.get(domestic_country, 1.0)
+
+            # Also boost G20 members slightly to reflect economic gravity
+            if domestic_country in COMPOSITE_REGION_MAP.get("G20", []):
+                biz_boost *= 1.5
+                note += f"(G20) "
+
             if biz_boost > 1.0:
-                MAX_BOOST *= biz_boost * 2
+                MAX_BOOST *= biz_boost * 1.5
                 POP_PIVOT *= biz_boost * 3
                 CLUSTER_MAX *= biz_boost
-                note += f"Extended Booster (x{biz_boost}). "
+                note += f"Extended Booster (x{round(biz_boost, 2)}). "
 
             # Factor 1: Population (Small pop -> High boost)
             pop_factor = 1.0 / (1.0 + (original_val / POP_PIVOT))
