@@ -4067,6 +4067,16 @@ def weighted_division(
             # Incorporate BUSINESS_BOOSTER to extend dominance
             biz_boost = BUSINESS_BOOSTER.get(domestic_country, 1.0)
 
+            # Additive Boost (Ensure baseline share for tiny populations)
+            additive_boost = 0.0
+            additive_limit = 2500.0
+            if biz_boost > 1.0:
+                additive_limit *= biz_boost * 5
+                note += f"Extended Bias. "
+
+            if original_val < additive_limit:
+                additive_boost = 0.20  * (1.0 - (original_val / additive_limit))
+
             # Also boost G20 members slightly to reflect economic gravity
             if domestic_country in COMPOSITE_REGION_MAP.get("G20", []):
                 biz_boost *= 1.5
@@ -4087,11 +4097,6 @@ def weighted_division(
 
             # Factor 3: Share Risk (Low share -> High boost)
             share_factor = 1.0 - raw_share
-
-            # Additive Boost (Ensure baseline share for tiny populations)
-            additive_boost = 0.0
-            if original_val < 2500:
-                additive_boost = 0.20 * (1.0 - (original_val / 2500.0))
 
             # Calculate Booster
             booster = (
