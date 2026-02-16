@@ -312,31 +312,6 @@ if __name__ == "__main__":
         print("\nCALCULATED SUMMARY:\n")
         print(json.dumps(summary, indent=2))
 
-        # Summary statistics
-        print("\n" + "=" * 80)
-        print("\nSUMMARY STATISTICS:\n")
-
-        total_with_percentage = len(
-            [r for r in results if r.get("coverage_data", {}).get("percentage")]
-        )
-        total_with_counts = len(
-            [r for r in results if r.get("coverage_data", {}).get("employee_count_covered")]
-        )
-        negated_items = len(
-            [r for r in results if r.get("coverage_data", {}).get("negated")]
-        )
-        inherited_geo = len(
-            [
-                r
-                for r in results
-                if r.get("geographic_context", {}).get("specificity") == "INHERITED_PREV"
-            ]
-        )
-
-        print(f"Sentences with explicit/calculated percentage: {total_with_percentage}")
-        print(f"Sentences with employee counts: {total_with_counts}")
-        print(f"Negated coverage statements: {negated_items}")
-        print(f"Inherited geographic context: {inherited_geo}")
 
     # Combined Consistency Test
     print("\n" + "=" * 80)
