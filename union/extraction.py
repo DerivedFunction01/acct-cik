@@ -114,7 +114,7 @@ QUALITATIVE_MULTIPLIERS = [
 worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?"])
 # Gap that avoids consuming numbers (words must start with non-digit)
 non_numeric_gap = r"(?:[^\W\d][\w-]*\s+){0,3}"
-GAP = r"(?:[\w-]+\s+){0,3}"
+GAP = r"\s+(?:[\w-]+\s+){0,3}"
 WORKER_COUNT_REGEX = build_regex(
     [
         rf"(?:employ(?:ed|s)?|have|had)\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
@@ -296,8 +296,8 @@ class QualitativeTerm:
     )
     is_all: bool = False  # True if the meaning is 100%
 
-    prefix_gap: Optional[str] = "[- ]"
-    suffix_gap: Optional[str] = "[- ]"
+    prefix_gap: str = "[- ]"
+    suffix_gap: str = "[- ]"
 
     # Bounds for validation
     lower_bound: Optional[float] = None
@@ -307,11 +307,11 @@ class QualitativeTerm:
     def build_pattern(self) -> str:
         """Build regex pattern using build_compound."""
         if self.prefix_terms and self.suffix_terms:
-            return build_compound(self.prefix_terms, self.core_terms, self.suffix_terms)
+            return build_compound(self.prefix_terms, self.core_terms, self.suffix_terms, sep_prefix=self.prefix_gap, sep_suffix=self.suffix_gap)
         elif self.prefix_terms:
-            return build_compound(self.prefix_terms, self.core_terms)
+            return build_compound(self.prefix_terms, self.core_terms, sep_prefix=self.prefix_gap)
         elif self.suffix_terms:
-            return build_compound(self.core_terms, self.suffix_terms)
+            return build_compound(self.core_terms, self.suffix_terms, sep_suffix=self.suffix_gap)
         else:
             # Just core terms with optional word boundary
             return to_build_alternation(self.core_terms)
@@ -470,6 +470,7 @@ QUALITATIVE_ALL_TERMS = [
         lower_bound=100.0,
         upper_bound=100.0,
         is_all=True,
+        suffix_gap=r"(?:,\s*|\s+)",
     ),
 ]
 
