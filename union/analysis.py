@@ -602,6 +602,14 @@ class SimpleCoverageAnalyzer:
                     data["employee_count_total"] = count
                     notes.append(f"Count (total): {count} (qualitative term present)")
 
+            elif analysis.has_remaining_other:
+                data["employee_count_total"] = count
+                data["type"] = CoverageType.REMAINING.value
+                if analysis.negation_terms:
+                    data["negated"] = True
+                    data["negation_type"] = NegationType.NOT_COVERED.value
+                notes.append(f"Count (total): {count} (remaining/rest detected)")
+
             elif is_associated:
                 apply_coverage_logic(
                     data,
