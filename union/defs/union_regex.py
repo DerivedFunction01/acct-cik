@@ -407,7 +407,7 @@ COVERAGE_TERMS = [
     r"subject\s+to",
     r"(?:are|were)\s+under",
     r"members?\s+of",
-    r"work\s+councils?",
+    r"works?\s+councils?",
 ] + SUFFIX_AGREEMENTS
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 
