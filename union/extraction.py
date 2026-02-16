@@ -1222,6 +1222,7 @@ class UnionExtractor:
             lambda m, val: analysis.coverage_terms.append(val),
         )
 
+        working_text = text
         # 18. Extract Qualitative Terms
         for item in COMPILED_QUALITATIVE_PATTERNS:
 

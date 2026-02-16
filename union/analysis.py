@@ -904,7 +904,7 @@ def interpret_qualitative_match(
         res["qualitative_bounds"] = best_bounds
 
     if prefer_note:
-        res["note"] = f"Qualitative: '{best_pattern}' -> {best_pct}%"
+        res["note"] = f"Qualitative: -> {best_pct}%"
 
     return res
 
