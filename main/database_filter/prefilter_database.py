@@ -153,6 +153,57 @@ def init_worker(meta_dict):
     global META_LOOKUP
     META_LOOKUP = meta_dict
 
+def fix_existing_metadata(db_path: str, meta_dict: dict):
+    """
+    Scans the database for rows with missing CIK/Year and updates them
+    using the provided metadata dictionary.
+    """
+    if not meta_dict:
+        return
+
+    print(f"🔍 Checking {db_path} for missing metadata...")
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    try:
+        # Find rows with missing CIK or Year
+        cursor.execute("SELECT url, cik, year FROM report_data WHERE cik IS NULL OR cik = 0 OR year IS NULL OR year = 0")
+        rows = cursor.fetchall()
+        
+        if not rows:
+            print("   ✅ No missing metadata found.")
+            return
+            
+        print(f"   Found {len(rows)} rows with missing metadata. Attempting to resolve...")
+        
+        updates = []
+        resolved_count = 0
+        
+        for url, current_cik, current_year in rows:
+            acc = get_accession(url)
+            if acc and acc in meta_dict:
+                info = meta_dict[acc]
+                new_cik = info['cik']
+                new_year = info['year']
+                
+                if (not current_cik or current_cik == 0) and new_cik:
+                    current_cik = new_cik
+                if (not current_year or current_year == 0) and new_year:
+                    current_year = new_year
+                
+                updates.append((current_cik, current_year, url))
+                resolved_count += 1
+        
+        if updates:
+            cursor.executemany("UPDATE report_data SET cik = ?, year = ? WHERE url = ?", updates)
+            conn.commit()
+            print(f"   ✅ Successfully updated {resolved_count} rows.")
+            
+    except sqlite3.Error as e:
+        print(f"   ❌ Database error during check: {e}")
+    finally:
+        conn.close()
+
 # =============================================================================
 # TABLE CLEANUP HELPERS
 # =============================================================================
@@ -1001,15 +1052,20 @@ if __name__ == "__main__":
         print(f"📖 Loading {REPORT_CSV_PATH} for metadata resolution...")
         try:
             df_meta = pd.read_csv(REPORT_CSV_PATH)
-            if 'url' in df_meta.columns and 'accession' not in df_meta.columns:
+            if 'url' in df_meta.columns:
                 df_meta['accession'] = df_meta['url'].apply(get_accession)
             
             if 'accession' in df_meta.columns and 'cik' in df_meta.columns and 'year' in df_meta.columns:
                 df_meta = df_meta.dropna(subset=['accession'])
                 df_meta['cik'] = pd.to_numeric(df_meta['cik'], errors='coerce').fillna(0).astype(int)
                 df_meta['year'] = pd.to_numeric(df_meta['year'], errors='coerce').fillna(0).astype(int)
+                # Drop any redundant accession keys
+                df_meta = df_meta.drop_duplicates(subset=['accession'])
                 meta_dict = df_meta.set_index('accession')[['cik', 'year']].to_dict('index')
                 print(f"   Loaded {len(meta_dict)} accession mappings.")
+                
+                # 1.6 Fix Existing Metadata
+                fix_existing_metadata(TARGET_DB_PATH, meta_dict)
         except Exception as e:
             print(f"⚠️ Error loading report data: {e}")
 
