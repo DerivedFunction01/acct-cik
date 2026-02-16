@@ -901,13 +901,8 @@ def interpret_qualitative_match(
 
     res["percentage"] = best_pct
     res["is_negated"] = best_is_neg
-
-    # If the best term implies 'all' and is not negated, surface as explicit percent
-    if getattr(best_term, "is_all", False) and not best_is_neg:
-        res["type"] = CoverageType.EXPLICIT_PERCENT.value
-    else:
-        # Absolute terms are still qualitative in our schema
-        res["type"] = CoverageType.QUALITATIVE.value
+    # Absolute terms are still qualitative in our schema
+    res["type"] = CoverageType.QUALITATIVE.value
 
     if (not best_is_neg) and best_bounds is not None:
         res["qualitative_bounds"] = best_bounds
