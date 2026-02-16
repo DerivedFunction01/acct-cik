@@ -869,6 +869,15 @@ QUALITATIVE_TERMS_AMB = [
         ambiguity_multiplier=1.0,
     ),
     QualitativeTerm(
+        core_terms=[r"under[-]?unionized"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=0.0,
+        upper_bound=15.0,
+        ambiguity_multiplier=0.2,
+    ),
+    QualitativeTerm(
         core_terms=["number", "quantity"],
         prefix_terms=["a"],
         suffix_terms=["of"],
