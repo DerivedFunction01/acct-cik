@@ -675,7 +675,8 @@ class SimpleCoverageAnalyzer:
                     "type": CoverageType.REMAINING.value,
                 }
             )
-            notes.append("Qualitative zero coverage detected")
+            if analysis.negation_terms:
+                notes.append("Qualitative zero coverage detected")
 
     def analyze(self, analysis: SentenceAnalysis) -> Dict[str, Any]:
         data = {
