@@ -418,11 +418,21 @@ QUALITATIVE_MEMBERSHIP = [
         upper_bound=5.0,
     ),
 ]
-
+QUANTITY_NOUNS = ["portion", "share", "number", "amount", "fraction", "percentage"]
 # Triggers only when needed as last resort, to avoid converting 100% x COUNT -> Qualitative.value
 QUALITATIVE_ALL_TERMS = [
     QualitativeTerm(
-        core_terms=["entirety"],
+        core_terms=["entirety", "totality",],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=False,
+        lower_bound=100.0,
+        upper_bound=100.0,
+        is_all=True,
+    ),
+    QualitativeTerm(
+        core_terms=QUANTITY_NOUNS,
+        prefix_terms=["full", "entire", "complete", "whole"],
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=False,
@@ -463,7 +473,6 @@ QUALITATIVE_ALL_TERMS = [
         is_all=True,
     ),
 ]
-QUANTITY_NOUNS = ["portion", "share", "number", "amount", "fraction", "percentage"]
 
 QUALITATIVE_TERMS = [
     # ===== 95% TIER (Substantially All) =====

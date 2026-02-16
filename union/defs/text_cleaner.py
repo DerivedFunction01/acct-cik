@@ -270,6 +270,7 @@ class MinimalTextCleaner:
         "ninety": 90,
     }
     multipliers = {
+        "dozen": 12,
         "hundred": 100,
         "thousand": 1_000,
         "million": 1_000_000,
@@ -308,13 +309,6 @@ class MinimalTextCleaner:
         rf"\b{_word_pattern}(?:[\s-]+{_word_pattern})*\b", re.IGNORECASE
     )
 
-    # Handle "a hundred", "a thousand" etc.
-    # Also handle "a quarter of", "a third of", "a fifth of"
-    a_multiplier_pattern = re.compile(
-        r"\ba\s+(?=(?:hundred|thousand|million|billion|trillion)|(?:quarter|third|fifth|sixth)\s+of)",
-        re.IGNORECASE,
-    )
-
     # Qualitative financial terms to numeric conversion map
     # No point doing all
     # _hundred = [
@@ -338,7 +332,43 @@ class MinimalTextCleaner:
             "0%",
         ),
         # "a couple (of)" -> "2"
-        (re.compile(r"\ba\s+couple\s+(?:of\s+)?", re.IGNORECASE), "2 "),
+        (re.compile(r"\ba\s+couple\s+(?:of\s+)?", re.IGNORECASE), "two "),
+        # "a few" before multipliers -> "three" (approximation for calculation)
+        (
+            re.compile(
+                rf"\ba\s+few\s+(?={build_alternation(list(multipliers.keys()))})",
+                re.IGNORECASE,
+            ),
+            "three ",
+        ),
+        (
+            re.compile(
+                rf"\bhalf\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                re.IGNORECASE,
+            ),
+            "0.5 ",
+        ),
+        (
+            re.compile(
+                rf"\ba\+quarter\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                re.IGNORECASE,
+            ),
+            "0.25 ",
+        ),
+        (
+            re.compile(
+                rf"\bthree\+quarters\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                re.IGNORECASE,
+            ),
+            "0.75 ",
+        ),
+        (
+            re.compile(
+                rf"\ban?\s+(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                re.IGNORECASE,
+            ),
+            "one ",
+        ),
         # "all of/entire" -> "100%"
         # (build_regex([_hundred_alternation]), "100%"),
         # # entirety -> 95%
@@ -379,13 +409,15 @@ class MinimalTextCleaner:
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
     scale_map = {
+        "dozen": 12,
+        "hundred": 100,
         "thousand": 1_000,
         "million": 1_000_000,
         "billion": 1_000_000_000,
         "trillion": 1_000_000_000_000,
     }
     scale_pattern = re.compile(
-        r"\b(\d+(?:\.\d+)?)\s+(thousand|million|billion|trillion)\b", re.IGNORECASE
+        rf"\b(\d+(?:\.\d+)?)\s+({'|'.join(scale_map.keys())})\b", re.IGNORECASE
     )
 
     # Pattern to handle hyphenated fractions like "three-fourths", "one-half"
@@ -544,7 +576,7 @@ class MinimalTextCleaner:
     covid_pattern = re.compile(
         r"\b(?:(?:covid|coronavirus)(?:[\s-]*(?:19|2019))?|SARS-CoV-2)\b", re.IGNORECASE
     )
-    
+
     # Float pattern: Matches 1.5, 10.00, but NOT 1.5% (lookahead protects %)
     float_pattern = re.compile(r"\b\d+\.\d+\b(?!%)")
 
@@ -715,7 +747,7 @@ class MinimalTextCleaner:
                 current_chunk += self.num_words[word]
             elif word in self.multipliers:
                 mult = self.multipliers[word]
-                if mult == 100:
+                if mult < 1000:
                     current_chunk = (current_chunk if current_chunk else 1) * mult
                 else:
                     total_value += (current_chunk if current_chunk else 1) * mult
@@ -856,7 +888,6 @@ class MinimalTextCleaner:
                 self._convert_hyphenated_fraction, paragraph
             )
 
-            paragraph = self.a_multiplier_pattern.sub("one ", paragraph)
             for pattern, replacement in self.qualitative_patterns:
                 paragraph = pattern.sub(replacement, paragraph)
             # paragraph = self.all_worker_pattern.sub(r"100% of \1", paragraph)
