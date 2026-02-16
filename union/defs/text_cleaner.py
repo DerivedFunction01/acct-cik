@@ -343,28 +343,28 @@ class MinimalTextCleaner:
         ),
         (
             re.compile(
-                rf"\bhalf\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                rf"\bhalf\s+(?:of\s+)?(?:a\s+)?(?={build_alternation(list(multipliers.keys()))})",
                 re.IGNORECASE,
             ),
             "0.5 ",
         ),
         (
             re.compile(
-                rf"\ba\+quarter\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                rf"\ba\+quarter\s+(?:of\s+)?(?:a\s+)?(?={build_alternation(list(multipliers.keys()))})",
                 re.IGNORECASE,
             ),
             "0.25 ",
         ),
         (
             re.compile(
-                rf"\bthree\+quarters\s+(?:of\s+)?(?:an?\s+)?(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                rf"\bthree\+quarters\s+(?:of\s+)?(?:a\s+)?(?={build_alternation(list(multipliers.keys()))})",
                 re.IGNORECASE,
             ),
             "0.75 ",
         ),
         (
             re.compile(
-                rf"\ban?\s+(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
+                rf"\ba\s+(?={build_alternation(list(multipliers.keys()))}|(?:quarter|third|fifth|sixth)\s+of)",
                 re.IGNORECASE,
             ),
             "one ",
