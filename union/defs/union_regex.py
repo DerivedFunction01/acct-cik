@@ -209,6 +209,9 @@ COLLECTIVE_BARGAIN = build_alternation(
             [CORE.BARGAIN, CORE.UNION], SUFFIX_AGREEMENTS, sep_prefix=r"[\s-]+"
         ),
         build_compound(
+            [CORE.COLLECTIVE], [r"agreements?"], sep_prefix=r"[\s-]+"
+        ),
+        build_compound(
             [CORE.BARGAIN], [r"units?"], sep_prefix=r"[\s-]+"
         ),
         build_compound([r"industry(?:[- ]wide)?"], [CORE.BARGAIN])
