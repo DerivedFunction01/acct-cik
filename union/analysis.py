@@ -5855,7 +5855,14 @@ class UnionAnalyzer:
         parts, sentence_total, proximity_map = self._prepare_counts(analysis, entities)
 
         if sentence_total is not None and total_key:
-            mapped_counts[total_key] = sentence_total
+            # If we only have one entity, the "Total" likely belongs to it, not the generic scope
+            if len(entities) == 1:
+                entity_key = entities[0]["key"]
+                mapped_counts[entity_key] = sentence_total
+                # Return early to ignore subset parts for Census
+                return mapped_counts, sentence_total, ["Inferred Total for Single Entity"]
+            else:
+                mapped_counts[total_key] = sentence_total
 
         # --- Preprocess: Remove redundant container regions ---
         entities, preprocess_note = self._preprocess_redundant_containers(
