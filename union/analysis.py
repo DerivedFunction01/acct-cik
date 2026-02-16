@@ -2400,7 +2400,7 @@ class Tracker:
         self.total_union_keywords: int = 0
         self.country_keyword_counts: Dict[str, int] = {}
         self._boosted_rate_cache: Dict[Tuple[float, Optional[str]], Tuple[float, float]] = {}
-
+        self._limiter_countries: Set = {"CN", "VN"}
     def _calculate_boosted_rate(self, base_rate: float, key: Optional[str] = None) -> Tuple[float, float]:
         """
         Dynamically boosts an inferred base unionization rate using:
@@ -2455,6 +2455,10 @@ class Tracker:
         # -----------------------------
         # Elasticity scales how much of the keyword multiplier applies.
         multiplier = 1 + (keyword_multiplier - 1) * (elasticity / 5.0)
+
+        # Cap boost for (Nominal/State-controlled unions often have high keyword density but low effective bargaining variation)
+        if key and (key.split("::")[0] in self._limiter_countries):
+            multiplier = min(multiplier, 1.15)
 
         # -----------------------------
         # 4. Final boosted rate
