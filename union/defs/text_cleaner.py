@@ -555,7 +555,16 @@ class MinimalTextCleaner:
         prev_name = None
         while name != prev_name:
             prev_name = name
-            name = self.name_suffix_pattern.sub("", name)
+            candidate = self.name_suffix_pattern.sub("", name).strip()
+
+            # If stripping results in a single number, return the last known name
+            tokens = candidate.split()
+            if len(tokens) == 1:
+                token = tokens[0].lower()
+                if token.isdigit() or token in self.num_words:
+                    return name
+
+            name = candidate
         return name
 
     def _convert_slash_date(self, match):
