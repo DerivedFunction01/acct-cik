@@ -14,7 +14,6 @@ from defs.regex_lib import (
 )
 from defs.union_regex import (
     CORE,
-    GAP,
     UNION_REGEX,
     RISK_REGEX,
     DYNAMIC_UNION_REGEX,
@@ -115,6 +114,7 @@ QUALITATIVE_MULTIPLIERS = [
 worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?"])
 # Gap that avoids consuming numbers (words must start with non-digit)
 non_numeric_gap = r"(?:[^\W\d][\w-]*\s+){0,3}"
+GAP = r"(?:[\w-]+\s+){0,3}"
 WORKER_COUNT_REGEX = build_regex(
     [
         rf"(?:employ(?:ed|s)?|have|had)\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
