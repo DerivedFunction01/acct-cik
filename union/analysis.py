@@ -861,11 +861,9 @@ def interpret_qualitative_match(
     if not qual_matches:
         qual_matches = [match] if match else []
 
-    best_term = None
     best_pct = None
     best_is_neg = False
     best_pattern = None
-    best_is_absolute = False
     best_bounds = None
 
     for qm in qual_matches:
@@ -889,10 +887,8 @@ def interpret_qualitative_match(
         # Choose the lowest percentage
         if best_pct is None or pct < best_pct:
             best_pct = pct
-            best_term = term
             best_is_neg = is_locally_negated
             best_pattern = qm.get("pattern_str", qm.get("text", ""))
-            best_is_absolute = bool(term.is_absolute)
             if term.lower_bound is not None and term.upper_bound is not None:
                 best_bounds = (term.lower_bound, term.upper_bound)
 
