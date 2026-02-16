@@ -1318,30 +1318,13 @@ class CompanyCleaner:
         self.cleaner = MinimalTextCleaner()
         # Regex to find potential company name occurrences in text (Title Case phrases)
         self.candidate_pattern = re.compile(
-            r"\b[A-Z1-9][\w\-\']*(?:\s+(?:&|and|of|the|[A-Z1-9][\w\-\']+))*\b"
+            r"\b[A-Z1-9][\w\-\']*(?:\s+(?:&|and|of|the|[A-Z][\w\-\']+))*\b"
         )
         self.numeric_firms_regex = None
         self.union_firms_regex = None
         self._numeric_firm_list = []  # Store list for fuzzy matching
         self._union_firm_list = []
         self._load_numeric_firms()
-
-    def _generate_flexible_pattern(self, name: str) -> str:
-        """Generate regex pattern that matches word-number variations."""
-        tokens = re.split(r'[^a-zA-Z0-9]+', name)
-        tokens = [t for t in tokens if t]
-
-        if not tokens:
-            return re.escape(name)
-
-        parts = []
-        for token in tokens:
-            opts = {re.escape(token)}
-            parts.append(f"(?:{'|'.join(opts)})")
-
-        # Join with flexible separator (space, hyphen, dot only - NOT comma)
-        # Comma breaks the pattern naturally at sentence/phrase boundaries
-        return r"[\s\-]*".join(parts)
 
     def _load_numeric_firms(self):
         """Load numeric and union firms from CSV file."""
@@ -1419,14 +1402,12 @@ class CompanyCleaner:
                                         union_windows.add(window)
 
                             for p in union_windows:
-                                pattern = self._generate_flexible_pattern(p)
-                                union_names.add(pattern)
+                                union_names.add(p)
                                 union_list.append(p)
                         else:
                             # Numeric firms still use prefix matching
                             for p in prefixes:
-                                pattern = self._generate_flexible_pattern(p)
-                                numeric_names.add(pattern)
+                                numeric_names.add(p)
                                 numeric_list.append(p)
 
         except Exception:
@@ -1457,7 +1438,13 @@ class CompanyCleaner:
         """
         # First pass: Exact pattern matching
         if self.numeric_firms_regex:
-            text = self.numeric_firms_regex.sub(COMPANY_TOKEN, text)
+            def repl(m):
+                val = m.group(0)
+                # Enforce Title Case or All Caps or Digits to avoid lowercase false positives (e.g. "zero")
+                if val[0].isupper() or val[0].isdigit():
+                    return COMPANY_TOKEN
+                return val
+            text = self.numeric_firms_regex.sub(repl, text)
 
         # Second pass: Fuzzy match remaining Title Case phrases against numeric firm list
         # This catches aliases and shortforms not in the regex

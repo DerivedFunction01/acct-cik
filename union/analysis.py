@@ -3819,61 +3819,90 @@ class Tracker:
                 and not e.is_negated
             )
             is_existing_dummy = e.is_dummy_percent
+            
+            # NEW: Check for qualitative percentage without counts
+            is_qualitative_no_counts = (
+                e.percentage is not None
+                and e.is_qualitative
+                and not e.is_dummy_percent  # Prevent re-dampening
+                and e.covered_count is None
+                and e.total_count is None
+                and not e.is_negated
+            )
 
-            if is_candidate or is_existing_dummy:
+            if is_candidate or is_existing_dummy or is_qualitative_no_counts:
                 # Check negation conflicts (Key or Related Geo)
                 if e.key not in negated_keys and not any(
                     g in negated_geos for g in e.related_geo_codes
                 ):
                     is_region_calc = False
-                    if e.percentage is None:
-                        # Try to find rate from external data
-                        rate = None
-                        # 2. Try calculating from mentioned countries in the region
-                        if e.scope == Scope.REGION or e.key in [
-                            r.value for r in Region
-                        ]:
-                            region_name = e.key
-                            relevant_countries = []
-                            for code in self.mentioned_countries:
-                                if code not in REGION_CODES and _CODE_TO_REGION.get(
-                                    code
-                                ) in [region_name, e.key]:
-                                    relevant_countries.append(code)
+                    # Calculate rate
+                    rate = None
+                    # 2. Try calculating from mentioned countries in the region
+                    if e.scope == Scope.REGION or e.key in [
+                        r.value for r in Region
+                    ]:
+                        region_name = e.key
+                        relevant_countries = []
+                        for code in self.mentioned_countries:
+                            if code not in REGION_CODES and _CODE_TO_REGION.get(
+                                code
+                            ) in [region_name, e.key]:
+                                relevant_countries.append(code)
 
-                            if relevant_countries:
-                                total_weight = 0.0
-                                weighted_rate_sum = 0.0
-                                used_codes = []
+                        if relevant_countries:
+                            total_weight = 0.0
+                            weighted_rate_sum = 0.0
+                            used_codes = []
 
-                                for code in relevant_countries:
-                                    if (
-                                        code in _CODE_TO_LABOR_RATE
-                                        and code in _CODE_TO_WEIGHT
-                                    ):
-                                        w = _CODE_TO_WEIGHT[code]
-                                        r = _CODE_TO_LABOR_RATE[code]
-                                        # Use boosted rate for weighted average
-                                        boosted_r, _ = self._calculate_boosted_rate(r, key=code)
-                                        weighted_rate_sum += boosted_r * w
-                                        total_weight += w
-                                        used_codes.append(code)
+                            for code in relevant_countries:
+                                if (
+                                    code in _CODE_TO_LABOR_RATE
+                                    and code in _CODE_TO_WEIGHT
+                                ):
+                                    w = _CODE_TO_WEIGHT[code]
+                                    r = _CODE_TO_LABOR_RATE[code]
+                                    # Use boosted rate for weighted average
+                                    boosted_r, _ = self._calculate_boosted_rate(r, key=code)
+                                    weighted_rate_sum += boosted_r * w
+                                    total_weight += w
+                                    used_codes.append(code)
 
-                                if total_weight > 0:
-                                    rate = weighted_rate_sum / total_weight
-                                    is_region_calc = True
-                                    self.resolution_log.append(
-                                        f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of boosted rates: {', '.join(used_codes)}"
-                                    )
+                            if total_weight > 0:
+                                rate = weighted_rate_sum / total_weight
+                                is_region_calc = True
+                                self.resolution_log.append(
+                                    f"Calculated inferred rate {rate*100:.2f}% for {region_name} based on weighted sum of boosted rates: {', '.join(used_codes)}"
+                                )
 
-                        # 3. Try Segment (Country::...)
-                        if rate is None and isinstance(e.key, str):
-                            code = e.key.split("::")[0]
-                            if code in _CODE_TO_LABOR_RATE:
-                                rate = _CODE_TO_LABOR_RATE[code]
-                            elif code in REGION_LABOR_RATES:
-                                rate = REGION_LABOR_RATES[code]
+                    # 3. Try Segment (Country::...)
+                    if rate is None and isinstance(e.key, str):
+                        code = e.key.split("::")[0]
+                        if code in _CODE_TO_LABOR_RATE:
+                            rate = _CODE_TO_LABOR_RATE[code]
+                        elif code in REGION_LABOR_RATES:
+                            rate = REGION_LABOR_RATES[code]
 
+                    # Apply logic
+                    if is_qualitative_no_counts:
+                        # Dampen existing qualitative percentage
+                        base_rate = rate if rate is not None else 0.01
+                        boosted_rate, multiplier = self._calculate_boosted_rate(base_rate, key=e.key)
+                        
+                        # If region calc, use that rate directly as it's already boosted/weighted
+                        final_rate = rate if is_region_calc and rate is not None else boosted_rate
+                        
+                        original_pct = e.percentage or 0.01
+                        new_pct = round(original_pct * final_rate, 2)
+                        e.percentage = new_pct
+                        e.is_dummy_percent = True
+                        
+                        source_info = "Aggregated Region" if is_region_calc else f"Boosted Base ({base_rate*100:.1f}% x {multiplier:.2f})"
+                        self.resolution_log.append(
+                            f"Dampened qualitative percentage for {e.key}: {original_pct}% -> {new_pct}% (x {final_rate:.4f}) [{source_info}]"
+                        )
+
+                    elif e.percentage is None:
                         if is_region_calc and rate is not None:
                             e.percentage = round(rate * 100, 2)
                             e.is_qualitative = True

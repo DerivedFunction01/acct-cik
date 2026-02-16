@@ -153,6 +153,32 @@ In addition, the Company’s employees in other regions are represented by the f
 
 In many European countries, Canada, Mexico, Brazil and South Korea, wages, salaries and general working conditions are negotiated with local unions and/or are subject to centrally negotiated collective bargaining agreements. The terms of the Company's various agreements with unions typically range between one to three years. Some of the Company's subsidiaries in Europe, Canada, Mexico, Brazil and South Korea must negotiate with the applicable local unions with respect to important changes in operations, working and employment conditions. Twice a year, members of the Company’s management conduct a meeting with the European Works Council (EWC) to provide employee representatives with important information about the Company and a forum for the exchange of ideas and opinions. In many Asia Pacific countries, the central or regional governments provide guidance each year for salary adjustments or statutory minimum wage for workers. The Company's employees may join associations in accordance with local legislation and rules, although the level of unionization varies significantly throughout its operations.
 """,
+"""On a worldwide basis, we believe that our employee and labor relations are excellent.
+
+On a corporate level, all employees of SAP in the member states of the European Union (with the United Kingdom included for a 
+transition period until May 2024) and in the contract states of the European Economic Area are represented by the SAP SE Works 
+Council (WoC) (Europe). By law and agreement with SAP, the SAP SE WoC (Europe) is entitled to receive information on certain 
+transnational matters and to consult with the Executive Board or a representative thereof. On the legal entity level, the SAP 
+SE works council (Germany) represents the employees of SAP SE. The employees of SAP Deutschland SE & Co. KG (SAP Germany), 
+Concur (Germany) GmbH, and Emarsys Interactive Services GmbH (Germany) are represented by separate works councils. 
+Other employee representatives include the group works council (composed of members of the works councils of SAP SE, SAP Germany, 
+Concur (Germany) GmbH and Emarsys Interactive Services GmbH (Germany)), the representatives of severely disabled persons in 
+SAP SE and SAP Germany and the spokespersons committee as the representation of the executives of SAP SE (Germany).
+
+Employees of each of SAP France, SAP France Holding, SAP Labs France and Concur (France) SAS are subject to the 
+same collective agreement: “SYNTEC”. In France, effective December 31, 2024 the Workers Council, the Health and Safety 
+Committee and the employee representative were replaced by a single instance named the “Economic and Social Committee”. 
+Today, SAP France/SAP France Holding (in the same legal entity), SAP Labs France and Concur (France) SAS are represented 
+by an Economic and Social Committee. The represented unions negotiate agreements with each of SAP France/SAP France Holding 
+and SAP Labs France. For Concur (France) SAS the agreements are negotiated with the Economic and Social Committee. In addition, 
+the employees of various other SAP entities, including SAP Österreich GmbH (Austria), SAP España – Sistemas, Aplicaciones y Productos 
+en la Informática, S.A., SAO D.O.O. (Croatia), SAP Belgium NV/SA., SAP Israel, SAP Nederland B.V., SAP Italia Sistemi Applicazioni 
+Prodotti in Data Processing S.p.A., SAP China Beijing Branch, all entities in the Czech Republic (SAP ČR, spol. s r.o., 
+SAP Services s.r.o., Ariba Czech s.r.o. and Concur Czech (s.r.o.)), SAP Brasil Ltda, SAP Korea Ltd. (Korea), 
+SAP North West Africa Ltd. (Maroc), SAP Slovensko s.r.o. (Slovakia), SAP sistemi, aplikacije in produkti za obdelavo
+podatkov d.o.o. (Slovenia), SAP Romania SRL, SAP Svenska Aktiebolag (Sweden), SAP UK Ltd., and SAP Ireland Ltd. 
+are represented by works councils, worker representatives, employee consultation forums and/or unions. In addition, some of 
+these employees are subject to a collective bargaining agreement.""",
 ]
 
 ITEM_1A = """
