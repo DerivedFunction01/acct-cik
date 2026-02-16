@@ -467,7 +467,6 @@ QUALITATIVE_ALL_TERMS = [
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=True,
-        suffix_gap=GAP,
         lower_bound=100.0,
         upper_bound=100.0,
         is_all=True,
