@@ -337,6 +337,8 @@ class MinimalTextCleaner:
             ),
             "0%",
         ),
+        # "a couple (of)" -> "2"
+        (re.compile(r"\ba\s+couple\s+(?:of\s+)?", re.IGNORECASE), "2 "),
         # "all of/entire" -> "100%"
         # (build_regex([_hundred_alternation]), "100%"),
         # # entirety -> 95%
