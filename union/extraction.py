@@ -477,7 +477,7 @@ QUALITATIVE_ALL_TERMS = [
 QUALITATIVE_TERMS = [
     # ===== 95% TIER (Substantially All) =====
     QualitativeTerm(
-        core_terms=["all", r"(?:the\s+)entire(?:ty)?", r"every", r"each"],
+        core_terms=["all", r"(?:the\s+)entire(?:ty)?", r"every", r"each", r"(?:the\s+)total(?:ity)?"],
         prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
         positive_pct=95.0,
         negated_pct=None,
