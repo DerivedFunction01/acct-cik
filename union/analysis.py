@@ -5824,7 +5824,7 @@ class UnionAnalyzer:
                     if i == j:
                         continue
                     if not self._is_contained(e["key"], other["key"]):
-                        all_contained = False
+                        contains_all = False
                         break
 
                 if contains_all:

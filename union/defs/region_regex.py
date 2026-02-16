@@ -4210,16 +4210,6 @@ def group_by_scope(
 ) -> List[List[Dict[str, Any]]]:
     """
     Groups geographic entities into clusters based on scope hierarchy to match a target count.
-    Used when the number of counts matches the number of 'scopes' but not the total number of entities.
-
-    Example:
-      Entities: [International, Europe, China]
-      Target: 1
-      Result: [[International, Europe, China]] (International contains others)
-
-      Entities: [Domestic, International, Europe, China]
-      Target: 2
-      Result: [[Domestic], [International, Europe, China]]
     """
     if not entities:
         return []
