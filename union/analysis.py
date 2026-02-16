@@ -573,6 +573,8 @@ class SimpleCoverageAnalyzer:
                     qual_match, analysis, backward=40, prefer_note=False
                 )
                 pct = qinfo.get("percentage")
+                amb_mult = qinfo.get("ambiguity_multiplier")
+                
                 if pct is not None:
                     data["percentage"] = pct
                     if qinfo.get("type"):
@@ -597,6 +599,12 @@ class SimpleCoverageAnalyzer:
                         note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}"
                         + (" (negated)" if has_status_negation else ""),
                     )
+                elif amb_mult is not None:
+                    # Store multiplier for later resolution in Tracker
+                    data["ambiguity_multiplier"] = amb_mult
+                    data["type"] = CoverageType.QUALITATIVE.value
+                    data["employee_count_total"] = count
+                    notes.append(f"Count (total): {count} (qualitative multiplier {amb_mult}x)")
                 else:
                     data["type"] = CoverageType.CALCULATED.value
                     data["employee_count_total"] = count
@@ -848,6 +856,7 @@ def interpret_qualitative_match(
       - qualitative_bounds: Optional[Tuple[float,float]]
       - note: Optional[str]
       - is_negated: bool
+      - ambiguity_multiplier: Optional[float]
 
     """
     res: Dict[str, Any] = {
@@ -856,6 +865,7 @@ def interpret_qualitative_match(
         "qualitative_bounds": None,
         "note": None,
         "is_negated": False,
+        "ambiguity_multiplier": None,
     }
 
     # If there are multiple qualitative matches in the sentence, pick the
@@ -890,18 +900,24 @@ def interpret_qualitative_match(
         else:
             pct = term.get_percentage(is_negated=is_locally_negated)
 
-        if pct is None:
+        if pct is None and term.ambiguity_multiplier is None:
             continue
 
         # Choose the lowest percentage
-        if best_pct is None or pct < best_pct:
-            best_pct = pct
-            best_is_neg = is_locally_negated
-            best_pattern = qm.get("pattern_str", qm.get("text", ""))
-            if term.lower_bound is not None and term.upper_bound is not None:
-                best_bounds = (term.lower_bound, term.upper_bound)
+        if pct is not None:
+            if best_pct is None or pct < best_pct:
+                best_pct = pct
+                best_is_neg = is_locally_negated
+                best_pattern = qm.get("pattern_str", qm.get("text", ""))
+                if term.lower_bound is not None and term.upper_bound is not None:
+                    best_bounds = (term.lower_bound, term.upper_bound)
 
-    if best_pct is None:
+        if term.ambiguity_multiplier is not None:
+            # Prioritize the lowest multiplier found (e.g. "few" 0.2 over "some" 1.0)
+            if res["ambiguity_multiplier"] is None or term.ambiguity_multiplier < res["ambiguity_multiplier"]:
+                res["ambiguity_multiplier"] = term.ambiguity_multiplier
+
+    if best_pct is None and res["ambiguity_multiplier"] is None:
         return res
 
     res["percentage"] = best_pct
@@ -2504,6 +2520,7 @@ class Entry:
     sent_idx: int = -1  # The sentence index
     related_geo_codes: List[str] = field(default_factory=list)
     is_dummy_percent: bool = False
+    ambiguity_multiplier: Optional[float] = None
 
 
 class Tracker:
@@ -2737,6 +2754,7 @@ class Tracker:
         is_union_record: bool = False,
         sentence_index: int = -1,
         keyword_count: int = 0,
+        ambiguity_multiplier: Optional[float] = None,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -2830,6 +2848,7 @@ class Tracker:
                 scope=scope,
                 sent_idx=sentence_index,
                 related_geo_codes=related_codes,
+                ambiguity_multiplier=ambiguity_multiplier,
             )
         )
 
@@ -3955,7 +3974,7 @@ class Tracker:
             # Also allow if it's an existing dummy (1.0%) that needs a count calculated
             is_candidate = (
                 e.is_union_record
-                and e.percentage is None
+                and (e.percentage is None or e.ambiguity_multiplier is not None)
                 and e.covered_count is None
                 and e.not_covered_count is None
                 and not e.is_negated
@@ -4025,8 +4044,13 @@ class Tracker:
                             self.resolution_log.append(
                                 f"Applied inferred rate {e.percentage}% to {e.key} (Aggregated from boosted constituents)"
                             )
-                        else:
+                        elif e.percentage is None or e.ambiguity_multiplier is not None:
                             base_rate = rate if rate is not None else 0.01
+                            
+                            # Apply ambiguity multiplier if present (e.g. "some" = 1.0x, "few" = 0.5x)
+                            if e.ambiguity_multiplier is not None:
+                                base_rate *= e.ambiguity_multiplier
+
                             boosted_rate, multiplier = self._calculate_boosted_rate(
                                 base_rate, key=e.key
                             )
@@ -5378,6 +5402,7 @@ class UnionAnalyzer:
                     is_union_record=item.get("is_union", False),
                     sentence_index=item.get("sentence_index", -1),
                     keyword_count=len(item.get("keyword_matched") or []),
+                    ambiguity_multiplier=cov.get("ambiguity_multiplier"),
                 )
 
             # Resolve missing coverage data using collected totals

@@ -302,6 +302,7 @@ class QualitativeTerm:
     # Bounds for validation
     lower_bound: Optional[float] = None
     upper_bound: Optional[float] = None
+    ambiguity_multiplier: Optional[float] = None
 
     def build_pattern(self) -> str:
         """Build regex pattern using build_compound."""
@@ -808,40 +809,66 @@ QUALITATIVE_TERMS_AMB = [
             "proportion",
         ],
         suffix_terms=["of"],
-        positive_pct=10.0,
+        positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
+        ambiguity_multiplier=1.0,
     ),
     QualitativeTerm(
         core_terms=["certain"],
         suffix_terms=["of", "number", "amount"],
-        positive_pct=10.0,
+        positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
+        ambiguity_multiplier=1.0,
     ),
     QualitativeTerm(
-        core_terms=["certain", "several", "some", "few", "multiple", "various"],
-        suffix_terms=WORKER_TERMS,  # certain employees, several employees
-        positive_pct=5.0,
+        core_terms=["few", "handful", "limited number"],
+        suffix_terms=WORKER_TERMS,
+        positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
-        suffix_gap=GAP,  # Gap
+        suffix_gap=GAP,
         lower_bound=0.0,
-        upper_bound=15.0,
+        upper_bound=10.0,
+        ambiguity_multiplier=0.2,
+    ),
+    QualitativeTerm(
+        core_terms=["several", "multiple", "various"],
+        suffix_terms=WORKER_TERMS,
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+        suffix_gap=GAP,
+        lower_bound=0.0,
+        upper_bound=20.0,
+        ambiguity_multiplier=0.5,
+    ),
+    QualitativeTerm(
+        core_terms=["certain", "some"],
+        suffix_terms=WORKER_TERMS,
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+        suffix_gap=GAP,
+        lower_bound=0.0,
+        upper_bound=25.0,
+        ambiguity_multiplier=1.0,
     ),
     QualitativeTerm(
         core_terms=["number", "quantity"],
         prefix_terms=["a"],
         suffix_terms=["of"],
-        positive_pct=10.0,
+        positive_pct=None,
         negated_pct=None,
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
+        ambiguity_multiplier=1.0,
     ),
     QualitativeTerm(
         core_terms=["rest", "remainder"],
