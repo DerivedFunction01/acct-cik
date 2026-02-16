@@ -421,10 +421,20 @@ QUALITATIVE_MEMBERSHIP = [
 # Triggers only when needed as last resort, to avoid converting 100% x COUNT -> Qualitative.value
 QUALITATIVE_ALL_TERMS = [
     QualitativeTerm(
-        core_terms=[r"all(?!-)", "entirety"],
+        core_terms=["entirety"],
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=False,
+        lower_bound=100.0,
+        upper_bound=100.0,
+        is_all=True,
+    ),
+    QualitativeTerm(
+        core_terms=["all"],
+        suffix_terms=[r"of", r"are", "were", "have", "had"],
+        positive_pct=100.0,
+        negated_pct=None,
+        requires_suffix=True,
         lower_bound=100.0,
         upper_bound=100.0,
         is_all=True,
@@ -859,9 +869,8 @@ class UnionExtractor:
         analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
 
-        def process_matches(pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False):
+        def process_matches(pattern: re.Pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False, revert=False):
             nonlocal working_text
-            assert isinstance(pattern, re.Pattern)
             current_iter_matches = list(pattern.finditer(working_text))
             if not current_iter_matches:
                 return
@@ -904,8 +913,9 @@ class UnionExtractor:
 
                 if update_working_text:
                     working_text = "".join(chars)
-
-            if not update_working_text:
+            if revert: # Do nothing with text
+                working_text = working_text
+            elif not update_working_text:
                 working_text = "".join(chars)
         # 0. Subset indicators
         process_matches(
@@ -913,6 +923,7 @@ class UnionExtractor:
             MatchType.SUBSET,
             lambda m: m.group(0),
             lambda m, val: analysis.subset_indicators.append(val),
+            revert=True,
         )
         # 0.1 Remaining others
         process_matches(
@@ -1023,21 +1034,19 @@ class UnionExtractor:
             dynamic_union_side_effect,
             update_working_text=True,
         )
-
-        # 4a. Extract Loose Dynamic Union Names (Pattern-based with 'and')
-        process_matches(
-            LOOSE_DYNAMIC_UNION_REGEX,
-            MatchType.UNION_NAME,
-            expand_dynamic_match,
-            dynamic_union_side_effect,
-            update_working_text=True,
-        )
-
-        # 4b. Extract Foreign/Dynamic Union Names (Case-Insensitive)
+        # 4a. Extract Foreign/Dynamic Union Names (Case-Insensitive)
         process_matches(
             FX_DYNAMIC_UNION_REGEX,
             MatchType.UNION_NAME,
             None,
+            dynamic_union_side_effect,
+            update_working_text=True,
+        )
+        # 4b. Extract Loose Dynamic Union Names (Pattern-based with 'and')
+        process_matches(
+            LOOSE_DYNAMIC_UNION_REGEX,
+            MatchType.UNION_NAME,
+            expand_dynamic_match,
             dynamic_union_side_effect,
             update_working_text=True,
         )
