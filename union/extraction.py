@@ -1388,7 +1388,6 @@ class UnionExtractor:
                                         m.region = r
                                         break
 
-        # print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
