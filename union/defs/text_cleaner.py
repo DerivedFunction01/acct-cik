@@ -92,6 +92,7 @@ class WebTextCleaner:
                             r"company",
                             r"corporation",
                             r"oil",
+                            r"holdings?",
                             r"gas"
                             r"trust",
                             r"station",
@@ -2216,6 +2217,16 @@ def create_test_cases() -> List[TestCase]:
                 (TestType.NOT_CONTAINS, "10.00", None),
                 (TestType.CONTAINS, "25.5%", None),
                 (TestType.CONTAINS, "100", None),
+            ],
+        ),
+        # Test 34: Numeric Company Name Protection
+        TestCase(
+            name="Numeric Company Name Protection",
+            input_text="Ten Corp announced results. Ten employees were hired.",
+            company_name="Ten Corp",
+            validations=[
+                (TestType.CONTAINS, "The Company announced", None),
+                (TestType.CONTAINS, "Ten employees", None),
             ],
         ),
     ]
