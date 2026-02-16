@@ -6,6 +6,7 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import List, Tuple, Optional
 from tqdm import tqdm
+import pandas as pd
 
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN
 from defs.prefiltered_lib import (
@@ -63,6 +64,7 @@ BATCH_SIZE = 250
 CHUNK_SIZE = 20
 SOURCE_DB_PATH = "web_data.db"
 TARGET_DB_PATH = "prefiltered_data.db"
+REPORT_CSV_PATH = "report_data.csv"
 
 # --- IMPORTS ---
 from table_processor import TABLE_ANCHOR, TableToTextConverter
@@ -133,6 +135,23 @@ def count_information(text: str) -> dict:
 
     return result
 
+
+# =============================================================================
+# METADATA RESOLUTION
+# =============================================================================
+META_LOOKUP = {}
+
+def get_accession(url: Optional[str]) -> Optional[str]:
+    if not url or not isinstance(url, str):
+        return None
+    match = re.search(r'data/\d+/([\d-]+)/', url)
+    if match:
+        return match.group(1).replace('-', '')
+    return None
+
+def init_worker(meta_dict):
+    global META_LOOKUP
+    META_LOOKUP = meta_dict
 
 # =============================================================================
 # TABLE CLEANUP HELPERS
@@ -559,6 +578,16 @@ def process_item(item: Tuple) -> Optional[Tuple]:
         print(f"❌ Error parsing JSON for {url}: {e}")
         return None
 
+    # --- RESOLVE MISSING METADATA ---
+    if (not cik or not year) and 'META_LOOKUP' in globals() and META_LOOKUP:
+        acc = get_accession(url)
+        if acc and acc in META_LOOKUP:
+            info = META_LOOKUP[acc]
+            if not cik:
+                cik = info.get('cik')
+            if not year:
+                year = info.get('year')
+
     # Helper function to append to both buffers atomically
     def append_to_buffer(buffer_type: str, idx: int, text_orig: str, text_masked: str):
         """Append (index, text) tuples to both original and masked buffers."""
@@ -966,6 +995,24 @@ if __name__ == "__main__":
     processed_urls = get_processed_urls(TARGET_DB_PATH)
     print(f"📋 Found {len(processed_urls)} processed URLs.")
 
+    # 1.5 Load Metadata for Resolution
+    meta_dict = {}
+    if Path(REPORT_CSV_PATH).exists():
+        print(f"📖 Loading {REPORT_CSV_PATH} for metadata resolution...")
+        try:
+            df_meta = pd.read_csv(REPORT_CSV_PATH)
+            if 'url' in df_meta.columns and 'accession' not in df_meta.columns:
+                df_meta['accession'] = df_meta['url'].apply(get_accession)
+            
+            if 'accession' in df_meta.columns and 'cik' in df_meta.columns and 'year' in df_meta.columns:
+                df_meta = df_meta.dropna(subset=['accession'])
+                df_meta['cik'] = pd.to_numeric(df_meta['cik'], errors='coerce').fillna(0).astype(int)
+                df_meta['year'] = pd.to_numeric(df_meta['year'], errors='coerce').fillna(0).astype(int)
+                meta_dict = df_meta.set_index('accession')[['cik', 'year']].to_dict('index')
+                print(f"   Loaded {len(meta_dict)} accession mappings.")
+        except Exception as e:
+            print(f"⚠️ Error loading report data: {e}")
+
     # 2. Connect Writer DB (Main Thread Only)
     target_conn = sqlite3.connect(TARGET_DB_PATH, timeout=60)
     target_conn.execute("PRAGMA journal_mode=WAL")
@@ -976,7 +1023,7 @@ if __name__ == "__main__":
     discards_buffer = []
     count = 0
 
-    with ProcessPoolExecutor(max_workers=NUM_WORKERS) as executor:
+    with ProcessPoolExecutor(max_workers=NUM_WORKERS, initializer=init_worker, initargs=(meta_dict,)) as executor:
         # Create iterator (does not load all to RAM)
         source_iter = list(data_generator(SOURCE_DB_PATH, processed_urls))
         total_items = len(source_iter)
