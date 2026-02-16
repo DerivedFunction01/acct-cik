@@ -6872,7 +6872,7 @@ class UnionAnalyzer:
                                 "qualitative_bounds": None,
                                 "note": f"Split from list | {s['note']}",
                                 "temporal_scope": coverage_data.get(
-                                    "temporal_scope", "CURRENT"
+                                    "temporal_scope", TemporalScope.CURRENT.value
                                 ),
                             }
 
