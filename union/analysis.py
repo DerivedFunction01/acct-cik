@@ -3893,13 +3893,22 @@ class Tracker:
                         final_rate = rate if is_region_calc and rate is not None else boosted_rate
                         
                         original_pct = e.percentage or 0.01
-                        new_pct = round(original_pct * final_rate, 2)
+
+                        # Cap qualitative percentages at the dummy rate instead of scaling them down
+                        dummy_cap = final_rate * 100.0
+                        if original_pct > dummy_cap:
+                            new_pct = round(dummy_cap, 2)
+                            action = "Capped"
+                        else:
+                            new_pct = original_pct
+                            action = "Retained"
+
                         e.percentage = new_pct
                         e.is_dummy_percent = True
                         
                         source_info = "Aggregated Region" if is_region_calc else f"Boosted Base ({base_rate*100:.1f}% x {multiplier:.2f})"
                         self.resolution_log.append(
-                            f"Dampened qualitative percentage for {e.key}: {original_pct}% -> {new_pct}% (x {final_rate:.4f}) [{source_info}]"
+                            f"{action} qualitative percentage for {e.key}: {original_pct}% -> {new_pct}% (Cap: {dummy_cap:.1f}%) [{source_info}]"
                         )
 
                     elif e.percentage is None:
