@@ -2519,6 +2519,7 @@ class Tracker:
             Tuple[float, Optional[str]], Tuple[float, float]
         ] = {}
         self._limiter_countries: Set = {"CN", "VN"}
+        self.is_using_virtual: bool = False
 
     def _calculate_boosted_rate(
         self, base_rate: float, key: Optional[str] = None
@@ -4054,7 +4055,7 @@ class Tracker:
         has_unions = any(e.is_union_record for e in self.entries)
         if not has_unions:
             return
-
+        self.is_using_virtual = True
         # Ensure domestic entry exists so it gets populated with the distributed total
         # instead of defaulting to 0% coverage in _resolve_single_country
         dom_entry_exists = any(
