@@ -2945,6 +2945,7 @@ G20_CODES =  [
         "TR",
         "GB",
         "US",
+        "ES", # Guest member
 ]
 COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
