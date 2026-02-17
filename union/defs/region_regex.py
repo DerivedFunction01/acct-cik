@@ -3480,20 +3480,6 @@ INT_UNION_MAP = {
         ],
         r"(?:\s+(?:for|för|och|og|i|&|[A-Z][\w-]*)){0,3}\s+",
     ),
-    "INT_CN": (
-        [
-            "Gongren",
-            "Zhigong",
-            "Laodong",
-            "Nongmin",
-        ],
-        [
-            "Gonghui",
-            "Zonggonghui",
-            "Lianhehui",
-        ],
-        r"(?:\s+(?:de|he|&|[A-Z][\w-]*)){0,3}\s+",
-    ),
 }
 REGION_CODES = {
     "NA",
@@ -3924,9 +3910,6 @@ _EXTERNAL_WEIGHTS, _CODE_TO_LABOR_RATE = _load_external_weights()
 def _build_code_to_weight_map():
     mapping = {}
     external_weights = _EXTERNAL_WEIGHTS
-    # Add language buckets from INT_LANGUAGE_MAP
-    for code, countries in INT_LANGUAGE_MAP.items():
-        COMPOSITE_REGION_MAP[code] = list(countries)
 
     defined_codes = set()
 
