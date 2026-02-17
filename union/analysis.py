@@ -2531,6 +2531,13 @@ class Entry:
     is_dummy_percent: bool = False
     ambiguity_multiplier: Optional[float] = None
 
+    # Hash
+    def __hash__(self):
+        key = "--".join([
+            self.sent_idx, self.key or ""
+        ])
+        return hash(self.key)
+
 
 class Tracker:
     """
@@ -5974,9 +5981,13 @@ class UnionAnalyzer:
                         local_map[head["key"]] = c["val"]
                         children = group[1:]
                         if children:
+                            # Filter out containers (e.g. CIS) if constituents (e.g. RU) are present
+                            # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
+                            valid_children = self._remove_container_regions(children)
+
                             child_map, c_note = weighted_division(
                                 c["val"],
-                                children,
+                                valid_children,
                                 use_labor_weights=use_labor_weights,
                                 domestic_country=self.domestic_country_code,
                             )
