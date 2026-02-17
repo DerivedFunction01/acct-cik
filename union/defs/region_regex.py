@@ -3961,6 +3961,20 @@ def _build_code_to_weight_map():
                 total_w += external_weights.get(c, mapping.get(c, 0.0))
             if total_w > 0:
                 mapping[code] = total_w
+
+    # Apply INT_LANGUAGE_MAP (Average weight)
+    for code, constituents in INT_LANGUAGE_MAP.items():
+        # Only calculate if the code is currently using the default weight (or missing)
+        current_w = mapping.get(code, 0.005)
+        if abs(current_w - 0.005) < 0.000001:
+            total_w = 0.0
+            count = 0
+            for c in constituents:
+                total_w += external_weights.get(c, mapping.get(c, 0.0))
+                count += 1
+            if count > 0:
+                mapping[code] = total_w / count
+
     # Force containers to 0 to prevent accidental distribution
     for code in ["DOM", "GLO", "INT"]:
         mapping[code] = 0.0
@@ -4220,8 +4234,6 @@ def weighted_division(
                 k = e["key"]
                 if k in COMPOSITE_REGION_MAP:
                     cluster_size += min(len(COMPOSITE_REGION_MAP[k]), 3)
-                elif k in INT_LANGUAGE_MAP:
-                    cluster_size += min(len(INT_LANGUAGE_MAP[k]), 3)
                 elif k in REGION_CODES or k in REGION_VALUES:
                     cluster_size += 3
                 else:
