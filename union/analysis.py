@@ -18,6 +18,10 @@ from extraction import (
     REMAIN_REGEX,
 )
 from defs.region_regex import (
+    AGG_SET,
+    DOMESTIC_SET,
+    GLOBAL_SET,
+    INT_SET,
     REGION_CODES,
     Region,
     INT_LANGUAGE_MAP,
@@ -30,6 +34,8 @@ from defs.region_regex import (
     _CODE_TO_WEIGHT,
     REGION_WEIGHTS,
     COMPOSITE_REGION_MAP,
+    COMPOSITE_COUNTRIES,
+    get_composite_constituents,
     IGNORED_REGIONS,
     resolve_remaining_int,
 )
@@ -3800,7 +3806,7 @@ class Tracker:
             target_country = self.domestic_country_code
 
         # Fallback for truly unknown domestic code
-        if target_country in ["DOM", "Domestic", "Unknown", None]:
+        if target_country in DOMESTIC_SET | {None}:
             target_country = "US"
             self.resolution_log.append(
                 "Target country was DOM/Unknown, defaulted to US"
@@ -3828,12 +3834,7 @@ class Tracker:
                 )
 
         for idx, e in enumerate(self.entries):
-            if e.key in [
-                Region.DOMESTIC.value,
-                Region.UNKNOWN.value,
-                "DOM",
-                "Domestic",
-            ]:
+            if e.key in DOMESTIC_SET:
                 e.key = target_country
                 e.scope = Scope.COUNTRY
                 self.resolution_log.append(
@@ -3842,7 +3843,7 @@ class Tracker:
             elif (
                 e.scope == Scope.SEGMENT
                 and e.key
-                and (e.key.startswith("DOM::") or e.key.startswith("Domestic::"))
+                and e.key.split("::")[0] in DOMESTIC_SET
             ):
                 suffix = e.key.split("::", 1)[1]
                 e.key = f"{target_country}::{suffix}"
@@ -3861,7 +3862,7 @@ class Tracker:
             )
 
         # Remap Region Totals for Domestic
-        for key in [Region.DOMESTIC.value, "Domestic", "DOM"]:
+        for key in DOMESTIC_SET:
             if key in self.region_totals:
                 val = self.region_totals.pop(key)
                 self.country_totals[target_country] = max(
@@ -3940,7 +3941,7 @@ class Tracker:
 
         for r in Region:
             r_name = r.value
-            if r_name in IGNORED_REGIONS or r_name == Region.DOMESTIC.value:
+            if r_name in IGNORED_REGIONS:
                 continue
 
             # 1. Check for Region Entry
@@ -4001,12 +4002,12 @@ class Tracker:
         # 2. Apply dummy to qualifying entries
         for e in self.entries:
             # Skip Aggregates from dummy percentage application
-            if e.scope == Scope.AGGREGATE or e.key == Region.AGGREGATE.value:
+            if e.scope == Scope.AGGREGATE or e.key in AGG_SET:
                 continue
 
             # Skip International if we have specific international countries
             # This prevents "International" dummy entries from diluting specific data
-            if e.key == Region.INTERNATIONAL.value:
+            if e.key in INT_SET:
                 has_specific_intl = any(
                     c
                     for c in self.mentioned_countries
@@ -4161,7 +4162,7 @@ class Tracker:
         if self.domestic_country_code in unique_entities:
             unique_entities.remove(self.domestic_country_code)
         # Also remove "Domestic" aliases
-        for d in ["DOM", Region.DOMESTIC, Region.DOMESTIC.value]:
+        for d in DOMESTIC_SET:
             if d in unique_entities:
                 unique_entities.remove(d)
 
@@ -4210,7 +4211,7 @@ class Tracker:
                 entity_regions[e] = _CODE_TO_REGION.get(e)
         if any(e.key != self.domestic_country_code for e in self.entries):
             # Remove international
-            to_remove |= {Region.INTERNATIONAL.value, Region.INTERNATIONAL, "INT"}
+            to_remove |= INT_SET
         for r in list(unique_entities):
             is_region_key = is_region(r)
             if is_region_key:
@@ -4229,6 +4230,22 @@ class Tracker:
                                 f"Virtual Pool: Removed generic '{r}' in favor of specific countries."
                             )
                             break
+
+            # Check for composite countries acting as containers (e.g. CIS containing RU)
+            if r in COMPOSITE_COUNTRIES:
+                constituents = set(get_composite_constituents(r))
+                has_specifics = False
+                for other in unique_entities:
+                    if other == r:
+                        continue
+                    if other in constituents:
+                        has_specifics = True
+                        break
+                if has_specifics:
+                    to_remove.add(r)
+                    self.resolution_log.append(
+                        f"Virtual Pool: Removed composite '{r}' in favor of specific constituents."
+                    )
 
         unique_entities -= to_remove
         # Distribute to populate country/region totals for fallback
@@ -4279,6 +4296,22 @@ class Tracker:
 
             # Skip International/Global as they are aggregates of regions and handled elsewhere
             if key_str in IGNORED_REGIONS:
+                continue
+
+            # Special handling for Composite Countries (restore sum of constituents only)
+            if key_str in COMPOSITE_COUNTRIES:
+                constituents = set(get_composite_constituents(key_str))
+                comp_sum = 0.0
+                found_constituents = []
+                for code, count in self.country_totals.items():
+                    if code in constituents:
+                        comp_sum += count
+                        found_constituents.append(code)
+                if comp_sum > 0:
+                    self.country_totals[key_str] = comp_sum
+                    self.resolution_log.append(
+                        f"Restored total for composite '{key_str}': {comp_sum} (Sum of {', '.join(found_constituents)})"
+                    )
                 continue
 
             region_sum = 0.0
@@ -4924,10 +4957,7 @@ class Tracker:
         sum_specific_covered = 0.0
 
         for r_name, res in region_results.items():
-            if r_name in IGNORED_REGIONS or r_name in (
-                Region.INTERNATIONAL.value,
-                Region.DOMESTIC.value,
-            ):
+            if r_name in IGNORED_REGIONS:
                 continue
 
             sum_specific_total += res["total"]
@@ -5013,12 +5043,7 @@ class Tracker:
                 e
                 for e in self.entries
                 if e.scope == Scope.GLOBAL
-                or (
-                    e.key
-                    and (
-                        e.key.startswith(Region.GLOBAL.value) or e.key.startswith("GLO")
-                    )
-                )
+                or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
             ),
             None,
         )
@@ -5785,33 +5810,32 @@ class UnionAnalyzer:
         if container_key == item_key:
             return True
 
+        # Normalize item_key if it's a segment
+        check_key = item_key.split("::")[0]
+
+        # Check for Composite Countries (e.g. CIS containing RU)
+        if container_key in COMPOSITE_COUNTRIES:
+            constituents = get_composite_constituents(container_key)
+            if check_key in constituents:
+                return True
+
         # Global/International contains everything except Domestic
-        if container_key in [
-            Region.INTERNATIONAL.value,
-            Region.GLOBAL.value,
-            "INT",
-            "GLO",
-        ]:
-            if item_key in [
-                Region.DOMESTIC.value,
-                "DOM",
-                "Domestic",
-                self.domestic_country_code,
-            ]:
+        if container_key in GLOBAL_SET | INT_SET:
+            if check_key in {self.domestic_country_code} | DOMESTIC_SET:
                 return False
-            if item_key in [Region.GLOBAL.value, "GLO"]:
+            if check_key in GLOBAL_SET:
                 return False
             return True
 
         # Region contains its countries
-        item_region = _CODE_TO_REGION.get(item_key, item_key)
+        item_region = _CODE_TO_REGION.get(check_key, check_key)
         container_region = _CODE_TO_REGION.get(container_key, container_key)
 
         if container_region == item_region:
             # Only if container is actually a Region entity
             is_container_region = is_region(container_key)
             if is_container_region:
-                is_item_region = is_region(item_key)
+                is_item_region = is_region(check_key)
                 return not is_item_region
         return False
 
@@ -6176,7 +6200,7 @@ class UnionAnalyzer:
 
                 # Use Region Name for generic accumulators, Code for countries
                 key = obj.geo_code
-                if obj.geo_code in REGION_CODES and obj.geo_code != "DOM":
+                if obj.geo_code in REGION_CODES and obj.geo_code not in DOMESTIC_SET:
                     key = obj.region.value
                 geo_entries.append(
                     {"key": key, "span": raw["span"], "region_enum": obj.region}

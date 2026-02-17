@@ -2915,21 +2915,30 @@ INT_LANGUAGE_MAP = {
     "INT_NORDIC": {"SE", "NO", "DK", "FI", "IS"},
 }
 
-IGNORED_REGIONS = {
+DOMESTIC_SET = {
     Region.UNKNOWN,
     Region.UNKNOWN.value,
-    Region.AGGREGATE,
-    Region.AGGREGATE.value,
-    Region.GLOBAL,
-    Region.GLOBAL.value,
-    Region.INTERNATIONAL,
-    Region.INTERNATIONAL.value,
     Region.DOMESTIC,
     Region.DOMESTIC.value,
-    "INT",
-    "GLO",
     "DOM",
 }
+INT_SET = {
+    Region.INTERNATIONAL,
+    Region.INTERNATIONAL.value,
+    "INT",
+}
+
+GLOBAL_SET = {
+    Region.GLOBAL,
+    Region.GLOBAL.value,
+    "GLO",
+}
+AGG_SET = {
+    Region.AGGREGATE,
+    Region.AGGREGATE.value,
+}
+IGNORED_REGIONS = GLOBAL_SET | DOMESTIC_SET | INT_SET | AGG_SET
+
 G20_CODES =  [
         "AR",
         "AU",
@@ -3133,6 +3142,17 @@ COMPOSITE_REGION_MAP["MEA"] = list(
 COMPOSITE_REGION_MAP["LATAMERICA"] = list(
     set(COMPOSITE_REGION_MAP["CAMERICA"] + COMPOSITE_REGION_MAP["SAMERICA"] + ["MX"])
 )
+
+COMPOSITE_COUNTRIES = {
+    "CIS",
+    "BALKAN",
+    "BALTIC",
+    "BENELUX",
+    "NORDIC",
+    "DACH",
+    "IBERIA",
+    "GCC",
+}
 
 # Worker terms, Union terms, gap
 INT_UNION_MAP = {
@@ -3497,7 +3517,7 @@ REGION_CODES = {
 }
 
 
-REGION_CODES.update(COMPOSITE_REGION_MAP.keys())
+REGION_CODES.update(set(COMPOSITE_REGION_MAP.keys()) - COMPOSITE_COUNTRIES)
 REGION_CODES.update(INT_LANGUAGE_MAP.keys())
 
 def add_region_values():
@@ -3514,6 +3534,8 @@ def add_region_values():
     for region in regions:
         for nation in region:
             if nation.code in COMPOSITE_REGION_MAP:
+                if nation.code in COMPOSITE_COUNTRIES:
+                    continue
                 # add the value to region values
                 region_values.add(nation.name)
     return region_values
@@ -3526,6 +3548,9 @@ def is_region(key: Optional[str] = None) -> bool:
     reg = key.split("::")[0]
     return reg in REGION_VALUES | REGION_CODES
 
+def get_composite_constituents(code: str) -> List[str]:
+    """Returns the list of constituent country codes for a composite region/country."""
+    return COMPOSITE_REGION_MAP.get(code, [])
 
 TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
