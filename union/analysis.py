@@ -4802,9 +4802,17 @@ class Tracker:
                 for e2 in c_entries:
                     if e1 is e2:
                         continue
-                    if e2.key and self._is_contained(e2.key, e1.key):
-                        if e2.key.split("::")[0] in COMPOSITE_COUNTRIES:
+                    if e2.key and e1.key and self._is_contained(e2.key, e1.key):
+                        e2key = e2.key.split("::")[0]
+                        e1key = e1.key.split("::")[0]
+                        # Do not double count composites
+                        if e2key in COMPOSITE_COUNTRIES and e1key in COMPOSITE_REGION_MAP[e2key]:
                             entries_to_skip.add(e2)
+                        # Remove the region if composite is present
+                        if e1key in COMPOSITE_COUNTRIES and e2key in REGION_CODES:
+                            entries_to_skip.add(e2)
+                        if e1key in REGION_CODES and e2key in COMPOSITE_COUNTRIES:
+                            entries_to_skip.add(e1)
                         break
 
             for c in c_entries:
