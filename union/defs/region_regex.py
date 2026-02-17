@@ -2989,7 +2989,6 @@ COMPOSITE_REGION_MAP = {
     "BALTIC": ["EE", "LV", "LT"],
     "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
-    "G20": G20_CODES + ["EU", Region.EUROPE.value, "NA", Region.NORTH_AMERICA.value],
     "AFRICA": [
         "ZA",
         "NG",
@@ -3537,9 +3536,6 @@ REGION_CODES = {
 }
 
 
-REGION_CODES.update(set(COMPOSITE_REGION_MAP.keys()) - COMPOSITE_COUNTRIES)
-REGION_CODES.update(INT_LANGUAGE_MAP.keys())
-
 def add_region_values():
     region_values = {r.value for r in Region if r not in IGNORED_REGIONS}
     regions = [
@@ -3561,6 +3557,12 @@ def add_region_values():
     return region_values
 
 REGION_VALUES = add_region_values()
+
+COMPOSITE_REGION_MAP["G20"] =  list(G20_CODES + ["EEUROPE", "WEUROPE", "CIS", "DACH", "IBERIA"] + list(REGION_CODES | REGION_VALUES))
+
+REGION_CODES.update(set(COMPOSITE_REGION_MAP.keys()) - COMPOSITE_COUNTRIES)
+REGION_CODES.update(INT_LANGUAGE_MAP.keys())
+
 
 def is_region(key: Optional[str] = None) -> bool:
     if not key:
@@ -4330,7 +4332,7 @@ def weighted_division(
             # Also boost G20 members slightly to reflect economic gravity
             if domestic_country in COMPOSITE_REGION_MAP.get("G20", []):
                 biz_boost *= 1.5 if original_val > additive_limit else 3.0
-                note += f"(G20) "
+                note += f"(G20 membership) "
 
             if biz_boost > 1.0:
                 MAX_BOOST *= biz_boost * 1.5
