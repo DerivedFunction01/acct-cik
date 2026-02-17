@@ -344,6 +344,12 @@ def run_booster_tests():
             "others": ["SA", "AE", "KW", "IQ", "JO", "EG", "IL"],
             "desc": "High N ME mix",
         },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["SA", "AE", "KW", "IQ", "JO", "EG", "IL", "CN", "US"],
+            "desc": "High N ME mix",
+        },
     ]
 
     for t in composite_scenarios:
