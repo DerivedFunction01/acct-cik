@@ -4189,7 +4189,7 @@ def weighted_division(
             additive_limit = 2500.0
             
             if biz_boost > 1.0:
-                additive_limit *= biz_boost * 15
+                additive_limit *= biz_boost * 10
                 additive_boost *= biz_boost * 10
                 note += f"Extended Bias (x{additive_boost}). "
 
