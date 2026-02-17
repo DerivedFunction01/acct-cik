@@ -194,6 +194,30 @@ def run_booster_tests():
             "desc": "Luxembourg finance (BENELUX/DACH)",
         },
         # Expected: low–moderate (~10–40%) due to conduit role
+        {
+            "pop": 500,
+            "dom": "US",
+            "others": ["EU", "CN"],
+            "desc": "US/EU/China",
+        },
+        {
+            "pop": 2000,
+            "dom": "US",
+            "others": ["EU", "CN"],
+            "desc": "US/EU/China",
+        },
+        {
+            "pop": 5000,
+            "dom": "US",
+            "others": ["EU", "CN"],
+            "desc": "US/EU/China",
+        },
+        {
+            "pop": 10000,
+            "dom": "US",
+            "others": ["EU", "CN"],
+            "desc": "US/EU/China",
+        },
     ]
 
     for t in targeted_scenarios:
