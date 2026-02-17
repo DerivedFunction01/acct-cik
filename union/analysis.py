@@ -30,6 +30,7 @@ from defs.region_regex import (
     REGION_WEIGHTS,
     COMPOSITE_REGION_MAP,
     IGNORED_REGIONS,
+    resolve_remaining_int,
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -2670,6 +2671,10 @@ class Tracker:
                 if code == "DOM":
                     code = self.domestic_country_code
                 self.mentioned_countries.add(code)
+        regions = geo_context.get("regions", [])
+        for r in regions:
+            if r.get("code"):
+                self.mentioned_countries.add(r["code"])
 
     def record_context(self, geo_context: Dict[str, Any], note: str):
         """Records qualitative context that shouldn't affect calculations."""
@@ -3868,6 +3873,48 @@ class Tracker:
                     f"Remapped region total '{key}' ({val}) to country '{target_country}'"
                 )
 
+    def _resolve_int_codes(self):
+        """
+        Resolves INT_* codes using the external resolver function.
+        """
+        int_codes = set()
+        for e in self.entries:
+            key = str(e.key)
+            prefix = key.split("::")[0]
+            if prefix.startswith("INT_"):
+                int_codes.add(prefix)
+
+        if not int_codes:
+            return
+
+        mapping = resolve_remaining_int(
+            self.mentioned_countries,
+            self.domestic_country_code,
+            int_codes,
+        )
+
+        for e in self.entries:
+            key = str(e.key)
+            prefix = key
+            suffix = ""
+            if "::" in key:
+                parts = key.split("::", 1)
+                prefix = parts[0]
+                suffix = "::" + parts[1]
+
+            if prefix in mapping:
+                new_code = mapping[prefix]
+                if new_code != prefix:
+                    new_key = new_code + suffix
+                    self.resolution_log.append(f"Resolved {e.key} to {new_key}")
+                    e.key = new_key
+
+                    if e.scope != Scope.SEGMENT:
+                        if new_code in REGION_CODES or new_code in [r.value for r in Region]:
+                            e.scope = Scope.REGION
+                        elif len(new_code) == 2:
+                            e.scope = Scope.COUNTRY
+
     def _resolve_international_gap(self):
         """
         Derives International total if Global Total is known and other regions are known.
@@ -4268,6 +4315,8 @@ class Tracker:
 
         # 0. Resolve Domestic
         self._route_domestic()
+        # 0.5 Resolve INT codes
+        self._resolve_int_codes()
         # 0.1 Apply dummy percentages for union records with no data
         self._apply_dummy_union_percentage()
         # 0.5 Resolve Aggregates (Propagate down)

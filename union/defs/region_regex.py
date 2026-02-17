@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 import re
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Set
 from defs.regex_lib import (
     add_restrictions,
     build_compound,
@@ -3073,7 +3073,7 @@ COMPOSITE_REGION_MAP = {
     "NORDIC": ["DK", "FI", "IS", "NO", "SE"],
     "BENELUX": ["BE", "NL", "LU"],
     "DACH": ["DE", "AT", "CH"],
-    "NAMERICA": ["US", "CA", "MX"],
+    "USMCA": ["US", "CA", "MX"],
     "EEUROPE": [
         "PL",
         "CZ",
@@ -3686,6 +3686,7 @@ class RegionMatcher:
 
 def _build_code_to_region_map():
     mapping = {}
+    code_mapping = {}
     all_regions = [
         NORTH_AMERICA,
         EUROPE,
@@ -3694,14 +3695,24 @@ def _build_code_to_region_map():
         MIDDLE_EAST_AFRICA,
         INTERNATIONAL,
     ]
+    region_name_map = {
+        Region.EUROPE.value: "EU",
+        Region.NORTH_AMERICA.value: "NA",
+        Region.ASIA_PACIFIC.value: "APAC",
+        Region.LATIN_AMERICA.value: "LATAM",
+        Region.MIDDLE_EAST_AFRICA.value: "MEA",
+    }
     for r_set in all_regions:
         for nation in r_set:
             if nation.code:
                 mapping[nation.code] = nation.region.value
-    return mapping
+                code_mapping[nation.code] = region_name_map.get(nation.region.value, nation.region.value)
+    return mapping, code_mapping
 
 
-_CODE_TO_REGION = _build_code_to_region_map()
+_CODE_TO_REGION, _CODE_TO_REGION_CODE = _build_code_to_region_map()
+
+
 MAJOR_CURRENCIES = {
     "USD": {"symbols": ["$"], "names": ["dollar", "dollars"], "prefix": True},
     "EUR": {"symbols": ["€"], "names": ["euro", "euros"], "prefix": True},
@@ -4307,3 +4318,122 @@ def group_by_scope(
         return groups
 
     return []
+
+
+def resolve_remaining_int(
+    mentioned_countries: Set[str],
+    domestic_country: Optional[str],
+    remaining_int_codes: Set[str],
+) -> Dict[str, str]:
+    """
+    Resolves INT_* matches that are not assigned to a country.
+    Returns a mapping of {original_code: resolved_code}.
+    """
+    mapping = {}
+    
+    g20_codes = set(COMPOSITE_REGION_MAP.get("G20", []))
+
+    # Pre-calculate domestic composites if domestic country exists
+    domestic_composites = []
+    if domestic_country:
+        for name, members in COMPOSITE_REGION_MAP.items():
+            if domestic_country in members:
+                domestic_composites.append((name, members))
+        # Sort by length (specificity): USMCA (3) checked before G20 (20+)
+        domestic_composites.sort(key=lambda x: len(x[1]))
+
+    for code in remaining_int_codes:
+        if code not in INT_LANGUAGE_MAP:
+            mapping[code] = code
+            continue
+
+        candidates = INT_LANGUAGE_MAP[code]
+
+        # 1. Domestic
+        if domestic_country and domestic_country in candidates:
+            mapping[code] = domestic_country
+            continue
+
+        # 2. Explicit Country Mention
+        explicit = candidates.intersection(mentioned_countries)
+        if explicit:
+            sorted_explicit = sorted(list(explicit), key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+            mapping[code] = sorted_explicit[0]
+            continue
+
+        # 3. Explicit Region Mention
+        candidate_region_codes = set()
+        for c in candidates:
+            r_code = _CODE_TO_REGION_CODE.get(c)
+            if r_code:
+                candidate_region_codes.add(r_code)
+
+        matched_regions = candidate_region_codes.intersection(mentioned_countries)
+
+        if matched_regions:
+            target_region_code = sorted(list(matched_regions))[0]
+            # Refine: If this INT code only has 1 country in this region, map to country
+            region_candidates = [
+                c for c in candidates
+                if _CODE_TO_REGION_CODE.get(c) == target_region_code
+            ]
+            if len(region_candidates) == 1:
+                mapping[code] = region_candidates[0]
+            else:
+                # If multiple candidates in region, check G20 in region
+                g20_in_region = [c for c in region_candidates if c in g20_codes]
+                if g20_in_region:
+                     g20_in_region.sort(key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+                     mapping[code] = g20_in_region[0]
+                else:
+                    mapping[code] = target_region_code
+            continue
+            
+        # 4. Domestic Region Preference (Implicit Context)
+        if domestic_country:
+            dom_region = _CODE_TO_REGION_CODE.get(domestic_country)
+            if dom_region:
+                region_candidates = [c for c in candidates if _CODE_TO_REGION_CODE.get(c) == dom_region]
+                if region_candidates:
+                    # If multiple candidates in domestic region, use G20/Weight tiebreaker
+                    g20_in_region = [c for c in region_candidates if c in g20_codes]
+                    if g20_in_region:
+                         g20_in_region.sort(key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+                         mapping[code] = g20_in_region[0]
+                    else:
+                        region_candidates.sort(key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+                        mapping[code] = region_candidates[0]
+                    continue
+
+        # 4.5 Shared Composite Region Preference (e.g. USMCA)
+        # Solves US -> MX (USMCA) for INT_ES, even though MX is LATAM and US is NA
+        if domestic_composites:
+            found_composite = False
+            for comp_name, members in domestic_composites:
+                # Check if any candidate is in this composite
+                comp_candidates = [c for c in candidates if c in members]
+                if comp_candidates:
+                    # Sort by weight to pick the most prominent member in that composite
+                    comp_candidates.sort(key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+                    mapping[code] = comp_candidates[0]
+                    found_composite = True
+                    break
+            if found_composite:
+                continue
+
+        # 5. G20 Fallback
+        g20_candidates = [c for c in candidates if c in g20_codes]
+        if g20_candidates:
+            g20_candidates.sort(key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+            mapping[code] = g20_candidates[0]
+            continue
+            
+        # 5. Highest Weight Fallback (for INT_NL, etc.)
+        sorted_candidates = sorted(list(candidates), key=lambda c: _CODE_TO_WEIGHT.get(c, 0.0), reverse=True)
+        if sorted_candidates:
+            mapping[code] = sorted_candidates[0]
+            continue
+
+        mapping[code] = code
+
+    return mapping
