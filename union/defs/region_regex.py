@@ -3846,6 +3846,43 @@ def _build_code_to_region_map():
 
 _CODE_TO_REGION, _CODE_TO_REGION_CODE = _build_code_to_region_map()
 
+def is_contained(container_key: Optional[str] = None, item_key: Optional[str] = None, domestic_country_code: str = "US") -> bool:
+    """
+    Checks if item_key is geographically contained within container_key.
+    """
+    if not container_key or not item_key:
+        return False
+    if container_key == item_key:
+        return True
+
+    # Normalize item_key if it's a segment
+    check_key = item_key.split("::")[0]
+
+    # Check for Composite Countries (e.g. CIS containing RU)
+    if container_key in COMPOSITE_COUNTRIES:
+        constituents = get_composite_constituents(container_key)
+        if check_key in constituents:
+            return True
+
+    # Global/International contains everything except Domestic
+    if container_key in GLOBAL_SET | INT_SET:
+        if check_key in {domestic_country_code} | DOMESTIC_SET:
+            return False
+        if check_key in GLOBAL_SET:
+            return False
+        return True
+
+    # Region contains its countries
+    item_region = _CODE_TO_REGION.get(check_key, check_key)
+    container_region = _CODE_TO_REGION.get(container_key, container_key)
+
+    if container_region == item_region:
+        # Only if container is actually a Region entity
+        is_container_region = is_region(container_key)
+        if is_container_region:
+            is_item_region = is_region(check_key)
+            return not is_item_region
+    return False
 
 MAJOR_CURRENCIES = {
     "USD": {"symbols": ["$"], "names": ["dollar", "dollars"], "prefix": True},

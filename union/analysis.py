@@ -36,6 +36,7 @@ from defs.region_regex import (
     COMPOSITE_REGION_MAP,
     COMPOSITE_COUNTRIES,
     get_composite_constituents,
+    is_contained,
     IGNORED_REGIONS,
     resolve_remaining_int,
 )
@@ -3254,7 +3255,7 @@ class Tracker:
         agg_total = 0.0
 
         # 1. Identify relevant country entries (Explicit or Implied by Segments)
-        c_entries = []
+        c_entries: List[Entry] = []
         for e in self.entries:
             if e.scope == Scope.COUNTRY:
                 if target_countries:
@@ -3357,7 +3358,9 @@ class Tracker:
             "not_covered": agg_not_covered,
             "total": agg_total,
         }
-
+    def _is_contained(self, container_key: Optional[str] = None, item_key: Optional[str] = None):
+        return is_contained(container_key, item_key, self.domestic_country_code)
+    
     def _resolve_geographic_gaps(
         self, name: str, region_total: float, entries: List[Entry]
     ):
@@ -3369,7 +3372,22 @@ class Tracker:
         known_sum = 0.0
         unknowns: List[Entry] = []
 
+        # Filter out children if parent is present with total to avoid double counting
+        entries_with_total = [e for e in entries if e.total_count is not None]
+        ignored_entries = set()
+        for e in entries_with_total:
+            for potential_parent in entries_with_total:
+                if e is potential_parent:
+                    continue
+                if self._is_contained(potential_parent.key, e.key):
+                    ignored_entries.add(e)
+                    break
+
         for e in entries:
+            # Skip if ignored (contained in another present entry)
+            if e in ignored_entries:
+                continue
+
             # Use total_count if available
             if e.total_count is not None:
                 known_sum += e.total_count
@@ -4769,7 +4787,22 @@ class Tracker:
                         c_entries.append(dummy)
                         existing_codes.add(code)
 
+            # Filter out entries that are contained in other present entries to avoid double counting
+            # (e.g. Skip 'RU' if 'CIS' is present)
+            entries_to_skip = set()
+            for e1 in c_entries:
+                for e2 in c_entries:
+                    if e1 is e2:
+                        continue
+                    if self._is_contained(e2.key, e1.key):
+                        entries_to_skip.add(e1)
+                        break
+
             for c in c_entries:
+                if c in entries_to_skip:
+                    log(f"        ⊘ Skipping {c.key} (Contained in {next(e.key for e in c_entries if self._is_contained(e.key, c.key))})")
+                    continue
+
                 log(f"        Processing country: {c.key}")
                 c_cov = 0.0
                 c_tot = 0.0
@@ -5805,39 +5838,7 @@ class UnionAnalyzer:
         """
         Checks if item_key is geographically contained within container_key.
         """
-        if not container_key or not item_key:
-            return False
-        if container_key == item_key:
-            return True
-
-        # Normalize item_key if it's a segment
-        check_key = item_key.split("::")[0]
-
-        # Check for Composite Countries (e.g. CIS containing RU)
-        if container_key in COMPOSITE_COUNTRIES:
-            constituents = get_composite_constituents(container_key)
-            if check_key in constituents:
-                return True
-
-        # Global/International contains everything except Domestic
-        if container_key in GLOBAL_SET | INT_SET:
-            if check_key in {self.domestic_country_code} | DOMESTIC_SET:
-                return False
-            if check_key in GLOBAL_SET:
-                return False
-            return True
-
-        # Region contains its countries
-        item_region = _CODE_TO_REGION.get(check_key, check_key)
-        container_region = _CODE_TO_REGION.get(container_key, container_key)
-
-        if container_region == item_region:
-            # Only if container is actually a Region entity
-            is_container_region = is_region(container_key)
-            if is_container_region:
-                is_item_region = is_region(check_key)
-                return not is_item_region
-        return False
+        return is_contained(container_key, item_key, self.domestic_country_code)
 
     def _remove_container_regions(
         self, entities: List[Dict[str, Any]]
