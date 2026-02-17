@@ -2534,9 +2534,11 @@ class Entry:
     # Hash
     def __hash__(self):
         key = "--".join([
-            self.sent_idx, self.key or ""
+            str(self.sent_idx), self.key or "", self.scope.value, str(self.is_union_record), 
+            str(self.is_qualitative), str(self.covered_count), str(self.total_count), str(self.not_covered_count),
+            str(self.percentage)
         ])
-        return hash(self.key)
+        return hash(key)
 
 
 class Tracker:

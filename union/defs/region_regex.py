@@ -3152,6 +3152,7 @@ COMPOSITE_COUNTRIES = {
     "DACH",
     "IBERIA",
     "GCC",
+    "ASEAN",
 }
 
 # Worker terms, Union terms, gap
