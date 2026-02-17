@@ -765,7 +765,7 @@ def fetch_url(
     """
     global SEC_RATE_LIMIT, SEC_RATE
     if not url:
-        return None
+        return ""
     try:
         # Use the rate_limiter's current value for sleeping
         time.sleep(rate_limiter.value if rate_limiter else SEC_RATE_LIMIT)
@@ -779,6 +779,9 @@ def fetch_url(
             if rate_limiter:
                 rate_limiter.signal_429()
             return None
+        if resp.status_code == 404:
+            # The url is blank; return empty string
+            return ""
         if resp.status_code != 200:
             print(f"Error {resp.status_code} for {url}")
             return None
