@@ -4185,11 +4185,18 @@ def weighted_division(
             biz_boost = BUSINESS_BOOSTER.get(domestic_country, 1.0)
 
             # Additive Boost (Ensure baseline share for tiny populations)
-            additive_boost = 0.50
+            additive_boost = 15.0
+            if biz_boost > 1.0:
+                additive_boost = 25.0
+
+            if domestic_country in TAX_HAVEN_CODES:
+                additive_boost = 0.0
+                note += "Tax Haven (No Boost). "
+
             additive_limit = 2500.0
             if biz_boost > 1.0:
                 additive_limit *= biz_boost * 15
-                additive_boost *= biz_boost * 4
+                additive_boost *= biz_boost * 2
                 note += f"Extended Bias (x{additive_boost}). "
 
             if original_val < additive_limit:
