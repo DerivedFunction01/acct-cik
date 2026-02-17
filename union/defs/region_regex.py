@@ -2925,12 +2925,7 @@ IGNORED_REGIONS = {
     "GLO",
     "DOM",
 }
-
-COMPOSITE_REGION_MAP = {
-    "BALTIC": ["EE", "LV", "LT"],
-    "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
-    "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
-    "G20": [
+G20_CODES =  [
         "AR",
         "AU",
         "BR",
@@ -2950,11 +2945,12 @@ COMPOSITE_REGION_MAP = {
         "TR",
         "GB",
         "US",
-        "EU",
-        "Europe",
-        "NA",
-        "North America",
-    ],
+]
+COMPOSITE_REGION_MAP = {
+    "BALTIC": ["EE", "LV", "LT"],
+    "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
+    "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
+    "G20": G20_CODES + ["EU", Region.EUROPE.value, "NA", Region.NORTH_AMERICA.value],
     "AFRICA": [
         "ZA",
         "NG",
@@ -4331,7 +4327,7 @@ def resolve_remaining_int(
     """
     mapping = {}
     
-    g20_codes = set(COMPOSITE_REGION_MAP.get("G20", []))
+    g20_codes = set(G20_CODES)
 
     # Pre-calculate domestic composites if domestic country exists
     domestic_composites = []
