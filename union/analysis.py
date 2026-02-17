@@ -4193,6 +4193,85 @@ class Tracker:
             if d in unique_entities:
                 unique_entities.remove(d)
 
+        # --- Filter duplicates/aliases/containers BEFORE calculation ---
+        to_remove = set()
+
+        # Pre-calculate region mapping
+        entity_regions = {}
+        for e in unique_entities:
+            if is_region(e):
+                entity_regions[e] = _CODE_TO_REGION.get(e, e)
+            else:
+                entity_regions[e] = _CODE_TO_REGION.get(e)
+
+        if any(e.key != self.domestic_country_code for e in self.entries):
+            # Remove international
+            to_remove |= INT_SET
+
+        sorted_unique = sorted(list(unique_entities))
+
+        for r in sorted_unique:
+            if r in to_remove:
+                continue
+
+            is_region_key = is_region(r)
+            
+            if is_region_key:
+                r_canonical = entity_regions.get(r)
+                
+                # 1. Check for Aliases (e.g. EU vs Europe)
+                for other in unique_entities:
+                    if other == r or other in to_remove:
+                        continue
+                    
+                    if is_region(other):
+                        other_canonical = entity_regions.get(other)
+                        if other_canonical == r_canonical:
+                            # Collision found. Prefer canonical name.
+                            if r != r_canonical and other == r_canonical:
+                                to_remove.add(r)
+                                self.resolution_log.append(f"Virtual Pool: Removed alias '{r}' in favor of canonical '{other}'.")
+                                break
+                            elif r != r_canonical and other != r_canonical:
+                                if r > other: 
+                                    to_remove.add(r)
+                                    self.resolution_log.append(f"Virtual Pool: Removed alias '{r}' in favor of '{other}'.")
+                                    break
+                
+                if r in to_remove:
+                    continue
+
+                # 2. Check for Child Countries
+                if r_canonical:
+                    for other in unique_entities:
+                        if other == r or other in to_remove:
+                            continue
+                        
+                        if not is_region(other) and entity_regions.get(other) == r_canonical:
+                            to_remove.add(r)
+                            self.resolution_log.append(
+                                f"Virtual Pool: Removed generic '{r}' in favor of specific countries."
+                            )
+                            break
+
+            # Check for composite countries acting as containers (e.g. CIS containing RU)
+            if r in COMPOSITE_COUNTRIES:
+                constituents = set(get_composite_constituents(r))
+                has_specifics = False
+                for other in unique_entities:
+                    if other == r or other in to_remove:
+                        continue
+                    if other in constituents:
+                        has_specifics = True
+                        break
+                if has_specifics:
+                    to_remove.add(r)
+                    self.resolution_log.append(
+                        f"Virtual Pool: Removed composite '{r}' in favor of specific constituents."
+                    )
+
+        unique_entities -= to_remove
+
         # Parameters
         UNIT_BASE = 100.0
         INTL_BOOSTER = 1.0
@@ -4212,69 +4291,17 @@ class Tracker:
             contribution = UNIT_BASE * (1 + (weight * 10)) * INTL_BOOSTER
             virtual_total += contribution
 
-            log_details.append(f"{entity}(w={weight:.2f})")
+            log_details.append(f"{entity}")
 
             INTL_BOOSTER += BOOSTER_STEP
 
         self.global_total = round(virtual_total)
 
         log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
-        if len(log_details) > 5:
-            log_msg += f" Details: {', '.join(log_details[:5])}..."
-        else:
-            log_msg += f" Details: {', '.join(log_details)}"
+        log_msg += f" Details: {', '.join(log_details)}"
 
         self.resolution_log.append(log_msg)
-        # Filter out generic regions if specific countries exist
-        # e.g. If "Europe" and "Germany" are present, remove "Europe"
-        to_remove = set()
-
-        # Pre-calculate region mapping
-        entity_regions = {}
-        for e in unique_entities:
-            if is_region(e):
-                entity_regions[e] = e
-            else:
-                entity_regions[e] = _CODE_TO_REGION.get(e)
-        if any(e.key != self.domestic_country_code for e in self.entries):
-            # Remove international
-            to_remove |= INT_SET
-        for r in list(unique_entities):
-            is_region_key = is_region(r)
-            if is_region_key:
-                r_canonical = entity_regions.get(r)
-                if r_canonical:
-                    for other in unique_entities:
-                        if other == r:
-                            continue
-                        is_other_region = is_region(other)
-                        if (
-                            not is_other_region
-                            and entity_regions.get(other) == r_canonical
-                        ):
-                            to_remove.add(r)
-                            self.resolution_log.append(
-                                f"Virtual Pool: Removed generic '{r}' in favor of specific countries."
-                            )
-                            break
-
-            # Check for composite countries acting as containers (e.g. CIS containing RU)
-            if r in COMPOSITE_COUNTRIES:
-                constituents = set(get_composite_constituents(r))
-                has_specifics = False
-                for other in unique_entities:
-                    if other == r:
-                        continue
-                    if other in constituents:
-                        has_specifics = True
-                        break
-                if has_specifics:
-                    to_remove.add(r)
-                    self.resolution_log.append(
-                        f"Virtual Pool: Removed composite '{r}' in favor of specific constituents."
-                    )
-
-        unique_entities -= to_remove
+        
         # Distribute to populate country/region totals for fallback
         dist_entities = [{"key": self.domestic_country_code}]
         for entity in unique_entities:
@@ -4806,7 +4833,7 @@ class Tracker:
                         e2key = e2.key.split("::")[0]
                         e1key = e1.key.split("::")[0]
                         # Do not double count composites
-                        if e2key in COMPOSITE_COUNTRIES and e1key in COMPOSITE_REGION_MAP[e2key]:
+                        if e2key in COMPOSITE_COUNTRIES and e1key in set(get_composite_constituents(e2key)):
                             entries_to_skip.add(e2)
                         # Remove the region if composite is present
                         if e1key in COMPOSITE_COUNTRIES and e2key in REGION_CODES:

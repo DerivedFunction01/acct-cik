@@ -2262,9 +2262,33 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "North Africa",
-        ["north africa", "northern africa"],
+        ["north(?:ern)? african?"],
         Region.MIDDLE_EAST_AFRICA,
         code="NAFRICA",
+    ),
+    Nation(
+        "Southern Africa",
+        ["southern african?"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="SAFRICA",
+    ),
+    Nation(
+        "West Africa",
+        ["west(?:ern)? african?"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="WAFRICA",
+    ),
+    Nation(
+        "East Africa",
+        ["East african?"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="EAFRICA",
+    ),
+    Nation(
+        "Central Africa",
+        ["Central african?"],
+        Region.MIDDLE_EAST_AFRICA,
+        code="CAFRICA",
     ),
     Nation(
         "United Arab Emirates",
@@ -3041,6 +3065,10 @@ COMPOSITE_REGION_MAP = {
         "TR",
     ],
     "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"],
+    "WAFRICA": ["BJ", "BF", "CV", "CI", "GM", "GH", "GN", "GW", "LR", "ML", "MR", "NE", "NG", "SN", "SL", "TG"],
+    "EAFRICA": ["BI", "KM", "DJ", "ER", "ET", "KE", "MG", "MW", "MZ", "RW", "SC", "SO", "SS", "UG", "TZ", "ZM", "ZW"],
+    "CAFRICA": ["AO", "CM", "CF", "TD", "CG", "CD", "GQ", "GA", "ST"],
+    "SAFRICA": ["BW", "LS", "ZA", "SZ"],
     "SAMERICA": [
         "AR",
         "BO",
@@ -3143,18 +3171,9 @@ COMPOSITE_REGION_MAP["LATAMERICA"] = list(
     set(COMPOSITE_REGION_MAP["CAMERICA"] + COMPOSITE_REGION_MAP["SAMERICA"] + ["MX"])
 )
 
-COMPOSITE_COUNTRIES = {
-    "CIS",
-    "BALKAN",
-    "BALTIC",
-    "BENELUX",
-    "NORDIC",
-    "DACH",
-    "IBERIA",
-    "GCC",
-    "ASEAN",
-}
-
+ECONOMIC_CODES = ["G20", "USMCA"]
+# All keys that is not G20
+COMPOSITE_COUNTRIES = {key for key in COMPOSITE_REGION_MAP if key not in ECONOMIC_CODES}
 # Worker terms, Union terms, gap
 INT_UNION_MAP = {
     "INT_IBERIA": (
