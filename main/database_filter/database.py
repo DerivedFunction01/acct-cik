@@ -149,7 +149,7 @@ def import_report_data_from_csv():
         return
 
     # Keep only necessary columns and drop rows with missing values
-    df = df[["cik", "year", "url"]].dropna()
+    df = df[["cik", "year", "url"]].dropna().drop_duplicates()
 
     print(f"\n[3/3] Connecting to database '{DB_PATH}'...")
     conn = sqlite3.connect(DB_PATH)
