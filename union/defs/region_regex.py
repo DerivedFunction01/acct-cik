@@ -4283,10 +4283,18 @@ def weighted_division(
     groups = []  # List of dicts: {keys: [], weight: float, is_cluster: bool}
     used_clusters = []
 
+    # Check if all entities are G20 members
+    g20_members = set(COMPOSITE_REGION_MAP.get("G20", []))
+    all_g20 = remaining_keys.issubset(g20_members)
+
     # Sort composite regions by size (specificity) - smallest first
     sorted_composites = sorted(COMPOSITE_REGION_MAP.items(), key=lambda x: len(x[1]))
 
     for region_code, members in sorted_composites:
+        # If all entities are G20 members, skip sub-clusters to treat them as a single G20 group
+        if all_g20 and region_code != "G20":
+            continue
+
         member_set = set(members)
         # Find intersection with remaining keys
         intersection = remaining_keys.intersection(member_set)
