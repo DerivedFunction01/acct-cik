@@ -227,7 +227,7 @@ def import_report_data_from_csv():
         report_df = df[["cik", "year", "url", "accession", "original_url"]]
 
         # Drop rows where essential info is missing
-        report_df = report_df.dropna(subset=["cik", "year", "url"])
+        report_df = report_df.dropna(subset=["cik", "year", "url"]).drop_duplicates()
 
         report_df.to_sql("report_data", conn, if_exists="replace", index=False)
 
