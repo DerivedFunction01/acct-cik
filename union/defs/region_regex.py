@@ -2913,7 +2913,6 @@ INT_LANGUAGE_MAP = {
     "INT_PL": {"PL"},
     "INT_RU": {"RU", "UA", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"},
     "INT_NORDIC": {"SE", "NO", "DK", "FI", "IS"},
-    "INT_CN": {"CN", "TW", "SG"},
 }
 
 IGNORED_REGIONS = {
@@ -3126,6 +3125,11 @@ COMPOSITE_REGION_MAP["SSA"] = [
 # MEA is ME + AFRICA
 COMPOSITE_REGION_MAP["MEA"] = list(
     set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"])
+)
+
+# LATAMERICA is CAMERICA + SAMERICA + MX
+COMPOSITE_REGION_MAP["LATAMERICA"] = list(
+    set(COMPOSITE_REGION_MAP["CAMERICA"] + COMPOSITE_REGION_MAP["SAMERICA"] + ["MX"])
 )
 
 # Worker terms, Union terms, gap
