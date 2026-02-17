@@ -4309,7 +4309,7 @@ def weighted_division(
 
             # Also boost G20 members slightly to reflect economic gravity
             if domestic_country in COMPOSITE_REGION_MAP.get("G20", []):
-                biz_boost *= 1.5
+                biz_boost *= 1.5 if original_val > additive_limit else 3.0
                 note += f"(G20) "
 
             if biz_boost > 1.0:
