@@ -4527,6 +4527,12 @@ def group_by_scope(
                 # Ensure it's not the same region name (e.g. Europe inside Europe)
                 if entity.get("key") != current_head.get("key"):
                     is_child = True
+        
+        # Check for Composite Countries acting as containers
+        elif current_head.get("key") in COMPOSITE_COUNTRIES:
+             constituents = get_composite_constituents(current_head.get("key"))
+             if child_key in constituents:
+                 is_child = True
 
         if is_child:
             groups[-1].append(entity)
