@@ -230,6 +230,12 @@ def run_booster_tests():
             "others": ["DE", "FR", "CN", "JP", "KR"],
             "desc": "US/DE/FR+ CN/JP/KR",
         },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["CIS", "SASIA", "DACH"],
+            "desc": "Dynamic",
+        },
     ]
 
     for t in targeted_scenarios:

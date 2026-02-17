@@ -2924,6 +2924,8 @@ IGNORED_REGIONS = {
     Region.GLOBAL.value,
     Region.INTERNATIONAL,
     Region.INTERNATIONAL.value,
+    Region.DOMESTIC,
+    Region.DOMESTIC.value,
     "INT",
     "GLO",
     "DOM",
@@ -3493,9 +3495,37 @@ REGION_CODES = {
     "INT",
     "DOM",
 }
-REGION_VALUES = {r.value for r in Region if r not in IGNORED_REGIONS}
+
+
 REGION_CODES.update(COMPOSITE_REGION_MAP.keys())
 REGION_CODES.update(INT_LANGUAGE_MAP.keys())
+
+def add_region_values():
+    region_values = {r.value for r in Region if r not in IGNORED_REGIONS}
+    regions = [
+        NORTH_AMERICA,
+        EUROPE,
+        ASIA_PACIFIC,
+        LATIN_AMERICA,
+        MIDDLE_EAST_AFRICA,
+        INTERNATIONAL,
+    ]
+    # Iterate to see if any of the region has a code that is a composite key
+    for region in regions:
+        for nation in region:
+            if nation.code in COMPOSITE_REGION_MAP:
+                # add the value to region values
+                region_values.add(nation.name)
+    return region_values
+
+REGION_VALUES = add_region_values()
+
+def is_region(key: Optional[str] = None) -> bool:
+    if not key:
+        return False
+    reg = key.split("::")[0]
+    return reg in REGION_VALUES | REGION_CODES
+
 
 TAX_HAVEN_CODES = {
     "KY",  # Cayman Islands
@@ -3953,13 +3983,14 @@ def _build_code_to_weight_map():
     # Apply Manual Composites
     for code, constituents in COMPOSITE_REGION_MAP.items():
         # Only calculate if the code is currently using the default weight (or missing)
-        # Make sure the composite region doesn't include regional keys
-        if code in REGION_CODES or code in REGION_VALUES:
-            continue
+
         current_w = mapping.get(code, 0.005)
         if abs(current_w - 0.005) < 0.000001:
             total_w = 0.0
             for c in constituents:
+                # Make sure the composite region doesn't include regional keys
+                if is_region(c):
+                    continue
                 # Use external weight if available, else use mapped weight
                 total_w += external_weights.get(c, mapping.get(c, 0.0))
             if total_w > 0:
@@ -4010,9 +4041,7 @@ def _build_region_weights_map(country_weights):
                 # Skip composite/container codes for standard regions to avoid double counting
                 # (e.g. Don't add "DACH" weight to "Europe" if we already added DE, AT, CH)
                 # But keep them for INTERNATIONAL since it relies on language composites
-                is_composite = (nation.code in COMPOSITE_REGION_MAP) or (
-                    nation.code in REGION_CODES
-                )
+                is_composite = (nation.code in COMPOSITE_REGION_MAP) or is_region(nation.code)
 
                 if is_composite and nation.region != Region.INTERNATIONAL:
                     continue
@@ -4038,7 +4067,7 @@ def _build_region_weights_map(country_weights):
             if nation.code in IGNORED_REGIONS:
                 continue
             # Heuristic: If nation name matches region name or is a known container
-            if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
+            if nation.name in REGION_VALUES or nation.code in REGION_CODES:
                 if nation.region.value in r_weights:
                     r_weights[nation.code] = r_weights[nation.region.value]
                     # Also update the country-level map for the region code itself
@@ -4097,7 +4126,7 @@ def _build_region_labor_rates_map(country_rates, country_weights):
         for nation in r_set:
             if nation.code in IGNORED_REGIONS:
                 continue
-            if nation.name in [r.value for r in Region] or nation.code in REGION_CODES:
+            if nation.name in REGION_VALUES or nation.code in REGION_CODES:
                 if nation.region.value in r_rates:
                     r_rates[nation.code] = r_rates[nation.region.value]
                     # Also update the country-level map for the region code itself
@@ -4110,6 +4139,8 @@ def _build_region_labor_rates_map(country_rates, country_weights):
         count = 0
 
         for c in constituents:
+            if is_region(c):
+                continue
             if c in country_rates:
                 rate = country_rates[c]
                 weight = country_weights.get(c, 0.0)
@@ -4187,7 +4218,7 @@ def weighted_division(
         key_to_weight[key] = w
 
     # 2. Apply Dynamic Domestic Booster
-    if domestic_country and domestic_country in key_to_weight and len(entities) > 1:
+    if domestic_country and domestic_country not in IGNORED_REGIONS and domestic_country in key_to_weight and len(entities) > 1:
         raw_dom_w = key_to_weight[domestic_country]
         raw_total_w = sum(key_to_weight.values())
 
@@ -4237,7 +4268,7 @@ def weighted_division(
                 k = e["key"]
                 if k in COMPOSITE_REGION_MAP:
                     cluster_size += min(len(COMPOSITE_REGION_MAP[k]), 3)
-                elif k in REGION_CODES or k in REGION_VALUES:
+                elif is_region(k):
                     cluster_size += 3
                 else:
                     cluster_size += 1

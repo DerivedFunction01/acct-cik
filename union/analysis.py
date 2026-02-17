@@ -23,6 +23,7 @@ from defs.region_regex import (
     INT_LANGUAGE_MAP,
     GeoSource,
     _CODE_TO_REGION,
+    is_region,
     weighted_division,
     _CODE_TO_LABOR_RATE,
     REGION_LABOR_RATES,
@@ -3177,11 +3178,8 @@ class Tracker:
 
                         if not targets:
                             # Determine if key is a Region Name
-                            is_region = (
-                                any(r.value == code for r in Region)
-                                or code in REGION_CODES
-                            )
-                            scope = Scope.REGION if is_region else Scope.COUNTRY
+                            _region = is_region(code)
+                            scope = Scope.REGION if _region else Scope.COUNTRY
 
                             if scope == Scope.REGION:
                                 known_total = self.region_totals.get(code)
@@ -3910,7 +3908,7 @@ class Tracker:
                     e.key = new_key
 
                     if e.scope != Scope.SEGMENT:
-                        if new_code in REGION_CODES or new_code in [r.value for r in Region]:
+                        if is_region(new_code):
                             e.scope = Scope.REGION
                         elif len(new_code) == 2:
                             e.scope = Scope.COUNTRY
@@ -4038,9 +4036,7 @@ class Tracker:
                         # Try to find rate from external data
                         rate = None
                         # 2. Try calculating from mentioned countries in the region
-                        if e.scope == Scope.REGION or e.key in [
-                            r.value for r in Region
-                        ]:
+                        if e.scope == Scope.REGION or is_region(e.key):
                             region_name = e.key
                             relevant_countries = []
                             for code in self.mentioned_countries:
@@ -4093,7 +4089,7 @@ class Tracker:
                             )
                         elif e.percentage is None or e.ambiguity_multiplier is not None:
                             base_rate = rate if rate is not None else 0.01
-                            
+
                             # Apply ambiguity multiplier if present (e.g. "some" = 1.0x, "few" = 0.5x)
                             if e.ambiguity_multiplier is not None:
                                 base_rate *= e.ambiguity_multiplier
@@ -4208,7 +4204,7 @@ class Tracker:
         # Pre-calculate region mapping
         entity_regions = {}
         for e in unique_entities:
-            if e in [r.value for r in Region]:
+            if is_region(e):
                 entity_regions[e] = e
             else:
                 entity_regions[e] = _CODE_TO_REGION.get(e)
@@ -4216,16 +4212,14 @@ class Tracker:
             # Remove international
             to_remove |= {Region.INTERNATIONAL.value, Region.INTERNATIONAL, "INT"}
         for r in list(unique_entities):
-            is_region_key = (r in [reg.value for reg in Region]) or (r in REGION_CODES)
+            is_region_key = is_region(r)
             if is_region_key:
                 r_canonical = entity_regions.get(r)
                 if r_canonical:
                     for other in unique_entities:
                         if other == r:
                             continue
-                        is_other_region = (other in [reg.value for reg in Region]) or (
-                            other in REGION_CODES
-                        )
+                        is_other_region = is_region(other)
                         if (
                             not is_other_region
                             and entity_regions.get(other) == r_canonical
@@ -4251,9 +4245,9 @@ class Tracker:
 
         for key, val in distribution.items():
             # Determine if region or country
-            is_region = key in REGION_CODES or key in [r.value for r in Region]
+            _region = is_region(key)
 
-            if is_region:
+            if _region:
                 if self.region_totals.get(key, 0) == 0:
                     self.region_totals[key] = val
             else:
@@ -4284,7 +4278,7 @@ class Tracker:
             )
 
             # Skip International/Global as they are aggregates of regions and handled elsewhere
-            if key_str in IGNORED_REGIONS or key_str == Region.INTERNATIONAL.value:
+            if key_str in IGNORED_REGIONS:
                 continue
 
             region_sum = 0.0
@@ -5815,13 +5809,9 @@ class UnionAnalyzer:
 
         if container_region == item_region:
             # Only if container is actually a Region entity
-            is_container_region = (container_key in [r.value for r in Region]) or (
-                container_key in REGION_CODES
-            )
+            is_container_region = is_region(container_key)
             if is_container_region:
-                is_item_region = (item_key in [r.value for r in Region]) or (
-                    item_key in REGION_CODES
-                )
+                is_item_region = is_region(item_key)
                 return not is_item_region
         return False
 
