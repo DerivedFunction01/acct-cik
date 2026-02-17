@@ -126,6 +126,12 @@ def run_booster_tests():
             "others": ["US", "GB", "IE", "SG"],
             "desc": "Cayman HQ finance firm vs conduits/majors",
         },
+        {
+            "pop": 500,
+            "dom": "HK",
+            "others": ["US"],
+            "desc": "Semi Tax Haven",
+        },
         # Expected: ~0–15% (penalties should crush domestic share)
         {
             "pop": 100,
@@ -217,6 +223,12 @@ def run_booster_tests():
             "dom": "US",
             "others": ["EU", "CN"],
             "desc": "US/EU/China",
+        },
+        {
+            "pop": 10000,
+            "dom": "US",
+            "others": ["DE", "FR", "CN", "JP", "KR"],
+            "desc": "US/DE/FR+ CN/JP/KR",
         },
     ]
 

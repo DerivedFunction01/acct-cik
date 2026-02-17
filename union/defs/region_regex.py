@@ -4234,6 +4234,29 @@ def weighted_division(
                 ) + additive_boost
                 note += f"Domestic {domestic_country} boosted x{booster:.2f} +{additive_boost:.3f} (Pop:{int(original_val)}, N:{cluster_size}, Share:{raw_share:.1%}). "
 
+    # 2.5 G20 Pre-smoothing (Redistribute weight among G20 peers to prevent large-cluster dominance)
+    g20_members = set(COMPOSITE_REGION_MAP.get("G20", []))
+    # Filter for entities present in this division, excluding domestic (already boosted)
+    present_g20 = [
+        k for k in key_to_weight 
+        if k in g20_members and k != domestic_country
+    ]
+    
+    if len(present_g20) >= 2:
+        g20_total_raw = sum(key_to_weight[k] for k in present_g20)
+        if g20_total_raw > 0:
+            # Apply minor smoothing
+            smoothing_power = 0.75
+            smoothed_weights = {k: key_to_weight[k] ** smoothing_power for k in present_g20}
+            smoothed_total = sum(smoothed_weights.values())
+            
+            # Renormalize to preserve total G20 weight (so they don't gain/lose against non-G20)
+            if smoothed_total > 0:
+                scale_factor = g20_total_raw / smoothed_total
+                for k in present_g20:
+                    key_to_weight[k] = smoothed_weights[k] * scale_factor
+                note += f"G20 Pre-smooth (x^{smoothing_power}). "
+
     # 3. Identify Clusters
     remaining_keys = set(key_to_weight.keys())
     groups = []  # List of dicts: {keys: [], weight: float, is_cluster: bool}
