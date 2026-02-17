@@ -264,5 +264,148 @@ def run_booster_tests():
         sorted_dist = sorted(distribution.items(), key=lambda x: x[1], reverse=True)
         print(f"          -> {', '.join([f'{k}={int(v)}' for k, v in sorted_dist])}")
 
+    print("\n--- Composite Comparisons ---")
+    composite_scenarios = [
+        {
+            "pop": 50000,
+            "dom": "US",
+            "others": ["EU"],
+            "desc": "US vs EU",
+        },
+        {
+            "pop": 50000,
+            "dom": "EU",
+            "others": ["US"],
+            "desc": "EU vs US",
+        },
+        {
+            "pop": 50000,
+            "dom": "CN",
+            "others": ["ASEAN"],
+            "desc": "China vs ASEAN",
+        },
+        {
+            "pop": 50000,
+            "dom": "DE",
+            "others": ["EEUROPE"],
+            "desc": "Germany vs Eastern Europe",
+        },
+        {
+            "pop": 50000,
+            "dom": "US",
+            "others": ["LATAM"],
+            "desc": "US vs Latin America",
+        },
+        {
+            "pop": 50000,
+            "dom": "US",
+            "others": ["APAC"],
+            "desc": "US vs APAC",
+        },
+        {
+            "pop": 50000,
+            "dom": "GB",
+            "others": ["EU"],
+            "desc": "UK vs EU",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["GCC", "IL"],
+            "desc": "Israel and GCC",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["GCC", "IQ", "IL"],
+            "desc": "GCC core + Iraq – should prefer GCC but give IQ meaningful share (energy ties)",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["GCC", "IQ", "JO"],
+            "desc": "GCC + Iraq + Jordan – check if JO dilutes too much or stays minor",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["GCC", "EG"],
+            "desc": "GCC + Egypt – Egypt should stay low unless ME fallback triggers",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["GCC", "IQ", "JO", "EG", "IL"],
+            "desc": "High N ME mix – does it fall to broad ME or stay Extended Gulf weighted?",
+        },
+    ]
+
+    for t in composite_scenarios:
+        pop = float(t["pop"])
+        domestic_code = t["dom"]
+        others = t["others"]
+        entities = [{"key": domestic_code}] + [{"key": o} for o in others]
+
+        distribution, note = weighted_division(
+            val=pop, 
+            entities=entities, 
+            domestic_country=domestic_code
+        )
+
+        dom_val = distribution.get(domestic_code, 0)
+        final_share = dom_val / pop if pop > 0 else 0
+        others_str = ",".join(others)
+
+        print(f"{int(pop):<8} | {domestic_code:<3} | {len(others):<2} | {others_str:<25} | {final_share:.1%}   | {t['desc']} -> {note}")
+        sorted_dist = sorted(distribution.items(), key=lambda x: x[1], reverse=True)
+        print(f"          -> {', '.join([f'{k}={int(v)}' for k, v in sorted_dist])}")
+
+    print("\n--- Random Composite Comparisons (50 runs) ---")
+
+    # Get top 20 countries by weight for interesting comparisons
+    top_countries = sorted(
+        [c for c in _CODE_TO_WEIGHT.keys() if len(c) == 2 and c not in REGION_CODES],
+        key=lambda x: _CODE_TO_WEIGHT[x],
+        reverse=True
+    )[:20]
+
+    all_composites = list(COMPOSITE_REGION_MAP.keys())
+    potential_opponents = all_composites + top_countries
+
+    for i in range(50):
+        pop = float(random.choice(populations))
+
+        # Pick a random composite as "domestic"
+        dom_composite = random.choice(all_composites)
+
+        # Pick 1-5 opponents
+        num_others = random.randint(1, 5)
+        others = []
+        while len(others) < num_others:
+            opp = random.choice(potential_opponents)
+            if opp != dom_composite and opp not in others:
+                others.append(opp)
+
+        entities = [{"key": dom_composite}] + [{"key": o} for o in others]
+
+        distribution, note = weighted_division(
+            val=pop, 
+            entities=entities, 
+            domestic_country=dom_composite
+        )
+
+        dom_val = distribution.get(dom_composite, 0)
+        final_share = dom_val / pop if pop > 0 else 0
+        others_str = ",".join(others)
+        if len(others_str) > 25:
+            others_str = others_str[:22] + "..."
+
+        print(f"{int(pop):<8} | {dom_composite:<3} | {len(others):<2} | {others_str:<25} | {final_share:.1%}   | Random -> {note}")
+        sorted_dist = sorted(distribution.items(), key=lambda x: x[1], reverse=True)
+        dist_str = ', '.join([f'{k}={int(v)}' for k, v in sorted_dist[:8]])
+        if len(sorted_dist) > 8:
+            dist_str += "..."
+        print(f"          -> {dist_str}")
+
 if __name__ == "__main__":
     run_booster_tests()
