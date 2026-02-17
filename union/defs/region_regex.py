@@ -3953,6 +3953,9 @@ def _build_code_to_weight_map():
     # Apply Manual Composites
     for code, constituents in COMPOSITE_REGION_MAP.items():
         # Only calculate if the code is currently using the default weight (or missing)
+        # Make sure the composite region doesn't include regional keys
+        if code in REGION_CODES or code in REGION_VALUES:
+            continue
         current_w = mapping.get(code, 0.005)
         if abs(current_w - 0.005) < 0.000001:
             total_w = 0.0
