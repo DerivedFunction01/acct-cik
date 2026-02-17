@@ -4797,14 +4797,14 @@ class Tracker:
                         existing_codes.add(code)
 
             # Filter out entries that are contained in other present entries to avoid double counting
-            # (e.g. Skip 'RU' if 'CIS' is present)
             entries_to_skip = set()
             for e1 in c_entries:
                 for e2 in c_entries:
                     if e1 is e2:
                         continue
-                    if self._is_contained(e2.key, e1.key):
-                        entries_to_skip.add(e1)
+                    if e2.key and self._is_contained(e2.key, e1.key):
+                        if e2.key.split("::")[0] in COMPOSITE_COUNTRIES:
+                            entries_to_skip.add(e2)
                         break
 
             for c in c_entries:
