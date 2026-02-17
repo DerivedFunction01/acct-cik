@@ -3558,7 +3558,7 @@ def add_region_values():
 
 REGION_VALUES = add_region_values()
 
-COMPOSITE_REGION_MAP["G20"] =  list(G20_CODES + ["EEUROPE", "WEUROPE", "CIS", "DACH", "IBERIA"] + list(REGION_CODES | REGION_VALUES))
+COMPOSITE_REGION_MAP["G20"] =  list(G20_CODES + ["EEUROPE", "WEUROPE", "CIS", "DACH", "IBERIA", "EASIA", "SASIA"] + [x for x in list(REGION_CODES | REGION_VALUES) if x not in IGNORED_REGIONS])
 
 REGION_CODES.update(set(COMPOSITE_REGION_MAP.keys()) - COMPOSITE_COUNTRIES)
 REGION_CODES.update(INT_LANGUAGE_MAP.keys())
@@ -4067,7 +4067,8 @@ def _build_code_to_weight_map():
     # Apply Manual Composites
     for code, constituents in COMPOSITE_REGION_MAP.items():
         # Only calculate if the code is currently using the default weight (or missing)
-
+        if code == "G20":
+            constituents = G20_CODES
         current_w = mapping.get(code, 0.005)
         if abs(current_w - 0.005) < 0.000001:
             total_w = 0.0
@@ -4332,7 +4333,7 @@ def weighted_division(
             # Also boost G20 members slightly to reflect economic gravity
             if domestic_country in COMPOSITE_REGION_MAP.get("G20", []):
                 biz_boost *= 1.5 if original_val > additive_limit else 3.0
-                note += f"(G20 membership) "
+                note += f"(G20 membership) " if domestic_country in G20_CODES else f"(G20 region) "
 
             if biz_boost > 1.0:
                 MAX_BOOST *= biz_boost * 1.5

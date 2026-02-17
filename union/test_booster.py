@@ -209,20 +209,20 @@ def run_booster_tests():
         {
             "pop": 2000,
             "dom": "US",
-            "others": ["EU", "CN"],
-            "desc": "US/EU/China",
+            "others": ["EEUROPE", "CN"],
+            "desc": "US/East EU/China",
         },
         {
             "pop": 5000,
             "dom": "US",
-            "others": ["EU", "CN"],
-            "desc": "US/EU/China",
+            "others": ["WEUROPE", "CN"],
+            "desc": "US/West EU/China",
         },
         {
             "pop": 10000,
             "dom": "US",
-            "others": ["EU", "CN"],
-            "desc": "US/EU/China",
+            "others": ["IBERIA", "CN"],
+            "desc": "US/IBERIA(ES/PT)/China",
         },
         {
             "pop": 10000,
@@ -234,6 +234,12 @@ def run_booster_tests():
             "pop": 10000,
             "dom": "INT",
             "others": ["CIS", "SASIA", "DACH"],
+            "desc": "Dynamic",
+        },
+        {
+            "pop": 10000,
+            "dom": "US",
+            "others": ["LATAM", "SASIA", "EEUROPE"],
             "desc": "Dynamic",
         },
     ]
