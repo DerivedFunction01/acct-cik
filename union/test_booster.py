@@ -318,25 +318,31 @@ def run_booster_tests():
             "pop": 10000,
             "dom": "INT",
             "others": ["GCC", "IQ", "IL"],
-            "desc": "GCC core + Iraq – should prefer GCC but give IQ meaningful share (energy ties)",
+            "desc": "GCC core + Iraq",
         },
         {
             "pop": 10000,
             "dom": "INT",
             "others": ["GCC", "IQ", "JO"],
-            "desc": "GCC + Iraq + Jordan – check if JO dilutes too much or stays minor",
+            "desc": "GCC + Iraq + Jordan",
         },
         {
             "pop": 10000,
             "dom": "INT",
             "others": ["GCC", "EG"],
-            "desc": "GCC + Egypt – Egypt should stay low unless ME fallback triggers",
+            "desc": "GCC + Egypt",
         },
         {
             "pop": 10000,
             "dom": "INT",
             "others": ["GCC", "IQ", "JO", "EG", "IL"],
-            "desc": "High N ME mix – does it fall to broad ME or stay Extended Gulf weighted?",
+            "desc": "High N ME mix",
+        },
+        {
+            "pop": 10000,
+            "dom": "INT",
+            "others": ["SA", "AE", "KW", "IQ", "JO", "EG", "IL"],
+            "desc": "High N ME mix",
         },
     ]
 
