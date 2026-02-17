@@ -3493,6 +3493,7 @@ REGION_CODES = {
     "INT",
     "DOM",
 }
+REGION_VALUES = {r.value for r in Region if r not in IGNORED_REGIONS}
 REGION_CODES.update(COMPOSITE_REGION_MAP.keys())
 REGION_CODES.update(INT_LANGUAGE_MAP.keys())
 
@@ -4212,7 +4213,20 @@ def weighted_division(
             pop_factor = 1.0 / (1.0 + (original_val / POP_PIVOT))
 
             # Factor 2: Cluster Size (Small cluster -> High boost)
-            cluster_size = len(entities)
+            # Calculate effective cluster size (regions count as multiple entities, up to 3)
+            cluster_size = 0
+
+            for e in entities:
+                k = e["key"]
+                if k in COMPOSITE_REGION_MAP:
+                    cluster_size += min(len(COMPOSITE_REGION_MAP[k]), 3)
+                elif k in INT_LANGUAGE_MAP:
+                    cluster_size += min(len(INT_LANGUAGE_MAP[k]), 3)
+                elif k in REGION_CODES or k in REGION_VALUES:
+                    cluster_size += 3
+                else:
+                    cluster_size += 1
+
             cluster_factor = max(0.0, 1.0 - (cluster_size - 2) / (CLUSTER_MAX - 2))
 
             # Factor 3: Share Risk (Low share -> High boost)
