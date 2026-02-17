@@ -1121,7 +1121,7 @@ EUROPE = {
     ),
     Nation(
         "Spain",
-        ["spain", "spaniard", "España"],
+        ["spain", "spanish", "España"],
         Region.EUROPE,
         [
             Location("Madrid", ["madrid"]),
