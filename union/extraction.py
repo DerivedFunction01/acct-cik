@@ -31,6 +31,7 @@ from defs.union_regex import (
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
     DIVERSITY_TERMS,
+    WORKS_REGEX,
 )
 from defs.region_regex import Region, RegionMatcher, GeoSource, INT_LANGUAGE_MAP, _CODE_TO_REGION
 
@@ -218,6 +219,7 @@ class MatchType(Enum):
     WORKER_TYPE = "WORKER_TYPE"
     DIVERSITY_TERM = "DIVERSITY_TERM"
     SUBSET = "SUBSET"
+    WORKS_COUNCIL = "WORKS_COUNCIL"
 
 
 @dataclass
@@ -240,6 +242,7 @@ class SentenceAnalysis:
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
+    works_councils: List[str] = field(default_factory=list)
     risk_terms: List[str] = field(default_factory=list)
     negation_terms: List[str] = field(default_factory=list)
     relationship_terms: List[str] = field(default_factory=list)
@@ -1168,6 +1171,14 @@ class UnionExtractor:
             lambda m, val: analysis.union_terms.append(val),
         )
 
+        # 7b. Extract Works Councils
+        process_matches(
+            WORKS_REGEX,
+            MatchType.WORKS_COUNCIL,
+            lambda m: m.group(0),
+            lambda m, val: analysis.works_councils.append(val),
+        )
+
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regexes:
 
@@ -1352,9 +1363,14 @@ class UnionExtractor:
             or bool(analysis.worker_counts)
         )
 
+        # If works councils are present without explicit union terms, assume coverage refers to them (neutral)
+        coverage_is_union = bool(analysis.coverage_terms)
+        if analysis.works_councils and not (analysis.union_terms):
+            coverage_is_union = False
+
         analysis.is_union = (
             bool(analysis.union_terms)
-            or bool(analysis.coverage_terms)
+            or coverage_is_union
             or has_negation
             or bool(analysis.qualitative_membership_terms)
             or has_union_geo
