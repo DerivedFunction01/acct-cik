@@ -704,7 +704,7 @@ NORTH_AMERICA = {
 EUROPE = {
     Nation(
         "Europe",
-        ["europe", "eurozone", "eu", "european", "european union", "euro", "eur"],
+        ["europe", "eurozone", "eu", "european", "euro", "eur"],
         Region.EUROPE,
         [],
         [],
@@ -713,7 +713,7 @@ EUROPE = {
     ),
     Nation(
         "European Union",
-        ["European U"],
+        ["European U", "European Union"],
         Region.EUROPE,
         code="EU_UNION",
     ),
