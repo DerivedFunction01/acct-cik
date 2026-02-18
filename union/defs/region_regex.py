@@ -4313,6 +4313,14 @@ def weighted_division(
 
         key_to_weight[key] = w
 
+    # Special handling for EU_UNION and UK (GB) coexistence
+    if "EU_UNION" in key_to_weight and "GB" in key_to_weight:
+        eu_w = key_to_weight["EU_UNION"]
+        gb_w = key_to_weight["GB"]
+        if eu_w > gb_w:
+            key_to_weight["EU_UNION"] = eu_w - gb_w
+            note += "Excluded UK from EU_UNION weight. "
+
     # 2. Apply Dynamic Domestic Booster
     if domestic_country and domestic_country not in IGNORED_REGIONS and domestic_country in key_to_weight and len(entities) > 1:
         raw_dom_w = key_to_weight[domestic_country]
