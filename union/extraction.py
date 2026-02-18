@@ -236,7 +236,7 @@ EXCLUSIONS = [
     r"except(?:\s+for)?",
     r"other\s+than",
     r"apart\s+from",
-    r"exclud(?:ing|es?|ed)",
+    r"exclud(?:ing|es?)",
 ]
 
 EXCEPT_REGEX = build_regex(EXCLUSIONS)
