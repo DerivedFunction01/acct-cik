@@ -4268,6 +4268,7 @@ def weighted_division(
     entities: List[Dict[str, Any]],
     use_labor_weights: bool = False,
     domestic_country: Optional[str] = None,
+    excluded_keys: Optional[Set[str]] = None,
 ) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
@@ -4298,6 +4299,44 @@ def weighted_division(
         # Check if key is a region name
         if key in REGION_WEIGHTS:
             w = REGION_WEIGHTS[key]
+
+            if excluded_keys:
+                subtracted_weight = 0.0
+                for excl in excluded_keys:
+                    is_in_region = False
+                    # 1. Key is Region Name (e.g. "Europe")
+                    if key in REGION_VALUES:
+                        if _CODE_TO_REGION.get(excl) == key:
+                            is_in_region = True
+                    # 2. Key is Region Code (e.g. "EU", "CIS")
+                    elif key in REGION_CODES:
+                        if key in COMPOSITE_REGION_MAP:
+                            if excl in COMPOSITE_REGION_MAP[key]:
+                                is_in_region = True
+                        else:
+                            # Standard region code (e.g. "EU" -> "Europe")
+                            if _CODE_TO_REGION_CODE.get(excl) == key:
+                                is_in_region = True
+
+                    if is_in_region:
+                        excl_w = 0.0005
+                        if excl in _CODE_TO_WEIGHT:
+                            excl_w = _CODE_TO_WEIGHT[excl]
+                        
+                        if use_labor_weights:
+                            rate = 0.15
+                            if excl in REGION_LABOR_RATES:
+                                rate = REGION_LABOR_RATES[excl]
+                            elif excl in _CODE_TO_LABOR_RATE:
+                                rate = _CODE_TO_LABOR_RATE[excl]
+                            excl_w *= rate
+                        
+                        subtracted_weight += excl_w
+                
+                if subtracted_weight > 0:
+                    w = max(0.0, w - subtracted_weight)
+                    note += f"Excluded {', '.join(excluded_keys)} from {key}. "
+
         # Check if key is a country code
         elif key in _CODE_TO_WEIGHT:
             w = _CODE_TO_WEIGHT[key]

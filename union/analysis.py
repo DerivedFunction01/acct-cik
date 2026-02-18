@@ -6064,6 +6064,7 @@ class UnionAnalyzer:
         total_key: Optional[str] = None,
         allow_naive_split: bool = False,
         use_labor_weights: bool = False,
+        excluded_keys: Optional[Set[str]] = None,
     ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_generic.
@@ -6138,6 +6139,7 @@ class UnionAnalyzer:
                                 valid_children,
                                 use_labor_weights=use_labor_weights,
                                 domestic_country=self.domestic_country_code,
+                                excluded_keys=excluded_keys,
                             )
                             local_map.update(child_map)
                             if c_note:
@@ -6188,6 +6190,7 @@ class UnionAnalyzer:
                             valid_group,
                             use_labor_weights=use_labor_weights,
                             domestic_country=self.domestic_country_code,
+                            excluded_keys=excluded_keys,
                         )
                         local_map.update(group_map)
                         if g_note:
@@ -6213,6 +6216,7 @@ class UnionAnalyzer:
                     valid_entities,
                     use_labor_weights=use_labor_weights,
                     domestic_country=self.domestic_country_code,
+                    excluded_keys=excluded_keys,
                 )
                 final_note = "Naive Split" + filtered_note
                 if w_note:
@@ -6330,6 +6334,7 @@ class UnionAnalyzer:
         """
         # Correlate GeoMatches with Spans (Explicit only)
         geo_entries = []
+        excluded_codes = set()
         geo_match_objs = [
             m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
         ]
@@ -6348,6 +6353,11 @@ class UnionAnalyzer:
                     strong_codes[obj.geo_code] = obj
 
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                if obj.is_excluded:
+                    if obj.geo_code:
+                        excluded_codes.add(obj.geo_code)
+                    continue
+
                 # Refine INT_ codes
                 if obj.geo_code:
                     candidates = [
@@ -6367,7 +6377,7 @@ class UnionAnalyzer:
                 )
 
         return self._resolve_counts_generic(
-            analysis, geo_entries, total_key="GLO", allow_naive_split=True
+            analysis, geo_entries, total_key="GLO", allow_naive_split=True, excluded_keys=excluded_codes
         )
 
     def _map_assignments_to_geo(
