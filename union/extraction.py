@@ -198,6 +198,13 @@ EXCEPT_REGEX = build_regex([
     r"other\s+than",
 ])
 
+OUTSIDE_REGEX = build_regex([
+    r"outside",
+    r"non",
+     r"except",
+    r"other\s+than",
+])
+
 class MatchType(Enum):
     PERCENT = "PERCENT"
     RATIO = "RATIO"
@@ -227,6 +234,7 @@ class MatchType(Enum):
     SUBSET = "SUBSET"
     WORKS_COUNCIL = "WORKS_COUNCIL"
     EXCEPT = "EXCEPT"
+    OUTSIDE = "OUTSIDE"
 
 
 @dataclass
@@ -237,6 +245,7 @@ class GeoMatch:
     city: Optional[str] = None
     geo_code: Optional[str] = None
     source_type: GeoSource = GeoSource.EXPLICIT
+    is_excluded: bool = False
 
 
 @dataclass
@@ -265,6 +274,7 @@ class SentenceAnalysis:
     subset_indicators: List[str] = field(default_factory=list)
     remaining_others: List[str] = field(default_factory=list)
     except_terms: List[str] = field(default_factory=list)
+    outside_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1012,6 +1022,15 @@ class UnionExtractor:
             MatchType.EXCEPT,
             lambda m: m.group(0),
             lambda m, val: analysis.except_terms.append(val),
+            revert=True,
+        )
+        # 0.3 Outside terms
+        process_matches(
+            OUTSIDE_REGEX,
+            MatchType.OUTSIDE,
+            lambda m: m.group(0),
+            lambda m, val: analysis.outside_terms.append(val),
+            revert=True,
         )
         analysis.has_subset_indicator = len(analysis.subset_indicators) > 0
         analysis.has_remaining_other = len(analysis.remaining_others) > 0
@@ -1041,15 +1060,16 @@ class UnionExtractor:
                 info = self.matcher.get_union(val)
                 if info:
                     region, country, code = info
-                    analysis.geo_matches.append(
-                        GeoMatch(
-                            text=val,
-                            region=region,
-                            country=country,
-                            geo_code=code,
-                            source_type=GeoSource.SPECIFIC_UNION,
-                        )
+                    geo_obj = GeoMatch(
+                        text=val,
+                        region=region,
+                        country=country,
+                        geo_code=code,
+                        source_type=GeoSource.SPECIFIC_UNION,
                     )
+                    analysis.geo_matches.append(geo_obj)
+                    if analysis._matches:
+                        analysis._matches[-1]["geo_obj"] = geo_obj
 
             process_matches(
                 self.matcher.specific_union_regex,
@@ -1081,15 +1101,16 @@ class UnionExtractor:
             info = self.matcher.get_union(val)
             if info:
                 region, country, code = info
-                analysis.geo_matches.append(
-                    GeoMatch(
-                        text=val,
-                        region=region,
-                        country=country,
-                        geo_code=code,
-                        source_type=GeoSource.INFERRED_UNION,
-                    )
+                geo_obj = GeoMatch(
+                    text=val,
+                    region=region,
+                    country=country,
+                    geo_code=code,
+                    source_type=GeoSource.INFERRED_UNION,
                 )
+                analysis.geo_matches.append(geo_obj)
+                if analysis._matches:
+                    analysis._matches[-1]["geo_obj"] = geo_obj
             else:
                 # Fallback: Check if it matches a known foreign dynamic pattern
                 # This maps "Sindicato de..." back to "INT_IBERIA", etc.
@@ -1098,14 +1119,15 @@ class UnionExtractor:
                     if pattern.fullmatch(val):
                         # We found the language origin.
                         # We don't know the specific country yet, but we have the language code.
-                        analysis.geo_matches.append(
-                            GeoMatch(
-                                text=val,
-                                region=Region.INTERNATIONAL, # Broad region, refined by analysis.py using code
-                                geo_code=code,
-                                source_type=GeoSource.INFERRED_UNION,
-                            )
+                        geo_obj = GeoMatch(
+                            text=val,
+                            region=Region.INTERNATIONAL, # Broad region, refined by analysis.py using code
+                            geo_code=code,
+                            source_type=GeoSource.INFERRED_UNION,
                         )
+                        analysis.geo_matches.append(geo_obj)
+                        if analysis._matches:
+                            analysis._matches[-1]["geo_obj"] = geo_obj
                         break
 
         process_matches(
@@ -1201,16 +1223,17 @@ class UnionExtractor:
                 info = self.matcher.get_location(val)
                 if info:
                     region, country, city, code = info
-                    analysis.geo_matches.append(
-                        GeoMatch(
-                            text=val,
-                            region=region,
-                            country=country,
-                            city=city,
-                            geo_code=code,
-                            source_type=GeoSource.EXPLICIT,
-                        )
+                    geo_obj = GeoMatch(
+                        text=val,
+                        region=region,
+                        country=country,
+                        city=city,
+                        geo_code=code,
+                        source_type=GeoSource.EXPLICIT,
                     )
+                    analysis.geo_matches.append(geo_obj)
+                    if analysis._matches:
+                        analysis._matches[-1]["geo_obj"] = geo_obj
 
             for regex in self.matcher.location_regexes:
                 process_matches(
@@ -1345,6 +1368,23 @@ class UnionExtractor:
         process_matches(
             RESPECTIVELY_REGEX, MatchType.RESPECTIVELY, lambda m: m.group(0), None
         )
+
+        # Post-processing: Mark excluded geography
+        exclusion_matches = [m for m in analysis._matches if m["type"] in (MatchType.OUTSIDE, MatchType.EXCEPT)]
+        
+        if exclusion_matches:
+            for m in analysis._matches:
+                if "geo_obj" in m:
+                    m_start = m["span"][0]
+                    for excl in exclusion_matches:
+                        e_end = excl["span"][1]
+                        # Check if exclusion is immediately before (within 25 chars)
+                        if 0 <= m_start - e_end <= 25:
+                            text_between = text[e_end:m_start]
+                            # Allow spaces, "of", "the", "in", "for", and hyphens
+                            if re.fullmatch(r"[\s,-]*(?:of|the|in|for)?[\s,-]*", text_between, re.IGNORECASE):
+                                m["geo_obj"].is_excluded = True
+                                break
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms
