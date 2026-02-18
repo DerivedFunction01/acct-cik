@@ -33,7 +33,13 @@ from defs.union_regex import (
     DIVERSITY_TERMS,
     WORKS_REGEX,
 )
-from defs.region_regex import Region, RegionMatcher, GeoSource, INT_LANGUAGE_MAP, _CODE_TO_REGION
+from defs.region_regex import (
+    Region,
+    RegionMatcher,
+    GeoSource,
+    INT_LANGUAGE_MAP,
+    _CODE_TO_REGION,
+)
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
@@ -79,7 +85,22 @@ NEGATION_REGEX = build_regex(
 )
 
 REMAIN_REGEX = build_regex(
-    [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", add_restrictions(r"other", lookaheads=[r"than"]), r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
+    [
+        add_restrictions(
+            build_alternation(
+                [
+                    r"remaining",
+                    r"remainder",
+                    r"residual",
+                    r"rest",
+                    add_restrictions(r"other", lookaheads=[r"than"]),
+                    r"balance",
+                ]
+            ),
+            lookaheads=[r"\s+\d"],
+            lookahead_sep="",
+        )
+    ]
 )
 
 CONSIST_REGEX = build_regex([r"(?:consist|compris)(?:s|ed|es|ing)?"])
@@ -99,7 +120,7 @@ TOTAL_MODIFIER_REGEX = build_regex(
         r"full",
         r"whole",
         r"employ(?:s|ed|ees?)?",
-        r"equal(?:s|ed|ing)?"
+        r"equal(?:s|ed|ing)?",
     ]
 )
 
@@ -107,7 +128,12 @@ QUALITATIVE_MULTIPLIERS = [
     (build_regex([r"almost", r"nearly", r"virtually"]), 0.95),
     (build_regex([r"(?:slightly|just)\s+(?:under|below)", r"less\s+than"]), 0.90),
     (build_regex([r"materially\s+less\s+than"]), 0.80),
-    (build_regex([r"(?:slightly|just)\s+(?:over|above)", r"(?:greater|more)\s+than"]), 1.10),
+    (
+        build_regex(
+            [r"(?:slightly|just)\s+(?:over|above)", r"(?:greater|more)\s+than"]
+        ),
+        1.10,
+    ),
     (build_regex([r"materially\s+(?:greater|more|higher)"]), 1.20),
 ]
 
@@ -126,7 +152,14 @@ WORKER_COUNT_REGEX = build_regex(
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 WORKER_TYPE_REGEX = build_regex(
-    [r"hourly", r"contracted", r"salar(?:y|ied)", r"(?:part|full)[- ]time", r"temporary", r"seasonal"]
+    [
+        r"hourly",
+        r"contracted",
+        r"salar(?:y|ied)",
+        r"(?:part|full)[- ]time",
+        r"temporary",
+        r"seasonal",
+    ]
 )
 DENOMINATOR_PREFIX = [r"(?:out\s+)?of"]
 DENOMINATOR_ADJECTIVES = [
@@ -141,7 +174,10 @@ DENOMINATOR_ADJECTIVES = [
 DENOMINATOR_NOUNS = [worker_term_pattern, r"population", r"unit"]
 DENOMINATOR_GAP = r"(?:[\w-]+\s+){0,2}"
 DENOMINATOR_COVERAGE_TERMS = build_compound(
-    [r"(?:currently?\s+)?", r"(?:not\s+)?"], # principally, primarily are stripped by the text cleaner
+    [
+        r"(?:currently?\s+)?",
+        r"(?:not\s+)?",
+    ],  # principally, primarily are stripped by the text cleaner
     [
         r"subject\s+to",
         r"covered",
@@ -155,20 +191,23 @@ PERCENT_PREFIX = r"\d+(?:\.\d+)?%\s+"
 # Capture 18% of our unionized workers, 20% of the employees represented
 UNION_DENOMINATOR_REGEX = build_regex(
     [
-        PERCENT_PREFIX + build_compound(
+        PERCENT_PREFIX
+        + build_compound(
             DENOMINATOR_PREFIX,
             DENOMINATOR_ADJECTIVES,
             DENOMINATOR_NOUNS,
             sep_prefix=r"\s+" + DENOMINATOR_GAP,
             sep_suffix=r"\s+" + DENOMINATOR_GAP,
         ),
-        PERCENT_PREFIX + build_compound(
+        PERCENT_PREFIX
+        + build_compound(
             DENOMINATOR_PREFIX,
             [r"union", r"bargaining\s+units?"],
             sep_prefix=r"\s+(?:our\s+|the\s+)?",
         ),
         # Strict: Do not match (18% of the workers are covered/represented)
-        PERCENT_PREFIX + build_compound(
+        PERCENT_PREFIX
+        + build_compound(
             DENOMINATOR_PREFIX,
             DENOMINATOR_NOUNS,
             DENOMINATOR_COVERAGE_TERMS,
@@ -179,31 +218,35 @@ UNION_DENOMINATOR_REGEX = build_regex(
 )
 
 DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
-SUBSET_REGEX = build_regex([
-    r"of\s+(?:which|whom|these|those)",
-    r"includ(?:ing|es?)",
-    r"compris(?:ing|es?|ed)",
-    r",\s+with",
-    r"from",
-    r"connection with",
-    r"within",
-    r"consist(?:ing|s|ed)?",
-    r":"
+SUBSET_REGEX = build_regex(
+    [
+        r"of\s+(?:which|whom|these|those)",
+        r"includ(?:ing|es?)",
+        r"compris(?:ing|es?|ed)",
+        r",\s+with",
+        r"from",
+        r"connection with",
+        r"within",
+        r"consist(?:ing|s|ed)?",
+        r":",
     ]
 )
 
-
-EXCEPT_REGEX = build_regex([
+EXCLUSIONS = [
     r"except",
     r"other\s+than",
-])
+    r"exclud(?:ing|es?|ed)",
+]
 
-OUTSIDE_REGEX = build_regex([
-    r"outside",
-    r"non",
-     r"except",
-    r"other\s+than",
-])
+EXCEPT_REGEX = build_regex(EXCLUSIONS)
+OUTSIDE_REGEX = build_regex(
+    [
+        r"outside",
+        r"non",
+    ]
+    + EXCLUSIONS
+)
+
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -328,11 +371,21 @@ class QualitativeTerm:
     def build_pattern(self) -> str:
         """Build regex pattern using build_compound."""
         if self.prefix_terms and self.suffix_terms:
-            return build_compound(self.prefix_terms, self.core_terms, self.suffix_terms, sep_prefix=self.prefix_gap, sep_suffix=self.suffix_gap)
+            return build_compound(
+                self.prefix_terms,
+                self.core_terms,
+                self.suffix_terms,
+                sep_prefix=self.prefix_gap,
+                sep_suffix=self.suffix_gap,
+            )
         elif self.prefix_terms:
-            return build_compound(self.prefix_terms, self.core_terms, sep_prefix=self.prefix_gap)
+            return build_compound(
+                self.prefix_terms, self.core_terms, sep_prefix=self.prefix_gap
+            )
         elif self.suffix_terms:
-            return build_compound(self.core_terms, self.suffix_terms, sep_suffix=self.suffix_gap)
+            return build_compound(
+                self.core_terms, self.suffix_terms, sep_suffix=self.suffix_gap
+            )
         else:
             # Just core terms with optional word boundary
             return to_build_alternation(self.core_terms)
@@ -443,7 +496,10 @@ QUANTITY_NOUNS = ["portion", "share", "number", "amount", "fraction", "percentag
 # Triggers only when needed as last resort, to avoid converting 100% x COUNT -> Qualitative.value
 QUALITATIVE_ALL_TERMS = [
     QualitativeTerm(
-        core_terms=["entirety", "totality",],
+        core_terms=[
+            "entirety",
+            "totality",
+        ],
         positive_pct=100.0,
         negated_pct=None,
         requires_suffix=False,
@@ -498,7 +554,13 @@ QUALITATIVE_ALL_TERMS = [
 QUALITATIVE_TERMS = [
     # ===== 95% TIER (Substantially All) =====
     QualitativeTerm(
-        core_terms=["all", r"(?:the\s+)?entire(?:ty)?", r"every", r"each", r"(?:the\s+)?totality"],
+        core_terms=[
+            "all",
+            r"(?:the\s+)?entire(?:ty)?",
+            r"every",
+            r"each",
+            r"(?:the\s+)?totality",
+        ],
         prefix_terms=["substantially", "virtually", "almost", "nearly", "practically"],
         positive_pct=95.0,
         negated_pct=None,
@@ -953,7 +1015,14 @@ class UnionExtractor:
         analysis.has_union_denominator = bool(UNION_DENOMINATOR_REGEX.search(text))
         analysis.is_relevant = False
 
-        def process_matches(pattern: re.Pattern, type_name, extractor_func=None, side_effect=None, update_working_text=False, revert=False):
+        def process_matches(
+            pattern: re.Pattern,
+            type_name,
+            extractor_func=None,
+            side_effect=None,
+            update_working_text=False,
+            revert=False,
+        ):
             nonlocal working_text
             current_iter_matches = list(pattern.finditer(working_text))
             if not current_iter_matches:
@@ -997,10 +1066,11 @@ class UnionExtractor:
 
                 if update_working_text:
                     working_text = "".join(chars)
-            if revert: # Do nothing with text
+            if revert:  # Do nothing with text
                 working_text = working_text
             elif not update_working_text:
                 working_text = "".join(chars)
+
         # 0. Subset indicators
         process_matches(
             SUBSET_REGEX,
@@ -1121,7 +1191,7 @@ class UnionExtractor:
                         # We don't know the specific country yet, but we have the language code.
                         geo_obj = GeoMatch(
                             text=val,
-                            region=Region.INTERNATIONAL, # Broad region, refined by analysis.py using code
+                            region=Region.INTERNATIONAL,  # Broad region, refined by analysis.py using code
                             geo_code=code,
                             source_type=GeoSource.INFERRED_UNION,
                         )
@@ -1370,8 +1440,12 @@ class UnionExtractor:
         )
 
         # Post-processing: Mark excluded geography
-        exclusion_matches = [m for m in analysis._matches if m["type"] in (MatchType.OUTSIDE, MatchType.EXCEPT)]
-        
+        exclusion_matches = [
+            m
+            for m in analysis._matches
+            if m["type"] in (MatchType.OUTSIDE, MatchType.EXCEPT)
+        ]
+
         if exclusion_matches:
             for m in analysis._matches:
                 if "geo_obj" in m:
@@ -1386,24 +1460,32 @@ class UnionExtractor:
                         if 0 <= m_start - e_end <= 25:
                             text_between = text[e_end:m_start]
                             # Allow spaces, "of", "the", "in", "for", and hyphens
-                            if re.fullmatch(r"(?:[\s,-]|of|the|in|for|at)*", text_between, re.IGNORECASE):
+                            if re.fullmatch(
+                                r"(?:[\s,-]|of|the|in|for|at)*",
+                                text_between,
+                                re.IGNORECASE,
+                            ):
                                 m["geo_obj"].is_excluded = True
                                 break
 
         # Propagate exclusion to chained entities (e.g. "Outside US, Canada and Mexico")
-        geo_matches = [m for m in analysis._matches if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT]
+        geo_matches = [
+            m
+            for m in analysis._matches
+            if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT
+        ]
         geo_matches.sort(key=lambda x: x["span"][0])
 
         for i in range(len(geo_matches) - 1):
             curr_m = geo_matches[i]
-            next_m = geo_matches[i+1]
+            next_m = geo_matches[i + 1]
 
             if curr_m["geo_obj"].is_excluded:
                 # Check text between
                 start = curr_m["span"][1]
                 end = next_m["span"][0]
                 text_between = text[start:end]
-                
+
                 # Allow comma, and, or, spaces
                 if re.fullmatch(r"(?:[\s,]|and|or|&)*", text_between, re.IGNORECASE):
                     next_m["geo_obj"].is_excluded = True
@@ -1429,7 +1511,12 @@ class UnionExtractor:
 
         # 4. Quantitative Coverage (Percentage/Ratio + Worker Context)
         # We check if there's a percentage/ratio AND (worker terms OR worker counts)
-        has_quant = bool(analysis.percentages or analysis.ratios or analysis.numbers or analysis.qualitative_terms)
+        has_quant = bool(
+            analysis.percentages
+            or analysis.ratios
+            or analysis.numbers
+            or analysis.qualitative_terms
+        )
         has_worker_context = bool(analysis.worker_terms or analysis.worker_counts)
 
         analysis.is_relevant = (
@@ -1441,7 +1528,9 @@ class UnionExtractor:
         )
 
         # If works councils are present without explicit union terms, assume coverage refers to them (neutral)
-        coverage_is_union = bool(analysis.coverage_terms) or bool(analysis.qualitative_membership_terms)
+        coverage_is_union = bool(analysis.coverage_terms) or bool(
+            analysis.qualitative_membership_terms
+        )
         if len(analysis.works_councils) > 0 and not (analysis.union_terms):
             coverage_is_union = False
 
@@ -1468,7 +1557,8 @@ class UnionExtractor:
 
                 # Filter ambiguous coverage terms that often appear with diversity (e.g. "representation", "members")
                 strong_coverage = [
-                    t for t in analysis.coverage_terms
+                    t
+                    for t in analysis.coverage_terms
                     if not any(sub in t.lower() for sub in ["represent", "member"])
                 ]
 
@@ -1495,9 +1585,7 @@ class UnionExtractor:
 
         # Post-processing: Resolve INT_* union matches using explicit geo matches in the same sentence
         explicit_map = {
-            m.geo_code: m.country
-            for m in analysis.geo_matches
-            if m.geo_code
+            m.geo_code: m.country for m in analysis.geo_matches if m.geo_code
         }
 
         if explicit_map:
@@ -1510,7 +1598,9 @@ class UnionExtractor:
                     allowed_countries = INT_LANGUAGE_MAP.get(m.geo_code)
                     if allowed_countries:
                         # Find intersection
-                        common = set(explicit_map.keys()).intersection(allowed_countries)
+                        common = set(explicit_map.keys()).intersection(
+                            allowed_countries
+                        )
                         if common:
                             # Pick one (e.g. the first one)
                             target_code = list(common)[0]
@@ -1525,7 +1615,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        #print(analysis)
+        # print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
@@ -1538,5 +1628,6 @@ class UnionExtractor:
                 if sp.strip():
                     final_parts.append(sp.strip())
         return final_parts
+
 
 # %%
