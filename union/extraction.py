@@ -226,6 +226,7 @@ class MatchType(Enum):
     DIVERSITY_TERM = "DIVERSITY_TERM"
     SUBSET = "SUBSET"
     WORKS_COUNCIL = "WORKS_COUNCIL"
+    EXCEPT = "EXCEPT"
 
 
 @dataclass
@@ -263,6 +264,7 @@ class SentenceAnalysis:
     diversity_terms: List[str] = field(default_factory=list)
     subset_indicators: List[str] = field(default_factory=list)
     remaining_others: List[str] = field(default_factory=list)
+    except_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1003,6 +1005,13 @@ class UnionExtractor:
             MatchType.REMAINING_OTHER,
             lambda m: m.group(0),
             lambda m, val: analysis.remaining_others.append(val),
+        )
+        # 0.2 Except terms
+        process_matches(
+            EXCEPT_REGEX,
+            MatchType.EXCEPT,
+            lambda m: m.group(0),
+            lambda m, val: analysis.except_terms.append(val),
         )
         analysis.has_subset_indicator = len(analysis.subset_indicators) > 0
         analysis.has_remaining_other = len(analysis.remaining_others) > 0

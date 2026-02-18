@@ -971,18 +971,10 @@ class ContextualNumberCleaner:
             r"facilit(?:y|ies)",
             r"plants?",
             r"offices?",
-            r"locations?",
-            r"propert(?:y|ies)",
             r"stores?",
             r"branch(?:es)?",
             r"warehouses?",
-            r"square",
-            r"sq\.?",
             r"restuarants?",
-            r"acres?",
-            r"leases?",
-            r"patents?",
-            r"trademarks?",
             r"vehicles?",
             r"trucks?",
             r"auto(?:mobiles|s)?",
@@ -992,11 +984,6 @@ class ContextualNumberCleaner:
             r"centers?",
             r"mines?",  # coal mines
             r"air(?:line|craft|port|plane)?s?",
-            r"customers",
-            r"suppliers?",
-            r"units?",
-            r"products",
-            r"disputes?",
             r"compan(?:y|ies)",
         ]
 
@@ -1214,9 +1201,40 @@ class ContextualNumberCleaner:
             rf"\b(?:{number_range}|{percent_range})\s+((?:{contract_context})?{contract_nouns})\b",
             re.IGNORECASE,
         )
-        
+
         # 11. Small digits followed by char (e.g. "4-S", "4 S")
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
+
+        other_terms = [
+            r"frameworks?",
+            r"countr(?:y|ies)",
+            r"regions?",
+            r"locations?",
+            r"units?",
+            r"customers",
+            r"suppliers?",
+            r"products",
+            r"disputes?",
+            r"acres?",
+            r"leases?",
+            r"patents?",
+            r"trademarks?",
+            r"propert(?:y|ies)",
+            r"squared?",
+            r"sq\.?",
+            r"km",
+            r"meters",
+            r"yards",
+            r"miles?",
+            r"kilometers?",
+            r"feet",
+            r"loans"
+            r"debt",
+        ]
+        self.other_terms_regex = re.compile(
+            rf"\b({number_range}|{percent_range})\s+[\'\w-]+\s+){{0,2}}({build_alternation(other_terms)})",
+            re.IGNORECASE,
+        )
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
@@ -1250,6 +1268,7 @@ class ContextualNumberCleaner:
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
+            paragraph = self.other_terms_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
