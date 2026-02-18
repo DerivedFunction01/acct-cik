@@ -3159,7 +3159,7 @@ COMPOSITE_REGION_MAP = {
         "PW",
     ],
     "IBERIA": ["PT", "ES"],
-    "EU_UNION": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE"],
+    "EU_UNION": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [
     c
@@ -3886,6 +3886,10 @@ def is_contained(container_key: Optional[str] = None, item_key: Optional[str] = 
 
     # Normalize item_key if it's a segment
     check_key = item_key.split("::")[0]
+
+    # Special case: Treat UK as distinct from EU_UNION to prevent removal of EU_UNION when UK is present
+    if container_key == "EU_UNION" and check_key == "GB":
+        return False
 
     # Check for Composite Countries (e.g. CIS containing RU)
     if container_key in COMPOSITE_COUNTRIES:
