@@ -612,6 +612,41 @@ class SimpleCoverageAnalyzer:
                 if dist < 100:
                     is_associated = True
 
+            # Handle Exception Logic (High Priority)
+            # "Except for 500, the rest are non-union" -> 500 is Covered
+            if analysis.except_terms and count_match:
+                # 1. Check local status of the count (Explicit)
+                dist_neg = get_min_distance_to_matches(
+                    count_match["span"],
+                    analysis._matches,
+                    [MatchType.NON_UNION, MatchType.NON_COVERAGE, MatchType.NEGATION],
+                )
+                dist_pos = get_min_distance_to_matches(
+                    count_match["span"], analysis._matches, UNION_MATCH_TYPES
+                )
+
+                is_exception_covered = None
+
+                if dist_neg < 50 and dist_neg < dist_pos:
+                    is_exception_covered = False  # Locally negated ("Except 500 non-union")
+                elif dist_pos < 50:
+                    is_exception_covered = True  # Locally union ("Except 500 union")
+                else:
+                    # 2. Infer from global context (Invert Main Clause)
+                    # If sentence has negation, Main is Negative -> Exception is Positive
+                    is_exception_covered = bool(analysis.negation_terms)
+
+                apply_coverage_logic(
+                    data,
+                    total=count,
+                    subset=count,
+                    is_negated=not is_exception_covered,
+                    notes=notes,
+                    note_fmt="Exception count ({status}): {subset}",
+                )
+                data["type"] = CoverageType.CALCULATED.value
+                return
+
             # Check for qualitative terms (e.g. "majority", "most")
             # If present, we assume the count is the Total, and the term describes the subset.
             qual_match = next(
