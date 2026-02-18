@@ -1448,7 +1448,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        print(analysis)
+        #print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
