@@ -1364,15 +1364,15 @@ class UnionExtractor:
         )
 
         # If works councils are present without explicit union terms, assume coverage refers to them (neutral)
-        coverage_is_union = bool(analysis.coverage_terms)
-        if analysis.works_councils and not (analysis.union_terms):
+        coverage_is_union = bool(analysis.coverage_terms) or bool(analysis.qualitative_membership_terms)
+        if len(analysis.works_councils) > 0 and not (analysis.union_terms):
             coverage_is_union = False
 
         analysis.is_union = (
             bool(analysis.union_terms)
             or coverage_is_union
             or has_negation
-            or bool(analysis.qualitative_membership_terms)
+            # or bool(analysis.qualitative_membership_terms) # repeat
             or has_union_geo
         )
 
@@ -1448,7 +1448,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:

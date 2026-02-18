@@ -47,7 +47,7 @@ class CORE(Enum):
     BENEVOLENT = r"Benevolent"
     LODGE = r"Lodges?"
     WORKS_COUNCIL = r"Works\s+Councils?"
-    CO_DET_RIGHTS = r"Co[- ]?Determination\s+Rights?"
+    CO_DET_RIGHTS = r"Co[- ]?Determination"
     
 WORKER_TERMS = [
     r"Workers?",
