@@ -2269,6 +2269,7 @@ def determine_geo_context(
     last_context: Optional[Dict[str, Any]],
     current_idx: int,
     last_idx: int,
+    domestic_country_code: str = "US",
 ) -> Dict[str, Any]:
     """
     Resolves geographic context based on explicit matches, union names,
@@ -2306,6 +2307,16 @@ def determine_geo_context(
         conflict_notes = []
 
         for m in explicit_matches:
+            if m.is_excluded:
+                if m.geo_code == domestic_country_code:
+                    # Map "Outside Domestic" -> International
+                    m.geo_code = "INT"
+                    m.country = "International"
+                    m.region = Region.INTERNATIONAL
+                else:
+                    # Skip other excluded regions for now to avoid false positives
+                    continue
+
             if m.city:
                 if m.geo_code not in locations_by_country:
                     locations_by_country[m.geo_code] = set()
@@ -5539,7 +5550,7 @@ class UnionAnalyzer:
         """
         Local wrapper for geographic context determination.
         """
-        return determine_geo_context(analysis, last_context, current_idx, last_idx)
+        return determine_geo_context(analysis, last_context, current_idx, last_idx, self.domestic_country_code)
 
     def analyze_paragraph(
         self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None

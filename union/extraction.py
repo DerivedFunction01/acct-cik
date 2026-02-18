@@ -1375,6 +1375,10 @@ class UnionExtractor:
         if exclusion_matches:
             for m in analysis._matches:
                 if "geo_obj" in m:
+                    # Only apply to explicit geography
+                    if m["geo_obj"].source_type != GeoSource.EXPLICIT:
+                        continue
+
                     m_start = m["span"][0]
                     for excl in exclusion_matches:
                         e_end = excl["span"][1]
@@ -1385,6 +1389,24 @@ class UnionExtractor:
                             if re.fullmatch(r"(?:[\s,-]|of|the|in|for|at)*", text_between, re.IGNORECASE):
                                 m["geo_obj"].is_excluded = True
                                 break
+
+        # Propagate exclusion to chained entities (e.g. "Outside US, Canada and Mexico")
+        geo_matches = [m for m in analysis._matches if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT]
+        geo_matches.sort(key=lambda x: x["span"][0])
+
+        for i in range(len(geo_matches) - 1):
+            curr_m = geo_matches[i]
+            next_m = geo_matches[i+1]
+
+            if curr_m["geo_obj"].is_excluded:
+                # Check text between
+                start = curr_m["span"][1]
+                end = next_m["span"][0]
+                text_between = text[start:end]
+                
+                # Allow comma, and, or, spaces
+                if re.fullmatch(r"(?:[\s,]|and|or|&)*", text_between, re.IGNORECASE):
+                    next_m["geo_obj"].is_excluded = True
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms
