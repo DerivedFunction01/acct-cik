@@ -3875,11 +3875,18 @@ def _build_code_to_region_map():
 
 _CODE_TO_REGION, _CODE_TO_REGION_CODE = _build_code_to_region_map()
 
-def is_contained(container_key: Optional[str] = None, item_key: Optional[str] = None, domestic_country_code: str = "US") -> bool:
+def is_contained(
+    container_key: Optional[str] = None,
+    item_key: Optional[str] = None,
+    domestic_country_code: str = "US",
+    excluded_keys: Optional[Set[str]] = None,
+) -> bool:
     """
     Checks if item_key is geographically contained within container_key.
     """
     if not container_key or not item_key:
+        return False
+    if excluded_keys and item_key in excluded_keys:
         return False
     if container_key == item_key:
         return True

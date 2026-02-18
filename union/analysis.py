@@ -5989,14 +5989,14 @@ class UnionAnalyzer:
 
         return parts, sentence_total, proximity_map
 
-    def _is_contained(self, container_key: str, item_key: str) -> bool:
+    def _is_contained(self, container_key: str, item_key: str, excluded_keys: Optional[Set[str]] = None) -> bool:
         """
         Checks if item_key is geographically contained within container_key.
         """
-        return is_contained(container_key, item_key, self.domestic_country_code)
+        return is_contained(container_key, item_key, self.domestic_country_code, excluded_keys)
 
     def _remove_container_regions(
-        self, entities: List[Dict[str, Any]]
+        self, entities: List[Dict[str, Any]], excluded_keys: Optional[Set[str]] = None
     ) -> List[Dict[str, Any]]:
         """
         Removes entities that are containers of other entities in the list.
@@ -6013,7 +6013,7 @@ class UnionAnalyzer:
                 if i == j:
                     continue
 
-                if self._is_contained(e1["key"], e2["key"]):
+                if self._is_contained(e1["key"], e2["key"], excluded_keys):
                     is_container_of_others = True
                     break
 
@@ -6024,7 +6024,7 @@ class UnionAnalyzer:
         return filtered if filtered else entities
 
     def _preprocess_redundant_containers(
-        self, entities: List[Dict[str, Any]], sentence_total: Optional[float]
+        self, entities: List[Dict[str, Any]], sentence_total: Optional[float], excluded_keys: Optional[Set[str]] = None
     ) -> Tuple[List[Dict[str, Any]], str]:
         """
         If no total was detected, and we have a region entity that contains all other
@@ -6042,7 +6042,7 @@ class UnionAnalyzer:
                 for j, other in enumerate(entities):
                     if i == j:
                         continue
-                    if not self._is_contained(e["key"], other["key"]):
+                    if not self._is_contained(e["key"], other["key"], excluded_keys):
                         contains_all = False
                         break
 
@@ -6086,7 +6086,7 @@ class UnionAnalyzer:
 
         # --- Preprocess: Remove redundant container regions ---
         entities, preprocess_note = self._preprocess_redundant_containers(
-            entities, sentence_total
+            entities, sentence_total, excluded_keys
         )
         base_notes = [preprocess_note] if preprocess_note else []
 
@@ -6132,7 +6132,7 @@ class UnionAnalyzer:
                         if children:
                             # Filter out containers (e.g. CIS) if constituents (e.g. RU) are present
                             # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
-                            valid_children = self._remove_container_regions(children)
+                            valid_children = self._remove_container_regions(children, excluded_keys)
 
                             child_map, c_note = weighted_division(
                                 c["val"],
@@ -6182,7 +6182,7 @@ class UnionAnalyzer:
                     filtered_note = ""
                     cluster_notes = []
                     for c, group in zip(s_counts, groups):
-                        valid_group = self._remove_container_regions(group)
+                        valid_group = self._remove_container_regions(group, excluded_keys)
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
                         group_map, g_note = weighted_division(
@@ -6207,7 +6207,7 @@ class UnionAnalyzer:
         ) -> Optional[Tuple[Dict[str, float], str]]:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
-                valid_entities = self._remove_container_regions(curr_entities)
+                valid_entities = self._remove_container_regions(curr_entities, excluded_keys)
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
