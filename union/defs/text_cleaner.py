@@ -1232,7 +1232,7 @@ class ContextualNumberCleaner:
             r"debt",
         ]
         self.other_terms_regex = re.compile(
-            rf"\b({number_range}|{percent_range})\s+[\'\w-]+\s+){{0,2}}({build_alternation(other_terms)})",
+            rf"\b({number_range}|{percent_range})\s+((?:[\'\w-]+\s+){{0,2}}{build_alternation(other_terms)})",
             re.IGNORECASE,
         )
 
@@ -1268,7 +1268,7 @@ class ContextualNumberCleaner:
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
-            paragraph = self.other_terms_regex.sub(r" \1 ", paragraph)
+            paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
