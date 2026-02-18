@@ -410,6 +410,7 @@ NEGATION_TERMS = [
     r"never",
     r"without",
     r"none",
+    r"outside",
 ]
 
 COVERAGE_TERMS = [
@@ -440,7 +441,6 @@ NON_COVERAGE_PHRASES = [
     CORE.ATWILL,
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
-    r"outside",
     build_compound(
         NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + UNION_PHRASES, sep_prefix=GAP
     ),
