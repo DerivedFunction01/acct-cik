@@ -66,7 +66,7 @@ def normalize_unicode(text: str) -> str:
 class WebTextCleaner:
     false_positives = [
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
-        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "Europe"),
+        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "European U"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
         (re.compile(r"\bthe\s+Union\s+of\s+south\s+africa", re.IGNORECASE), "South Africa"), # South africa
@@ -1935,7 +1935,7 @@ def create_test_cases() -> List[TestCase]:
             name="False Positive - European Union",
             input_text="The European Union has strict regulations.",
             validations=[
-                (TestType.CONTAINS, "Europe", None),
+                (TestType.CONTAINS, "EUU", None),
                 (TestType.NOT_CONTAINS, "European Union", None),
             ],
         ),

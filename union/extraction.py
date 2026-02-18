@@ -1382,7 +1382,7 @@ class UnionExtractor:
                         if 0 <= m_start - e_end <= 25:
                             text_between = text[e_end:m_start]
                             # Allow spaces, "of", "the", "in", "for", and hyphens
-                            if re.fullmatch(r"[\s,-]*(?:of|the|in|for)?[\s,-]*", text_between, re.IGNORECASE):
+                            if re.fullmatch(r"(?:[\s,-]|of|the|in|for|at)*", text_between, re.IGNORECASE):
                                 m["geo_obj"].is_excluded = True
                                 break
 

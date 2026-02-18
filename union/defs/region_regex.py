@@ -712,6 +712,12 @@ EUROPE = {
         code="EU",
     ),
     Nation(
+        "European Union",
+        ["European U"],
+        Region.EUROPE,
+        code="EU_UNION",
+    ),
+    Nation(
         "Nordics",
         ["nordics", "nordic", "scandinavia", "scandinavian"],
         Region.EUROPE,
@@ -3153,6 +3159,7 @@ COMPOSITE_REGION_MAP = {
         "PW",
     ],
     "IBERIA": ["PT", "ES"],
+    "EU_UNION": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [
     c
