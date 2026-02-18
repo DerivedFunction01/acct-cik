@@ -428,17 +428,28 @@ SUPPLIER_REGEX = build_regex(SUPPLIER_TERMS)
 
 NON_COVERAGE_PHRASES = [
     CORE.ATWILL,
-    r"outside",
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
     build_compound(
-        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + UNION_PHRASES, sep_prefix=GAP
+        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP
     ),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
 # Negation patterns
-NON_UNION_REGEX = build_regex([CORE.NONUNION])
+NON_UNION_REGEX = build_regex(
+    [
+        CORE.NONUNION,
+        build_compound(
+            [
+                NEGATION_TERMS,
+                r"outside"
+            ],
+            UNION_PHRASES,
+            sep_prefix=GAP,
+        ),
+    ]
+)
 
 # Exclusion patterns to discard entire paragraphs
 EXCLUSION_MAP = {
