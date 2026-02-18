@@ -1328,6 +1328,7 @@ class ConcisenessCleaner:
             (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
             (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
             (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
+            (re.compile(r"\bnon[- ]domestic(?:ally)?\b", re.IGNORECASE), "international"),
         ]
 
         # Strip "international/national" from "labor unions" if union is lowercase

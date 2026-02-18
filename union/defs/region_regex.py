@@ -2880,7 +2880,7 @@ INTERNATIONAL = {
     ),
     Nation(
         Region.DOMESTIC.value,
-        ["domestic", "domestically"],
+        ["domestic", "domestically", "national"],
         Region.DOMESTIC,
         [],
         [],
