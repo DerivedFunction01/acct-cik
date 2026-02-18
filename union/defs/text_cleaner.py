@@ -1328,7 +1328,16 @@ class ConcisenessCleaner:
             (re.compile(r"\bUS\s+Gov(?:ernment)?\b", re.IGNORECASE), "Government"),
             (re.compile(r"\bUS\s+SEC\b", re.IGNORECASE), "SEC"),
             (re.compile(r"\bUS\s+Code\b", re.IGNORECASE), "USC"),
-            (re.compile(r"\bnon[- ]domestic(?:ally)?\b", re.IGNORECASE), "international"),
+            (
+                re.compile(r"\bnon[- ]?domestic(?:ally)?\b", re.IGNORECASE),
+                "international",
+            ),
+            (
+                re.compile(
+                    r"\b(non[- ](?:[\'\w-]+\s+){0,1})domestic\b", re.IGNORECASE
+                ),
+                r"\1",
+            ),
         ]
 
         # Strip "international/national" from "labor unions" if union is lowercase
@@ -2280,6 +2289,16 @@ def create_test_cases() -> List[TestCase]:
             validations=[
                 (TestType.CONTAINS, "The Company announced", None),
                 (TestType.CONTAINS, "Ten employees", None),
+            ],
+        ),
+        # Test 35: Non-Domestic Mapping
+        TestCase(
+            name="Non-Domestic Mapping",
+            input_text="We have non-domestic operations and non-US domestic sales.",
+            validations=[
+                (TestType.CONTAINS, "international operations", None),
+                (TestType.CONTAINS, "non-US sales", None),
+                (TestType.NOT_CONTAINS, "domestic sales", None),
             ],
         ),
     ]
