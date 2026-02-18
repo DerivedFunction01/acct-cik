@@ -406,7 +406,6 @@ COVERAGE_TERMS = [
     r"represent(?:ed|tion)",
     r"covered",
     r"affiliat(?:ed|ion)",
-    r"union(?:ized)?",
     r"subject\s+to",
     r"(?:are|were)\s+under",
     r"members?\s+of",
