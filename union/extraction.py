@@ -79,7 +79,7 @@ NEGATION_REGEX = build_regex(
 )
 
 REMAIN_REGEX = build_regex(
-    [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", r"other", r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
+    [add_restrictions(build_alternation([r"remaining", r"remainder", r"residual", r"rest", add_restrictions(r"other", lookaheads=[r"than"]), r"balance"]), lookaheads=[r"\s+\d"], lookahead_sep="")]
 )
 
 CONSIST_REGEX = build_regex([r"(?:consist|compris)(?:s|ed|es|ing)?"])
@@ -191,6 +191,12 @@ SUBSET_REGEX = build_regex([
     r":"
     ]
 )
+
+
+EXCEPT_REGEX = build_regex([
+    r"except",
+    r"other\s+than",
+])
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
