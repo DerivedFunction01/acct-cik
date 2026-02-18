@@ -46,8 +46,9 @@ class CORE(Enum):
     FRATERNAL = r"Fraternal"
     BENEVOLENT = r"Benevolent"
     LODGE = r"Lodges?"
-
-
+    WORKS_COUNCIL = r"Works\s+Councils?"
+    CO_DET_RIGHTS = r"Co[- ]?Determination\s+Rights?"
+    
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
@@ -217,6 +218,15 @@ COLLECTIVE_BARGAIN = build_alternation(
         build_compound([r"industry(?:[- ]wide)?"], [CORE.BARGAIN])
     ]
 )
+
+WORK_COUNCIL_TERMS = [
+    CORE.WORKS_COUNCIL,
+    r"EWC",
+    CORE.CO_DET_RIGHTS
+]
+
+WORKS_REGEX = build_regex(WORK_COUNCIL_TERMS)
+
 UNION_PHRASES = [
     # collective + bargain + agreement
     COLLECTIVE_BARGAIN,
@@ -430,26 +440,15 @@ NON_COVERAGE_PHRASES = [
     CORE.ATWILL,
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
+    r"outside",
     build_compound(
-        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP
+        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + UNION_PHRASES, sep_prefix=GAP
     ),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
 # Negation patterns
-NON_UNION_REGEX = build_regex(
-    [
-        CORE.NONUNION,
-        build_compound(
-            [
-                NEGATION_TERMS,
-                r"outside"
-            ],
-            UNION_PHRASES,
-            sep_prefix=GAP,
-        ),
-    ]
-)
+NON_UNION_REGEX = build_regex([CORE.NONUNION])
 
 # Exclusion patterns to discard entire paragraphs
 EXCLUSION_MAP = {
