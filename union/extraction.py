@@ -233,8 +233,9 @@ SUBSET_REGEX = build_regex(
 )
 
 EXCLUSIONS = [
-    r"except",
+    r"except(?:\s+for)?",
     r"other\s+than",
+    r"apart\s+from",
     r"exclud(?:ing|es?|ed)",
 ]
 
@@ -246,6 +247,10 @@ OUTSIDE_REGEX = build_regex(
     ]
     + EXCLUSIONS
 )
+
+EXCLUSION_CONNECTOR_REGEX = re.compile(r"(?:[\s,-]|of|the|in|for|at)*", re.IGNORECASE)
+EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*$", re.IGNORECASE)
+CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&)*", re.IGNORECASE)
 
 
 class MatchType(Enum):
@@ -1456,15 +1461,22 @@ class UnionExtractor:
                     m_start = m["span"][0]
                     for excl in exclusion_matches:
                         e_end = excl["span"][1]
-                        # Check if exclusion is immediately before (within 25 chars)
-                        if 0 <= m_start - e_end <= 25:
+                        dist = m_start - e_end
+                        
+                        # Check if exclusion is before (within reasonable distance)
+                        if 0 <= dist <= 60:
                             text_between = text[e_end:m_start]
-                            # Allow spaces, "of", "the", "in", "for", and hyphens
-                            if re.fullmatch(
-                                r"(?:[\s,-]|of|the|in|for|at)*",
-                                text_between,
-                                re.IGNORECASE,
-                            ):
+                            is_connected = False
+                            
+                            # 1. Simple connector (short distance)
+                            if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                is_connected = True
+                            # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
+                            elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between):
+                                if len(text_between.split()) <= 6:
+                                    is_connected = True
+
+                            if is_connected:
                                 m["geo_obj"].is_excluded = True
                                 break
 
@@ -1487,7 +1499,7 @@ class UnionExtractor:
                 text_between = text[start:end]
 
                 # Allow comma, and, or, spaces
-                if re.fullmatch(r"(?:[\s,]|and|or|&)*", text_between, re.IGNORECASE):
+                if CHAINED_CONNECTOR_REGEX.fullmatch(text_between):
                     next_m["geo_obj"].is_excluded = True
 
         # Determine relevancy
