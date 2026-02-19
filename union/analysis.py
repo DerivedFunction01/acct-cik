@@ -6753,6 +6753,28 @@ class UnionAnalyzer:
         ]
         raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
 
+        # Pre-calculate segments for exclusion refinement
+        segments = get_text_segments(analysis.text)
+        delimiter_spans = []
+        for s_start, s_end, delim_text in segments:
+            if delim_text:
+                d_start = s_end - len(delim_text)
+                delimiter_spans.append((d_start, s_end))
+
+        def range_has_count(start, end):
+            for m in analysis._matches:
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER):
+                    if start <= m["span"][0] < end:
+                        return True
+            return False
+
+        def range_has_remaining(start, end):
+            for m in analysis._matches:
+                if m["type"] == MatchType.REMAINING_OTHER:
+                    if start <= m["span"][0] < end:
+                        return True
+            return False
+
         # Align matches (assuming order preservation in extraction)
         if len(geo_match_objs) == len(raw_geo_matches):
             # Pre-calculate strong codes for refinement
@@ -6766,7 +6788,28 @@ class UnionAnalyzer:
                     strong_codes[obj.geo_code] = obj
 
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
-                if obj.is_excluded:
+                is_effectively_excluded = obj.is_excluded
+
+                # Refine exclusion: If exclusion is a delimiter starting a segment with counts, treat as valid
+                if is_effectively_excluded and obj.exclusion_group_id:
+                    excl_match = next((m for m in analysis._matches if id(m) == obj.exclusion_group_id), None)
+                    if excl_match:
+                        e_start, e_end = excl_match["span"]
+                        is_delimiter = False
+                        for d_start, d_end in delimiter_spans:
+                            if max(e_start, d_start) < min(e_end, d_end):
+                                is_delimiter = True
+                                break
+                        
+                        if is_delimiter:
+                            g_start = raw["span"][0]
+                            for s_start, s_end, _ in segments:
+                                if s_start <= g_start < s_end:
+                                    if range_has_count(s_start, s_end) and not range_has_remaining(s_start, s_end):
+                                        is_effectively_excluded = False
+                                    break
+
+                if is_effectively_excluded:
                     # If remaining is detected, the exclusion is likely a delimiter for subtraction
                     # e.g. "Total, except X, remaining Y". X is part of Total.
                     if not analysis.has_remaining_other:
