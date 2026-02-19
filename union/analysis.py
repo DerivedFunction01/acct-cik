@@ -165,6 +165,9 @@ def get_text_segments(text: str) -> List[Tuple[int, int, str]]:
     return segments
 
 
+def get_midpoint(span: Tuple[int, int]) -> float:
+    return (span[0] + span[1]) / 2
+
 def get_min_distance_to_matches(
     target_span: Tuple[int, int],
     matches: List[Dict[str, Any]],
@@ -1893,7 +1896,7 @@ class ComplexCoverageAnalyzer:
         # Check which segments have coverage terms
         segments_with_context = set()
         for m in positives + negatives:
-            mid = (m["span"][0] + m["span"][1]) / 2
+            mid = get_midpoint(m["span"])
             s_idx = get_seg_idx(mid)
             segments_with_context.add(s_idx)
 
@@ -1985,7 +1988,7 @@ class ComplexCoverageAnalyzer:
             return bool(self.subset_regex.search(window))
 
         def get_segment_range(span):
-            mid = (span[0] + span[1]) / 2
+            mid = get_midpoint(span)
             for start, end, _ in segments:
                 if start <= mid < end:
                     return start, end
@@ -2061,7 +2064,7 @@ class ComplexCoverageAnalyzer:
 
         for c in _counts:
             # Find segment index
-            c_mid = (c["span"][0] + c["span"][1]) / 2
+            c_mid = get_midpoint(c["span"])
             seg_idx = get_seg_idx(c_mid)
 
             seg_text = ""
@@ -2080,7 +2083,7 @@ class ComplexCoverageAnalyzer:
             for la in self.local_assignments:
                 c = la["match"]
                 # Calculate segment info for these too
-                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_mid = get_midpoint(c["span"])
                 seg_idx = get_seg_idx(c_mid)
                 seg_text = ""
                 if 0 <= seg_idx < len(segments):
@@ -6335,16 +6338,16 @@ class UnionAnalyzer:
             # Pre-calculate counts per segment
             counts_in_segment = {}
             for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_mid = get_midpoint(c["span"])
                 s_idx = get_seg_idx(c_mid)
                 counts_in_segment[s_idx] = counts_in_segment.get(s_idx, 0) + 1
 
             pairs = []
             for c in parts:
-                c_mid = (c["span"][0] + c["span"][1]) / 2
+                c_mid = get_midpoint(c["span"])
                 c_seg = get_seg_idx(c_mid)
                 for e in entities:
-                    e_mid = (e["span"][0] + e["span"][1]) / 2
+                    e_mid = get_midpoint(e["span"])
                     e_seg = get_seg_idx(e_mid)
                     dist = abs(c_mid - e_mid)
 
@@ -6823,22 +6826,12 @@ class UnionAnalyzer:
                         should_exclude = False
                         # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
                         # e.g. "excluding Japan, the remaining..."
-                        rem_matches = [m for m in analysis._matches if m["type"] == MatchType.REMAINING_OTHER]
-                        if rem_matches:
-                            g_start, g_end = raw["span"]
-                            min_dist = float("inf")
-                            for rm in rem_matches:
-                                r_start, r_end = rm["span"]
-                                dist = 0
-                                if r_end <= g_start:
-                                    dist = g_start - r_end
-                                elif g_end <= r_start:
-                                    dist = r_start - g_end
-                                if dist < min_dist:
-                                    min_dist = dist
-                            
-                            if min_dist < 40:
-                                should_exclude = True
+                        min_dist = get_min_distance_to_matches(
+                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER]
+                        )
+                        
+                        if min_dist < 40:
+                            should_exclude = True
 
                     if should_exclude:
                         if obj.geo_code:
@@ -6979,9 +6972,9 @@ class UnionAnalyzer:
         used_t = set()
         pairs = []
         for c in counts:
-            c_mid = (c["span"][0] + c["span"][1]) / 2
+            c_mid = get_midpoint(c["span"])
             for t in types:
-                t_mid = (t["span"][0] + t["span"][1]) / 2
+                t_mid = get_midpoint(t["span"])
                 dist = abs(c_mid - t_mid)
                 pairs.append((dist, c, t))
 
