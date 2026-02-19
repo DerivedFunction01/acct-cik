@@ -1483,7 +1483,7 @@ class UnionExtractor:
 
                         e_end = excl["span"][1]
                         dist = m_start - e_end
-                        
+
                         # Check if exclusion is before (within reasonable distance)
                         if 0 <= dist <= 60:
                             text_between = text[e_end:m_start]
@@ -1493,25 +1493,38 @@ class UnionExtractor:
                                 continue
 
                             is_connected = False
-                            
+
                             # Special handling for "but" - requires very short gap
                             if excl["val"].lower() == "but":
-                                if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(
+                                    text_between
+                                ):
                                     is_connected = True
                             else:
                                 # 1. Simple connector (short distance)
-                                if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(
+                                    text_between
+                                ):
                                     is_connected = True
                                 # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
-                                elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between):
-                                    if len(text_between.split()) <= 6:
-                                        is_connected = True
+                                # Only applies to the FIRST geo match after the exclusion term,
+                                # to avoid false associations like "Excluding Japan, and our operations in China"
+                                elif (
+                                    not excl.get("_extended_connector_used")
+                                    and EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(
+                                        text_between
+                                    )
+                                    and len(text_between.split()) <= 6
+                                ):
+                                    is_connected = True
 
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
                                 m["geo_obj"].exclusion_group_id = id(excl)
                                 if excl["type"] == MatchType.OUTSIDE:
                                     m["geo_obj"].is_strict = True
+                                # Mark that this exclusion has consumed its extended connector slot
+                                excl["_extended_connector_used"] = True
                                 break
 
         # 21. Non-Geo Exclusion (Specific)
