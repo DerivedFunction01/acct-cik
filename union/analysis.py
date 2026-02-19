@@ -325,7 +325,7 @@ def should_infer_complement(percentage: float, is_qualitative: bool, is_negated:
     if has_exceptions:
         return False
     if is_negated and is_qualitative:
-        if 10.0 < percentage < 90.0:
+        if 5.0 < percentage < 90.0:
             return False
     return True
 
