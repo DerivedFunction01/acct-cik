@@ -377,7 +377,8 @@ def split_ambiguous_entry(item: Dict[str, Any]) -> List[Dict[str, Any]]:
         "negated": False, # Reset negation so it's treated as a fresh unknown record
         "negation_type": None,
         "is_dummy_percent": False, # Eligible for new dummy rate
-        "note": (cov.get("note") or "") + " | Split Part B: Unknown remainder"
+        "note": (cov.get("note") or "") + " | Split Part B: Unknown remainder",
+        "is_exception_remainder": has_exceptions,
     })
     # Ensure it's marked as a union record so Tracker picks it up
     item_b["is_union"] = True 
@@ -2848,6 +2849,9 @@ class Entry:
     related_geo_codes: List[str] = field(default_factory=list)
     is_dummy_percent: bool = False
     ambiguity_multiplier: Optional[float] = None
+    is_exception_entry: bool = False
+    exception_limit_percent: Optional[float] = None
+    is_exception_remainder: bool = False
 
     # Hash
     def __hash__(self):
@@ -3095,6 +3099,9 @@ class Tracker:
         sentence_index: int = -1,
         keyword_count: int = 0,
         ambiguity_multiplier: Optional[float] = None,
+        is_exception_entry: bool = False,
+        exception_limit_percent: Optional[float] = None,
+        is_exception_remainder: bool = False,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -3189,6 +3196,9 @@ class Tracker:
                 sent_idx=sentence_index,
                 related_geo_codes=related_codes,
                 ambiguity_multiplier=ambiguity_multiplier,
+                is_exception_entry=is_exception_entry,
+                exception_limit_percent=exception_limit_percent,
+                is_exception_remainder=is_exception_remainder,
             )
         )
 
@@ -5871,6 +5881,10 @@ class UnionAnalyzer:
                 cov_data["ambiguity_multiplier"] = 1.0
                 cov_data["note"] += " (Positive coverage implied)"
 
+            cov_data["is_exception_entry"] = True
+            if main_pct is not None:
+                cov_data["exception_limit_percent"] = max(0.0, 100.0 - main_pct)
+
             item = {
                 "sentence": sentence_text,
                 "keyword_matched": analysis.union_terms or None,
@@ -6002,6 +6016,9 @@ class UnionAnalyzer:
                     sentence_index=item.get("sentence_index", -1),
                     keyword_count=len(item.get("keyword_matched") or []),
                     ambiguity_multiplier=cov.get("ambiguity_multiplier"),
+                    is_exception_entry=cov.get("is_exception_entry", False),
+                    exception_limit_percent=cov.get("exception_limit_percent"),
+                    is_exception_remainder=cov.get("is_exception_remainder", False),
                 )
 
             # Resolve missing coverage data using collected totals
