@@ -2528,10 +2528,12 @@ def determine_geo_context(
 
         unusual_combo = False
         conflict_notes = []
+        domestic_negated = False
 
         for m in explicit_matches:
             if m.is_excluded and not analysis.has_remaining_other:
-                if m.geo_code == domestic_country_code and m.is_strict:
+                if m.geo_code == domestic_country_code:
+                    domestic_negated = True
                     # Map "Outside Domestic" -> International
                     m.geo_code = "INT"
                     m.country = "International"
@@ -2665,6 +2667,7 @@ def determine_geo_context(
                 [m.text for m in union_matches] if union_matches else None
             ),
             "note": "; ".join(conflict_notes) if conflict_notes else None,
+            "domestic_negated": domestic_negated,
         }
 
     # 2. Inferred from Union Name (Medium Priority)
@@ -2910,6 +2913,7 @@ class Tracker:
         ] = {}
         self._limiter_countries: Set = {"CN", "VN"}
         self.is_using_virtual: bool = False
+        self.domestic_is_negated: bool = False
 
     def _calculate_boosted_rate(
         self, base_rate: float, key: Optional[str] = None
@@ -3027,6 +3031,9 @@ class Tracker:
                     self.country_totals[code] = count
 
     def register_mentions(self, geo_context: Dict[str, Any]):
+        if geo_context.get("domestic_negated"):
+            self.domestic_is_negated = True
+
         countries = geo_context.get("countries", [])
         for c in countries:
             if c.get("code"):
@@ -3132,6 +3139,9 @@ class Tracker:
         """
         if sentence_index < 0:
             return
+
+        if geo_context.get("domestic_negated"):
+            self.domestic_is_negated = True
 
         self.total_union_keywords += keyword_count
 
@@ -4592,6 +4602,10 @@ class Tracker:
         for d in DOMESTIC_SET:
             if d in unique_entities:
                 unique_entities.remove(d)
+
+        # Safeguard: If domestic is negated, ensure we have at least one external entity
+        if self.domestic_is_negated and not unique_entities:
+            unique_entities.add("INT")
 
         # --- Filter duplicates/aliases/containers BEFORE calculation ---
         to_remove = set()
