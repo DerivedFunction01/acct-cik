@@ -616,148 +616,148 @@ class SimpleCoverageAnalyzer:
                 note_fmt="Count ({status}): {subset}. Inferred total {total}.",
             )
 
-    def _handle_two_counts(
-        self,
-        analysis: SentenceAnalysis,
-        effective_counts: List[float],
-        data: Dict[str, Any],
-        notes: List[str],
-    ):
-        """Handles cases with exactly two counts and no percentages."""
-        c1, c2 = effective_counts[0], effective_counts[1]
+    # def _handle_two_counts(
+    #     self,
+    #     analysis: SentenceAnalysis,
+    #     effective_counts: List[float],
+    #     data: Dict[str, Any],
+    #     notes: List[str],
+    # ):
+    #     """Handles cases with exactly two counts and no percentages."""
+    #     c1, c2 = effective_counts[0], effective_counts[1]
 
-        m1 = next(
-            (
-                m
-                for m in analysis._matches
-                if (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == c1
-            ),
-            None,
-        )
-        m2 = next(
-            (
-                m
-                for m in analysis._matches
-                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
-                and m["val"] == c2
-                and m is not m1
-            ),
-            None,
-        )
+    #     m1 = next(
+    #         (
+    #             m
+    #             for m in analysis._matches
+    #             if (MatchType.WORKER_COUNT, MatchType.NUMBER) and m["val"] == c1
+    #         ),
+    #         None,
+    #     )
+    #     m2 = next(
+    #         (
+    #             m
+    #             for m in analysis._matches
+    #             if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+    #             and m["val"] == c2
+    #             and m is not m1
+    #         ),
+    #         None,
+    #     )
 
-        is_subset = True
-        is_exception = False
-        if m1 and m2:
-            if m1["span"][0] > m2["span"][0]:
-                m1, m2 = m2, m1
-            text_between = analysis.text[m1["span"][1] : m2["span"][0]]
+    #     is_subset = True
+    #     is_exception = False
+    #     if m1 and m2:
+    #         if m1["span"][0] > m2["span"][0]:
+    #             m1, m2 = m2, m1
+    #         text_between = analysis.text[m1["span"][1] : m2["span"][0]]
 
-            if OF_REGEX.search(text_between) or check_local_regex(
-                m1["span"], analysis.text, OF_REGEX, backward=25, forward=0
-            ):
-                is_subset = True
-            elif EXCEPT_REGEX.search(text_between):
-                is_subset = True
-                is_exception = True
-                notes.append("Logic: Exception detected -> Subset with inverted status")
-            elif re.search(r"\band\b", text_between, re.IGNORECASE):
-                # Check for multiple specific unions to infer disjoint sets (Sum)
-                union_matches = [
-                    m
-                    for m in analysis._matches
-                    if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
-                ]
-                unique_unions = {m["val"].lower() for m in union_matches}
+    #         if OF_REGEX.search(text_between) or check_local_regex(
+    #             m1["span"], analysis.text, OF_REGEX, backward=25, forward=0
+    #         ):
+    #             is_subset = True
+    #         elif EXCEPT_REGEX.search(text_between):
+    #             is_subset = True
+    #             is_exception = True
+    #             notes.append("Logic: Exception detected -> Subset with inverted status")
+    #         elif re.search(r"\band\b", text_between, re.IGNORECASE):
+    #             # Check for multiple specific unions to infer disjoint sets (Sum)
+    #             union_matches = [
+    #                 m
+    #                 for m in analysis._matches
+    #                 if m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+    #             ]
+    #             unique_unions = {m["val"].lower() for m in union_matches}
 
-                if len(unique_unions) >= 2:
-                    is_subset = False
-                    notes.append("Logic: 'and' with multiple unions -> Sum")
+    #             if len(unique_unions) >= 2:
+    #                 is_subset = False
+    #                 notes.append("Logic: 'and' with multiple unions -> Sum")
 
-        if is_subset:
-            total, part = max(c1, c2), min(c1, c2)
-            assert m1 and m2
-            if is_exception:
-                # Exception Logic: Status of Part is opposite of Total
-                # 1. Determine status of Total (Main Clause)
-                total_match = m1 if m1["val"] == total else m2
+    #     if is_subset:
+    #         total, part = max(c1, c2), min(c1, c2)
+    #         assert m1 and m2
+    #         if is_exception:
+    #             # Exception Logic: Status of Part is opposite of Total
+    #             # 1. Determine status of Total (Main Clause)
+    #             total_match = m1 if m1["val"] == total else m2
                 
-                # Check proximity to Union terms (Positive)
-                dist_union = get_min_distance_to_matches(
-                    total_match["span"], analysis._matches, UNION_MATCH_TYPES
-                )
+    #             # Check proximity to Union terms (Positive)
+    #             dist_union = get_min_distance_to_matches(
+    #                 total_match["span"], analysis._matches, UNION_MATCH_TYPES
+    #             )
                 
-                # Check proximity to Non-Union terms (Negative)
-                dist_non_union = get_min_distance_to_matches(
-                    total_match["span"], analysis._matches, [MatchType.NON_UNION, MatchType.NON_COVERAGE]
-                )
+    #             # Check proximity to Non-Union terms (Negative)
+    #             dist_non_union = get_min_distance_to_matches(
+    #                 total_match["span"], analysis._matches, [MatchType.NON_UNION, MatchType.NON_COVERAGE]
+    #             )
 
-                # Default: If Total is near Union -> Part is Not Covered (Negated)
-                part_is_negated = True 
+    #             # Default: If Total is near Union -> Part is Not Covered (Negated)
+    #             part_is_negated = True 
 
-                if dist_non_union < dist_union and dist_non_union < 100:
-                    # Total is Non-Union -> Part is Covered
-                    part_is_negated = False
+    #             if dist_non_union < dist_union and dist_non_union < 100:
+    #                 # Total is Non-Union -> Part is Covered
+    #                 part_is_negated = False
                 
-                apply_coverage_logic(
-                    data,
-                    total=total,
-                    subset=part,
-                    is_negated=part_is_negated,
-                    notes=notes,
-                    note_fmt="Exception ({status}): {subset} of {total}.",
-                )
-            else:
-                # Standard Subset Logic
-                # Check if 'part' is associated with union
-                part_match = m1 if m1["val"] == part else m2
-                if part_match:
-                    dist = get_min_distance_to_matches(
-                        part_match["span"], analysis._matches, UNION_MATCH_TYPES
-                    )
-                    if dist < 100:
-                        is_negated = False
-                        if analysis.negation_terms:
-                            if check_local_negation(
-                                part_match["span"], analysis.text, backward=50, forward=50
-                            ):
-                                is_negated = True
+    #             apply_coverage_logic(
+    #                 data,
+    #                 total=total,
+    #                 subset=part,
+    #                 is_negated=part_is_negated,
+    #                 notes=notes,
+    #                 note_fmt="Exception ({status}): {subset} of {total}.",
+    #             )
+    #         else:
+    #             # Standard Subset Logic
+    #             # Check if 'part' is associated with union
+    #             part_match = m1 if m1["val"] == part else m2
+    #             if part_match:
+    #                 dist = get_min_distance_to_matches(
+    #                     part_match["span"], analysis._matches, UNION_MATCH_TYPES
+    #                 )
+    #                 if dist < 100:
+    #                     is_negated = False
+    #                     if analysis.negation_terms:
+    #                         if check_local_negation(
+    #                             part_match["span"], analysis.text, backward=50, forward=50
+    #                         ):
+    #                             is_negated = True
 
-                        apply_coverage_logic(
-                            data,
-                            total=total,
-                            subset=part,
-                            is_negated=is_negated,
-                            notes=notes,
-                            note_fmt="Count ({status}): {subset} of {total}. Inferred {other} {other_status}.",
-                        )
-                    else:
-                        # Part is not near union term -> Assume it's just a subset (e.g. "20 in marketing")
-                        # Record total only
-                        data["employee_count_total"] = total
-                        notes.append(
-                            f"Count (total): {total}. Subset {part} not associated with union."
-                        )
-        else:
-            total = c1 + c2
-            apply_coverage_logic(
-                data,
-                total=total,
-                subset=total,
-                is_negated=bool(analysis.negation_terms),
-                notes=notes,
-                note_fmt="Count ({status}): {subset} (Sum of {other} + {subset} is wrong here, logic handled sum)",
-            )
-            # Fix note for sum case
-            notes[-1] = (
-                f"Count ({'not covered' if analysis.negation_terms else 'covered'}): {c1} + {c2} = {total}"
-            )
+    #                     apply_coverage_logic(
+    #                         data,
+    #                         total=total,
+    #                         subset=part,
+    #                         is_negated=is_negated,
+    #                         notes=notes,
+    #                         note_fmt="Count ({status}): {subset} of {total}. Inferred {other} {other_status}.",
+    #                     )
+    #                 else:
+    #                     # Part is not near union term -> Assume it's just a subset (e.g. "20 in marketing")
+    #                     # Record total only
+    #                     data["employee_count_total"] = total
+    #                     notes.append(
+    #                         f"Count (total): {total}. Subset {part} not associated with union."
+    #                     )
+    #     else:
+    #         total = c1 + c2
+    #         apply_coverage_logic(
+    #             data,
+    #             total=total,
+    #             subset=total,
+    #             is_negated=bool(analysis.negation_terms),
+    #             notes=notes,
+    #             note_fmt="Count ({status}): {subset} (Sum of {other} + {subset} is wrong here, logic handled sum)",
+    #         )
+    #         # Fix note for sum case
+    #         notes[-1] = (
+    #             f"Count ({'not covered' if analysis.negation_terms else 'covered'}): {c1} + {c2} = {total}"
+    #         )
 
-        if data.get("employee_count_total", 0) > 0:
-            covered = data.get("employee_count_covered", 0) or 0
-            pct = (covered / data["employee_count_total"]) * 100.0
-            data["percentage"] = round(pct, 2)
-            data["type"] = CoverageType.CALCULATED.value
-            notes.append(f"Calculated percentage: {data['percentage']}%")
+    #     if data.get("employee_count_total", 0) > 0:
+    #         covered = data.get("employee_count_covered", 0) or 0
+    #         pct = (covered / data["employee_count_total"]) * 100.0
+    #         data["percentage"] = round(pct, 2)
+    #         data["type"] = CoverageType.CALCULATED.value
+    #         notes.append(f"Calculated percentage: {data['percentage']}%")
 
     def _handle_single_value(
         self,
@@ -1017,8 +1017,8 @@ class SimpleCoverageAnalyzer:
 
         if len(analysis.percentages) == 1 and len(effective_counts) == 1:
             self._handle_one_percent_one_count(analysis, effective_counts, data, notes)
-        elif not analysis.percentages and len(effective_counts) == 2:
-            self._handle_two_counts(analysis, effective_counts, data, notes)
+        # elif not analysis.percentages and len(effective_counts) == 2:
+        #     self._handle_two_counts(analysis, effective_counts, data, notes)
         else:
             self._handle_single_value(analysis, effective_counts, data, notes)
 
@@ -2463,9 +2463,9 @@ def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
         return False
 
     effective_counts = get_effective_counts(analysis)
-    # 2.5 Simple Counts of Counts
-    if len(analysis.percentages) == 0 and len(effective_counts) == 2:
-        return True
+    # # 2.5 Simple Counts of Counts
+    # if len(analysis.percentages) == 0 and len(effective_counts) == 2:
+    #     return True
     # 3. Max 1 Percentage, Max 1 Count (avoid ambiguity)
     if len(analysis.percentages) > 1:
         return False
@@ -3108,7 +3108,7 @@ class Tracker:
                 code = list(codes)[0]
                 r_total = self.region_totals.get(r_name, 0.0)
                 c_total = self.country_totals.get(code, 0.0)
-                print(self.domestic_is_negated)
+
                 # Handle negated domestic country (Ambiguity Penalty)
                 if self.domestic_is_negated and code == self.domestic_country_code:
                     if r_total > c_total:
