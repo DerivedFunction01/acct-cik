@@ -132,7 +132,7 @@ UNION_MATCH_TYPES = [
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison))\b|(?:,)(?!(?:\s+or))\b",
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))\b",
     re.IGNORECASE,
 )
 
@@ -6493,7 +6493,7 @@ class UnionAnalyzer:
             return None
 
         def try_hierarchical_grouping(
-            curr_parts, curr_entities
+            curr_parts, curr_entities, local_excluded_keys
         ) -> Optional[Tuple[Dict[str, float], str]]:
             if curr_entities:
                 groups = group_by_scope(curr_entities, target_count=None)
@@ -6520,15 +6520,15 @@ class UnionAnalyzer:
                         if children:
                             # Filter out containers (e.g. CIS) if constituents (e.g. RU) are present
                             # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
-                            valid_children = [c for c in self._remove_container_regions(children, excluded_keys) 
-                                            if not (excluded_keys and c["key"] in excluded_keys)]
+                            valid_children = [c for c in self._remove_container_regions(children, local_excluded_keys) 
+                                            if not (local_excluded_keys and c["key"] in local_excluded_keys)]
 
                             child_map, c_note = weighted_division(
                                 c["val"],
                                 valid_children,
                                 use_labor_weights=use_labor_weights,
                                 domestic_country=self.domestic_country_code,
-                                excluded_keys=excluded_keys,
+                                excluded_keys=local_excluded_keys,
                                 capacities=capacities,
                             )
                             local_map.update(child_map)
@@ -6538,7 +6538,7 @@ class UnionAnalyzer:
             return None
 
         def try_list_grouping(
-            curr_parts, curr_entities
+            curr_parts, curr_entities, local_excluded_keys
         ) -> Optional[Tuple[Dict[str, float], str]]:
             if curr_entities and curr_parts:
                 s_entities = sorted(curr_entities, key=lambda x: x["span"][0])
@@ -6572,8 +6572,8 @@ class UnionAnalyzer:
                     filtered_note = ""
                     cluster_notes = []
                     for c, group in zip(s_counts, groups):
-                        valid_group = self._remove_container_regions(group, excluded_keys)
-                        valid_group = [e for e in valid_group if not (excluded_keys and e["key"] in excluded_keys)]
+                        valid_group = self._remove_container_regions(group, local_excluded_keys)
+                        valid_group = [e for e in valid_group if not (local_excluded_keys and e["key"] in local_excluded_keys)]
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
                         group_map, g_note = weighted_division(
@@ -6581,7 +6581,7 @@ class UnionAnalyzer:
                             valid_group,
                             use_labor_weights=use_labor_weights,
                             domestic_country=self.domestic_country_code,
-                            excluded_keys=excluded_keys,
+                            excluded_keys=local_excluded_keys,
                             capacities=capacities,
                         )
                         local_map.update(group_map)
@@ -6595,12 +6595,12 @@ class UnionAnalyzer:
             return None
 
         def try_naive_split(
-            curr_parts, curr_entities
+            curr_parts, curr_entities, local_excluded_keys
         ) -> Optional[Tuple[Dict[str, float], str]]:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
-                valid_entities = self._remove_container_regions(curr_entities, excluded_keys)
-                valid_entities = [e for e in valid_entities if not (excluded_keys and e["key"] in excluded_keys)]
+                valid_entities = self._remove_container_regions(curr_entities, local_excluded_keys)
+                valid_entities = [e for e in valid_entities if not (local_excluded_keys and e["key"] in local_excluded_keys)]
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
@@ -6609,7 +6609,7 @@ class UnionAnalyzer:
                     valid_entities,
                     use_labor_weights=use_labor_weights,
                     domestic_country=self.domestic_country_code,
-                    excluded_keys=excluded_keys,
+                    excluded_keys=local_excluded_keys,
                     capacities=capacities,
                 )
                 final_note = "Naive Split" + filtered_note
@@ -6618,20 +6618,20 @@ class UnionAnalyzer:
                 return local_map, final_note
             return None
 
-        def resolve_subset(curr_parts, curr_entities) -> Tuple[Dict[str, float], str]:
+        def resolve_subset(curr_parts, curr_entities, local_excluded_keys) -> Tuple[Dict[str, float], str]:
             res = try_exact_parallel(curr_parts, curr_entities)
             if res:
                 return res
 
-            res = try_hierarchical_grouping(curr_parts, curr_entities)
+            res = try_hierarchical_grouping(curr_parts, curr_entities, local_excluded_keys)
             if res:
                 return res
 
-            res = try_list_grouping(curr_parts, curr_entities)
+            res = try_list_grouping(curr_parts, curr_entities, local_excluded_keys)
             if res:
                 return res
 
-            res = try_naive_split(curr_parts, curr_entities)
+            res = try_naive_split(curr_parts, curr_entities, local_excluded_keys)
             if res:
                 return res
 
@@ -6681,7 +6681,8 @@ class UnionAnalyzer:
 
                 if z_parts or z_entities:
                     has_content = True
-                    zone_map, note = resolve_subset(z_parts, z_entities)
+                    # Pass empty set for excluded_keys to allow mapping to entities within the zone
+                    zone_map, note = resolve_subset(z_parts, z_entities, set())
                     combined_map.update(zone_map)
                     notes.append(note)
 
@@ -6696,11 +6697,11 @@ class UnionAnalyzer:
         if res:
             return res[0], sentence_total, base_notes + [res[1]]
 
-        res = try_hierarchical_grouping(parts, entities)
+        res = try_hierarchical_grouping(parts, entities, excluded_keys)
         if res:
             return res[0], sentence_total, base_notes + [res[1]]
 
-        res = try_list_grouping(parts, entities)
+        res = try_list_grouping(parts, entities, excluded_keys)
         if res:
             return res[0], sentence_total, base_notes + [res[1]]
 
@@ -6710,7 +6711,7 @@ class UnionAnalyzer:
             return res[0], sentence_total, base_notes + ["Split by Boundary"] + res[1]
 
         # 3. Try Naive Split (Global)
-        res = try_naive_split(parts, entities)
+        res = try_naive_split(parts, entities, excluded_keys)
         if res:
             return res[0], sentence_total, base_notes + [res[1]]
 
