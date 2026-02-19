@@ -292,6 +292,7 @@ class GeoMatch:
     geo_code: Optional[str] = None
     source_type: GeoSource = GeoSource.EXPLICIT
     is_excluded: bool = False
+    is_strict: bool = False
 
 
 @dataclass
@@ -1487,6 +1488,8 @@ class UnionExtractor:
 
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
+                                if excl["type"] == MatchType.OUTSIDE:
+                                    m["geo_obj"].is_strict = True
                                 break
 
         # 21. Non-Geo Exclusion (Specific)
@@ -1503,6 +1506,7 @@ class UnionExtractor:
                     m_start, m_end = match["span"]
                     if m_start == g_start:
                         match["geo_obj"].is_excluded = True
+                        match["geo_obj"].is_strict = True
 
         # Propagate exclusion to chained entities (e.g. "Outside US, Canada and Mexico")
         geo_matches = [
@@ -1525,6 +1529,8 @@ class UnionExtractor:
                 # Allow comma, and, or, spaces
                 if CHAINED_CONNECTOR_REGEX.fullmatch(text_between):
                     next_m["geo_obj"].is_excluded = True
+                    if curr_m["geo_obj"].is_strict:
+                        next_m["geo_obj"].is_strict = True
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms

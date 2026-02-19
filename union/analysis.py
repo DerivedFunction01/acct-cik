@@ -2288,7 +2288,7 @@ def determine_geo_context(
             has_valid_explicit = True
             break
         # Special case: "Outside US" -> International (Valid Context)
-        if m.is_excluded and m.geo_code == domestic_country_code:
+        if m.is_excluded and m.geo_code == domestic_country_code and m.is_strict:
             has_valid_explicit = True
             break
 
@@ -2322,7 +2322,7 @@ def determine_geo_context(
 
         for m in explicit_matches:
             if m.is_excluded:
-                if m.geo_code == domestic_country_code:
+                if m.geo_code == domestic_country_code and m.is_strict:
                     # Map "Outside Domestic" -> International
                     m.geo_code = "INT"
                     m.country = "International"
