@@ -298,6 +298,7 @@ class GeoMatch:
     is_excluded: bool = False
     is_strict: bool = False
     exclusion_group_id: Optional[int] = None
+    list_group_id: Optional[int] = None
 
 
 @dataclass
@@ -999,7 +1000,9 @@ for term in QUALITATIVE_MEMBERSHIP:
         {"regex": regex, "term": term, "pattern_str": pattern_str}
     )
 
-
+STRICT_LIST_CONNECTOR = re.compile(
+    r"^\s*(?:,|;|and|&|or)\s*(?:and|or|&)?\s*$", re.IGNORECASE
+)
 class UnionExtractor:
     def __init__(self):
         # Use the centralized RegionMatcher for all geo/specific union logic
@@ -1557,6 +1560,27 @@ class UnionExtractor:
                     next_m["geo_obj"].exclusion_group_id = curr_m["geo_obj"].exclusion_group_id
                     if curr_m["geo_obj"].is_strict:
                         next_m["geo_obj"].is_strict = True
+
+        # 22. Chain Geo Matches (Strict List)
+        # Group explicit geo matches that are part of a list (e.g. "US, Canada and Mexico")
+        geo_matches_explicit = [
+            m for m in analysis._matches 
+            if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT
+        ]
+        geo_matches_explicit.sort(key=lambda x: x["span"][0])
+        
+        for i in range(len(geo_matches_explicit) - 1):
+            curr_m = geo_matches_explicit[i]
+            next_m = geo_matches_explicit[i+1]
+            
+            start = curr_m["span"][1]
+            end = next_m["span"][0]
+            text_between = text[start:end]
+            
+            if len(text_between) < 20 and STRICT_LIST_CONNECTOR.match(text_between):
+                gid = curr_m["geo_obj"].list_group_id or id(curr_m["geo_obj"])
+                curr_m["geo_obj"].list_group_id = gid
+                next_m["geo_obj"].list_group_id = gid
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms
