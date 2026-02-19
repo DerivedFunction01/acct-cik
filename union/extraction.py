@@ -235,7 +235,7 @@ SUBSET_REGEX = build_regex(
 EXCLUSIONS = [
     r"except(?:\s+for)?",
     r"other\s+than",
-    r"apart\s+from",
+    r"(?:apart|aside)\s+from",
     r"exclud(?:ing|es?)",
 ]
 

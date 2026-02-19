@@ -132,7 +132,7 @@ UNION_MATCH_TYPES = [
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|yet|compar(ed?|ing|ison))\b|(?:,)(?!(?:\s+or))\b",
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison))\b|(?:,)(?!(?:\s+or))\b",
     re.IGNORECASE,
 )
 
