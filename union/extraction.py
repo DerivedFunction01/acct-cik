@@ -1468,14 +1468,18 @@ class UnionExtractor:
         ]
 
         if exclusion_matches:
-            for m in analysis._matches:
-                if "geo_obj" in m:
-                    # Only apply to explicit geography
-                    if m["geo_obj"].source_type != GeoSource.EXPLICIT:
-                        continue
+            # Sort geo matches to ensure we process them in order (for chain detection)
+            geo_match_dicts = [
+                m for m in analysis._matches 
+                if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT
+            ]
+            geo_match_dicts.sort(key=lambda x: x["span"][0])
+            
+            used_exclusion_ids = set()
 
-                    m_start = m["span"][0]
-                    for excl in exclusion_matches:
+            for m in geo_match_dicts:
+                m_start = m["span"][0]
+                for excl in exclusion_matches:
                         # Check for double negation (e.g. "not outside", "not excluding")
                         excl_start = excl["span"][0]
                         lookback = text[max(0, excl_start - 20) : excl_start]
@@ -1494,6 +1498,8 @@ class UnionExtractor:
                                 continue
 
                             is_connected = False
+                            excl_id = id(excl)
+                            is_first_usage = excl_id not in used_exclusion_ids
 
                             # Special handling for "but" - requires very short gap
                             if excl["val"].lower() == "but":
@@ -1504,15 +1510,16 @@ class UnionExtractor:
                                 if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
                                     is_connected = True
                                 # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
-                                elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between) and not (EXCEPT_REGEX.search(text_between) or OUTSIDE_REGEX.search(text_between)):
+                                elif is_first_usage and EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between) and not (EXCEPT_REGEX.search(text_between) or OUTSIDE_REGEX.search(text_between)):
                                     if len(text_between.split()) <= 6:
                                         is_connected = True
 
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
-                                m["geo_obj"].exclusion_group_id = id(excl)
+                                m["geo_obj"].exclusion_group_id = excl_id
                                 if excl["type"] == MatchType.OUTSIDE:
                                     m["geo_obj"].is_strict = True
+                                used_exclusion_ids.add(excl_id)
                                 break
 
         # 21. Non-Geo Exclusion (Specific)
