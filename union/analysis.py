@@ -2683,14 +2683,9 @@ def determine_geo_context(
                 last_region = last_context.get("region")
                 last_countries = last_context.get("countries", [])
 
-                is_specific_prev = last_region not in [
-                    Region.INTERNATIONAL.value,
-                    Region.GLOBAL.value,
-                    Region.UNKNOWN.value,
-                    Region.AGGREGATE.value,
-                ] or (
+                is_specific_prev = last_region not in IGNORED_REGIONS or (
                     last_countries
-                    and last_countries[0]["code"] not in ["INT", "GLO", "DOM"]
+                    and last_countries[0]["code"] not in IGNORED_REGIONS
                 )
 
                 if is_specific_prev:
@@ -3075,6 +3070,11 @@ class Tracker:
         for r in set(self.region_totals.keys()) | set(mentioned_in_region.keys()):
             if r not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
                 active_regions.add(r)
+        
+        # If domestic is negated, treat International as an implicitly active region
+        # This prevents distributing the entire Global total to the Domestic region
+        if self.domestic_is_negated:
+            active_regions.add(Region.INTERNATIONAL.value)
 
         if self.global_total > 0 and len(active_regions) == 1:
             target_region = list(active_regions)[0]
@@ -3108,6 +3108,24 @@ class Tracker:
                 code = list(codes)[0]
                 r_total = self.region_totals.get(r_name, 0.0)
                 c_total = self.country_totals.get(code, 0.0)
+                print(self.domestic_is_negated)
+                # Handle negated domestic country (Ambiguity Penalty)
+                if self.domestic_is_negated and code == self.domestic_country_code:
+                    if r_total > c_total:
+                        dist, note = weighted_division(
+                            r_total,
+                            [{"key": code}],
+                            domestic_country=self.domestic_country_code,
+                            excluded_keys={code}
+                        )
+                        allocated = dist.get(code, 0.0)
+                        if allocated > c_total:
+                            self.country_totals[code] = allocated
+                            self.resolution_log.append(
+                                f"Updated country '{code}' from {c_total} to {allocated} (of {r_total}) using weighted division (Domestic Negated). {note}"
+                            )
+                    continue
+
                 if r_total > c_total:
                     self.country_totals[code] = r_total
                     self.resolution_log.append(
