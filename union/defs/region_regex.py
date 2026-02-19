@@ -4276,6 +4276,7 @@ def weighted_division(
     use_labor_weights: bool = False,
     domestic_country: Optional[str] = None,
     excluded_keys: Optional[Set[str]] = None,
+    capacities: Optional[Dict[str, float]] = None,
 ) -> Tuple[Dict[str, float], str]:
     """
     Distributes a value across entities based on heuristic weights.
@@ -4499,7 +4500,7 @@ def weighted_division(
     # 3. Distribute val among groups based on group weights
     total_group_weight = sum(g["weight"] for g in groups)
 
-    final_distribution = {}
+    final_distribution: Dict[str, float] = {}
 
     if total_group_weight == 0:
         # Fallback: equal split among all entities
@@ -4561,6 +4562,54 @@ def weighted_division(
 
     if used_clusters:
         note += f"Smoothed Clusters: {', '.join(used_clusters)}"
+
+    # Post-processing: Enforce capacities (Iterative Redistribution)
+    if capacities:
+        # Filter capacities relevant to current entities
+        relevant_caps = {}
+        for k in final_distribution:
+            if k in capacities and capacities[k] is not None:
+                relevant_caps[k] = capacities[k]
+        
+        if relevant_caps:
+            remaining_dist = {k: float(v) for k, v in final_distribution.items()}
+            final_capped_dist = {}
+            
+            # Iterate to redistribute overflow (Max iterations = len(entities) + safety)
+            for _ in range(len(entities) + 2):
+                overflow = 0.0
+                open_keys = []
+                
+                # Check constraints
+                for k, assigned in remaining_dist.items():
+                    if k in final_capped_dist:
+                        continue # Already finalized
+                        
+                    cap = relevant_caps.get(k)
+                    if cap is not None and assigned > cap:
+                        overflow += (assigned - cap)
+                        final_capped_dist[k] = cap
+                    else:
+                        open_keys.append(k)
+                
+                if overflow < 0.001:
+                    # No new overflow, everything else fits
+                    for k in open_keys:
+                        final_capped_dist[k] = remaining_dist[k]
+                    break
+                
+                if not open_keys:
+                    note += f" (Capped, dropped {int(overflow)})"
+                    break
+                
+                # Distribute overflow proportional to current assignment
+                total_open_val = sum(remaining_dist[k] for k in open_keys)
+                for k in open_keys:
+                    share = (remaining_dist[k] / total_open_val) if total_open_val > 0 else (1.0 / len(open_keys))
+                    remaining_dist[k] += (overflow * share)
+            
+            final_distribution = {k: int(round(v)) for k, v in final_capped_dist.items()}
+            note += " (Capacity constrained)"
 
     return final_distribution, note
 

@@ -6452,6 +6452,7 @@ class UnionAnalyzer:
         allow_naive_split: bool = False,
         use_labor_weights: bool = False,
         excluded_keys: Optional[Set[str]] = None,
+        capacities: Optional[Dict[str, float]] = None,
     ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_generic.
@@ -6528,6 +6529,7 @@ class UnionAnalyzer:
                                 use_labor_weights=use_labor_weights,
                                 domestic_country=self.domestic_country_code,
                                 excluded_keys=excluded_keys,
+                                capacities=capacities,
                             )
                             local_map.update(child_map)
                             if c_note:
@@ -6580,6 +6582,7 @@ class UnionAnalyzer:
                             use_labor_weights=use_labor_weights,
                             domestic_country=self.domestic_country_code,
                             excluded_keys=excluded_keys,
+                            capacities=capacities,
                         )
                         local_map.update(group_map)
                         if g_note:
@@ -6607,6 +6610,7 @@ class UnionAnalyzer:
                     use_labor_weights=use_labor_weights,
                     domestic_country=self.domestic_country_code,
                     excluded_keys=excluded_keys,
+                    capacities=capacities,
                 )
                 final_note = "Naive Split" + filtered_note
                 if w_note:
@@ -6717,7 +6721,7 @@ class UnionAnalyzer:
         return mapped_counts, sentence_total, base_notes
 
     def _resolve_counts_to_geography(
-        self, analysis: SentenceAnalysis
+        self, analysis: SentenceAnalysis, capacities: Optional[Dict[str, float]] = None
     ) -> Tuple[Dict[str, float], Optional[float], List[str]]:
         """
         Refactored version of _resolve_counts_to_geography.
@@ -6767,7 +6771,7 @@ class UnionAnalyzer:
                 )
 
         return self._resolve_counts_generic(
-            analysis, geo_entries, total_key="GLO", allow_naive_split=True, excluded_keys=excluded_codes
+            analysis, geo_entries, total_key="GLO", allow_naive_split=True, excluded_keys=excluded_codes, capacities=capacities
         )
 
     def _map_assignments_to_geo(
@@ -7343,7 +7347,7 @@ class UnionAnalyzer:
                 else:
                     # Try intelligent mapping first
                     mapped_counts, sent_total, geo_notes = (
-                        self._resolve_counts_to_geography(analysis)
+                        self._resolve_counts_to_geography(analysis, capacities=effective_totals)
                     )
                     union_counts, _, union_notes = self._resolve_counts_to_unions(
                         analysis
