@@ -4966,6 +4966,7 @@ class Tracker:
                     continue
 
             base_pop = 0.0
+            source_total_pop = 0.0
             geo_name = "Unknown"
             target_weight = 0.0
             source_weight = 0.0
@@ -4979,6 +4980,7 @@ class Tracker:
                 target_weight = _CODE_TO_WEIGHT.get(scope_key, 0.0)
                 base_pop = self.country_totals.get(scope_key, 0.0)
                 if base_pop > 0:
+                    source_total_pop = base_pop
                     source_weight = target_weight
                     pool_source = f"Country ({scope_key})"
 
@@ -4989,6 +4991,7 @@ class Tracker:
                         region_total = self.region_totals.get(r_name, 0.0)
                         
                         if region_total > 0:
+                            source_total_pop = region_total
                             prevent_global_fallback = True
                             base_pop = region_total
                             
@@ -5016,12 +5019,15 @@ class Tracker:
                 target_weight = REGION_WEIGHTS.get(scope_key, 0.0)
                 base_pop = self.region_totals.get(scope_key, 0.0)
                 if base_pop > 0:
+                    source_total_pop = base_pop
+                if base_pop > 0:
                     source_weight = target_weight
                     pool_source = f"Region ({scope_key})"
 
             # Fallback to Global
             if base_pop <= 0 and not prevent_global_fallback:
                 base_pop = self.global_total
+                source_total_pop = self.global_total
                 geo_name = "Global"
                 source_weight = global_weight
                 pool_source = "Global Fallback"
@@ -5181,10 +5187,15 @@ class Tracker:
                     scope_type == Scope.COUNTRY.value and geo_name == scope_key
                 ) or (scope_type == Scope.REGION.value and geo_name == scope_key)
 
+                base_rate = 0.0025  # 0.25%
                 if (is_weighted_estimate or scopes_match) and not use_conservative:
                     small_denom = max(1.0, round(distributable_pop))
                 else:
-                    small_denom = max(1.0, round(distributable_pop * 0.005))
+                    # Additive Logic: 0.25% of Source Total (Floor) + 0.25% of Distributable (Variable)
+                    # Distribute source total share among segments
+                    term1 = (source_total_pop * base_rate) / num_segments
+                    term2 = distributable_pop * base_rate
+                    small_denom = max(1.0, round(term1 + term2))
 
                 for e in group:
                     assert isinstance(e, Entry)
@@ -5196,7 +5207,7 @@ class Tracker:
                         log_msg += f" (Distributed among {num_segments} segments)"
 
                     if use_conservative:
-                        log_msg += " (Conservative 0.05% - Scope Full)"
+                        log_msg += f" (Conservative Additive: {base_rate:.2%} of {source_total_pop:.0f} Source + {base_rate:.2%} of {distributable_pop:.1f} Distributable)"
 
                     # Check if scaled (approx check due to float)
                     total_allocated = distributable_pop * num_segments
