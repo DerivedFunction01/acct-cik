@@ -4290,6 +4290,17 @@ class Tracker:
         Injects a virtual global total if no census data exists but union records are present.
         This allows weight-based distribution to function for 'union name only' scenarios.
         """
+        # Check if we have any existing counts (census data)
+        has_counts = (
+            self.global_total > 0
+            or any(v > 0 for v in self.region_totals.values())
+            or any(v > 0 for v in self.country_totals.values())
+            or any(e.total_count is not None and e.total_count > 0 for e in self.entries)
+        )
+
+        if has_counts:
+            return
+
         has_unions = any(e.is_union_record for e in self.entries)
         if not has_unions:
             return
