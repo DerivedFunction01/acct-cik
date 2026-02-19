@@ -1651,6 +1651,9 @@ class ComplexCoverageAnalyzer:
                         if ";" in text_between:
                             continue
 
+                        if SEGMENT_DELIMITER_REGEX.search(text_between):
+                            continue
+
                         if self._resolve_local_two_counts(m1, m2, text_between):
                             consumed_indices.add(id(m1))
                             consumed_indices.add(id(m2))
