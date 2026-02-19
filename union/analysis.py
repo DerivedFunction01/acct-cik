@@ -3867,6 +3867,31 @@ class Tracker:
                 )
                 existing_keys.add(code)
 
+        # 1b. Mandatory Injections based on Region Logic
+        
+        # If resolving North America, always inject US (SEC filing context)
+        if region_name == Region.NORTH_AMERICA.value:
+            if "US" not in existing_keys:
+                self.entries.append(
+                    Entry(scope=Scope.COUNTRY, key="US", is_explicit=False)
+                )
+                self.resolution_log.append(
+                    f"Injected placeholder for US in {region_name} (SEC Context)"
+                )
+                existing_keys.add("US")
+
+        # If Domestic Country belongs to this region, inject it
+        if self.domestic_country_code:
+            dom_region = _CODE_TO_REGION.get(self.domestic_country_code)
+            if dom_region and dom_region == region_name and self.domestic_country_code not in existing_keys:
+                self.entries.append(
+                    Entry(scope=Scope.COUNTRY, key=self.domestic_country_code, is_explicit=False)
+                )
+                self.resolution_log.append(
+                    f"Injected placeholder for domestic {self.domestic_country_code} in {region_name}"
+                )
+                existing_keys.add(self.domestic_country_code)
+
         # 2. Backfill totals from country_totals for ALL entries in this region
         region_entries = self._get_region_entries(region_name)
 
