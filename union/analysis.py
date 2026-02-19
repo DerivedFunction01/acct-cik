@@ -6917,10 +6917,17 @@ class UnionAnalyzer:
                             # Case 1: Have Total + Pct -> Calculate Parts
                             if total and (covered is None or not_covered is None):
                                 subset = round((pct / 100.0) * total)
+
+                                # Check for qualitative ambiguity (don't infer inverse for "Majority non-union")
+                                infer_complement = True
+                                if is_negated and c_data.get("type") == CoverageType.QUALITATIVE.value:
+                                    if 10.0 < pct < 90.0:
+                                        infer_complement = False
+
                                 if is_negated:
                                     if not_covered is None:
                                         c_data["employee_count_not_covered"] = subset
-                                    if covered is None:
+                                    if covered is None and infer_complement:
                                         c_data["employee_count_covered"] = (
                                             total - subset
                                         )
