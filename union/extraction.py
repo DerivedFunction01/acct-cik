@@ -296,6 +296,7 @@ class GeoMatch:
     source_type: GeoSource = GeoSource.EXPLICIT
     is_excluded: bool = False
     is_strict: bool = False
+    exclusion_group_id: Optional[int] = None
 
 
 @dataclass
@@ -1508,6 +1509,7 @@ class UnionExtractor:
 
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
+                                m["geo_obj"].exclusion_group_id = id(excl)
                                 if excl["type"] == MatchType.OUTSIDE:
                                     m["geo_obj"].is_strict = True
                                 break
@@ -1527,6 +1529,7 @@ class UnionExtractor:
                     if m_start == g_start:
                         match["geo_obj"].is_excluded = True
                         match["geo_obj"].is_strict = True
+                        match["geo_obj"].exclusion_group_id = id(m)
 
         # Propagate exclusion to chained entities (e.g. "Outside US, Canada and Mexico")
         geo_matches = [
@@ -1549,6 +1552,7 @@ class UnionExtractor:
                 # Allow comma, and, or, spaces
                 if CHAINED_CONNECTOR_REGEX.fullmatch(text_between):
                     next_m["geo_obj"].is_excluded = True
+                    next_m["geo_obj"].exclusion_group_id = curr_m["geo_obj"].exclusion_group_id
                     if curr_m["geo_obj"].is_strict:
                         next_m["geo_obj"].is_strict = True
 
