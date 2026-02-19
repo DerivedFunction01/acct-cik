@@ -2278,6 +2278,18 @@ def determine_geo_context(
     explicit_matches = [
         m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
     ]
+
+    # Check if we have any VALID explicit matches (not excluded, or excluded but remapped to INT)
+    has_valid_explicit = False
+    for m in explicit_matches:
+        if not m.is_excluded:
+            has_valid_explicit = True
+            break
+        # Special case: "Outside US" -> International (Valid Context)
+        if m.is_excluded and m.geo_code == domestic_country_code:
+            has_valid_explicit = True
+            break
+
     union_matches = [
         m
         for m in analysis.geo_matches
@@ -2285,7 +2297,7 @@ def determine_geo_context(
     ]
 
     # 1. Explicit Geography (Highest Priority)
-    if explicit_matches:
+    if has_valid_explicit:
         countries = []
         regions_list = []
         found_regions_map = {}  # code -> (region_dict, region_enum)
@@ -2542,6 +2554,15 @@ def determine_geo_context(
         # Remove source-specific metadata
         ctx.pop("union_name_indicator", None)
         ctx.pop("explicit_countries", None)
+
+        # Apply exclusions from current sentence to inherited context
+        excluded_codes = {m.geo_code for m in explicit_matches if m.is_excluded and m.geo_code}
+        if excluded_codes:
+            if "countries" in ctx:
+                ctx["countries"] = [c for c in ctx["countries"] if c["code"] not in excluded_codes]
+            if "regions" in ctx:
+                ctx["regions"] = [r for r in ctx["regions"] if r["code"] not in excluded_codes]
+
         return ctx
 
     # 4. Fallback
