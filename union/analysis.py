@@ -5680,6 +5680,14 @@ class UnionAnalyzer:
         if not excluded_geos:
             return []
 
+        # Deduplicate by code to prevent double entries for the same country
+        seen_codes = set()
+        unique_excluded = []
+        for m in excluded_geos:
+            if m.geo_code and m.geo_code not in seen_codes:
+                unique_excluded.append(m)
+                seen_codes.add(m.geo_code)
+
         # 2. Determine Main Status
         main_type = main_coverage.get("type")
         main_pct = main_coverage.get("percentage")
@@ -5706,7 +5714,7 @@ class UnionAnalyzer:
         # 3. Create items for exceptions (Invert status)
         exception_status = "not_covered" if main_status == "covered" else "covered"
 
-        for m in excluded_geos:
+        for m in unique_excluded:
             # Skip if remapped to INT (e.g. "Outside US") - that's handled as main context
             if m.geo_code == "INT" and m.country == "International":
                 continue
