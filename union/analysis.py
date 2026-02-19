@@ -5187,8 +5187,9 @@ class Tracker:
                     small_denom = max(1.0, round(distributable_pop * 0.005))
 
                 for e in group:
+                    assert isinstance(e, Entry)
                     e.total_count = small_denom
-                    e.covered_count = round((e.percentage / 100.0) * small_denom)
+                    e.covered_count = round(((e.percentage or 0)/ 100.0) * small_denom)
 
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
