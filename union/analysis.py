@@ -5033,6 +5033,99 @@ class Tracker:
                         ):
                             if e.total_count is not None:
                                 consumed_pop += e.total_count
+                elif scope_type == Scope.REGION.value:
+                    country_entries = {}
+                    for e in self.entries:
+                        if e in group:
+                            continue
+
+                        c_code = None
+                        if e.scope == Scope.COUNTRY:
+                            c_code = e.key
+                        elif e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
+                            c_code = e.key.split("::")[0]
+
+                        if c_code:
+                            if _CODE_TO_REGION.get(c_code) == scope_key:
+                                if c_code not in country_entries:
+                                    country_entries[c_code] = []
+                                country_entries[c_code].append(e)
+
+                    for c_code, entries in country_entries.items():
+                        c_total = 0.0
+                        has_c_scope = False
+                        for e in entries:
+                            if e.scope == Scope.COUNTRY and e.total_count is not None:
+                                if e.total_count > c_total:
+                                    c_total = e.total_count
+                                has_c_scope = True
+                        
+                        if has_c_scope:
+                            consumed_pop += c_total
+                        else:
+                            consumed_pop += sum(e.total_count for e in entries if e.total_count is not None)
+
+                elif scope_type == Scope.GLOBAL.value:
+                    region_entries = {}
+                    for e in self.entries:
+                        if e in group:
+                            continue
+
+                        key = None
+                        if e.scope == Scope.REGION:
+                            key = e.key
+                        elif e.scope == Scope.COUNTRY:
+                            r_name = _CODE_TO_REGION.get(e.key)
+                            key = r_name if r_name else e.key
+                        elif e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
+                            c_code = e.key.split("::")[0]
+                            r_name = _CODE_TO_REGION.get(c_code)
+                            key = r_name if r_name else c_code
+
+                        if key and key not in IGNORED_REGIONS:
+                            if key not in region_entries:
+                                region_entries[key] = []
+                            region_entries[key].append(e)
+
+                    for r_key, entries in region_entries.items():
+                        r_total = 0.0
+                        has_r_scope = False
+                        for e in entries:
+                            if e.scope == Scope.REGION and e.total_count is not None:
+                                if e.total_count > r_total:
+                                    r_total = e.total_count
+                                has_r_scope = True
+                        
+                        if has_r_scope:
+                            consumed_pop += r_total
+                        else:
+                            # Sum Countries
+                            c_entries_map = {}
+                            for e in entries:
+                                c_code = None
+                                if e.scope == Scope.COUNTRY:
+                                    c_code = e.key
+                                elif e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
+                                    c_code = e.key.split("::")[0]
+                                
+                                if c_code:
+                                    if c_code not in c_entries_map:
+                                        c_entries_map[c_code] = []
+                                    c_entries_map[c_code].append(e)
+                            
+                            for c_code, c_list in c_entries_map.items():
+                                c_total = 0.0
+                                has_c_scope = False
+                                for e in c_list:
+                                    if e.scope == Scope.COUNTRY and e.total_count is not None:
+                                        if e.total_count > c_total:
+                                            c_total = e.total_count
+                                        has_c_scope = True
+                                
+                                if has_c_scope:
+                                    consumed_pop += c_total
+                                else:
+                                    consumed_pop += sum(e.total_count for e in c_list if e.total_count is not None)
 
                 # Determine available population
                 available_pop = estimated_pop - consumed_pop
