@@ -6763,17 +6763,26 @@ class UnionAnalyzer:
                         e1 = s_entities[i]
                         e2 = s_entities[i + 1]
                         start, end = e1["span"][1], e2["span"][0]
-                        text_between = analysis.text[start:end]
 
                         has_count_in_gap = any(
                             c["span"][0] >= start and c["span"][1] <= end
                             for c in curr_parts
                         )
 
-                        clean_text = re.sub(r"\s+", " ", text_between).strip()
-                        is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
+                        is_connected = False
+                        if not has_count_in_gap:
+                            gid1 = e1.get("list_group_id")
+                            gid2 = e2.get("list_group_id")
+                            if gid1 is not None and gid1 == gid2:
+                                is_connected = True
+                            else:
+                                text_between = analysis.text[start:end]
+                                clean_text = re.sub(r"\s+", " ", text_between).strip()
+                                is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
+                                if is_sep:
+                                    is_connected = True
 
-                        if not has_count_in_gap and is_sep:
+                        if is_connected:
                             current_group.append(e2)
                         else:
                             groups.append(current_group)
@@ -7048,7 +7057,7 @@ class UnionAnalyzer:
                 if obj.geo_code in REGION_CODES and obj.geo_code not in DOMESTIC_SET:
                     key = obj.region.value
                 geo_entries.append(
-                    {"key": key, "span": raw["span"], "region_enum": obj.region}
+                    {"key": key, "span": raw["span"], "region_enum": obj.region, "list_group_id": obj.list_group_id}
                 )
 
         return self._resolve_counts_generic(
