@@ -7749,6 +7749,8 @@ class UnionAnalyzer:
                 # Consolidated qualitative-term interpretation
                 qinfo = interpret_qualitative_match(match, analysis, prefer_note=True)
                 pct = qinfo.get("percentage")
+                amb_mult = qinfo.get("ambiguity_multiplier")
+
                 if pct is not None:
                     data["percentage"] = pct
                     if qinfo.get("type"):
@@ -7761,6 +7763,22 @@ class UnionAnalyzer:
                         data["note"] = qinfo.get("note")
 
                     # Check for status negation (e.g. "not represented", "non-union")
+                    has_status_negation = any(
+                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                        for m in analysis._matches
+                    )
+                    if has_status_negation:
+                        data["negated"] = True
+                        data["negation_type"] = NegationType.NOT_COVERED.value
+                        data["note"] = (data.get("note") or "") + " (Negated Status)"
+                elif amb_mult is not None:
+                    data["ambiguity_multiplier"] = amb_mult
+                    data["type"] = CoverageType.QUALITATIVE.value
+                    if qinfo.get("note"):
+                        data["note"] = qinfo.get("note")
+                    else:
+                        data["note"] = f"Qualitative multiplier: {amb_mult}x"
+
                     has_status_negation = any(
                         m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                         for m in analysis._matches
