@@ -4302,7 +4302,7 @@ def weighted_division(
     note = "" if not use_labor_weights else "Labor weights applied. "
     for e in entities:
         key = e["key"]
-        w = 0.0005  # Default weight (small country)
+        w = 0.005  # Default weight (small country)
 
         # Check if key is a region name
         if key in REGION_WEIGHTS:

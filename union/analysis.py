@@ -4971,6 +4971,7 @@ class Tracker:
             source_weight = 0.0
             pool_source = "Direct"
             prevent_global_fallback = False
+            force_conservative = False
 
             # Determine Base Population & Weights
             if scope_type == Scope.COUNTRY.value:
@@ -5004,7 +5005,11 @@ class Tracker:
                                 source_weight = REGION_WEIGHTS.get(r_name, 0.0)
                                 pool_source = f"Region ({r_name}) Fallback"
                             else:
+                                base_pop = region_total
+                                geo_name = r_name
+                                source_weight = REGION_WEIGHTS.get(r_name, 0.0)
                                 pool_source = f"Region ({r_name}) Exhausted"
+                                force_conservative = True
 
             elif scope_type == Scope.REGION.value:
                 geo_name = scope_key
@@ -5159,7 +5164,7 @@ class Tracker:
 
                 # If we have very little room left (or negative), force conservative mode
                 # We use 5% buffer or if consumed > estimated
-                if available_pop < (estimated_pop * 0.05):
+                if force_conservative or available_pop < (estimated_pop * 0.05):
                     use_conservative = True
                     distributable_pop = estimated_pop  # Base for calc
                 else:
@@ -5179,7 +5184,7 @@ class Tracker:
                 if (is_weighted_estimate or scopes_match) and not use_conservative:
                     small_denom = max(1.0, round(distributable_pop))
                 else:
-                    small_denom = max(1.0, round(distributable_pop * 0.0005))
+                    small_denom = max(1.0, round(distributable_pop * 0.005))
 
                 for e in group:
                     e.total_count = small_denom
