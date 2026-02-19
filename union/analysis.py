@@ -750,15 +750,28 @@ class SimpleCoverageAnalyzer:
                     )
 
                     ratio = round((pct / 100.0) * count)
-                    apply_coverage_logic(
-                        data,
-                        total=count,
-                        subset=ratio,
-                        is_negated=has_status_negation,
-                        notes=notes,
-                        note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}"
-                        + (" (negated)" if has_status_negation else ""),
-                    )
+
+                    # Only infer complement for qualitative negations if they are extremes
+                    infer_complement = True
+                    if has_status_negation and data["type"] == CoverageType.QUALITATIVE.value:
+                        if 10.0 < pct < 90.0:
+                            infer_complement = False
+
+                    if infer_complement:
+                        apply_coverage_logic(
+                            data,
+                            total=count,
+                            subset=ratio,
+                            is_negated=has_status_negation,
+                            notes=notes,
+                            note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}"
+                            + (" (negated)" if has_status_negation else ""),
+                        )
+                    else:
+                        data["employee_count_not_covered"] = ratio
+                        data["negated"] = True
+                        data["negation_type"] = NegationType.NOT_COVERED.value
+                        notes.append(f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} not covered (negated). Covered count not inferred.")
                 elif amb_mult is not None:
                     # Store multiplier for later resolution in Tracker
                     data["ambiguity_multiplier"] = amb_mult
