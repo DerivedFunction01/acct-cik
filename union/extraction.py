@@ -1484,7 +1484,7 @@ class UnionExtractor:
 
                         e_end = excl["span"][1]
                         dist = m_start - e_end
-                        
+
                         # Check if exclusion is before (within reasonable distance)
                         if 0 <= dist <= 60:
                             text_between = text[e_end:m_start]
@@ -1494,7 +1494,7 @@ class UnionExtractor:
                                 continue
 
                             is_connected = False
-                            
+
                             # Special handling for "but" - requires very short gap
                             if excl["val"].lower() == "but":
                                 if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
@@ -1504,7 +1504,7 @@ class UnionExtractor:
                                 if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
                                     is_connected = True
                                 # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
-                                elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between):
+                                elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between) and not (EXCEPT_REGEX.search(text_between) or OUTSIDE_REGEX.search(text_between)):
                                     if len(text_between.split()) <= 6:
                                         is_connected = True
 
