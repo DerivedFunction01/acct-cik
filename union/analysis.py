@@ -306,6 +306,74 @@ class SimpleCoverageAnalyzer:
     - No conflicting Union vs Non-Union terms (mixed signals)
     - No Ratios
     """
+    def _handle_qualitative_exception(
+        self,
+        analysis: SentenceAnalysis,
+        effective_counts: List[float],
+        data: Dict[str, Any],
+        notes: List[str],
+    ):
+        """
+        Handles qualitative statements with exceptions, e.g.
+        "All employees are unionized except for those in North America."
+        """
+        # Only run if we haven't found data yet
+        if (
+            data.get("percentage") is not None
+            or data.get("employee_count_covered") is not None
+        ):
+            return
+
+        if not (analysis.except_terms or analysis.outside_terms):
+            return
+
+        # Must have union/coverage terms to be relevant
+        if not analysis.is_union:
+            return
+
+        # Look for qualitative quantity terms (All, Majority, etc.)
+        qual_match = next(
+            (
+                m
+                for m in analysis._matches
+                if m["type"]
+                in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
+            ),
+            None,
+        )
+
+        # If no explicit qualitative term, check for "Global/Total" modifiers which imply "All"
+        # e.g. "Our global workforce is unionized except..."
+        implicit_all = False
+        if not qual_match and analysis.total_modifiers:
+            implicit_all = True
+
+        pct = None
+
+        if qual_match:
+            qinfo = interpret_qualitative_match(qual_match, analysis, prefer_note=False)
+            pct = qinfo.get("percentage")
+        elif implicit_all:
+            pct = 100.0
+
+        if pct is None:
+            return
+
+        # Check for status negation (e.g. "non-union", "not covered")
+        has_status_negation = any(
+            m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+            for m in analysis._matches
+        )
+
+        data["percentage"] = pct
+        data["type"] = CoverageType.QUALITATIVE.value
+
+        if has_status_negation:
+            data["negated"] = True
+            data["negation_type"] = NegationType.NOT_COVERED.value
+            notes.append(f"Qualitative Exception: {pct}% (Negated Status)")
+        else:
+            notes.append(f"Qualitative Exception: {pct}%")
 
     def _handle_one_percent_one_count(
         self,
@@ -815,6 +883,9 @@ class SimpleCoverageAnalyzer:
             self._handle_two_counts(analysis, effective_counts, data, notes)
         else:
             self._handle_single_value(analysis, effective_counts, data, notes)
+
+        # Try qualitative exception logic if still no data
+        self._handle_qualitative_exception(analysis, effective_counts, data, notes)
 
         # Fallback to qualitative zero if no other data was found
         if (
