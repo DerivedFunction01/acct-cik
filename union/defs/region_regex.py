@@ -4368,8 +4368,77 @@ def weighted_division(
             key_to_weight["EU_UNION"] = eu_w - gb_w
             note += "Excluded UK from EU_UNION weight. "
 
+    # 1.5 Handle Excluded Domestic Country (Ambiguity Penalty)
+    # If domestic is excluded, and we only have 1 entity, don't give it 100% of the rest.
+    # Inject a phantom "Rest of World" entity to absorb weight.
+    is_domestic_excluded = False
+    if domestic_country and excluded_keys:
+        for k in excluded_keys:
+            if k == domestic_country or is_contained(k, domestic_country):
+                is_domestic_excluded = True
+                break
+
+    if is_domestic_excluded and len(entities) == 1:
+        single_key = entities[0]["key"]
+        # Only apply if the single entity is specific (not a generic container like INT/GLO)
+        if single_key not in IGNORED_REGIONS:
+            
+            scope_weight = 0.0
+            note_suffix = ""
+            
+            # Determine Domestic Region
+            dom_region_val = None
+            if domestic_country:
+                dom_region_val = _CODE_TO_REGION.get(domestic_country)
+            
+            # Strategy: Use G20 members as the "significant" scope
+            # 1. Try Regional G20 (G20 members in the domestic region)
+            g20_in_region = []
+            if dom_region_val:
+                g20_in_region = [c for c in G20_CODES if _CODE_TO_REGION.get(c) == dom_region_val]
+            
+            # Check if there are relevant G20 members in region (excluding domestic)
+            relevant_regional_g20 = [c for c in g20_in_region if c != domestic_country]
+            
+            if relevant_regional_g20:
+                # Use Regional G20 Scope
+                scope_weight = sum(_CODE_TO_WEIGHT.get(c, 0.0) for c in g20_in_region)
+                dom_weight = _CODE_TO_WEIGHT.get(domestic_country, 0.0)
+                scope_weight = max(0.0, scope_weight - dom_weight)
+                note_suffix = f"(G20 in {dom_region_val} - {domestic_country})"
+            else:
+                # Fallback to Global G20 Scope
+                scope_weight = sum(_CODE_TO_WEIGHT.get(c, 0.0) for c in G20_CODES)
+                dom_weight = _CODE_TO_WEIGHT.get(domestic_country, 0.0)
+                scope_weight = max(0.0, scope_weight - dom_weight)
+                note_suffix = "(G20 World - Domestic)"
+            
+            entity_weight = key_to_weight.get(single_key, 0.0)
+            
+            # Determine if entity is inside the scope
+            entity_in_scope = False
+            if relevant_regional_g20:
+                # If using Regional G20 scope, check if entity is in that region
+                ent_region = _CODE_TO_REGION.get(single_key)
+                if ent_region == dom_region_val:
+                    entity_in_scope = True
+            else:
+                # Global G20 scope includes everything conceptually
+                entity_in_scope = True
+            
+            # Calculate Phantom Weight
+            if entity_in_scope:
+                phantom_weight = max(0.0, scope_weight - entity_weight)
+            else:
+                phantom_weight = scope_weight
+            
+            # Only apply if phantom is significant (e.g. > 10% of entity)
+            if phantom_weight > entity_weight * 0.1:
+                key_to_weight["__PHANTOM__"] = phantom_weight
+                note += f"Applied ambiguity penalty {note_suffix}. "
+
     # 2. Apply Dynamic Domestic Booster
-    if domestic_country and domestic_country not in IGNORED_REGIONS and domestic_country in key_to_weight and len(entities) > 1:
+    if not is_domestic_excluded and domestic_country and domestic_country not in IGNORED_REGIONS and domestic_country in key_to_weight and len(entities) > 1:
         raw_dom_w = key_to_weight[domestic_country]
         raw_total_w = sum(key_to_weight.values())
 
@@ -4566,6 +4635,10 @@ def weighted_division(
     # 5. Add pre-allocated counts
     for k, v in pre_allocated.items():
         final_distribution[k] = final_distribution.get(k, 0) + v
+
+    # Remove phantom entity if present
+    if "__PHANTOM__" in final_distribution:
+        del final_distribution["__PHANTOM__"]
 
     if used_clusters:
         note += f"Smoothed Clusters: {', '.join(used_clusters)}"
