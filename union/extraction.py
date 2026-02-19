@@ -32,6 +32,7 @@ from defs.union_regex import (
     LOOSE_TITLE_PREFIX_REGEX,
     DIVERSITY_TERMS,
     WORKS_REGEX,
+    COVERAGE_VERBS
 )
 from defs.region_regex import (
     Region,
@@ -148,6 +149,7 @@ WORKER_COUNT_REGEX = build_regex(
         rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}{worker_term_pattern}",
         rf"{worker_term_pattern}\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
         rf"(\d+(?:\.\d+)?)\s+(?:in|are|were|have|had)",
+        rf"(\d+(?:\.\d+)?)\s+{build_alternation(COVERAGE_VERBS)}",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)

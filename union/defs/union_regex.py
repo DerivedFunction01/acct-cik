@@ -48,7 +48,7 @@ class CORE(Enum):
     LODGE = r"Lodges?"
     WORKS_COUNCIL = r"Works\s+Councils?"
     CO_DET_RIGHTS = r"Co[- ]?Determination"
-    
+
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
@@ -413,15 +413,23 @@ NEGATION_TERMS = [
     r"outside",
 ]
 
-COVERAGE_TERMS = [
-    r"represent(?:ed|tion)",
+COVERAGE_VERBS = [
+    r"represented",
     r"covered",
-    r"affiliat(?:ed|ion)",
+    r"affiliated",
     r"subject\s+to",
     r"(?:are|were)\s+under",
-    r"members?\s+of",
-    r"works?\s+councils?",
-] + SUFFIX_AGREEMENTS
+]
+
+COVERAGE_TERMS = (
+    COVERAGE_VERBS
+    + SUFFIX_AGREEMENTS
+    + [
+        r"members?\s+of",
+        r"representation",
+        r"affiliation"
+    ]
+)
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
 
 SUPPLIER_TERMS = [
