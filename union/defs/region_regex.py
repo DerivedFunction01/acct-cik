@@ -4504,6 +4504,13 @@ def weighted_division(
 
     if total_group_weight == 0:
         # Fallback: equal split among all entities
+        
+        # If all entities were explicitly excluded, do not fallback to equal split.
+        # Return empty so the count bubbles up to the parent scope (e.g. Global).
+        if excluded_keys:
+            if all(e["key"] in excluded_keys for e in entities):
+                return {}, note
+
         split_val = int(val / len(entities))
         # Handle remainder
         remainder = int(val) - (split_val * len(entities))

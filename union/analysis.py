@@ -448,14 +448,16 @@ class SimpleCoverageAnalyzer:
             implicit_all = True
 
         pct = None
+        amb_mult = None
 
         if qual_match:
             qinfo = interpret_qualitative_match(qual_match, analysis, prefer_note=False)
             pct = qinfo.get("percentage")
+            amb_mult = qinfo.get("ambiguity_multiplier")
         elif implicit_all:
             pct = 100.0
 
-        if pct is None:
+        if pct is None and amb_mult is None:
             return
 
         # Check for status negation (e.g. "non-union", "not covered")
@@ -464,15 +466,21 @@ class SimpleCoverageAnalyzer:
             for m in analysis._matches
         )
 
-        data["percentage"] = pct
+        if pct is not None:
+            data["percentage"] = pct
+        if amb_mult is not None:
+            data["ambiguity_multiplier"] = amb_mult
+
         data["type"] = CoverageType.QUALITATIVE.value
+        
+        val_str = f"{pct}%" if pct is not None else f"(Ambiguous x{amb_mult})"
 
         if has_status_negation:
             data["negated"] = True
             data["negation_type"] = NegationType.NOT_COVERED.value
-            notes.append(f"Qualitative Exception: {pct}% (Negated Status)")
+            notes.append(f"Qualitative Exception: {val_str} (Negated Status)")
         else:
-            notes.append(f"Qualitative Exception: {pct}%")
+            notes.append(f"Qualitative Exception: {val_str}")
 
     def _handle_one_percent_one_count(
         self,
