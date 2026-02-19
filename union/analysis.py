@@ -6522,6 +6522,9 @@ class UnionAnalyzer:
                             # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
                             valid_children = [c for c in self._remove_container_regions(children, local_excluded_keys) 
                                             if not (local_excluded_keys and c["key"] in local_excluded_keys)]
+                            
+                            if not valid_children and children:
+                                return None # Abort: Exclusion wiped out all targets for this count
 
                             child_map, c_note = weighted_division(
                                 c["val"],
@@ -6574,6 +6577,10 @@ class UnionAnalyzer:
                     for c, group in zip(s_counts, groups):
                         valid_group = self._remove_container_regions(group, local_excluded_keys)
                         valid_group = [e for e in valid_group if not (local_excluded_keys and e["key"] in local_excluded_keys)]
+                        
+                        if not valid_group and group:
+                            return None # Abort: Exclusion wiped out all targets for this count
+
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
                         group_map, g_note = weighted_division(
@@ -6601,6 +6608,10 @@ class UnionAnalyzer:
                 count_val = curr_parts[0]["val"]
                 valid_entities = self._remove_container_regions(curr_entities, local_excluded_keys)
                 valid_entities = [e for e in valid_entities if not (local_excluded_keys and e["key"] in local_excluded_keys)]
+                
+                if not valid_entities and curr_entities:
+                    return None # Abort: Exclusion wiped out all targets
+
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
