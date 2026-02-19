@@ -2762,7 +2762,7 @@ INTERNATIONAL = {
         code="INT_IBERIA",
     ),
     Nation(
-        "Francophone",
+        "Francophone_",
         [],
         Region.INTERNATIONAL,
         [],
@@ -2784,7 +2784,7 @@ INTERNATIONAL = {
         code="INT_FR",
     ),
     Nation(
-        "Italian",
+        "Italian_",
         [],
         Region.INTERNATIONAL,
         [],
@@ -2804,7 +2804,7 @@ INTERNATIONAL = {
         code="INT_IT",
     ),
     Nation(
-        "German",
+        "German_",
         [],
         Region.INTERNATIONAL,
         [],
@@ -2826,7 +2826,7 @@ INTERNATIONAL = {
         code="INT_DE",
     ),
     Nation(
-        "Dutch",
+        "Dutch_",
         [],
         Region.INTERNATIONAL,
         [],
@@ -2845,13 +2845,12 @@ INTERNATIONAL = {
         code="INT_NL",
     ),
     Nation(
-        "Muslim",
+        "Muslim_",
         [],
         Region.INTERNATIONAL,
         [],
         [],
         [
-            "Muslim",
             "Serikat",
             "Kesatuan",
             "Sendikasi",
