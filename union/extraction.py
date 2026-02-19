@@ -243,10 +243,11 @@ EXCEPT_REGEX = build_regex(EXCLUSIONS)
 OUTSIDE_REGEX = build_regex(
     [
         r"outside",
-        r"non",
     ]
     + EXCLUSIONS
 )
+# Capture exactly non US, etc.
+NON_GEO_REGEX = re.compile(r"\b(?:non|not\s+in(?:\s+the)?)(?:[\s-]*)(\w+)\b", re.IGNORECASE)
 
 EXCLUSION_CONNECTOR_REGEX = re.compile(r"(?:[\s,-]|of|the|in|for|at)*", re.IGNORECASE)
 EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*$", re.IGNORECASE)
@@ -1479,6 +1480,15 @@ class UnionExtractor:
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
                                 break
+
+        # 21. Non-Geo Exclusion (Specific)
+        for m in NON_GEO_REGEX.finditer(text):
+            g_start, g_end = m.span(1)
+            for match in analysis._matches:
+                if "geo_obj" in match:
+                    m_start, m_end = match["span"]
+                    if m_start == g_start:
+                        match["geo_obj"].is_excluded = True
 
         # Propagate exclusion to chained entities (e.g. "Outside US, Canada and Mexico")
         geo_matches = [

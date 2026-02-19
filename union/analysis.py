@@ -743,6 +743,10 @@ class SimpleCoverageAnalyzer:
         notes: List[str],
     ):
         """Handles cases like 'None are represented'."""
+        # Don't override if we have qualitative terms that will be handled later
+        if analysis.qualitative_terms or analysis.qualitative_membership_terms:
+            return
+
         if (
             not analysis.percentages
             and not effective_counts
@@ -960,17 +964,15 @@ def interpret_qualitative_match(
         "ambiguity_multiplier": None,
     }
 
-    # If there are multiple qualitative matches in the sentence, pick the
-    # lowest percentage produced by any of them
-    qual_matches = [
-        m
-        for m in analysis._matches
-        if m["type"] in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
-    ]
-
-    # If no qual matches found in analysis, fall back to provided match
-    if not qual_matches:
-        qual_matches = [match] if match else []
+    # If match is provided, focus on it to avoid cross-contamination from other terms (e.g. "none")
+    if match:
+        qual_matches = [match]
+    else:
+        qual_matches = [
+            m
+            for m in analysis._matches
+            if m["type"] in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
+        ]
 
     best_pct = None
     best_is_neg = False
@@ -7256,6 +7258,16 @@ class UnionAnalyzer:
                         data["qualitative_bounds"] = qinfo.get("qualitative_bounds")
                     if qinfo.get("note"):
                         data["note"] = qinfo.get("note")
+
+                    # Check for status negation (e.g. "not represented", "non-union")
+                    has_status_negation = any(
+                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                        for m in analysis._matches
+                    )
+                    if has_status_negation:
+                        data["negated"] = True
+                        data["negation_type"] = NegationType.NOT_COVERED.value
+                        data["note"] = (data.get("note") or "") + " (Negated Status)"
 
         return data
 
