@@ -784,15 +784,6 @@ QUALITATIVE_TERMS = [
         lower_bound=0.0,
         upper_bound=20.0,
     ),
-    QualitativeTerm(
-        core_terms=["fraction", "portion", "percentage"],
-        suffix_terms=["of"],
-        positive_pct=10.0,
-        negated_pct=None,  # "not fraction of" is vague
-        requires_suffix=True,
-        lower_bound=0.0,
-        upper_bound=20.0,
-    ),
     # ===== 5% TIER (Handful/Few/Nominal/Limited) =====
     QualitativeTerm(
         core_terms=["handful", "few"],
@@ -908,6 +899,9 @@ QUALITATIVE_TERMS_AMB = [
             "part",
             "segment",
             "proportion",
+            "portion",
+            "percentage",
+            "fraction"
         ],
         suffix_terms=["of"],
         positive_pct=None,
@@ -990,13 +984,6 @@ QUALITATIVE_TERMS_AMB = [
         lower_bound=0.0,
         upper_bound=25.0,
         ambiguity_multiplier=0.7,
-    ),
-    QualitativeTerm(
-        core_terms=["rest", "remainder"],
-        suffix_terms=["of"],
-        positive_pct=None,
-        negated_pct=None,
-        requires_suffix=True,
     ),
 ]
 
