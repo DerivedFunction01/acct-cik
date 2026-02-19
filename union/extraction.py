@@ -241,7 +241,7 @@ EXCLUSIONS = [
 
 EXCEPT_REGEX = build_regex(EXCLUSIONS)
 OUTSIDE_REGEX = build_regex(
-    [r"outside", r"non\b", r"not\s+in\b"]
+    [r"outside"]
 )
 # Capture exactly non US, etc.
 NON_GEO_REGEX = re.compile(r"\b(?:non|not\s+in(?:\s+the)?)(?:[\s-]*)(\w+)\b", re.IGNORECASE)
