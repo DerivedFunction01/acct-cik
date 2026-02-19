@@ -7348,7 +7348,7 @@ class UnionAnalyzer:
                 else:
                     # Try intelligent mapping first
                     mapped_counts, sent_total, geo_notes = (
-                        self._resolve_counts_to_geography(analysis, capacities=effective_totals)
+                        self._resolve_counts_to_geography(analysis)
                     )
                     union_counts, _, union_notes = self._resolve_counts_to_unions(
                         analysis
