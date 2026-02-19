@@ -2469,7 +2469,7 @@ def determine_geo_context(
     # Check if we have any VALID explicit matches (not excluded, or excluded but remapped to INT)
     has_valid_explicit = False
     for m in explicit_matches:
-        if not m.is_excluded:
+        if not m.is_excluded or analysis.has_remaining_other:
             has_valid_explicit = True
             break
         # Special case: "Outside US" -> International (Valid Context)
@@ -2506,7 +2506,7 @@ def determine_geo_context(
         conflict_notes = []
 
         for m in explicit_matches:
-            if m.is_excluded:
+            if m.is_excluded and not analysis.has_remaining_other:
                 if m.geo_code == domestic_country_code and m.is_strict:
                     # Map "Outside Domestic" -> International
                     m.geo_code = "INT"
@@ -5826,6 +5826,10 @@ class UnionAnalyzer:
         inverse of the main sentence's coverage status.
         e.g. "All unionized except Mexico" -> Mexico: 0% Unionized.
         """
+        # If remaining is present, "except" is likely a breakdown delimiter, not a logical exception
+        if analysis.has_remaining_other:
+            return []
+
         items = []
 
         # 1. Check if we have excluded explicit geographies
@@ -6760,8 +6764,11 @@ class UnionAnalyzer:
 
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
                 if obj.is_excluded:
-                    if obj.geo_code:
-                        excluded_codes.add(obj.geo_code)
+                    # If remaining is detected, the exclusion is likely a delimiter for subtraction
+                    # e.g. "Total, except X, remaining Y". X is part of Total.
+                    if not analysis.has_remaining_other:
+                        if obj.geo_code:
+                            excluded_codes.add(obj.geo_code)
                     # Do not continue; allow mapping to specific counts, but exclude from distribution via excluded_keys
 
                 # Refine INT_ codes
