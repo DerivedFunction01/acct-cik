@@ -3497,6 +3497,7 @@ class Tracker:
                     f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}"
                 )
 
+
     def _resolve_aggregates(self):
         """
         Propagates coverage from AGGREGATE entries to their constituent countries
@@ -3871,7 +3872,8 @@ class Tracker:
         
         # If resolving North America, always inject US (SEC filing context)
         if region_name == Region.NORTH_AMERICA.value:
-            if "US" not in existing_keys:
+            # Only add US if Canada is not present
+            if "US" not in existing_keys and "CA" not in existing_keys:
                 self.entries.append(
                     Entry(scope=Scope.COUNTRY, key="US", is_explicit=False)
                 )
