@@ -6466,21 +6466,63 @@ class UnionAnalyzer:
         # 1. Prepare Counts (Total detection + Virtual counts + Proximity Map)
         parts, sentence_total, proximity_map = self._prepare_counts(analysis, entities)
 
-        if sentence_total is not None and total_key:
-            # If we only have one entity, the "Total" likely belongs to it, not the generic scope
+        # 2. Identify Root Container (Entity that contains all others)
+        root_container_idx = -1
+        if len(entities) > 1:
+            for i, e1 in enumerate(entities):
+                contains_all = True
+                for j, e2 in enumerate(entities):
+                    if i == j: continue
+                    if not self._is_contained(e1["key"], e2["key"], excluded_keys):
+                        contains_all = False
+                        break
+                if contains_all:
+                    root_container_idx = i
+                    break
+
+        base_notes = []
+
+        # 3. Handle Total Assignment
+        if sentence_total is not None:
+            target_key = total_key
+            
             if len(entities) == 1:
-                entity_key = entities[0]["key"]
-                mapped_counts[entity_key] = sentence_total
+                target_key = entities[0]["key"]
+                mapped_counts[target_key] = sentence_total
                 # Return early to ignore subset parts for Census
                 return mapped_counts, sentence_total, ["Inferred Total for Single Entity"]
-            else:
-                mapped_counts[total_key] = sentence_total
+            
+            if root_container_idx != -1:
+                target_key = entities[root_container_idx]["key"]
+                # Remove container from entities for distribution of parts
+                entities = [e for i, e in enumerate(entities) if i != root_container_idx]
+                base_notes.append(f"Assigned Total to Root Container {target_key}")
+            
+            if target_key:
+                mapped_counts[target_key] = sentence_total
 
-        # --- Preprocess: Remove redundant container regions ---
-        entities, preprocess_note = self._preprocess_redundant_containers(
-            entities, sentence_total, excluded_keys
-        )
-        base_notes = [preprocess_note] if preprocess_note else []
+        else:
+            # No explicit total detected by _prepare_counts
+            if root_container_idx != -1:
+                root_key = entities[root_container_idx]["key"]
+                # Check if root has a specific count via proximity
+                if root_key in proximity_map:
+                    val = proximity_map[root_key]
+                    # Find and consume the part
+                    part_idx = next((i for i, p in enumerate(parts) if p["val"] == val), -1)
+                    if part_idx != -1:
+                        mapped_counts[root_key] = val
+                        parts.pop(part_idx)
+                        entities = [e for i, e in enumerate(entities) if i != root_container_idx]
+                        base_notes.append(f"Assigned Proximity Count to Root Container {root_key}")
+                    else:
+                        # Fallback: Remove redundant container
+                        entities = [e for i, e in enumerate(entities) if i != root_container_idx]
+                        base_notes.append("Removed Redundant Container")
+                else:
+                    # No count associated -> Redundant descriptor
+                    entities = [e for i, e in enumerate(entities) if i != root_container_idx]
+                    base_notes.append("Removed Redundant Container")
 
         # --- Helper Strategies ---
 
