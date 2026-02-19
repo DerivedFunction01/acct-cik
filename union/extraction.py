@@ -786,15 +786,6 @@ QUALITATIVE_TERMS = [
     ),
     # ===== 5% TIER (Handful/Few/Nominal/Limited) =====
     QualitativeTerm(
-        core_terms=["handful", "few"],
-        suffix_terms=["of"],
-        positive_pct=5.0,
-        negated_pct=None,  # "not handful" could be many things
-        requires_suffix=True,
-        lower_bound=0.0,
-        upper_bound=10.0,
-    ),
-    QualitativeTerm(
         core_terms=["number"],
         prefix_terms=["small", "minor"],
         positive_pct=5.0,
@@ -895,14 +886,9 @@ QUALITATIVE_TERMS = [
 QUALITATIVE_TERMS_AMB = [
     QualitativeTerm(
         core_terms=[
-            "some",
-            "part",
             "segment",
             "proportion",
-            "portion",
-            "percentage",
-            "fraction"
-        ],
+        ] + QUANTITY_NOUNS,
         suffix_terms=["of"],
         positive_pct=None,
         negated_pct=None,
@@ -984,6 +970,16 @@ QUALITATIVE_TERMS_AMB = [
         lower_bound=0.0,
         upper_bound=25.0,
         ambiguity_multiplier=0.7,
+    ),
+    QualitativeTerm(
+        core_terms=["handful", "few"],
+        suffix_terms=["of"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+        lower_bound=0.0,
+        upper_bound=15.0,
+        ambiguity_multiplier=0.2,
     ),
 ]
 
