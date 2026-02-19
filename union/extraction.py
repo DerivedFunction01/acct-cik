@@ -237,6 +237,7 @@ EXCLUSIONS = [
     r"other\s+than",
     r"(?:apart|aside)\s+from",
     r"exclud(?:ing|es?)",
+    r"but",
 ]
 
 EXCEPT_REGEX = build_regex(EXCLUSIONS)
@@ -1478,13 +1479,18 @@ class UnionExtractor:
 
                             is_connected = False
                             
-                            # 1. Simple connector (short distance)
-                            if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
-                                is_connected = True
-                            # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
-                            elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between):
-                                if len(text_between.split()) <= 6:
+                            # Special handling for "but" - requires very short gap
+                            if excl["val"].lower() == "but":
+                                if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
                                     is_connected = True
+                            else:
+                                # 1. Simple connector (short distance)
+                                if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                    is_connected = True
+                                # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
+                                elif EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between):
+                                    if len(text_between.split()) <= 6:
+                                        is_connected = True
 
                             if is_connected:
                                 m["geo_obj"].is_excluded = True
