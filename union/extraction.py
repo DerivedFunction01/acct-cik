@@ -1003,6 +1003,7 @@ for term in QUALITATIVE_MEMBERSHIP:
 STRICT_LIST_CONNECTOR = re.compile(
     r"^\s*(?:,|;|and|&|or)\s*(?:and|or|&)?\s*$", re.IGNORECASE
 )
+PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
 class UnionExtractor:
     def __init__(self):
         # Use the centralized RegionMatcher for all geo/specific union logic
@@ -1581,6 +1582,31 @@ class UnionExtractor:
                 gid = curr_m["geo_obj"].list_group_id or id(curr_m["geo_obj"])
                 curr_m["geo_obj"].list_group_id = gid
                 next_m["geo_obj"].list_group_id = gid
+
+        # 23. Chain Numeric Matches (Partitive/Relational)
+        # Group numeric matches (Percent, Count) connected by "of" (e.g. "10% of 500", "200 of 300")
+        # Use a strict regex to avoid over-linking (e.g. avoid "with", "for" which might cross clauses)
+        
+        
+        numeric_types = {MatchType.PERCENT, MatchType.WORKER_COUNT, MatchType.NUMBER}
+        numeric_matches = [
+            m for m in analysis._matches 
+            if m["type"] in numeric_types
+        ]
+        numeric_matches.sort(key=lambda x: x["span"][0])
+        
+        for i in range(len(numeric_matches) - 1):
+            curr_m = numeric_matches[i]
+            next_m = numeric_matches[i+1]
+            
+            start = curr_m["span"][1]
+            end = next_m["span"][0]
+            text_between = text[start:end]
+            
+            if len(text_between) <= 50 and PARTITIVE_REGEX.search(text_between):
+                gid = curr_m.get("numeric_group_id") or id(curr_m)
+                curr_m["numeric_group_id"] = gid
+                next_m["numeric_group_id"] = gid
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms
