@@ -6528,7 +6528,8 @@ class UnionAnalyzer:
                                             if not (local_excluded_keys and c["key"] in local_excluded_keys)]
                             
                             if not valid_children and children:
-                                return None # Abort: Exclusion wiped out all targets for this count
+                                # Fallback: If all children were excluded but we have a count, map to them (e.g. "except Germany (1000)")
+                                valid_children = children
 
                             child_map, c_note = weighted_division(
                                 c["val"],
@@ -6583,7 +6584,8 @@ class UnionAnalyzer:
                         valid_group = [e for e in valid_group if not (local_excluded_keys and e["key"] in local_excluded_keys)]
                         
                         if not valid_group and group:
-                            return None # Abort: Exclusion wiped out all targets for this count
+                            # Fallback: If all were excluded but we have a count, map to them
+                            valid_group = group
 
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
@@ -6614,7 +6616,8 @@ class UnionAnalyzer:
                 valid_entities = [e for e in valid_entities if not (local_excluded_keys and e["key"] in local_excluded_keys)]
                 
                 if not valid_entities and curr_entities:
-                    return None # Abort: Exclusion wiped out all targets
+                    # Fallback: If all were excluded but we have a count, map to them
+                    valid_entities = curr_entities
 
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
@@ -6696,8 +6699,8 @@ class UnionAnalyzer:
 
                 if z_parts or z_entities:
                     has_content = True
-                    # Pass empty set for excluded_keys to allow mapping to entities within the zone
-                    zone_map, note = resolve_subset(z_parts, z_entities, set())
+                    # Pass excluded_keys to allow filtering, relying on fallback logic if needed
+                    zone_map, note = resolve_subset(z_parts, z_entities, excluded_keys)
                     combined_map.update(zone_map)
                     notes.append(note)
 
@@ -6765,10 +6768,9 @@ class UnionAnalyzer:
             for obj, raw in zip(geo_match_objs, raw_geo_matches):
                 if obj.is_excluded:
                     # If remaining is detected, the exclusion is likely a delimiter for subtraction
-                    # e.g. "Total, except X, remaining Y". X is part of Total.
-                    if not analysis.has_remaining_other:
-                        if obj.geo_code:
-                            excluded_codes.add(obj.geo_code)
+                    # But we still add to excluded_codes so they are filtered by default.
+                    if obj.geo_code:
+                        excluded_codes.add(obj.geo_code)
                     # Do not continue; allow mapping to specific counts, but exclude from distribution via excluded_keys
 
                 # Refine INT_ codes
