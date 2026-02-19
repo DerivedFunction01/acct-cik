@@ -298,7 +298,7 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
-def should_infer_complement(percentage: float, is_qualitative: bool, is_negated: Any) -> bool:
+def should_infer_complement(percentage: float, is_qualitative: bool, is_negated: Any, has_exceptions: bool = False) -> bool:
     """
     Determines if we should infer the complement count (e.g. Covered from Not Covered)
     based on the percentage value and type.
@@ -307,7 +307,12 @@ def should_infer_complement(percentage: float, is_qualitative: bool, is_negated:
     ambiguous middle values (10% < pct < 90%) when negated.
     e.g. "Majority are non-union" (51%) -> We know 510 are non-union, but we shouldn't
     assert 490 are union.
+
+    If has_exceptions is True (e.g. "Majority non-union except US"), we NEVER infer
+    the complement, because the exception (US) likely occupies that remainder space.
     """
+    if has_exceptions:
+        return False
     if is_negated and is_qualitative:
         if 10.0 < percentage < 90.0:
             return False
@@ -767,11 +772,17 @@ class SimpleCoverageAnalyzer:
 
                     ratio = round((pct / 100.0) * count)
 
+                    # Check for exceptions which should prevent filling the remainder
+                    has_exceptions = bool(analysis.except_terms or analysis.outside_terms)
+                    if has_exceptions:
+                        data["has_exceptions"] = True
+
                     # Only infer complement for qualitative negations if they are extremes
                     infer_complement = should_infer_complement(
                         pct,
                         data["type"] == CoverageType.QUALITATIVE.value,
                         has_status_negation,
+                        has_exceptions
                     )
 
                     if infer_complement:
@@ -6940,6 +6951,7 @@ class UnionAnalyzer:
                                     pct,
                                     c_data.get("type") == CoverageType.QUALITATIVE.value,
                                     is_negated,
+                                    c_data.get("has_exceptions", False)
                                 )
 
                                 if is_negated:
