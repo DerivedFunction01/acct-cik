@@ -730,7 +730,7 @@ QUALITATIVE_TERMS = [
     ),
     QualitativeTerm(
         core_terms=["many"],
-        suffix_terms=["of"],
+        suffix_terms=["of", r"are", "were", "have", "had"],
         positive_pct=20.0,
         negated_pct=None,
         requires_suffix=True,
@@ -915,7 +915,7 @@ QUALITATIVE_TERMS_AMB = [
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
-        ambiguity_multiplier=1.0,
+        ambiguity_multiplier=0.7,
     ),
     QualitativeTerm(
         core_terms=["certain"],
@@ -925,7 +925,18 @@ QUALITATIVE_TERMS_AMB = [
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
-        ambiguity_multiplier=1.0,
+        ambiguity_multiplier=0.7,
+    ),
+    QualitativeTerm(
+        core_terms=[r"some", "several"],
+        suffix_terms=[r"of", r"are", "were", "have", "had"],
+        positive_pct=None,
+        negated_pct=None,
+        requires_suffix=True,
+        suffix_gap=r"\s+",
+        lower_bound=0.0,
+        upper_bound=15.0,
+        ambiguity_multiplier=0.7,
     ),
     QualitativeTerm(
         core_terms=["few", "handful", "limited number"],
@@ -947,7 +958,7 @@ QUALITATIVE_TERMS_AMB = [
         suffix_gap=GAP,
         lower_bound=0.0,
         upper_bound=20.0,
-        ambiguity_multiplier=0.5,
+        ambiguity_multiplier=0.4,
     ),
     QualitativeTerm(
         core_terms=["certain", "some"],
@@ -958,7 +969,7 @@ QUALITATIVE_TERMS_AMB = [
         suffix_gap=GAP,
         lower_bound=0.0,
         upper_bound=25.0,
-        ambiguity_multiplier=1.0,
+        ambiguity_multiplier=0.7,
     ),
     QualitativeTerm(
         core_terms=[r"under[-]?unionized"],
@@ -978,7 +989,7 @@ QUALITATIVE_TERMS_AMB = [
         requires_suffix=True,
         lower_bound=0.0,
         upper_bound=25.0,
-        ambiguity_multiplier=1.0,
+        ambiguity_multiplier=0.7,
     ),
     QualitativeTerm(
         core_terms=["rest", "remainder"],
