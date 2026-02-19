@@ -298,6 +298,22 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
+def should_infer_complement(percentage: float, is_qualitative: bool, is_negated: Any) -> bool:
+    """
+    Determines if we should infer the complement count (e.g. Covered from Not Covered)
+    based on the percentage value and type.
+
+    For qualitative terms (e.g. "Majority"), we avoid inferring the inverse for
+    ambiguous middle values (10% < pct < 90%) when negated.
+    e.g. "Majority are non-union" (51%) -> We know 510 are non-union, but we shouldn't
+    assert 490 are union.
+    """
+    if is_negated and is_qualitative:
+        if 10.0 < percentage < 90.0:
+            return False
+    return True
+
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -752,10 +768,11 @@ class SimpleCoverageAnalyzer:
                     ratio = round((pct / 100.0) * count)
 
                     # Only infer complement for qualitative negations if they are extremes
-                    infer_complement = True
-                    if has_status_negation and data["type"] == CoverageType.QUALITATIVE.value:
-                        if 10.0 < pct < 90.0:
-                            infer_complement = False
+                    infer_complement = should_infer_complement(
+                        pct,
+                        data["type"] == CoverageType.QUALITATIVE.value,
+                        has_status_negation,
+                    )
 
                     if infer_complement:
                         apply_coverage_logic(
@@ -6919,10 +6936,11 @@ class UnionAnalyzer:
                                 subset = round((pct / 100.0) * total)
 
                                 # Check for qualitative ambiguity (don't infer inverse for "Majority non-union")
-                                infer_complement = True
-                                if is_negated and c_data.get("type") == CoverageType.QUALITATIVE.value:
-                                    if 10.0 < pct < 90.0:
-                                        infer_complement = False
+                                infer_complement = should_infer_complement(
+                                    pct,
+                                    c_data.get("type") == CoverageType.QUALITATIVE.value,
+                                    is_negated,
+                                )
 
                                 if is_negated:
                                     if not_covered is None:
