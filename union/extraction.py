@@ -241,10 +241,7 @@ EXCLUSIONS = [
 
 EXCEPT_REGEX = build_regex(EXCLUSIONS)
 OUTSIDE_REGEX = build_regex(
-    [
-        r"outside",
-    ]
-    + EXCLUSIONS
+    [r"outside", r"non\b", r"not\s+in\b"]
 )
 # Capture exactly non US, etc.
 NON_GEO_REGEX = re.compile(r"\b(?:non|not\s+in(?:\s+the)?)(?:[\s-]*)(\w+)\b", re.IGNORECASE)
@@ -1473,6 +1470,11 @@ class UnionExtractor:
                         # Check if exclusion is before (within reasonable distance)
                         if 0 <= dist <= 60:
                             text_between = text[e_end:m_start]
+
+                            # Enforce no digits in the gap to prevent false associations across numbers
+                            if re.search(r"\d", text_between):
+                                continue
+
                             is_connected = False
                             
                             # 1. Simple connector (short distance)

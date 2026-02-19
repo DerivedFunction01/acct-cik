@@ -6155,7 +6155,8 @@ class UnionAnalyzer:
                         if children:
                             # Filter out containers (e.g. CIS) if constituents (e.g. RU) are present
                             # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
-                            valid_children = self._remove_container_regions(children, excluded_keys)
+                            valid_children = [c for c in self._remove_container_regions(children, excluded_keys) 
+                                            if not (excluded_keys and c["key"] in excluded_keys)]
 
                             child_map, c_note = weighted_division(
                                 c["val"],
@@ -6206,6 +6207,7 @@ class UnionAnalyzer:
                     cluster_notes = []
                     for c, group in zip(s_counts, groups):
                         valid_group = self._remove_container_regions(group, excluded_keys)
+                        valid_group = [e for e in valid_group if not (excluded_keys and e["key"] in excluded_keys)]
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
                         group_map, g_note = weighted_division(
@@ -6231,6 +6233,7 @@ class UnionAnalyzer:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
                 valid_entities = self._remove_container_regions(curr_entities, excluded_keys)
+                valid_entities = [e for e in valid_entities if not (excluded_keys and e["key"] in excluded_keys)]
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
                     filtered_note = " (Filtered Containers)"
@@ -6379,7 +6382,7 @@ class UnionAnalyzer:
                 if obj.is_excluded:
                     if obj.geo_code:
                         excluded_codes.add(obj.geo_code)
-                    continue
+                    # Do not continue; allow mapping to specific counts, but exclude from distribution via excluded_keys
 
                 # Refine INT_ codes
                 if obj.geo_code:
