@@ -5657,6 +5657,109 @@ class UnionAnalyzer:
         """
         return determine_geo_context(analysis, last_context, current_idx, last_idx, self.domestic_country_code)
 
+    def _create_exception_items(
+        self,
+        analysis: SentenceAnalysis,
+        main_coverage: Dict[str, Any],
+        sentence_index: int,
+        sentence_text: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Creates explicit coverage entries for excluded geographies based on the
+        inverse of the main sentence's coverage status.
+        e.g. "All unionized except Mexico" -> Mexico: 0% Unionized.
+        """
+        items = []
+
+        # 1. Check if we have excluded explicit geographies
+        excluded_geos = [
+            m
+            for m in analysis.geo_matches
+            if m.source_type == GeoSource.EXPLICIT and m.is_excluded
+        ]
+        if not excluded_geos:
+            return []
+
+        # 2. Determine Main Status
+        main_type = main_coverage.get("type")
+        main_pct = main_coverage.get("percentage")
+        main_negated = main_coverage.get("negated", False)
+
+        main_status = None  # 'covered' or 'not_covered'
+
+        # Check for "All" / "Substantially All" (High %)
+        if main_pct is not None and main_pct >= 90:
+            main_status = "covered"
+        # Check for "None" / "Minimal" (Low %)
+        elif main_pct is not None and main_pct <= 10:
+            main_status = "not_covered"
+        # Check for Explicit Negation ("Non-union", "Not covered")
+        elif main_negated:
+            main_status = "not_covered"
+        # Check for "Unionized" / "Covered" without specific % (Qualitative)
+        elif main_type == CoverageType.QUALITATIVE.value and not main_negated:
+            main_status = "covered"
+
+        if not main_status:
+            return []
+
+        # 3. Create items for exceptions (Invert status)
+        exception_status = "not_covered" if main_status == "covered" else "covered"
+
+        for m in excluded_geos:
+            # Skip if remapped to INT (e.g. "Outside US") - that's handled as main context
+            if m.geo_code == "INT" and m.country == "International":
+                continue
+
+            geo_ctx = {
+                "region": m.region.value,
+                "countries": [{"name": m.country, "code": m.geo_code}],
+                "specificity": Specificity.EXPLICIT.value,
+                "explicit_countries": [m.country],
+                "note": "Exception from main clause",
+            }
+
+            cov_data = {
+                "percentage": None,
+                "employee_count_covered": None,
+                "employee_count_not_covered": None,
+                "employee_count_total": None,
+                "negated": False,
+                "negation_type": None,
+                "type": CoverageType.QUALITATIVE.value,
+                "qualitative_bounds": None,
+                "note": f"Inferred exception from '{main_status}' main clause",
+                "temporal_scope": main_coverage.get("temporal_scope"),
+                "ambiguity_multiplier": None,
+            }
+
+            if exception_status == "not_covered":
+                cov_data["percentage"] = 0.0
+                cov_data["negated"] = True
+                cov_data["negation_type"] = NegationType.ZERO_COVERAGE.value
+            else:
+                # Covered (e.g. "Non-union except Canada")
+                # Set ambiguity_multiplier to trigger dummy logic later if no counts found
+                cov_data["ambiguity_multiplier"] = 1.0
+                cov_data["note"] += " (Positive coverage implied)"
+
+            item = {
+                "sentence": sentence_text,
+                "keyword_matched": analysis.union_terms or None,
+                "geographic_context": geo_ctx,
+                "coverage_data": cov_data,
+                "lookup_totals": {},
+                "census_note": "Exception Inference",
+                "sentence_index": sentence_index,
+                "worker_type_map": {},
+                "worker_types": [],
+                "is_remaining": False,
+                "is_union": True,
+            }
+            items.append(item)
+
+        return items
+
     def analyze_paragraph(
         self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None
     ) -> Dict[str, Any]:
@@ -5717,6 +5820,13 @@ class UnionAnalyzer:
                         all_region_totals[reg] = count
 
                 results.extend(block_results)
+
+                # Handle Excluded Geographies (Implicit Coverage)
+                for idx, analysis in enumerate([self.extractor.analyze_sentence(s) for s in p_sentences]):
+                    # We need to match the analysis to the result item to get coverage_data
+                    # This is handled inside _analyze_block now to keep context aligned
+                    pass
+
                 # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
                 prev_paragraph_totals = local_totals
 
@@ -7278,6 +7388,12 @@ class UnionAnalyzer:
                 results.append(item)
 
             last_employee_count = current_sentence_count
+
+            # NEW: Handle Excluded Geographies (Implicit Coverage)
+            # Must be done per sentence to access specific analysis and coverage_data
+            if analysis.is_relevant:
+                exception_items = self._create_exception_items(analysis, coverage_data, current_idx, sent)
+                results.extend(exception_items)
 
         merged_results = self._merge_continuation_items(results)
 
