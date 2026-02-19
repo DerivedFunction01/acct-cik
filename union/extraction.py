@@ -1366,6 +1366,18 @@ class UnionExtractor:
             lambda m, val: analysis.numbers.append(val),
         )
 
+        # Post-processing: Filter noise numbers
+        # Remove generic numbers that are likely footnotes or list markers not removed
+        all_counts = analysis.worker_counts + analysis.numbers
+        if all_counts:
+            max_count = max(all_counts)
+            # For large counts (>10k), drop numbers < 10 as likely noise/footnotes
+            if max_count >= 10000:
+                noise_threshold = 10
+                analysis.numbers = [
+                    n for n in analysis.numbers if not (n < noise_threshold)
+                ]
+
         # 14. Extract Relationship Terms (e.g. "employee relations")
         process_matches(
             RELATIONSHIP_REGEX,
