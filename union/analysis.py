@@ -777,6 +777,12 @@ class SimpleCoverageAnalyzer:
                     if has_exceptions:
                         data["has_exceptions"] = True
 
+                        # Downgrade 100% to 95% if exceptions exist to leave room for the exception
+                        # e.g. "All employees non-union except US" -> 95% non-union, 5% buffer for US
+                        if pct >= 99.0:
+                            pct = 95.0
+                            notes.append("Downgraded from 100% to 95% due to exception")
+
                     # Only infer complement for qualitative negations if they are extremes
                     infer_complement = should_infer_complement(
                         pct,
@@ -6953,6 +6959,11 @@ class UnionAnalyzer:
                                     is_negated,
                                     c_data.get("has_exceptions", False)
                                 )
+
+                                # Downgrade 100% to 95% if exceptions exist (Merged context)
+                                if c_data.get("has_exceptions") and pct >= 99.0:
+                                    pct = 95.0
+                                    c_data["note"] = (c_data.get("note") or "") + " | Downgraded 100%->95% (exception)"
 
                                 if is_negated:
                                     if not_covered is None:
