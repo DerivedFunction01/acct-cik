@@ -319,6 +319,72 @@ def should_infer_complement(percentage: float, is_qualitative: bool, is_negated:
     return True
 
 
+def split_ambiguous_entry(item: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """
+    Splits an ambiguous, qualitative, negated entry into two:
+    1. Known Non-Covered (Explicit)
+    2. Unknown Remainder (Eligible for dummy rates)
+    """
+    cov = item.get("coverage_data", {})
+    
+    # Criteria for splitting
+    # 1. Must have a total to calculate the split
+    total = cov.get("employee_count_total")
+    if not total or total <= 0:
+        return [item]
+
+    # 2. Must be negated and qualitative
+    if not (cov.get("negated") and cov.get("type") == CoverageType.QUALITATIVE.value):
+        return [item]
+
+    # 3. Check percentage range (Ambiguous or Exception-based)
+    pct = cov.get("percentage")
+    if pct is None:
+        return [item]
+        
+    # If it has exceptions, we ALWAYS split to leave room for the exception
+    # If no exceptions, only split if ambiguous (10% < pct < 90%)
+    has_exceptions = cov.get("has_exceptions", False)
+    is_ambiguous = 10.0 < pct < 90.0
+    
+    if not (has_exceptions or is_ambiguous):
+        return [item]
+
+    # Perform Split
+    subset_count = round((pct / 100.0) * total)
+    remainder_count = max(0, total - subset_count)
+
+    # Item A: Known Non-Union
+    item_a = item.copy()
+    # Deep copy coverage data to avoid reference issues
+    item_a["coverage_data"] = cov.copy()
+    item_a["coverage_data"].update({
+        "employee_count_total": subset_count, # Scope reduced to this group
+        "employee_count_not_covered": subset_count,
+        "employee_count_covered": 0,
+        "percentage": 0.0,
+        "note": (cov.get("note") or "") + " | Split Part A: Known non-union"
+    })
+
+    # Item B: Unknown Remainder
+    item_b = item.copy()
+    item_b["coverage_data"] = cov.copy()
+    item_b["coverage_data"].update({
+        "employee_count_total": remainder_count,
+        "employee_count_not_covered": None,
+        "employee_count_covered": None,
+        "percentage": None,
+        "negated": False, # Reset negation so it's treated as a fresh unknown record
+        "negation_type": None,
+        "is_dummy_percent": False, # Eligible for new dummy rate
+        "note": (cov.get("note") or "") + " | Split Part B: Unknown remainder"
+    })
+    # Ensure it's marked as a union record so Tracker picks it up
+    item_b["is_union"] = True 
+
+    return [item_a, item_b]
+
+
 class SimpleCoverageAnalyzer:
     """
     Handles straightforward sentences where coverage is explicit and singular.
@@ -3306,7 +3372,14 @@ class Tracker:
                     if census_total <= 0:
                         continue
 
-                    e.covered_count = round((e.percentage / 100.0) * census_total)
+                    # Respect negation: if negated, calculate not_covered, then derive covered
+                    calculated_count = round((e.percentage / 100.0) * census_total)
+                    if e.is_negated:
+                        e.not_covered_count = calculated_count
+                        e.covered_count = max(0, census_total - calculated_count)
+                    else:
+                        e.covered_count = calculated_count
+                        
                     e.total_count = census_total
                     self.resolution_log.append(
                         f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}"
@@ -7102,6 +7175,16 @@ class UnionAnalyzer:
             merged_results.append(current)
         return merged_results
 
+    def _apply_splitting_logic(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Applies split_ambiguous_entry to all items in the list.
+        """
+        final_results = []
+        for item in results:
+            split_items = split_ambiguous_entry(item)
+            final_results.extend(split_items)
+        return final_results
+
     def _analyze_block(
         self,
         sentences: List[str],
@@ -7465,6 +7548,9 @@ class UnionAnalyzer:
                 results.extend(exception_items)
 
         merged_results = self._merge_continuation_items(results)
+        
+        # Apply splitting logic for ambiguous qualitative negations
+        merged_results = self._apply_splitting_logic(merged_results)
 
         return merged_results, effective_totals, last_geo_context, last_geo_sentence_idx
 
