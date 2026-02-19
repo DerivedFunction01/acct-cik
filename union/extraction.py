@@ -1461,6 +1461,12 @@ class UnionExtractor:
 
                     m_start = m["span"][0]
                     for excl in exclusion_matches:
+                        # Check for double negation (e.g. "not outside", "not excluding")
+                        excl_start = excl["span"][0]
+                        lookback = text[max(0, excl_start - 20) : excl_start]
+                        if NEGATION_REGEX.search(lookback):
+                            continue
+
                         e_end = excl["span"][1]
                         dist = m_start - e_end
                         
@@ -1483,6 +1489,12 @@ class UnionExtractor:
 
         # 21. Non-Geo Exclusion (Specific)
         for m in NON_GEO_REGEX.finditer(text):
+            # Check for double negation (e.g. "no non-US", "not not in")
+            match_start = m.start()
+            lookback = text[max(0, match_start - 20) : match_start]
+            if NEGATION_REGEX.search(lookback):
+                continue
+
             g_start, g_end = m.span(1)
             for match in analysis._matches:
                 if "geo_obj" in match:
