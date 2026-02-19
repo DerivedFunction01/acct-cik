@@ -426,6 +426,11 @@ class SimpleCoverageAnalyzer:
         if not (analysis.except_terms or analysis.outside_terms):
             return
 
+        # Check if any geography was actually excluded
+        has_excluded_geo = any(m.is_excluded for m in analysis.geo_matches)
+        if not has_excluded_geo:
+            return
+
         # Must have union/coverage terms to be relevant
         if not analysis.is_union:
             return
