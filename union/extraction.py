@@ -251,7 +251,7 @@ NON_GEO_REGEX = re.compile(r"\b(?:non|not\s+in(?:\s+the)?)(?:[\s-]*)(\w+)\b", re
 
 EXCLUSION_CONNECTOR_REGEX = re.compile(r"(?:[\s,-]|of|the|in|for|at)*", re.IGNORECASE)
 EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*$", re.IGNORECASE)
-CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&)*", re.IGNORECASE)
+CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&|of|the)*", re.IGNORECASE)
 
 
 class MatchType(Enum):
