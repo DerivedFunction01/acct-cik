@@ -169,6 +169,8 @@ def get_min_distance_to_matches(
     target_span: Tuple[int, int],
     matches: List[Dict[str, Any]],
     match_types: List[MatchType],
+    look_backward: bool = True,
+    look_forward: bool = True,
 ) -> float:
     t_start, t_end = target_span
     min_dist = float("inf")
@@ -176,16 +178,22 @@ def get_min_distance_to_matches(
     for m in matches:
         if m["type"] in match_types:
             m_start, m_end = m["span"]
-            dist = 0
+            dist = None
             if m_end < t_start:
-                dist = t_start - m_end
+                # Match is before target
+                if look_backward:
+                    dist = t_start - m_end
             elif t_end < m_start:
-                dist = m_start - t_end
+                # Match is after target
+                if look_forward:
+                    dist = m_start - t_end
+            else:
+                # Overlapping
+                dist = 0
 
-            if dist < min_dist:
+            if dist is not None and dist < min_dist:
                 min_dist = dist
     return min_dist
-
 
 def construct_window(
     match_span: Tuple[int, int],
@@ -6810,14 +6818,31 @@ class UnionAnalyzer:
                                     break
 
                 if is_effectively_excluded:
-                    # If remaining is detected, the exclusion is likely a delimiter for subtraction
-                    # e.g. "Total, except X, remaining Y". X is part of Total.
-                    if not analysis.has_remaining_other:
+                    should_exclude = True
+                    if analysis.has_remaining_other:
+                        should_exclude = False
+                        # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
+                        # e.g. "excluding Japan, the remaining..."
+                        rem_matches = [m for m in analysis._matches if m["type"] == MatchType.REMAINING_OTHER]
+                        if rem_matches:
+                            g_start, g_end = raw["span"]
+                            min_dist = float("inf")
+                            for rm in rem_matches:
+                                r_start, r_end = rm["span"]
+                                dist = 0
+                                if r_end <= g_start:
+                                    dist = g_start - r_end
+                                elif g_end <= r_start:
+                                    dist = r_start - g_end
+                                if dist < min_dist:
+                                    min_dist = dist
+                            
+                            if min_dist < 40:
+                                should_exclude = True
+
+                    if should_exclude:
                         if obj.geo_code:
                             excluded_codes.add(obj.geo_code)
-                    # But we still add to excluded_codes so they are filtered by default.
-                    if obj.geo_code:
-                        excluded_codes.add(obj.geo_code)
                     # Do not continue; allow mapping to specific counts, but exclude from distribution via excluded_keys
 
                 # Refine INT_ codes
