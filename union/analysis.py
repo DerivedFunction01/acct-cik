@@ -4969,6 +4969,8 @@ class Tracker:
             geo_name = "Unknown"
             target_weight = 0.0
             source_weight = 0.0
+            pool_source = "Direct"
+            prevent_global_fallback = False
 
             # Determine Base Population & Weights
             if scope_type == Scope.COUNTRY.value:
@@ -4977,14 +4979,32 @@ class Tracker:
                 base_pop = self.country_totals.get(scope_key, 0.0)
                 if base_pop > 0:
                     source_weight = target_weight
+                    pool_source = f"Country ({scope_key})"
 
                 # Fallback to Region
                 if base_pop <= 0:
                     r_name = _CODE_TO_REGION.get(scope_key)
                     if r_name:
-                        base_pop = self.region_totals.get(r_name, 0.0)
-                        geo_name = r_name
-                        source_weight = REGION_WEIGHTS.get(r_name, 0.0)
+                        region_total = self.region_totals.get(r_name, 0.0)
+                        
+                        if region_total > 0:
+                            prevent_global_fallback = True
+                            base_pop = region_total
+                            
+                            # Subtract known siblings to avoid using exhausted pool
+                            siblings_sum = sum(
+                                c_total 
+                                for c_code, c_total in self.country_totals.items() 
+                                if c_code != scope_key and _CODE_TO_REGION.get(c_code) == r_name
+                            )
+                            base_pop = max(0.0, base_pop - siblings_sum)
+                            
+                            if base_pop > 0:
+                                geo_name = r_name
+                                source_weight = REGION_WEIGHTS.get(r_name, 0.0)
+                                pool_source = f"Region ({r_name}) Fallback"
+                            else:
+                                pool_source = f"Region ({r_name}) Exhausted"
 
             elif scope_type == Scope.REGION.value:
                 geo_name = scope_key
@@ -4992,15 +5012,18 @@ class Tracker:
                 base_pop = self.region_totals.get(scope_key, 0.0)
                 if base_pop > 0:
                     source_weight = target_weight
+                    pool_source = f"Region ({scope_key})"
 
             # Fallback to Global
-            if base_pop <= 0:
+            if base_pop <= 0 and not prevent_global_fallback:
                 base_pop = self.global_total
                 geo_name = "Global"
                 source_weight = global_weight
+                pool_source = "Global Fallback"
                 # If target weight wasn't set (e.g. Global scope target), set it
                 if scope_type == Scope.GLOBAL.value:
                     target_weight = global_weight
+                    pool_source = "Global"
 
             if base_pop > 0:
                 # Scale population if source is broader than target
@@ -5171,11 +5194,22 @@ class Tracker:
 
                     # Check if scaled (approx check due to float)
                     total_allocated = distributable_pop * num_segments
+                    
+                    details = []
                     if abs(total_allocated - base_pop) > 1.0:
-                        log_msg += f" (Scaled from {base_pop} {geo_name} by weight {target_weight:.4f}/{source_weight:.4f})"
+                        details.append(f"Scaled from {base_pop} {geo_name} [{pool_source}] by weight {target_weight:.4f}/{source_weight:.4f}")
                     else:
-                        log_msg += f" (Base {base_pop} from {geo_name})"
+                        details.append(f"Base {base_pop} from {geo_name} [{pool_source}]")
+                    
+                    if consumed_pop > 0:
+                        details.append(f"Consumed {consumed_pop}")
+                    
+                    if details:
+                        log_msg += " (" + ", ".join(details) + ")"
+                        
                     self.resolution_log.append(log_msg)
+            elif prevent_global_fallback:
+                self.resolution_log.append(f"Skipped fallback for {scope_key}: {pool_source}")
 
     def _check_contradictions(self):
         """
