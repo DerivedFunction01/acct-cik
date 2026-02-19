@@ -4491,9 +4491,12 @@ class Tracker:
                         elif e.percentage is None or e.ambiguity_multiplier is not None:
                             base_rate = rate if rate is not None else 0.01
 
+                            mult_note = ""
                             # Apply ambiguity multiplier if present (e.g. "some" = 1.0x, "few" = 0.5x)
                             if e.ambiguity_multiplier is not None:
+                                original_base = base_rate
                                 base_rate *= e.ambiguity_multiplier
+                                mult_note = f" (adj from {original_base*100:.1f}% via {e.ambiguity_multiplier}x mult)"
 
                             boosted_rate, multiplier = self._calculate_boosted_rate(
                                 base_rate, key=e.key
@@ -4505,7 +4508,7 @@ class Tracker:
                                 "External Data" if rate is not None else "Default"
                             )
                             self.resolution_log.append(
-                                f"Applied inferred rate {e.percentage}% to {e.key} ({source_desc} {base_rate*100:.1f}% x {multiplier:.2f} booster from {self.total_union_keywords} keywords)"
+                                f"Applied inferred rate {e.percentage}% to {e.key} ({source_desc} {base_rate*100:.1f}%{mult_note} x {multiplier:.2f} booster from {self.total_union_keywords} keywords)"
                             )
 
     def _calculate_missing_covered_counts(self):
