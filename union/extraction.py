@@ -46,10 +46,6 @@ from defs.region_regex import (
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
-RATIO_REGEX = re.compile(
-    r"\b(\d+(?:\.\d+)?)\s+(?:[\w-]+\s+){0,5}(?:(?:out\s+)?of)\s+(?:[\w-]+\s+){0,5}(\d+(?:\.\d+)?)\b",
-    re.IGNORECASE,
-)
 RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
 
 # --- Temporal Regexes ---
@@ -257,7 +253,6 @@ CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&|of|the)*", re.IGNORECAS
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
-    RATIO = "RATIO"
     YEAR = "YEAR"
     WORKER_COUNT = "WORKER_COUNT"
     WORKER_TERM = "WORKER_TERM"
@@ -305,7 +300,6 @@ class GeoMatch:
 class SentenceAnalysis:
     text: str
     percentages: List[float] = field(default_factory=list)
-    ratios: List[Tuple[float, float]] = field(default_factory=list)
     worker_counts: List[float] = field(default_factory=list)
     worker_terms: List[str] = field(default_factory=list)
     numbers: List[float] = field(default_factory=list)
@@ -1327,13 +1321,6 @@ class UnionExtractor:
                     geo_side_effect,
                 )
 
-        # 10. Extract Ratios (Before Numbers)
-        process_matches(
-            RATIO_REGEX,
-            MatchType.RATIO,
-            lambda m: (float(m.group(1)), float(m.group(2))),
-            lambda m, val: analysis.ratios.append(val),
-        )
 
         # 11A: Extract Worker type
         process_matches(
@@ -1609,6 +1596,9 @@ class UnionExtractor:
             text_between = text[start:end]
             
             if len(text_between) <= 50 and PARTITIVE_REGEX.search(text_between):
+                if SEGMENT_DELIMITER_REGEX.search(text_between):
+                    continue
+
                 gid = curr_m.get("numeric_group_id") or id(curr_m)
                 curr_m["numeric_group_id"] = gid
                 next_m["numeric_group_id"] = gid
@@ -1709,7 +1699,6 @@ class UnionExtractor:
         # We check if there's a percentage/ratio AND (worker terms OR worker counts)
         has_quant = bool(
             analysis.percentages
-            or analysis.ratios
             or analysis.numbers
             or analysis.qualitative_terms
         )
@@ -1771,7 +1760,6 @@ class UnionExtractor:
             elif BOILERPLATE_REGEX.search(text):
                 has_data = bool(
                     analysis.percentages
-                    or analysis.ratios
                     or analysis.worker_counts
                     or analysis.numbers
                     or analysis.qualitative_terms
@@ -1811,7 +1799,6 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        # print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:

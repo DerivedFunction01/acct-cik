@@ -1296,6 +1296,7 @@ class ComplexCoverageAnalyzer:
             "note": None,
             "_count_assignments": [],
         }
+        self.local_assignments = []
 
     def analyze(self) -> Dict[str, Any]:
         if not self.analysis.is_union:
@@ -1314,19 +1315,18 @@ class ComplexCoverageAnalyzer:
         if self._handle_percent_of_percent():
             return self.data
 
+        # 1.5 Grouped Matches (from extraction grouping)
+        excluded_ids = self._resolve_grouped_matches()
+
         # 2. Local Patterns (Sliding Window for "Count, Percent, Count")
         # Returns indices to exclude from generic processing, but queues assignments internally
-        excluded_ids = self._resolve_local_patterns()
+        excluded_ids = self._resolve_local_patterns(excluded_ids)
 
         # Refresh counts to include any virtual matches injected by local patterns
         counts = get_effective_counts(self.analysis)
 
         # 3. Mixed Coverage (Resolves specific counts/percents)
         self._resolve_mixed_coverage(counts=counts, excluded_match_ids=excluded_ids)
-
-        # 4. Ratios
-        if not self.data["percentage"]:
-            self._handle_ratios()
 
         # 5. Calculate Percentage from Counts
         self._calculate_percentage_from_counts()
@@ -1551,13 +1551,92 @@ class ComplexCoverageAnalyzer:
                         return True
         return False
 
-    def _resolve_local_patterns(self) -> Set[int]:
+    def _resolve_grouped_matches(self) -> Set[int]:
+        """
+        Resolves matches that were grouped during extraction (e.g. '200 of 300', '10% of 500').
+        Uses numeric_group_id populated in extraction.py.
+        """
+        consumed_indices = set()
+        
+        # Group matches by numeric_group_id
+        groups = {}
+        for m in self.analysis._matches:
+            gid = m.get("numeric_group_id")
+            if gid:
+                if gid not in groups:
+                    groups[gid] = []
+                groups[gid].append(m)
+        
+        for gid, group in groups.items():
+            # Sort by position
+            group.sort(key=lambda x: x["span"][0])
+            
+            # Check composition
+            counts = [m for m in group if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)]
+            percents = [m for m in group if m["type"] == MatchType.PERCENT]
+            
+            # Case 1: Count of Count (200 of 300)
+            if len(counts) == 2 and not percents:
+                c1, c2 = counts[0]["val"], counts[1]["val"]
+                total = max(c1, c2)
+                part = min(c1, c2)
+                
+                # Determine negation from part
+                part_match = counts[0] if counts[0]["val"] == part else counts[1]
+                total_match = counts[0] if counts[0]["val"] == total else counts[1]
+                
+                is_negated = check_local_negation(
+                    part_match["span"], self.analysis.text, backward=30, forward=30
+                )
+                
+                # Queue assignments
+                self.local_assignments.append({"match": total_match, "type": "total"})
+                
+                if is_negated:
+                    self.local_assignments.append({"match": part_match, "type": "not_covered"})
+                    self.local_assignments.append({
+                        "match": {"val": max(0, total - part), "span": total_match["span"]},
+                        "type": "covered"
+                    })
+                else:
+                    self.local_assignments.append({"match": part_match, "type": "covered"})
+                    self.local_assignments.append({
+                        "match": {"val": max(0, total - part), "span": total_match["span"]},
+                        "type": "not_covered"
+                    })
+                
+                consumed_indices.update(id(m) for m in group)
+                self.data["note"] = (self.data["note"] or "") + f" | Grouped subset: {part} of {total}"
+
+            # Case 2: Percent of Count (10% of 500)
+            elif len(counts) == 1 and len(percents) == 1:
+                count_match = counts[0]
+                pct_match = percents[0]
+                
+                # Use _resolve_local_pair logic but for this specific group
+                # We can reuse the logic by calling it directly or replicating it.
+                # Replicating simplified version here for clarity and to ensure group usage.
+                
+                # Check for hard delimiters within the group (unlikely if grouped by extraction, but safe to check)
+                text_between = self.analysis.text[min(m["span"][1] for m in group) : max(m["span"][0] for m in group)]
+                if ";" in text_between:
+                    continue
+
+                self._resolve_local_pair(pct_match, count_match)
+                consumed_indices.update(id(m) for m in group)
+                self.data["note"] = (self.data["note"] or "") + " (Grouped)"
+
+        return consumed_indices
+
+    def _resolve_local_patterns(self, excluded_ids: Optional[Set[int]] = None) -> Set[int]:
         """
         Scans for local arithmetic patterns (e.g. Total * Pct = Part) using a sliding window.
         Returns a set of match IDs that were consumed.
         """
-        self.local_assignments = []
-        consumed_indices = set()
+        if not hasattr(self, "local_assignments"):
+            self.local_assignments = []
+            
+        consumed_indices = set(excluded_ids) if excluded_ids else set()
 
         # Gather all relevant matches sorted by position
         relevant_types = (MatchType.WORKER_COUNT, MatchType.NUMBER, MatchType.PERCENT)
@@ -1805,7 +1884,7 @@ class ComplexCoverageAnalyzer:
         """
         # Check for explicit subset relationship
         is_subset = False
-        if OF_REGEX.search(text_between):
+        if OF_REGEX.search(text_between) and not "," in text_between:
             is_subset = True
         elif check_local_regex(
             m1["span"], self.analysis.text, OF_REGEX, backward=25, forward=0
@@ -1936,11 +2015,13 @@ class ComplexCoverageAnalyzer:
                     if kw_item["type"] == "covered":
                         current = self.data["employee_count_covered"] or 0
                         self.data["employee_count_covered"] = current + val_match["val"]
+                        excluded_match_ids.add(id(val_match))
                     elif kw_item["type"] == "not_covered":
                         current = self.data["employee_count_not_covered"] or 0
                         self.data["employee_count_not_covered"] = (
                             current + val_match["val"]
                         )
+                        excluded_match_ids.add(id(val_match))
 
                 if (
                     self.data["employee_count_covered"] is not None
@@ -1968,6 +2049,7 @@ class ComplexCoverageAnalyzer:
                         self.data["percentage"] = adj_val
                         if note:
                             self.data["note"] = note
+                        excluded_match_ids.add(id(pct_match))
                     elif (
                         kw_item["type"] == "not_covered"
                         and self.data["percentage"] is None
@@ -1978,6 +2060,7 @@ class ComplexCoverageAnalyzer:
                         self.data["note"] = (
                             f"Inverted from {adj_val}% not covered (respectively)"
                         )
+                        excluded_match_ids.add(id(pct_match))
                 return
 
         # 3b. "Of Whom" / "Of Which" Logic (Subset Indicator)
@@ -2101,14 +2184,15 @@ class ComplexCoverageAnalyzer:
                     s_start, s_end, _ = segments[seg_idx]
                     seg_text = self.analysis.text[s_start:s_end].strip()
 
-                count_assignments.append(
-                    {
-                        "match": c,
-                        "type": la["type"],
-                        "seg_idx": seg_idx,
-                        "seg_text": seg_text,
-                    }
-                )
+                entry = {
+                    "match": c,
+                    "type": la["type"],
+                    "seg_idx": seg_idx,
+                    "seg_text": seg_text,
+                }
+                if "override_val" in la:
+                    entry["override_val"] = la["override_val"]
+                count_assignments.append(entry)
 
         # 5. Propagate Types (List Logic)
         # Sort by position
@@ -2201,26 +2285,31 @@ class ComplexCoverageAnalyzer:
                 self.data["note"] = f"Inverted from {adj_val}% not covered" + (
                     f" ({note})" if note else ""
                 )
+                excluded_match_ids.add(id(p))
             elif ptype == "covered":
                 self.data["percentage"] = adj_val
                 if note:
                     self.data["note"] = note
+                excluded_match_ids.add(id(p))
 
         total_candidates = []
 
         for item in count_assignments:
             ctype = item["type"]
-            val = item["match"]["val"]
+            val = item.get("override_val", item["match"]["val"])
             if ctype == "covered":
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
+                excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
+                excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":
                 total_candidates.append(val)
+                excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to total")
 
         if total_candidates:
@@ -2331,80 +2420,80 @@ class ComplexCoverageAnalyzer:
                     unique_notes.append(n)
             self.data["note"] = current_note + sep + "; ".join(unique_notes)
 
-    def _handle_ratios(self):
-        if self.analysis.ratios:
-            numerator, denominator = self.analysis.ratios[0]
+    # def _handle_ratios(self):
+    #     if self.analysis.ratios:
+    #         numerator, denominator = self.analysis.ratios[0]
 
-            # Find match for context
-            ratio_match = next(
-                (
-                    m
-                    for m in self.analysis._matches
-                    if m["type"] == MatchType.RATIO
-                    and m["val"] == (numerator, denominator)
-                ),
-                None,
-            )
+    #         # Find match for context
+    #         ratio_match = next(
+    #             (
+    #                 m
+    #                 for m in self.analysis._matches
+    #                 if m["type"] == MatchType.RATIO
+    #                 and m["val"] == (numerator, denominator)
+    #             ),
+    #             None,
+    #         )
 
-            is_negated = False
-            if ratio_match:
-                if self.analysis.negation_terms:
-                    if check_local_negation(
-                        ratio_match["span"], self.analysis.text, backward=50
-                    ):
-                        is_negated = True
-                    else:
-                        dist = get_min_distance_to_matches(
-                            ratio_match["span"],
-                            self.analysis._matches,
-                            [MatchType.NON_UNION, MatchType.NON_COVERAGE],
-                        )
-                        if dist < 50:
-                            is_negated = True
+    #         is_negated = False
+    #         if ratio_match:
+    #             if self.analysis.negation_terms:
+    #                 if check_local_negation(
+    #                     ratio_match["span"], self.analysis.text, backward=50
+    #                 ):
+    #                     is_negated = True
+    #                 else:
+    #                     dist = get_min_distance_to_matches(
+    #                         ratio_match["span"],
+    #                         self.analysis._matches,
+    #                         [MatchType.NON_UNION, MatchType.NON_COVERAGE],
+    #                     )
+    #                     if dist < 50:
+    #                         is_negated = True
 
-            # Existing counts
-            existing_cov = self.data["employee_count_covered"] or 0
-            existing_not_cov = self.data["employee_count_not_covered"] or 0
-            existing_total = self.data["employee_count_total"] or 0
+    #         # Existing counts
+    #         existing_cov = self.data["employee_count_covered"] or 0
+    #         existing_not_cov = self.data["employee_count_not_covered"] or 0
+    #         existing_total = self.data["employee_count_total"] or 0
 
-            # If the ratio represents a population smaller than what we've already found, ignore it
-            if (
-                denominator < existing_cov
-                or denominator < existing_not_cov
-                or (existing_total > 0 and denominator < existing_total)
-            ):
-                self.data["note"] = f"Ignored ratio (likely breakdown)"
-                return
+    #         # If the ratio represents a population smaller than what we've already found, ignore it
+    #         # if (
+    #         #     denominator < existing_cov
+    #         #     or denominator < existing_not_cov
+    #         #     or (existing_total > 0 and denominator < existing_total)
+    #         # ):
+    #         #     self.data["note"] = f"Ignored ratio (likely breakdown)"
+    #         #     return
 
-            # Ratio components
-            if is_negated:
-                ratio_not_cov = numerator
-                ratio_cov = denominator - numerator
-            else:
-                ratio_cov = numerator
-                ratio_not_cov = denominator - numerator
+    #         # Ratio components
+    #         if is_negated:
+    #             ratio_not_cov = numerator
+    #             ratio_cov = denominator - numerator
+    #         else:
+    #             ratio_cov = numerator
+    #             ratio_not_cov = denominator - numerator
 
-            # Combine
-            final_cov = existing_cov + ratio_cov
-            final_not_cov = existing_not_cov + ratio_not_cov
-            final_total = final_cov + final_not_cov
+    #         # Combine
+    #         final_cov = existing_cov + ratio_cov
+    #         final_not_cov = existing_not_cov + ratio_not_cov
+    #         final_total = final_cov + final_not_cov
 
-            if final_total > 0:
-                self.data["employee_count_covered"] = final_cov
-                self.data["employee_count_not_covered"] = final_not_cov
-                self.data["employee_count_total"] = final_total
+    #         if final_total > 0:
+    #             self.data["employee_count_covered"] = final_cov
+    #             self.data["employee_count_not_covered"] = final_not_cov
+    #             self.data["employee_count_total"] = final_total
 
-                pct = (final_cov / final_total) * 100.0
-                self.data["percentage"] = round(pct, 2)
-                self.data["type"] = CoverageType.CALCULATED.value
+    #             pct = (final_cov / final_total) * 100.0
+    #             self.data["percentage"] = round(pct, 2)
+    #             self.data["type"] = CoverageType.CALCULATED.value
 
-                neg_str = " (negated)" if is_negated else ""
-                self.data["note"] = (
-                    f"Calculated from ratio: {numerator}/{denominator}{neg_str} + existing counts"
-                )
-                if is_negated:
-                    self.data["negated"] = True
-                    self.data["negation_type"] = NegationType.NOT_COVERED.value
+    #             neg_str = " (negated)" if is_negated else ""
+    #             self.data["note"] = (
+    #                 f"Calculated from ratio: {numerator}/{denominator}{neg_str} + existing counts"
+    #             )
+    #             if is_negated:
+    #                 self.data["negated"] = True
+    #                 self.data["negation_type"] = NegationType.NOT_COVERED.value
 
     def _calculate_percentage_from_counts(self):
         if (
@@ -2455,10 +2544,6 @@ def is_simple_scenario(analysis: SentenceAnalysis) -> bool:
     """
     Determines if the sentence is simple enough for the SimpleCoverageAnalyzer.
     """
-
-    # 2. No Ratios (implies calculation)
-    if analysis.ratios:
-        return False
 
     effective_counts = get_effective_counts(analysis)
     # # 2.5 Simple Counts of Counts
@@ -7097,30 +7182,70 @@ class UnionAnalyzer:
                 aligned_geos.append({"obj": obj, "span": raw["span"]})
         else:
             return []
+            
+        # NEW: Handle Linked Assignments First
+        mapped_splits = []
+        remaining_assignments = []
+        used_geo_indices = set()
+        
+        # Create a map of geo_group_id/obj_id to index in aligned_geos
+        geo_id_map = {}
+        for i, g in enumerate(aligned_geos):
+            obj = g["obj"]
+            # Map both list_group_id and object id
+            if obj.list_group_id:
+                geo_id_map[obj.list_group_id] = i
+            geo_id_map[id(obj)] = i
+
+        for item in assignments:
+            m = item["match"]
+            link_id = m.get("linked_geo_group_id")
+            
+            if link_id and link_id in geo_id_map:
+                geo_idx = geo_id_map[link_id]
+                if geo_idx not in used_geo_indices:
+                    # Found a link!
+                    g = aligned_geos[geo_idx]
+                    obj = g["obj"]
+                    note = f"Mapped to {obj.country} (Linked)"
+                    mapped_splits.append({
+                        "val": item.get("override_val", item["match"]["val"]),
+                        "type": item["type"],
+                        "region": obj.region.value,
+                        "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                        "note": note,
+                    })
+                    used_geo_indices.add(geo_idx)
+                    continue
+            
+            remaining_assignments.append(item)
+
+        # Filter aligned_geos
+        remaining_geos = [g for i, g in enumerate(aligned_geos) if i not in used_geo_indices]
 
         # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
-        # If we have equal number of assignments and locations, assume 1-to-1 mapping in order
-        if len(assignments) == len(aligned_geos):
+        # If we have equal number of remaining assignments and locations, assume 1-to-1 mapping in order
+        if len(remaining_assignments) == len(remaining_geos) and len(remaining_assignments) > 0:
             # Sort both by position
-            s_assign = sorted(assignments, key=lambda x: x["match"]["span"][0])
-            s_geos = sorted(aligned_geos, key=lambda x: x["span"][0])
-            splits = []
+            s_assign = sorted(remaining_assignments, key=lambda x: x["match"]["span"][0])
+            s_geos = sorted(remaining_geos, key=lambda x: x["span"][0])
+            
             for item, g in zip(s_assign, s_geos):
                 obj = g["obj"]
 
                 note = f"Mapped to {obj.country}"
-                splits.append(
-                    {
-                        "val": item["match"]["val"],
-                        "type": item["type"],
-                        "region": obj.region.value,
-                        "countries": [
-                            {"name": obj.country, "code": obj.geo_code, "locations": []}
-                        ],
-                        "note": note,
-                    }
-                )
-            return splits
+                mapped_splits.append({
+                    "val": item.get("override_val", item["match"]["val"]),
+                    "type": item["type"],
+                    "region": obj.region.value,
+                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                    "note": note,
+                })
+            return mapped_splits
+            
+        # If all assignments were linked, return them
+        if not remaining_assignments and mapped_splits:
+            return mapped_splits
 
         return []
 
