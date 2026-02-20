@@ -1784,6 +1784,13 @@ class ComplexCoverageAnalyzer:
         is_negated = check_local_negation(
             pct_match["span"], self.analysis.text, backward=30, forward=30
         )
+            
+        # Helper to propagate link id
+        def make_virtual_match(val, span, source_match):
+            vm = {"val": val, "span": span}
+            if source_match.get("linked_geo_group_id"):
+                vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
+            return vm
 
         # Calculate values
         if is_count_total:
@@ -1795,13 +1802,13 @@ class ComplexCoverageAnalyzer:
                 self.local_assignments.append({"match": count_match, "type": "total"})
                 self.local_assignments.append(
                     {
-                        "match": {"val": not_covered_val, "span": base_span},
+                        "match": make_virtual_match(not_covered_val, base_span, count_match),
                         "type": "not_covered",
                     }
                 )
                 self.local_assignments.append(
                     {
-                        "match": {"val": covered_val, "span": base_span},
+                        "match": make_virtual_match(covered_val, base_span, count_match),
                         "type": "covered",
                     }
                 )
@@ -1811,13 +1818,13 @@ class ComplexCoverageAnalyzer:
                 self.local_assignments.append({"match": count_match, "type": "total"})
                 self.local_assignments.append(
                     {
-                        "match": {"val": covered_val, "span": base_span},
+                        "match": make_virtual_match(covered_val, base_span, count_match),
                         "type": "covered",
                     }
                 )
                 self.local_assignments.append(
                     {
-                        "match": {"val": not_covered_val, "span": base_span},
+                        "match": make_virtual_match(not_covered_val, base_span, count_match),
                         "type": "not_covered",
                     }
                 )
@@ -1842,7 +1849,7 @@ class ComplexCoverageAnalyzer:
 
             self.local_assignments.append(
                 {
-                    "match": {"val": total_val, "span": count_match["span"]},
+                    "match": make_virtual_match(total_val, count_match["span"], count_match),
                     "type": "total",
                 }
             )
@@ -1860,6 +1867,12 @@ class ComplexCoverageAnalyzer:
         total_val = total_match["val"]
         part_val = part_match["val"]
         pct_val = pct_match["val"]
+        
+        def make_virtual_match(val, span, source_match):
+            vm = {"val": val, "span": span}
+            if source_match.get("linked_geo_group_id"):
+                vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
+            return vm
 
         # Queue assignments instead of updating data directly
         self.local_assignments.append({"match": total_match, "type": "total"})
@@ -1870,7 +1883,7 @@ class ComplexCoverageAnalyzer:
             rem_val = max(0, total_val - part_val)
             self.local_assignments.append(
                 {
-                    "match": {"val": rem_val, "span": total_match["span"]},
+                    "match": make_virtual_match(rem_val, total_match["span"], total_match),
                     "type": "covered",
                 }
             )
@@ -1880,7 +1893,7 @@ class ComplexCoverageAnalyzer:
             rem_val = max(0, total_val - part_val)
             self.local_assignments.append(
                 {
-                    "match": {"val": rem_val, "span": total_match["span"]},
+                    "match": make_virtual_match(rem_val, total_match["span"], total_match),
                     "type": "not_covered",
                 }
             )
@@ -1915,6 +1928,12 @@ class ComplexCoverageAnalyzer:
         is_negated = check_local_negation(
             part_match["span"], self.analysis.text, backward=30, forward=30
         )
+        
+        def make_virtual_match(val, span, source_match):
+            vm = {"val": val, "span": span}
+            if source_match.get("linked_geo_group_id"):
+                vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
+            return vm
 
         # Queue assignments
         # Total is the max value match
@@ -1925,7 +1944,7 @@ class ComplexCoverageAnalyzer:
             self.local_assignments.append({"match": part_match, "type": "not_covered"})
             self.local_assignments.append(
                 {
-                    "match": {"val": max(0, total - part), "span": total_match["span"]},
+                    "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
                     "type": "covered",
                 }
             )
@@ -1933,7 +1952,7 @@ class ComplexCoverageAnalyzer:
             self.local_assignments.append({"match": part_match, "type": "covered"})
             self.local_assignments.append(
                 {
-                    "match": {"val": max(0, total - part), "span": total_match["span"]},
+                    "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
                     "type": "not_covered",
                 }
             )
@@ -7911,7 +7930,7 @@ class UnionAnalyzer:
 
             if assignments:
                 relevant_assignments = [
-                    a for a in assignments if a["type"] in ("covered", "not_covered")
+                    a for a in assignments if a["type"] in ("covered", "not_covered", "total")
                 ]
 
                 # Only split if we have multiple relevant counts and multiple explicit geos
@@ -7919,15 +7938,22 @@ class UnionAnalyzer:
                     splits = self._map_assignments_to_geo(
                         analysis, relevant_assignments
                     )
-                    if len(splits) > 1:
-                        unique_scopes = set()
-                        for s in splits:
-                            c_code = s["countries"][0]["code"]
-                            unique_scopes.add((s["region"], c_code))
-                        if len(unique_scopes) <= 1:
-                            splits = []
+                    
+                    # Group splits by geography to merge Total + Covered for same country
+                    grouped_splits = {}
+                    for s in splits:
+                        c_code = s["countries"][0]["code"]
+                        key = (s["region"], c_code)
+                        if key not in grouped_splits:
+                            grouped_splits[key] = []
+                        grouped_splits[key].append(s)
 
-                        for s in splits:
+                    if len(grouped_splits) > 1:
+                        for (region, c_code), group in grouped_splits.items():
+                            # Merge group items into one coverage data
+                            # Use the first item for context, then merge values
+                            s = group[0]
+                            
                             new_geo_context = {
                                 "region": s["region"],
                                 "countries": s["countries"],
@@ -7956,23 +7982,38 @@ class UnionAnalyzer:
                                 ),
                             }
 
-                            if s["type"] == "covered":
-                                new_cov_data["employee_count_covered"] = s["val"]
-                            elif s["type"] == "not_covered":
-                                new_cov_data["employee_count_not_covered"] = s["val"]
-                                new_cov_data["negated"] = True
-                                new_cov_data["negation_type"] = (
-                                    NegationType.NOT_COVERED.value
-                                )
+                            notes = []
+                            for item in group:
+                                if item.get("note"):
+                                    notes.append(item["note"])
+                                    
+                                if item["type"] == "covered":
+                                    new_cov_data["employee_count_covered"] = item["val"]
+                                elif item["type"] == "not_covered":
+                                    new_cov_data["employee_count_not_covered"] = item["val"]
+                                    new_cov_data["negated"] = True
+                                    new_cov_data["negation_type"] = NegationType.NOT_COVERED.value
+                                elif item["type"] == "total":
+                                    new_cov_data["employee_count_total"] = item["val"]
 
-                            # Try to find total
-                            c_code = s["countries"][0]["code"]
-                            c_total = effective_totals.get(c_code)
-                            if c_total and c_total >= s["val"]:
-                                new_cov_data["employee_count_total"] = c_total
-                                if s["type"] == "covered":
+                            if notes:
+                                new_cov_data["note"] += " | " + "; ".join(set(notes))
+
+                            # Try to find total from lookup if not present
+                            if new_cov_data["employee_count_total"] is None:
+                                c_total = effective_totals.get(c_code)
+                                max_part = max(
+                                    new_cov_data["employee_count_covered"] or 0, 
+                                    new_cov_data["employee_count_not_covered"] or 0
+                                )
+                                if c_total and c_total >= max_part:
+                                    new_cov_data["employee_count_total"] = c_total
+                            
+                            # Calculate percentage if possible
+                            if new_cov_data["employee_count_total"] and new_cov_data["employee_count_total"] > 0:
+                                if new_cov_data["employee_count_covered"] is not None:
                                     new_cov_data["percentage"] = round(
-                                        (s["val"] / c_total) * 100, 2
+                                        (new_cov_data["employee_count_covered"] / new_cov_data["employee_count_total"]) * 100, 2
                                     )
 
                             split_item = {
