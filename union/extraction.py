@@ -1001,7 +1001,7 @@ PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))\b",
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))",
     re.IGNORECASE,
 )
 
