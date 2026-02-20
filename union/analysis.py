@@ -3754,6 +3754,33 @@ class Tracker:
                             )
 
                         for t in targets:
+                            # If the country already has an explicit zero/negated segment,
+                            # do not propagate aggregate percentages into the country entry.
+                            has_zero_segment = False
+                            if t.scope == Scope.COUNTRY and isinstance(t.key, str):
+                                country_prefix = f"{t.key}::"
+                                for s in self.entries:
+                                    if (
+                                        s.scope == Scope.SEGMENT
+                                        and isinstance(s.key, str)
+                                        and s.key.startswith(country_prefix)
+                                        and s.sent_idx != -1
+                                    ):
+                                        has_zero = (
+                                            s.is_negated
+                                            or s.percentage == 0
+                                            or s.covered_count == 0
+                                        )
+                                        if has_zero:
+                                            has_zero_segment = True
+                                            break
+
+                            if has_zero_segment:
+                                self.resolution_log.append(
+                                    f"Skipped aggregate propagation to {t.key}: explicit zero/negated segment exists."
+                                )
+                                continue
+
                             # Only overwrite if no specific data
                             if (
                                 t.percentage is None
@@ -4703,6 +4730,32 @@ class Tracker:
         but lack covered_count.
         """
         for e in self.entries:
+            # Preserve explicit zero/negated country segments from being overridden by
+            # inferred country-level percentages.
+            if e.scope == Scope.COUNTRY and isinstance(e.key, str):
+                country_prefix = f"{e.key}::"
+                has_zero_segment = False
+                for s in self.entries:
+                    if (
+                        s.scope == Scope.SEGMENT
+                        and isinstance(s.key, str)
+                        and s.key.startswith(country_prefix)
+                        and s.sent_idx != -1
+                    ):
+                        has_zero = (
+                            s.is_negated
+                            or s.percentage == 0
+                            or s.covered_count == 0
+                        )
+                        if has_zero:
+                            has_zero_segment = True
+                            break
+                if has_zero_segment:
+                    self.resolution_log.append(
+                        f"Skipped covered-count calc for {e.key}: explicit zero/negated segment exists."
+                    )
+                    continue
+
             if (
                 e.total_count is not None
                 and e.percentage is not None
@@ -5573,6 +5626,17 @@ class Tracker:
                 c_tot = 0.0
                 c_has_local_data = False
                 c_pct_only = None
+                segs = [
+                    s
+                    for s in self.entries
+                    if s.scope == Scope.SEGMENT
+                    and s.key
+                    and s.key.startswith(f"{c.key}::")
+                ]
+                has_segment_counts = any(
+                    (s.covered_count is not None) or (s.total_count is not None)
+                    for s in segs
+                )
 
                 if c.covered_count is not None:
                     c_cov = c.covered_count
@@ -5587,19 +5651,33 @@ class Tracker:
                         f"          → Calculated from percentage: {c.percentage}% of {c_tot} = {c_cov}"
                     )
 
+                # If country-level data looks like a zero/default placeholder but we have
+                # segment-level quantitative data, prefer segments.
+                if c_has_local_data and has_segment_counts:
+                    seg_cov_preview = sum(
+                        s.covered_count for s in segs if s.covered_count is not None
+                    )
+                    seg_tot_preview = sum(
+                        s.total_count for s in segs if s.total_count is not None
+                    )
+                    if c_cov == 0 and (seg_cov_preview > 0 or seg_tot_preview > 0):
+                        c_has_local_data = False
+                        c_cov = 0.0
+                        c_tot = 0.0
+                        log(
+                            "          → Country-level zero overridden by segment-level data"
+                        )
+
                 # Check Segments for this country
                 if not c_has_local_data:
                     log(f"          → Checking segments for {c.key}...")
-                    segs = [
-                        s
-                        for s in self.entries
-                        if s.scope == Scope.SEGMENT
-                        and s.key
-                        and s.key.startswith(f"{c.key}::")
-                    ]
                     log(f"            Found {len(segs)} segments")
                     if segs:
-                        seg_cov = sum(s.covered_count for s in segs if s.covered_count)
+                        seg_cov = sum(
+                            s.covered_count
+                            for s in segs
+                            if s.covered_count is not None
+                        )
                         seg_tot = (
                             c.total_count
                             if c.total_count
