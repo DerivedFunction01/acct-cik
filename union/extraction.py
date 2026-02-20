@@ -1004,6 +1004,13 @@ STRICT_LIST_CONNECTOR = re.compile(
     r"^\s*(?:,|;|and|&|or)\s*(?:and|or|&)?\s*$", re.IGNORECASE
 )
 PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
+
+# Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
+SEGMENT_DELIMITER_REGEX = re.compile(
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))\b",
+    re.IGNORECASE,
+)
+
 class UnionExtractor:
     def __init__(self):
         # Use the centralized RegionMatcher for all geo/specific union logic
@@ -1570,6 +1577,7 @@ class UnionExtractor:
         ]
         geo_matches_explicit.sort(key=lambda x: x["span"][0])
         
+
         for i in range(len(geo_matches_explicit) - 1):
             curr_m = geo_matches_explicit[i]
             next_m = geo_matches_explicit[i+1]
@@ -1585,9 +1593,6 @@ class UnionExtractor:
 
         # 23. Chain Numeric Matches (Partitive/Relational)
         # Group numeric matches (Percent, Count) connected by "of" (e.g. "10% of 500", "200 of 300")
-        # Use a strict regex to avoid over-linking (e.g. avoid "with", "for" which might cross clauses)
-        
-        
         numeric_types = {MatchType.PERCENT, MatchType.WORKER_COUNT, MatchType.NUMBER}
         numeric_matches = [
             m for m in analysis._matches 
@@ -1607,6 +1612,79 @@ class UnionExtractor:
                 gid = curr_m.get("numeric_group_id") or id(curr_m)
                 curr_m["numeric_group_id"] = gid
                 next_m["numeric_group_id"] = gid
+
+        # 24. Link Numeric Groups to Geo Entities (High Confidence)
+        # Group numeric matches by ID
+        numeric_groups = {}
+        for m in numeric_matches:
+            gid = m.get("numeric_group_id") or id(m)
+            if gid not in numeric_groups:
+                numeric_groups[gid] = []
+            numeric_groups[gid].append(m)
+            
+        # Iterate groups
+        for gid, group in numeric_groups.items():
+            # Find span of the whole group
+            g_start = min(m["span"][0] for m in group)
+            g_end = max(m["span"][1] for m in group)
+            
+            # Find closest explicit geo match
+            best_geo = None
+            min_dist = float('inf')
+            
+            for geo_m in geo_matches_explicit:
+                geo_start, geo_end = geo_m["span"]
+                
+                # Check distance
+                dist = float('inf')
+                text_between = ""
+                
+                if geo_end <= g_start: # Geo before Number
+                    dist = g_start - geo_end
+                    text_between = text[geo_end:g_start]
+                elif g_end <= geo_start: # Number before Geo
+                    dist = geo_start - g_end
+                    text_between = text[g_end:geo_start]
+                
+                if dist < 80: # Close proximity
+                    is_linked = False
+                    
+                    # Pattern 1: Number ... Geo (e.g. "100 in Germany")
+                    if g_end <= geo_start:
+                        # Block if delimiter present (e.g. "1000: in Germany", "100, Germany")
+                        if SEGMENT_DELIMITER_REGEX.search(text_between):
+                            continue
+                        
+                        if re.search(r"\b(?:in|at|for|within|across)\b", text_between, re.IGNORECASE):
+                            is_linked = True
+                        # Adjective (Number ... German ... employees) - handled by proximity if no intervening tokens
+                        elif not re.search(r"[a-z]", text_between, re.IGNORECASE): 
+                             is_linked = True
+                             
+                    # Pattern 2: Geo ... Number (e.g. "Germany: 100")
+                    elif geo_end <= g_start:
+                        # Check for delimiters (block commas, semicolons, contrast words)
+                        delim_match = SEGMENT_DELIMITER_REGEX.search(text_between)
+                        if delim_match and ":" not in delim_match.group(0):
+                            continue
+
+                        if ":" in text_between or re.search(r"\b(?:have|has|employ(?:s|ed)?)\b|'s", text_between, re.IGNORECASE):
+                            is_linked = True
+                        # Adjective (German 200 employees) - handled by proximity if no intervening tokens
+                        elif not re.search(r"[a-z]", text_between, re.IGNORECASE):
+                             is_linked = True
+
+                    if is_linked:
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_geo = geo_m
+
+            if best_geo:
+                # Link them
+                # Use the list_group_id if available, else the object id
+                geo_gid = best_geo["geo_obj"].list_group_id or id(best_geo["geo_obj"])
+                for m in group:
+                    m["linked_geo_group_id"] = geo_gid
 
         # Determine relevancy
         # 1. Explicit Union/Labor/Coverage/Risk terms

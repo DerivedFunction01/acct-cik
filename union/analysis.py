@@ -17,6 +17,7 @@ from extraction import (
     QUALITATIVE_MULTIPLIERS,
     REMAIN_REGEX,
     EXCEPT_REGEX,
+    SEGMENT_DELIMITER_REGEX,
 )
 from defs.region_regex import (
     AGG_SET,
@@ -129,12 +130,6 @@ UNION_MATCH_TYPES = [
     MatchType.SPECIFIC_UNION,
     MatchType.UNION_NAME,
 ]
-
-# Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
-SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))\b",
-    re.IGNORECASE,
-)
 
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
