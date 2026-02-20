@@ -1881,11 +1881,33 @@ class ComplexCoverageAnalyzer:
                 vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
             return vm
 
+        def ensure_linked_match(source_match):
+            # Preserve existing link when present.
+            if source_match.get("linked_geo_group_id"):
+                return source_match
+
+            # Backfill from strongest nearby context in this arithmetic trio.
+            link_id = (
+                total_match.get("linked_geo_group_id")
+                or pct_match.get("linked_geo_group_id")
+            )
+            if not link_id:
+                return source_match
+
+            linked = {
+                "val": source_match["val"],
+                "span": source_match["span"],
+                "linked_geo_group_id": link_id,
+            }
+            return linked
+
         # Queue assignments instead of updating data directly
         self.local_assignments.append({"match": total_match, "type": "total"})
 
         if is_negated:
-            self.local_assignments.append({"match": part_match, "type": "not_covered"})
+            self.local_assignments.append(
+                {"match": ensure_linked_match(part_match), "type": "not_covered"}
+            )
             # Add virtual remainder
             rem_val = max(0, total_val - part_val)
             self.local_assignments.append(
@@ -1895,7 +1917,9 @@ class ComplexCoverageAnalyzer:
                 }
             )
         else:
-            self.local_assignments.append({"match": part_match, "type": "covered"})
+            self.local_assignments.append(
+                {"match": ensure_linked_match(part_match), "type": "covered"}
+            )
             # Add virtual remainder
             rem_val = max(0, total_val - part_val)
             self.local_assignments.append(
@@ -8025,7 +8049,11 @@ class UnionAnalyzer:
 
                             if notes:
                                 dedup_notes = list(dict.fromkeys(notes))
-                                new_cov_data["note"] += " | " + "; ".join(dedup_notes)
+                                extra_notes = [
+                                    n for n in dedup_notes if n and n not in new_cov_data["note"]
+                                ]
+                                if extra_notes:
+                                    new_cov_data["note"] += " | " + "; ".join(extra_notes)
 
                             # Try to find total from lookup if not present
                             if new_cov_data["employee_count_total"] is None:
