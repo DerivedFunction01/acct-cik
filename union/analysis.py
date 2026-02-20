@@ -1575,6 +1575,18 @@ class ComplexCoverageAnalyzer:
             counts = [m for m in group if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)]
             percents = [m for m in group if m["type"] == MatchType.PERCENT]
             
+            # Find linked geo if any
+            linked_geo_code = None
+            linked_gid = group[0].get("linked_geo_group_id")
+            if linked_gid:
+                for gm in self.analysis.geo_matches:
+                    if gm.list_group_id == linked_gid or id(gm) == linked_gid:
+                        if gm.geo_code:
+                            linked_geo_code = gm.geo_code
+                            break
+            
+            geo_note = f" [{linked_geo_code}]" if linked_geo_code else ""
+            
             # Case 1: Count of Count (200 of 300)
             if len(counts) == 2 and not percents:
                 c1, c2 = counts[0]["val"], counts[1]["val"]
@@ -1606,7 +1618,7 @@ class ComplexCoverageAnalyzer:
                     })
                 
                 consumed_indices.update(id(m) for m in group)
-                self.data["note"] = (self.data["note"] or "") + f" | Grouped subset: {part} of {total}"
+                self.data["note"] = (self.data["note"] or "") + f" | Grouped subset: {part} of {total}{geo_note}"
 
             # Case 2: Percent of Count (10% of 500)
             elif len(counts) == 1 and len(percents) == 1:
@@ -1624,7 +1636,7 @@ class ComplexCoverageAnalyzer:
 
                 self._resolve_local_pair(pct_match, count_match)
                 consumed_indices.update(id(m) for m in group)
-                self.data["note"] = (self.data["note"] or "") + " (Grouped)"
+                self.data["note"] = (self.data["note"] or "") + f" (Grouped{geo_note})"
 
         return consumed_indices
 

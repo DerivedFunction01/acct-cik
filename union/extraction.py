@@ -1321,7 +1321,6 @@ class UnionExtractor:
                     geo_side_effect,
                 )
 
-
         # 11A: Extract Worker type
         process_matches(
             WORKER_TYPE_REGEX,
@@ -1466,53 +1465,53 @@ class UnionExtractor:
                 if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT
             ]
             geo_match_dicts.sort(key=lambda x: x["span"][0])
-            
+
             used_exclusion_ids = set()
 
             for m in geo_match_dicts:
                 m_start = m["span"][0]
                 for excl in exclusion_matches:
-                        # Check for double negation (e.g. "not outside", "not excluding")
-                        excl_start = excl["span"][0]
-                        lookback = text[max(0, excl_start - 20) : excl_start]
-                        if NEGATION_REGEX.search(lookback):
+                    # Check for double negation (e.g. "not outside", "not excluding")
+                    excl_start = excl["span"][0]
+                    lookback = text[max(0, excl_start - 20) : excl_start]
+                    if NEGATION_REGEX.search(lookback):
+                        continue
+
+                    e_end = excl["span"][1]
+                    dist = m_start - e_end
+
+                    # Check if exclusion is before (within reasonable distance)
+                    if 0 <= dist <= 60:
+                        text_between = text[e_end:m_start]
+
+                        # Enforce no digits in the gap to prevent false associations across numbers
+                        if re.search(r"\d", text_between):
                             continue
 
-                        e_end = excl["span"][1]
-                        dist = m_start - e_end
+                        is_connected = False
+                        excl_id = id(excl)
+                        is_first_usage = excl_id not in used_exclusion_ids
 
-                        # Check if exclusion is before (within reasonable distance)
-                        if 0 <= dist <= 60:
-                            text_between = text[e_end:m_start]
-
-                            # Enforce no digits in the gap to prevent false associations across numbers
-                            if re.search(r"\d", text_between):
-                                continue
-
-                            is_connected = False
-                            excl_id = id(excl)
-                            is_first_usage = excl_id not in used_exclusion_ids
-
-                            # Special handling for "but" - requires very short gap
-                            if excl["val"].lower() == "but":
-                                if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                        # Special handling for "but" - requires very short gap
+                        if excl["val"].lower() == "but":
+                            if dist <= 15 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                is_connected = True
+                        else:
+                            # 1. Simple connector (short distance)
+                            if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
+                                is_connected = True
+                            # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
+                            elif is_first_usage and EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between) and not (EXCEPT_REGEX.search(text_between) or OUTSIDE_REGEX.search(text_between)):
+                                if len(text_between.split()) <= 6:
                                     is_connected = True
-                            else:
-                                # 1. Simple connector (short distance)
-                                if dist <= 30 and EXCLUSION_CONNECTOR_REGEX.fullmatch(text_between):
-                                    is_connected = True
-                                # 2. Extended connector ending in 'in'/'at' (e.g. "except for employees in")
-                                elif is_first_usage and EXCLUSION_EXTENDED_CONNECTOR_REGEX.search(text_between) and not (EXCEPT_REGEX.search(text_between) or OUTSIDE_REGEX.search(text_between)):
-                                    if len(text_between.split()) <= 6:
-                                        is_connected = True
 
-                            if is_connected:
-                                m["geo_obj"].is_excluded = True
-                                m["geo_obj"].exclusion_group_id = excl_id
-                                if excl["type"] == MatchType.OUTSIDE:
-                                    m["geo_obj"].is_strict = True
-                                used_exclusion_ids.add(excl_id)
-                                break
+                        if is_connected:
+                            m["geo_obj"].is_excluded = True
+                            m["geo_obj"].exclusion_group_id = excl_id
+                            if excl["type"] == MatchType.OUTSIDE:
+                                m["geo_obj"].is_strict = True
+                            used_exclusion_ids.add(excl_id)
+                            break
 
         # 21. Non-Geo Exclusion (Specific)
         for m in NON_GEO_REGEX.finditer(text):
@@ -1563,16 +1562,15 @@ class UnionExtractor:
             if "geo_obj" in m and m["geo_obj"].source_type == GeoSource.EXPLICIT
         ]
         geo_matches_explicit.sort(key=lambda x: x["span"][0])
-        
 
         for i in range(len(geo_matches_explicit) - 1):
             curr_m = geo_matches_explicit[i]
             next_m = geo_matches_explicit[i+1]
-            
+
             start = curr_m["span"][1]
             end = next_m["span"][0]
             text_between = text[start:end]
-            
+
             if len(text_between) < 20 and STRICT_LIST_CONNECTOR.match(text_between):
                 gid = curr_m["geo_obj"].list_group_id or id(curr_m["geo_obj"])
                 curr_m["geo_obj"].list_group_id = gid
@@ -1586,15 +1584,15 @@ class UnionExtractor:
             if m["type"] in numeric_types
         ]
         numeric_matches.sort(key=lambda x: x["span"][0])
-        
+
         for i in range(len(numeric_matches) - 1):
             curr_m = numeric_matches[i]
             next_m = numeric_matches[i+1]
-            
+
             start = curr_m["span"][1]
             end = next_m["span"][0]
             text_between = text[start:end]
-            
+
             if len(text_between) <= 50 and PARTITIVE_REGEX.search(text_between):
                 if SEGMENT_DELIMITER_REGEX.search(text_between):
                     continue
@@ -1611,48 +1609,57 @@ class UnionExtractor:
             if gid not in numeric_groups:
                 numeric_groups[gid] = []
             numeric_groups[gid].append(m)
-            
+
         # Iterate groups
         for gid, group in numeric_groups.items():
             # Find span of the whole group
-            g_start = min(m["span"][0] for m in group)
-            g_end = max(m["span"][1] for m in group)
-            
+            # g_start = min(m["span"][0] for m in group)
+            # g_end = max(m["span"][1] for m in group)
+
             # Find closest explicit geo match
             best_geo = None
             min_dist = float('inf')
-            
+
             for geo_m in geo_matches_explicit:
                 geo_start, geo_end = geo_m["span"]
-                
-                # Check distance
+
+                # Check distance to closest member of the group
                 dist = float('inf')
                 text_between = ""
-                
-                if geo_end <= g_start: # Geo before Number
-                    dist = g_start - geo_end
-                    text_between = text[geo_end:g_start]
-                elif g_end <= geo_start: # Number before Geo
-                    dist = geo_start - g_end
-                    text_between = text[g_end:geo_start]
-                
+                direction = 0 # -1: Geo before, 1: Geo after
+
+                for m in group:
+                    m_start, m_end = m["span"]
+                    if geo_end <= m_start: # Geo before Member
+                        d = m_start - geo_end
+                        if d < dist:
+                            dist = d
+                            text_between = text[geo_end:m_start]
+                            direction = -1
+                    elif m_end <= geo_start: # Member before Geo
+                        d = geo_start - m_end
+                        if d < dist:
+                            dist = d
+                            text_between = text[m_end:geo_start]
+                            direction = 1
+
                 if dist < 80: # Close proximity
                     is_linked = False
-                    
+
                     # Pattern 1: Number ... Geo (e.g. "100 in Germany")
-                    if g_end <= geo_start:
+                    if direction == 1:
                         # Block if delimiter present (e.g. "1000: in Germany", "100, Germany")
                         if SEGMENT_DELIMITER_REGEX.search(text_between):
                             continue
-                        
+
                         if re.search(r"\b(?:in|at|for|within|across)\b", text_between, re.IGNORECASE):
                             is_linked = True
                         # Adjective (Number ... German ... employees) - handled by proximity if no intervening tokens
                         elif not re.search(r"[a-z]", text_between, re.IGNORECASE): 
-                             is_linked = True
-                             
+                            is_linked = True
+
                     # Pattern 2: Geo ... Number (e.g. "Germany: 100")
-                    elif geo_end <= g_start:
+                    elif direction == -1:
                         # Check for delimiters (block commas, semicolons, contrast words)
                         delim_match = SEGMENT_DELIMITER_REGEX.search(text_between)
                         if delim_match and ":" not in delim_match.group(0):
@@ -1662,7 +1669,7 @@ class UnionExtractor:
                             is_linked = True
                         # Adjective (German 200 employees) - handled by proximity if no intervening tokens
                         elif not re.search(r"[a-z]", text_between, re.IGNORECASE):
-                             is_linked = True
+                            is_linked = True
 
                     if is_linked:
                         if dist < min_dist:
