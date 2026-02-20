@@ -1049,7 +1049,6 @@ EUROPE = {
             Location("Grenoble", ["grenoble"]),  # Tech hub
             Location("Sophia Antipolis", ["sophia antipolis", "valbonne"]),
             Location("Toulon", ["toulon"]),
-            Location("Nice", ["nice"]),
             Location("Montpellier", ["montpellier"]),
             Location("Rennes", ["rennes"]),
             Location("Grenoble", ["grenoble"]),
