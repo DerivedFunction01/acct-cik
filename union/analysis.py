@@ -1567,6 +1567,13 @@ class ComplexCoverageAnalyzer:
                     groups[gid] = []
                 groups[gid].append(m)
         
+        # Helper to propagate link id
+        def make_virtual_match(val, span, source_match):
+            vm = {"val": val, "span": span}
+            if source_match.get("linked_geo_group_id"):
+                vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
+            return vm
+        
         for gid, group in groups.items():
             # Sort by position
             group.sort(key=lambda x: x["span"][0])
@@ -1607,13 +1614,13 @@ class ComplexCoverageAnalyzer:
                 if is_negated:
                     self.local_assignments.append({"match": part_match, "type": "not_covered"})
                     self.local_assignments.append({
-                        "match": {"val": max(0, total - part), "span": total_match["span"]},
+                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
                         "type": "covered"
                     })
                 else:
                     self.local_assignments.append({"match": part_match, "type": "covered"})
                     self.local_assignments.append({
-                        "match": {"val": max(0, total - part), "span": total_match["span"]},
+                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
                         "type": "not_covered"
                     })
                 
@@ -7234,24 +7241,31 @@ class UnionAnalyzer:
             
             if link_id and link_id in geo_id_map:
                 geo_idx = geo_id_map[link_id]
-                if geo_idx not in used_geo_indices:
-                    # Found a link!
-                    g = aligned_geos[geo_idx]
-                    obj = g["obj"]
-                    note = f"Mapped to {obj.country} (Linked)"
-                    mapped_splits.append({
-                        "val": item.get("override_val", item["match"]["val"]),
-                        "type": item["type"],
-                        "region": obj.region.value,
-                        "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-                        "note": note,
-                    })
-                    used_geo_indices.add(geo_idx)
-                    continue
+                # Found a link. Keep all linked assignments (covered/not-covered/total)
+                # for the same geo; downstream grouping merges them into one split item.
+                g = aligned_geos[geo_idx]
+                obj = g["obj"]
+                note = f"Mapped to {obj.country} (Linked)"
+                mapped_splits.append({
+                    "val": item.get("override_val", item["match"]["val"]),
+                    "type": item["type"],
+                    "region": obj.region.value,
+                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
+                    "note": note,
+                })
+                used_geo_indices.add(geo_idx)
+                continue
             
             remaining_assignments.append(item)
 
-        # Filter aligned_geos
+        # If we have mapped splits, check if we can return them
+        if mapped_splits:
+            # Allow return if remaining assignments are only totals (likely global/aggregate totals)
+            # or if we have no remaining assignments
+            if not remaining_assignments or all(a["type"] == "total" for a in remaining_assignments):
+                return mapped_splits
+
+        # Filter aligned_geos for fallback logic
         remaining_geos = [g for i, g in enumerate(aligned_geos) if i not in used_geo_indices]
 
         # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
@@ -7273,9 +7287,10 @@ class UnionAnalyzer:
                     "note": note,
                 })
             return mapped_splits
-            
-        # If all assignments were linked, return them
-        if not remaining_assignments and mapped_splits:
+
+        # If linked mapping produced usable splits but the fallback mapping couldn't
+        # resolve the remainder, keep the linked splits instead of dropping all splits.
+        if mapped_splits:
             return mapped_splits
 
         return []
@@ -7509,6 +7524,7 @@ class UnionAnalyzer:
                             covered = c_data.get("employee_count_covered")
                             not_covered = c_data.get("employee_count_not_covered")
                             is_negated = c_data.get("negated")
+                            neg_type = c_data.get("negation_type")
 
                             # Case 1: Have Total + Pct -> Calculate Parts
                             if total and (covered is None or not_covered is None):
@@ -7528,12 +7544,19 @@ class UnionAnalyzer:
                                     c_data["note"] = (c_data.get("note") or "") + " | Downgraded 100%->95% (exception)"
 
                                 if is_negated:
-                                    if not_covered is None:
-                                        c_data["employee_count_not_covered"] = subset
-                                    if covered is None and infer_complement:
-                                        c_data["employee_count_covered"] = (
-                                            total - subset
-                                        )
+                                    # Distinguish zero-coverage semantics from "X% not covered"
+                                    if neg_type == NegationType.ZERO_COVERAGE.value:
+                                        if covered is None:
+                                            c_data["employee_count_covered"] = 0
+                                        if not_covered is None:
+                                            c_data["employee_count_not_covered"] = total
+                                    else:
+                                        if not_covered is None:
+                                            c_data["employee_count_not_covered"] = subset
+                                        if covered is None and infer_complement:
+                                            c_data["employee_count_covered"] = (
+                                                total - subset
+                                            )
                                 else:
                                     if covered is None:
                                         c_data["employee_count_covered"] = subset
@@ -7548,7 +7571,11 @@ class UnionAnalyzer:
                             # Case 2: Have Part + Pct -> Calculate Total (Denominator)
                             elif not total and pct > 0:
                                 derived_total = None
-                                if is_negated and not_covered is not None:
+                                if (
+                                    is_negated
+                                    and neg_type != NegationType.ZERO_COVERAGE.value
+                                    and not_covered is not None
+                                ):
                                     derived_total = round(not_covered / (pct / 100.0))
                                     c_data["employee_count_covered"] = (
                                         derived_total - not_covered
@@ -7997,7 +8024,8 @@ class UnionAnalyzer:
                                     new_cov_data["employee_count_total"] = item["val"]
 
                             if notes:
-                                new_cov_data["note"] += " | " + "; ".join(set(notes))
+                                dedup_notes = list(dict.fromkeys(notes))
+                                new_cov_data["note"] += " | " + "; ".join(dedup_notes)
 
                             # Try to find total from lookup if not present
                             if new_cov_data["employee_count_total"] is None:
@@ -8008,12 +8036,48 @@ class UnionAnalyzer:
                                 )
                                 if c_total and c_total >= max_part:
                                     new_cov_data["employee_count_total"] = c_total
+
+                            # Normalize negation semantics for split rows:
+                            # mixed covered + not_covered is not a negated-only statement.
+                            cov_val = new_cov_data["employee_count_covered"]
+                            not_cov_val = new_cov_data["employee_count_not_covered"]
+                            total_val = new_cov_data["employee_count_total"]
+
+                            if cov_val is not None and not_cov_val is not None:
+                                if total_val and cov_val == 0 and not_cov_val > 0:
+                                    new_cov_data["negated"] = True
+                                    new_cov_data["negation_type"] = (
+                                        NegationType.ZERO_COVERAGE.value
+                                    )
+                                else:
+                                    new_cov_data["negated"] = False
+                                    new_cov_data["negation_type"] = None
+                            elif not_cov_val is not None and cov_val is None:
+                                new_cov_data["negated"] = True
+                                new_cov_data["negation_type"] = (
+                                    NegationType.NOT_COVERED.value
+                                )
+                            elif cov_val is not None:
+                                new_cov_data["negated"] = False
+                                new_cov_data["negation_type"] = None
                             
                             # Calculate percentage if possible
                             if new_cov_data["employee_count_total"] and new_cov_data["employee_count_total"] > 0:
                                 if new_cov_data["employee_count_covered"] is not None:
                                     new_cov_data["percentage"] = round(
                                         (new_cov_data["employee_count_covered"] / new_cov_data["employee_count_total"]) * 100, 2
+                                    )
+                                elif new_cov_data["employee_count_not_covered"] is not None:
+                                    new_cov_data["percentage"] = round(
+                                        (
+                                            (
+                                                new_cov_data["employee_count_total"]
+                                                - new_cov_data["employee_count_not_covered"]
+                                            )
+                                            / new_cov_data["employee_count_total"]
+                                        )
+                                        * 100,
+                                        2,
                                     )
 
                             split_item = {
