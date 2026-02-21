@@ -580,7 +580,7 @@ class MinimalTextCleaner:
     # Float pattern: Matches 1.5, 10.00, but NOT 1.5% (lookahead protects %)
     float_pattern = re.compile(r"\b\d+\.\d+\b(?!%)")
     
-    zip_code_pattern = re.compile(r"\b\d{5}\b")
+    zip_code_pattern = re.compile(r"\b\d{5}(?:[- ])\d{1,4}\b")
 
     def __init__(self):
         pass
