@@ -242,6 +242,12 @@ def run_booster_tests():
             "others": ["LATAM", "SASIA", "EEUROPE"],
             "desc": "Dynamic",
         },
+        {
+            "pop": 1000,
+            "dom": "US",
+            "others": ["MX", "FR", "GB"],
+            "desc": "Dynamic",
+        },
     ]
 
     for t in targeted_scenarios:

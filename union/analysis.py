@@ -3215,7 +3215,7 @@ class Tracker:
         for r in set(self.region_totals.keys()) | set(mentioned_in_region.keys()):
             if r not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
                 active_regions.add(r)
-        
+
         # If domestic is negated, treat International as an implicitly active region
         # This prevents distributing the entire Global total to the Domestic region
         if self.domestic_is_negated:
@@ -3586,7 +3586,7 @@ class Tracker:
                         e.covered_count = max(0, census_total - calculated_count)
                     else:
                         e.covered_count = calculated_count
-                        
+
                     e.total_count = census_total
                     self.resolution_log.append(
                         f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}"
@@ -3693,7 +3693,6 @@ class Tracker:
                 self.resolution_log.append(
                     f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}"
                 )
-
 
     def _resolve_aggregates(self):
         """
@@ -3929,7 +3928,7 @@ class Tracker:
         }
     def _is_contained(self, container_key: Optional[str] = None, item_key: Optional[str] = None):
         return is_contained(container_key, item_key, self.domestic_country_code)
-    
+
     def _resolve_geographic_gaps(
         self, name: str, region_total: float, entries: List[Entry]
     ):
@@ -4093,7 +4092,7 @@ class Tracker:
                 existing_keys.add(code)
 
         # 1b. Mandatory Injections based on Region Logic
-        
+
         # If resolving North America, always inject US (SEC filing context)
         if region_name == Region.NORTH_AMERICA.value:
             # Only add US if Canada is not present
@@ -4845,15 +4844,15 @@ class Tracker:
                 continue
 
             is_region_key = is_region(r)
-            
+
             if is_region_key:
                 r_canonical = entity_regions.get(r)
-                
+
                 # 1. Check for Aliases (e.g. EU vs Europe)
                 for other in unique_entities:
                     if other == r or other in to_remove:
                         continue
-                    
+
                     if is_region(other):
                         other_canonical = entity_regions.get(other)
                         if other_canonical == r_canonical:
@@ -4867,7 +4866,7 @@ class Tracker:
                                     to_remove.add(r)
                                     self.resolution_log.append(f"Virtual Pool: Removed alias '{r}' in favor of '{other}'.")
                                     break
-                
+
                 if r in to_remove:
                     continue
 
@@ -4876,7 +4875,7 @@ class Tracker:
                     for other in unique_entities:
                         if other == r or other in to_remove:
                             continue
-                        
+
                         if not is_region(other) and entity_regions.get(other) == r_canonical:
                             to_remove.add(r)
                             self.resolution_log.append(
@@ -4931,7 +4930,7 @@ class Tracker:
         log_msg += f" Details: {', '.join(log_details)}"
 
         self.resolution_log.append(log_msg)
-        
+
         # Distribute to populate country/region totals for fallback
         dist_entities = [{"key": self.domestic_country_code}]
         for entity in unique_entities:
@@ -5219,12 +5218,12 @@ class Tracker:
                     r_name = _CODE_TO_REGION.get(scope_key)
                     if r_name:
                         region_total = self.region_totals.get(r_name, 0.0)
-                        
+
                         if region_total > 0:
                             source_total_pop = region_total
                             prevent_global_fallback = True
                             base_pop = region_total
-                            
+
                             # Subtract known siblings to avoid using exhausted pool
                             siblings_sum = sum(
                                 c_total 
@@ -5232,7 +5231,7 @@ class Tracker:
                                 if c_code != scope_key and _CODE_TO_REGION.get(c_code) == r_name
                             )
                             base_pop = max(0.0, base_pop - siblings_sum)
-                            
+
                             if base_pop > 0:
                                 geo_name = r_name
                                 source_weight = REGION_WEIGHTS.get(r_name, 0.0)
@@ -5323,7 +5322,7 @@ class Tracker:
                                 if e.total_count > c_total:
                                     c_total = e.total_count
                                 has_c_scope = True
-                        
+
                         if has_c_scope:
                             consumed_pop += c_total
                         else:
@@ -5359,7 +5358,7 @@ class Tracker:
                                 if e.total_count > r_total:
                                     r_total = e.total_count
                                 has_r_scope = True
-                        
+
                         if has_r_scope:
                             consumed_pop += r_total
                         else:
@@ -5371,12 +5370,12 @@ class Tracker:
                                     c_code = e.key
                                 elif e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
                                     c_code = e.key.split("::")[0]
-                                
+
                                 if c_code:
                                     if c_code not in c_entries_map:
                                         c_entries_map[c_code] = []
                                     c_entries_map[c_code].append(e)
-                            
+
                             for c_code, c_list in c_entries_map.items():
                                 c_total = 0.0
                                 has_c_scope = False
@@ -5385,7 +5384,7 @@ class Tracker:
                                         if e.total_count > c_total:
                                             c_total = e.total_count
                                         has_c_scope = True
-                                
+
                                 if has_c_scope:
                                     consumed_pop += c_total
                                 else:
@@ -5441,19 +5440,19 @@ class Tracker:
 
                     # Check if scaled (approx check due to float)
                     total_allocated = distributable_pop * num_segments
-                    
+
                     details = []
                     if abs(total_allocated - base_pop) > 1.0:
                         details.append(f"Scaled from {base_pop} {geo_name} [{pool_source}] by weight {target_weight:.4f}/{source_weight:.4f}")
                     else:
                         details.append(f"Base {base_pop} from {geo_name} [{pool_source}]")
-                    
+
                     if consumed_pop > 0:
                         details.append(f"Consumed {consumed_pop}")
-                    
+
                     if details:
                         log_msg += " (" + ", ".join(details) + ")"
-                        
+
                     self.resolution_log.append(log_msg)
             elif prevent_global_fallback:
                 self.resolution_log.append(f"Skipped fallback for {scope_key}: {pool_source}")
@@ -5615,7 +5614,6 @@ class Tracker:
                         if e1key in REGION_CODES and e2key in COMPOSITE_COUNTRIES:
                             entries_to_skip.add(e1)
                         break
-
             for c in c_entries:
                 if c in entries_to_skip:
                     log(f"        ⊘ Skipping {c.key} (Contained in {next(e.key for e in c_entries if self._is_contained(e.key, c.key))})")

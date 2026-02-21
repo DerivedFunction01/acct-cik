@@ -1210,6 +1210,17 @@ class ContextualNumberCleaner:
         # 11. Small digits followed by char (e.g. "4-S", "4 S")
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
+        street_terms = [
+            r"ave(?:nue)?",
+            r"street",
+            r"str?",
+            r"blvd",
+            r"boulevard",
+            r"cir(?:cle)?",
+            r"court",
+            r"ct"
+        ]
+
         other_terms = [
             r"frameworks?",
             r"countr(?:y|ies)",
@@ -1236,12 +1247,19 @@ class ContextualNumberCleaner:
             r"miles?",
             r"kilometers?",
             r"feet",
-            r"loans"
+            r"loans",
             r"debt",
-        ]
+        ] + street_terms
+        
         self.other_terms_regex = re.compile(
             rf"\b({number_range}|{percent_range})\s+((?:[\'\w-]+\s+){{0,2}}{build_alternation(other_terms)})",
             re.IGNORECASE,
+        )
+        
+        self.union_street_regex = build_regex(
+            [
+                build_compound(r"union", street_terms)
+            ]
         )
 
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
@@ -1277,6 +1295,7 @@ class ContextualNumberCleaner:
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
             paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
+            paragraph = self.union_street_regex.sub(r" ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
