@@ -1225,15 +1225,8 @@ class ContextualNumberCleaner:
             r"ct"
         ]
 
-        other_terms = [
+        other_terms_gap = [
             r"frameworks?",
-            r"countr(?:y|ies)",
-            r"regions?",
-            r"locations?",
-            r"cities",
-            r"states",
-            r"areas",
-            r"units?",
             r"customers",
             r"suppliers?",
             r"products",
@@ -1254,9 +1247,19 @@ class ContextualNumberCleaner:
             r"loans",
             r"debt",
         ] + street_terms
+
+        other_terms_strict = [
+            r"countr(?:y|ies)",
+            r"regions?",
+            r"locations?",
+            r"cities",
+            r"states",
+            r"areas",
+            r"units?",
+        ]
         
         self.other_terms_regex = re.compile(
-            rf"\b({number_range}|{percent_range})\s+((?:[\'\w-]+\s+){{0,2}}{build_alternation(other_terms)})",
+            rf"\b({number_range}|{percent_range})\s+((?:(?:[\'\w-]+\s+){{0,2}}{build_alternation(other_terms_gap)})|(?:{build_alternation(other_terms_strict)}))",
             re.IGNORECASE,
         )
         
