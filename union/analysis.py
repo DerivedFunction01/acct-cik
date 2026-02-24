@@ -41,6 +41,7 @@ from defs.region_regex import (
     is_contained,
     IGNORED_REGIONS,
     resolve_remaining_int,
+    RegionMatcher,
 )
 from defs.region_regex import group_by_scope
 from defs.output_enums import (
@@ -3295,6 +3296,26 @@ class Tracker:
                     self.country_keywords[code] = {}
                 
                 for kw in keywords:
+                    # Check if keyword implies a specific geography to avoid cross-contamination
+                    check_kw = kw
+                    if "::" in kw:
+                        check_kw = kw.split("::")[1]
+
+                    union_info = RegionMatcher.get_union(check_kw)
+                    if union_info:
+                        _, _, u_code = union_info
+                        
+                        # Case 1: Union is specific to a country (e.g. DE)
+                        if u_code and u_code not in INT_LANGUAGE_MAP and u_code not in ["INT", "GLO"]:
+                            if code != u_code:
+                                continue
+                        
+                        # Case 2: Union is language-specific (e.g. INT_ES)
+                        elif u_code in INT_LANGUAGE_MAP:
+                            allowed_countries = INT_LANGUAGE_MAP[u_code]
+                            if code not in allowed_countries:
+                                continue
+
                     self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
 
         region = geo_context.get("region")
