@@ -551,6 +551,7 @@ class MinimalTextCleaner:
         "summary",
         "items?",
         "chapters?",
+        "numbers?",
     ]
 
     EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)
@@ -1265,6 +1266,26 @@ class ContextualNumberCleaner:
             ]
         )
 
+        location_unit_terms = [
+            r"floors?",
+            r"apts?",
+            r"apartments?",
+            r"suites?",
+            r"units?",
+            r"rooms?",
+            r"buildings?",
+            r"bldgs?",
+            r"box",
+            r"routes?",
+            r"highways?",
+            r"p\.?o\.?\s*box",
+            r"rooms?",
+        ]
+        self.location_unit_regex = re.compile(
+            rf"\b({build_alternation(location_unit_terms)})\s+(?:#\.?\s*|no\.?\s*)?{number_range}\b",
+            re.IGNORECASE,
+        )
+
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
@@ -1299,6 +1320,7 @@ class ContextualNumberCleaner:
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
             paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
             paragraph = self.union_street_regex.sub(r" ", paragraph)
+            paragraph = self.location_unit_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
