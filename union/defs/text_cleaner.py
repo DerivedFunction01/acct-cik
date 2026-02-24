@@ -1278,6 +1278,7 @@ class ContextualNumberCleaner:
             r"box",
             r"routes?",
             r"highways?",
+            r"interstate",
             r"p\.?o\.?\s*box",
             r"rooms?",
         ]
