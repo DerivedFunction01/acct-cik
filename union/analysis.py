@@ -8222,7 +8222,12 @@ class UnionAnalyzer:
             data["relationship_status"] = rel_status
 
         # Qualitative Quants (Soft Percent) - Fallback if no explicit data found
-        if data["percentage"] is None:
+        # and no count-based coverage was already resolved.
+        has_count_based_coverage = (
+            data.get("employee_count_covered") is not None
+            or data.get("employee_count_not_covered") is not None
+        )
+        if data["percentage"] is None and not has_count_based_coverage:
             qual_matches = [
                 m
                 for m in analysis._matches
