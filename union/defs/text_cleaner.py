@@ -579,8 +579,10 @@ class MinimalTextCleaner:
 
     # Float pattern: Matches 1.5, 10.00, but NOT 1.5% (lookahead protects %)
     float_pattern = re.compile(r"\b\d+\.\d+\b(?!%)")
-    
-    zip_code_pattern = re.compile(r"\b\d{5}(?:[- ])\d{1,4}\b")
+
+    zip_code_pattern = re.compile(r"\b\d{5}(?:[- ]\d{4})?\b")
+
+    phone_number_pattern = re.compile(r"(?:\b\+?\d{1,3}[-.\s]*)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b")
 
     def __init__(self):
         pass
@@ -873,7 +875,8 @@ class MinimalTextCleaner:
             paragraph = self.date_dm_pattern.sub(" ", paragraph)
             paragraph = self.month_only_pattern.sub(" ", paragraph)
             paragraph = self.year_pattern.sub(r" <\1> ", paragraph)
-            paragraph = self.zip_code_pattern.sub("", paragraph)
+            paragraph = self.zip_code_pattern.sub("zip code", paragraph)
+            paragraph = self.phone_number_pattern.sub("phone", paragraph)
 
             # NEW: Protect False Fractions
             protected_map = {}
