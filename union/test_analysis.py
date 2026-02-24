@@ -93,7 +93,7 @@ UNITED STATES OPERATIONS
 
 Our U.S. operations employ a significant workforce engaged in manufacturing and distribution. 
 
-In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women, some working at Auto Trust 2023-1. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour.
+In our automobile manufacturing division, we employ 14,200 hourly production workers, of which 4,000 are women, some working at Auto Trust 2023-1. Of these, 11,644 are represented by the United Auto Workers (UAW) under 10-year collective bargaining agreements at 50 per hour, a majority of our production workforce.
 
 Our East Coast distribution centers employ logistics personnel who are unionized and covered by 15 independent labor unions. We do not disclose the exact headcount at this time due to operational sensitivity.
 
