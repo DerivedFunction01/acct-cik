@@ -3,6 +3,9 @@ import math
 from typing import List, Dict, Any, Optional, Set, Tuple, Union
 import re
 from dataclasses import dataclass, field
+import csv
+from pathlib import Path
+import pandas as pd
 
 from extraction import (
     CONSIST_REGEX,
@@ -1075,13 +1078,54 @@ class UnionExtraAnalyzer:
         }
 
 
-def get_external_worker_count(
-    region: str, countries: List[Dict[str, str]]
-) -> Optional[float]:
-    """
-    Placeholder: Connect to external DB to get worker counts for a region/country.
-    """
-    return None
+EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
+DATA_LOADED = False
+
+
+def load_external_counts():
+    global DATA_LOADED
+    if DATA_LOADED:
+        return
+
+    candidates = [
+        Path("employee_processed.csv"),
+        Path(__file__).parent / "employee_processed.csv",
+        Path(__file__).parent.parent / "employee_processed.csv",
+    ]
+
+    path = None
+    for p in candidates:
+        if p.exists():
+            path = p
+            break
+
+    if not path:
+        return
+
+    try:
+        df = pd.read_csv(path)
+        df.columns = [c.lower() for c in df.columns]
+        
+        if {'cik', 'year', 'emp'}.issubset(df.columns):
+            df = df[['cik', 'year', 'emp']].dropna()
+            df['cik'] = pd.to_numeric(df['cik'], errors='coerce')
+            df['year'] = pd.to_numeric(df['year'], errors='coerce')
+            df['emp'] = pd.to_numeric(df['emp'], errors='coerce')
+            
+            df = df.dropna()
+            df['cik'] = df['cik'].astype(int)
+            df['year'] = df['year'].astype(int)
+            
+            EXTERNAL_COUNTS.update(df.set_index(['cik', 'year'])['emp'].to_dict()) # type: ignore
+    except Exception:
+        pass
+
+    DATA_LOADED = True
+
+
+def get_external_global_count(cik: int, year: int) -> Optional[float]:
+    load_external_counts()
+    return EXTERNAL_COUNTS.get((cik, year))
 
 
 def apply_qualitative_multipliers(
@@ -4770,21 +4814,27 @@ class Tracker:
         Injects a virtual global total if no census data exists but union records are present.
         This allows weight-based distribution to function for 'union name only' scenarios.
         """
-        # Check if we have any existing counts (census data)
-        has_counts = (
-            self.global_total > 0
-            or any(v > 0 for v in self.region_totals.values())
+        # Check if we have any existing breakdown counts (census data)
+        # If we have a global total (e.g. from external) but no breakdown, we still want to distribute it.
+        has_breakdown = (
+            any(v > 0 for v in self.region_totals.values())
             or any(v > 0 for v in self.country_totals.values())
             or any(e.total_count is not None and e.total_count > 0 for e in self.entries)
         )
 
-        if has_counts:
+        if has_breakdown:
             return
 
         has_unions = any(e.is_union_record for e in self.entries)
-        if not has_unions:
+        
+        # If no global total provided and no unions to infer from, abort
+        if self.global_total <= 0 and not has_unions:
             return
-        self.is_using_virtual = True
+            
+        calculate_virtual = (self.global_total <= 0)
+        if calculate_virtual:
+            self.is_using_virtual = True
+            
         # Ensure domestic entry exists so it gets populated with the distributed total
         # instead of defaulting to 0% coverage in _resolve_single_country
         dom_entry_exists = any(
@@ -4922,16 +4972,19 @@ class Tracker:
 
             log_details.append(f"{entity}")
 
-            INTL_BOOSTER += BOOSTER_STEP
+            if calculate_virtual:
+                INTL_BOOSTER += BOOSTER_STEP
 
-        self.global_total = round(virtual_total)
-
-        log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
-        log_msg += f" Details: {', '.join(log_details)}"
-
-        self.resolution_log.append(log_msg)
+        if calculate_virtual:
+            self.global_total = round(virtual_total)
+            log_msg = f"Injected Virtual Global Pool ({self.global_total}) based on {len(sorted_entities)} intl entities."
+            log_msg += f" Details: {', '.join(log_details)}"
+            self.resolution_log.append(log_msg)
+        else:
+            self.resolution_log.append(f"Using existing Global Total ({self.global_total}) for virtual distribution.")
 
         # Distribute to populate country/region totals for fallback
+        # This distributes self.global_total (whether calculated or external)
         dist_entities = [{"key": self.domestic_country_code}]
         for entity in unique_entities:
             dist_entities.append({"key": entity})
@@ -6372,7 +6425,11 @@ class UnionAnalyzer:
         return items
 
     def analyze_paragraph(
-        self, text: str, item_type: str = "item1", reporting_year: Optional[int] = None
+        self,
+        text: str,
+        item_type: str = "item1",
+        reporting_year: Optional[int] = None,
+        cik: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Process a paragraph of text, splitting it into sentences and
@@ -6392,6 +6449,14 @@ class UnionAnalyzer:
 
             # 2. Pass 1: Census (Populate Tracker with Totals)
             tracker = Tracker(domestic_country_code=self.domestic_country_code)
+            
+            # Inject external global total if available
+            if cik and reporting_year:
+                ext_total = get_external_global_count(cik, reporting_year)
+                if ext_total:
+                    tracker.global_total = ext_total
+                    tracker.resolution_log.append(f"Loaded external global total: {ext_total}")
+
             all_sentences = self.extractor.split_sentences(text)
             self._populate_tracker(all_sentences, tracker, reporting_year)
             tracker.resolve()
@@ -6420,6 +6485,7 @@ class UnionAnalyzer:
                         initial_geo_sentence_idx=last_geo_sentence_idx,
                         previous_totals=prev_paragraph_totals,
                         start_index=global_sentence_index,
+                        cik=cik,
                     )
                 )
 
@@ -7824,6 +7890,7 @@ class UnionAnalyzer:
         initial_geo_sentence_idx: int = -1,
         previous_totals: Optional[Dict[str, float]] = None,
         start_index: int = 0,
+        cik: Optional[int] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Optional[Dict], int]:
         """
         Analyzes a block of sentences (paragraph) for Item 1.
@@ -8049,12 +8116,6 @@ class UnionAnalyzer:
                 relevant_total = global_max_workers
             elif last_employee_count:
                 relevant_total = last_employee_count
-
-            # 8. External Source Fallback
-            if not relevant_total:
-                relevant_total = get_external_worker_count(
-                    current_region, geo_context.get("countries", [])
-                )
 
             # 7. Determine Coverage Data (Dispatch)
             coverage_data = self._determine_coverage_data(
