@@ -3038,6 +3038,8 @@ class Entry:
     exception_limit_percent: Optional[float] = None
     is_exception_remainder: bool = False
     is_parent_breakdown: bool = False
+    is_covered_breakdown: bool = False
+    is_not_covered_breakdown: bool = False
 
     # Hash
     def __hash__(self):
@@ -3500,66 +3502,69 @@ class Tracker:
         """
         Generic overlap resolution for a list of entries.
         """
-        # Only consider entries with a known total population
-        candidates = [e for e in entries if e.total_count is not None]
-        if len(candidates) < 2:
-            return
+        def detect_breakdown(attr: str, flag_attr: str):
+            # Only consider entries with a known value for the attribute
+            candidates = [e for e in entries if getattr(e, attr) is not None]
+            if len(candidates) < 2:
+                return
 
-        # 1. Sliding Window (Breakdowns within breakdowns)
-        # Sort by sentence index to respect narrative flow
-        by_sent = sorted(candidates, key=lambda x: x.sent_idx)
+            # 1. Sliding Window (Breakdowns within breakdowns)
+            # Sort by sentence index to respect narrative flow
+            by_sent = sorted(candidates, key=lambda x: x.sent_idx)
 
-        for i in range(len(by_sent)):
-            parent = by_sent[i]
-            current_sum = 0.0
-            group: List[Entry] = []
-
-            # Look ahead for children
-            for j in range(i + 1, len(by_sent)):
-                child = by_sent[j]
-
-                # Skip if child is larger than parent (likely not a part)
-                if child.total_count >= parent.total_count:  # type: ignore
+            for i in range(len(by_sent)):
+                parent = by_sent[i]
+                parent_val = getattr(parent, attr)
+                if parent_val == 0:
                     continue
 
-                current_sum += child.total_count  # type: ignore
-                group.append(child)
+                current_sum = 0.0
+                group: List[Entry] = []
 
-                # Check match
-                if self._matches_census(parent.total_count, current_sum, threshold=0.05):  # type: ignore
-                    parent.is_parent_breakdown = True
-                    # Check coverage consistency
-                    p_cov = parent.covered_count
-                    c_cov_sum = sum(g.covered_count or 0.0 for g in group)
+                # Look ahead for children
+                for j in range(i + 1, len(by_sent)):
+                    child = by_sent[j]
+                    child_val = getattr(child, attr)
 
-                    msg = f"Breakdown Detected {name}: {parent.total_count} (sent {parent.sent_idx}) matches sum of {len(group)} items."
+                    # Skip if child is larger than parent (likely not a part)
+                    if child_val >= parent_val:
+                        continue
 
-                    if p_cov is not None:
-                        # Dynamic tolerance for qualitative entries
-                        tolerance = self._get_tolerance(
-                            [parent] + group, base_threshold=0.10
+                    current_sum += child_val
+                    group.append(child)
+
+                    # Check match
+                    # Dynamic tolerance for qualitative entries
+                    tolerance = self._get_tolerance(
+                        [parent] + group, base_threshold=0.05
+                    )
+
+                    if self._matches_census(parent_val, current_sum, threshold=tolerance):
+                        setattr(parent, flag_attr, True)
+                        self.resolution_log.append(
+                            f"Breakdown Detected {name} ({attr}): {parent_val} (sent {parent.sent_idx}) matches sum of {len(group)} items."
                         )
-                        if self._matches_census(p_cov, c_cov_sum, threshold=tolerance):
-                            msg += f" Covered counts also match ({p_cov})."
-                        else:
-                            msg += f" BUT Covered counts mismatch ({p_cov} vs {c_cov_sum})."
+                        break
 
-                    self.resolution_log.append(msg)
-                    break
+                    if current_sum > parent_val * 1.1:
+                        break
 
-                if current_sum > parent.total_count * 1.1:  # type: ignore
-                    break
+            # 2. Global Parent vs All Children (Fallback)
+            by_size = sorted(candidates, key=lambda x: getattr(x, attr), reverse=True)
+            largest = by_size[0]
+            largest_val = getattr(largest, attr)
+            rest_total = sum(getattr(c, attr) for c in by_size[1:])
 
-        # 2. Global Parent vs All Children (Fallback)
-        by_size = sorted(candidates, key=lambda x: x.total_count, reverse=True)  # type: ignore
-        largest = by_size[0]
-        rest_total = sum(c.total_count for c in by_size[1:])  # type: ignore
+            tolerance = self._get_tolerance(by_size, base_threshold=0.10)
+            if self._matches_census(largest_val, rest_total, threshold=tolerance):
+                setattr(largest, flag_attr, True)
+                self.resolution_log.append(
+                    f"Global Hierarchy {name} ({attr}): {largest_val} matches sum of all other {len(by_size)-1} entries."
+                )
 
-        if self._matches_census(largest.total_count, rest_total, threshold=0.10):  # type: ignore
-            largest.is_parent_breakdown = True
-            self.resolution_log.append(
-                f"Global Hierarchy {name}: {largest.total_count} matches sum of all other {len(by_size)-1} entries."
-            )
+        detect_breakdown("total_count", "is_parent_breakdown")
+        detect_breakdown("covered_count", "is_covered_breakdown")
+        detect_breakdown("not_covered_count", "is_not_covered_breakdown")
 
     def _resolve_single_entry_gap(self, name: str, census_total: float, e: Entry):
         """
