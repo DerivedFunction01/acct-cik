@@ -1687,7 +1687,7 @@ class UnionExtractor:
         # 1. Explicit Union/Labor/Coverage/Risk terms
         has_union_keywords = bool(
             analysis.union_terms
-            or analysis.coverage_terms
+            # or analysis.coverage_terms
             or analysis.risk_terms
             or analysis.qualitative_membership_terms
             or analysis.relationship_terms
@@ -1715,20 +1715,21 @@ class UnionExtractor:
             has_union_keywords
             or has_union_geo
             or has_negation
+            or bool(analysis.coverage_terms)
             or (has_quant and has_worker_context)
             or bool(analysis.worker_counts)
         )
 
         # If works councils are present without explicit union terms, assume coverage refers to them (neutral)
-        coverage_is_union = bool(analysis.coverage_terms) or bool(
-            analysis.qualitative_membership_terms
-        )
-        if len(analysis.works_councils) > 0 and not (analysis.union_terms):
-            coverage_is_union = False
+        # coverage_is_union = bool(analysis.coverage_terms) or bool(
+        #     analysis.qualitative_membership_terms
+        # )
+        # if len(analysis.works_councils) > 0 and not (analysis.union_terms):
+        #     coverage_is_union = False
 
         analysis.is_union = (
             bool(analysis.union_terms)
-            or coverage_is_union
+            # or coverage_is_union
             or has_negation
             # or bool(analysis.qualitative_membership_terms) # repeat
             or has_union_geo
