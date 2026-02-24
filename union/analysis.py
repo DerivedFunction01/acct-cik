@@ -310,17 +310,24 @@ def should_infer_complement(percentage: float, is_qualitative: bool, is_negated:
     based on the percentage value and type.
 
     For qualitative terms (e.g. "Majority"), we avoid inferring the inverse for
-    ambiguous middle values (10% < pct < 90%) when negated.
+    ambiguous middle values when negated.
     e.g. "Majority are non-union" (51%) -> We know 510 are non-union, but we shouldn't
     assert 490 are union.
 
-    If has_exceptions is True (e.g. "Majority non-union except US"), we NEVER infer
-    the complement, because the exception (US) likely occupies that remainder space.
+    If a negated qualitative is below majority-threshold (<49% not covered),
+    we allow complement inference because covered is clearly majority.
+
+    # If has_exceptions is True (e.g. "Majority non-union except US"), we NEVER infer
+    # the complement, because the exception (US) likely occupies that remainder space.
     """
-    if has_exceptions:
-        return False
+    # if has_exceptions: # Not using exceptions
+    #     return False
     if is_negated and is_qualitative:
-        if 5.0 < percentage < 90.0:
+        # Clear-majority covered case (e.g., "minority non-union"): infer complement.
+        if percentage < 49.0:
+            return True
+        # Ambiguous/non-extreme negated qualitative range: do not infer inverse.
+        if 49.0 <= percentage < 90.0:
             return False
     return True
 
