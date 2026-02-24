@@ -2629,6 +2629,9 @@ def determine_geo_context(
                 and m.geo_code not in ["INT", "GLO"]
             ):
                 strong_codes.add(m.geo_code)
+        has_other_specific_codes = bool(
+            {c for c in strong_codes if c and c != domestic_country_code}
+        )
 
         unusual_combo = False
         conflict_notes = []
@@ -2637,6 +2640,10 @@ def determine_geo_context(
         for m in explicit_matches:
             if m.is_excluded and not analysis.has_remaining_other:
                 if m.geo_code == domestic_country_code:
+                    # If specific non-domestic countries are already present (e.g. "non-US Canada/Mexico"),
+                    # do not inject generic INT.
+                    if has_other_specific_codes:
+                        continue
                     domestic_negated = True
                     # Map "Outside Domestic" -> International
                     m.geo_code = "INT"
@@ -8179,11 +8186,13 @@ class UnionAnalyzer:
 
             last_employee_count = current_sentence_count
 
-            # NEW: Handle Excluded Geographies (Implicit Coverage)
-            # Must be done per sentence to access specific analysis and coverage_data
-            if analysis.is_relevant:
-                exception_items = self._create_exception_items(analysis, coverage_data, current_idx, sent)
-                results.extend(exception_items)
+            # Exception-item synthesis is temporarily disabled (experimental/buggy).
+            # Keep exclusion behavior from geo parsing, but do not emit synthetic items.
+            # if analysis.is_relevant:
+            #     exception_items = self._create_exception_items(
+            #         analysis, coverage_data, current_idx, sent
+            #     )
+            #     results.extend(exception_items)
 
         merged_results = self._merge_continuation_items(results)
         
