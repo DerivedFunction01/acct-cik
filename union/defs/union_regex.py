@@ -234,8 +234,6 @@ UNION_PHRASES = [
     CORE.UNION.value,
     # reunionize, re-unionization,
     CORE.REUNIONIZE.value,
-    # employees/workers + represented by
-    build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
     # labor + (agreements, contracts, organizations)
     build_compound(
         [CORE.LABOR],
@@ -427,7 +425,9 @@ COVERAGE_TERMS = (
     + [
         r"members?\s+of",
         r"representation",
-        r"affiliation"
+        r"affiliation",
+        # employees/workers + represented by
+        build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
     ]
 )
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)

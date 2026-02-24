@@ -3020,7 +3020,7 @@ class Tracker:
         )
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
-        self.country_keyword_counts: Dict[str, int] = {}
+        self.country_keywords: Dict[str, Dict[str, int]] = {}
         self._boosted_rate_cache: Dict[
             Tuple[float, Optional[str]], Tuple[float, float]
         ] = {}
@@ -3043,10 +3043,10 @@ class Tracker:
         k = self.total_union_keywords  # e.g., 56 in your Autoliv case
         k_specific = 0
         if key:
-            k_specific = self.country_keyword_counts.get(key, 0)
+            k_specific = sum(self.country_keywords.get(key, {}).values())
             if k_specific == 0 and isinstance(key, str) and "::" in key:
                 country_code = key.split("::")[0]
-                k_specific = self.country_keyword_counts.get(country_code, 0)
+                k_specific = sum(self.country_keywords.get(country_code, {}).values())
 
         # -----------------------------
         # 1. Logistic keyword multiplier
@@ -3264,7 +3264,7 @@ class Tracker:
         is_negated: bool = False,
         is_union_record: bool = False,
         sentence_index: int = -1,
-        keyword_count: int = 0,
+        keywords: Optional[List[str]] = None,
         ambiguity_multiplier: Optional[float] = None,
         is_exception_entry: bool = False,
         exception_limit_percent: Optional[float] = None,
@@ -3275,6 +3275,9 @@ class Tracker:
         """
         if sentence_index < 0:
             return
+
+        keywords = keywords or []
+        keyword_count = len(keywords)
 
         if geo_context.get("domestic_negated"):
             self.domestic_is_negated = True
@@ -3287,9 +3290,12 @@ class Tracker:
             if code:
                 if code == "DOM":
                     code = self.domestic_country_code
-                self.country_keyword_counts[code] = (
-                    self.country_keyword_counts.get(code, 0) + keyword_count
-                )
+                
+                if code not in self.country_keywords:
+                    self.country_keywords[code] = {}
+                
+                for kw in keywords:
+                    self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -5513,6 +5519,7 @@ class Tracker:
             "global_covered_count": 0.0,
             "global_total_count": 0.0,
             "measured_population_coverage": None,
+            "country_keywords": self.country_keywords,
             "_logs": [],  # New key to store logs
             "resolution": self.resolution_log,
         }
@@ -6126,6 +6133,19 @@ class UnionAnalyzer:
         self.matcher = self.extractor.matcher  # Access shared matcher
         self.domestic_country_code = domestic_country_code
 
+    def _get_annotated_keywords(self, analysis: SentenceAnalysis) -> Optional[List[str]]:
+        if not analysis.union_terms:
+            return None
+        
+        annotated = []
+        for term in analysis.union_terms:
+            related = next((m for m in analysis.geo_matches if m.text == term and m.geo_code and m.geo_code.startswith("INT_")), None)
+            if related:
+                annotated.append(f"{related.geo_code}::{term}")
+            else:
+                annotated.append(term)
+        return annotated
+
     def _detect_count_range(
         self, analysis: SentenceAnalysis, counts: List[float]
     ) -> Optional[float]:
@@ -6315,7 +6335,7 @@ class UnionAnalyzer:
 
             item = {
                 "sentence": sentence_text,
-                "keyword_matched": analysis.union_terms or None,
+                "keyword_matched": self._get_annotated_keywords(analysis),
                 "geographic_context": geo_ctx,
                 "coverage_data": cov_data,
                 "lookup_totals": {},
@@ -6442,7 +6462,7 @@ class UnionAnalyzer:
                     is_negated=cov.get("negated", False),
                     is_union_record=item.get("is_union", False),
                     sentence_index=item.get("sentence_index", -1),
-                    keyword_count=len(item.get("keyword_matched") or []),
+                    keywords=item.get("keyword_matched"),
                     ambiguity_multiplier=cov.get("ambiguity_multiplier"),
                     is_exception_entry=cov.get("is_exception_entry", False),
                     exception_limit_percent=cov.get("exception_limit_percent"),
@@ -8159,7 +8179,7 @@ class UnionAnalyzer:
 
                             split_item = {
                                 "sentence": sent,
-                                "keyword_matched": analysis.union_terms or None,
+                                "keyword_matched": self._get_annotated_keywords(analysis),
                                 "geographic_context": new_geo_context,
                                 "coverage_data": new_cov_data,
                                 "lookup_totals": effective_totals.copy(),
@@ -8177,7 +8197,7 @@ class UnionAnalyzer:
             else:
                 item = {
                     "sentence": sent,
-                    "keyword_matched": analysis.union_terms or None,
+                    "keyword_matched": self._get_annotated_keywords(analysis),
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
                     "lookup_totals": effective_totals.copy(),
