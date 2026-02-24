@@ -3266,6 +3266,23 @@ class Tracker:
                     f"Updated region '{r_name}' from {current} to {agg_count} based on country sum."
                 )
 
+        # Update composite countries from constituents
+        for comp_code in COMPOSITE_COUNTRIES:
+            constituents = get_composite_constituents(comp_code)
+            if not constituents:
+                continue
+            
+            comp_sum = 0.0
+            for c in constituents:
+                comp_sum += self.country_totals.get(c, 0.0)
+            
+            current = self.country_totals.get(comp_code, 0.0)
+            if comp_sum > current:
+                self.country_totals[comp_code] = comp_sum
+                self.resolution_log.append(
+                    f"Updated composite '{comp_code}' from {current} to {comp_sum} based on constituent sum."
+                )
+
         # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
         for r_name, codes in mentioned_in_region.items():
             if len(codes) == 1:
