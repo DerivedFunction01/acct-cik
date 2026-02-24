@@ -3037,6 +3037,7 @@ class Entry:
     is_exception_entry: bool = False
     exception_limit_percent: Optional[float] = None
     is_exception_remainder: bool = False
+    is_parent_breakdown: bool = False
 
     # Hash
     def __hash__(self):
@@ -3509,6 +3510,7 @@ class Tracker:
 
                 # Check match
                 if self._matches_census(parent.total_count, current_sum, threshold=0.05):  # type: ignore
+                    parent.is_parent_breakdown = True
                     # Check coverage consistency
                     p_cov = parent.covered_count
                     c_cov_sum = sum(g.covered_count or 0.0 for g in group)
@@ -3537,6 +3539,7 @@ class Tracker:
         rest_total = sum(c.total_count for c in by_size[1:])  # type: ignore
 
         if self._matches_census(largest.total_count, rest_total, threshold=0.10):  # type: ignore
+            largest.is_parent_breakdown = True
             self.resolution_log.append(
                 f"Global Hierarchy {name}: {largest.total_count} matches sum of all other {len(by_size)-1} entries."
             )
@@ -4416,6 +4419,7 @@ class Tracker:
             is_hierarchy = False
             if others_sum > 0 and abs(largest - others_sum) / largest < 0.15:
                 is_hierarchy = True
+                sorted_segs[0].is_parent_breakdown = True
 
             if not is_hierarchy and total_sum > census_total * 1.05:
                 self.country_totals[country_code] = total_sum
