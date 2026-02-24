@@ -488,6 +488,10 @@ class SimpleCoverageAnalyzer:
         effective_counts: List[float],
         data: Dict[str, Any],
         notes: List[str],
+        pct_override: Optional[float] = None,
+        pct_match_override: Optional[Dict[str, Any]] = None,
+        coverage_type: Optional[str] = None,
+        note_prefix: str = "Explicit percentage",
     ):
         """Handles cases with exactly one percentage and one count. Follow standard grammatical flow
         COUNT BEFORE PCT
@@ -506,22 +510,24 @@ class SimpleCoverageAnalyzer:
         Case 8: 60% of employees are unionized, and/with employment of 10,000 people. (Covered Count is PCT * COUNT)
 
         """
-        pct = analysis.percentages[0]
+        pct = pct_override if pct_override is not None else analysis.percentages[0]
         count = effective_counts[0]
 
         data["percentage"] = pct
-        data["type"] = CoverageType.EXPLICIT_PERCENT.value
-        notes.append(f"Explicit percentage: {pct}%")
+        data["type"] = coverage_type or CoverageType.EXPLICIT_PERCENT.value
+        notes.append(f"{note_prefix}: {pct}%")
 
         # Locate matches
-        pct_match = next(
-            (
-                m
-                for m in analysis._matches
-                if m["type"] == MatchType.PERCENT and m["val"] == pct
-            ),
-            None,
-        )
+        pct_match = pct_match_override
+        if pct_match is None:
+            pct_match = next(
+                (
+                    m
+                    for m in analysis._matches
+                    if m["type"] == MatchType.PERCENT and m["val"] == pct
+                ),
+                None,
+            )
         count_match = next(
             (
                 m
@@ -550,6 +556,10 @@ class SimpleCoverageAnalyzer:
         # 0.1 X% ... consists 1000
         if CONSIST_REGEX.search(between) and pct_before_cnt:
             is_count_total = False
+        # 0.2 "500 union ..., representing majority/60% ..." -> Count is covered subset
+        elif re.search(r"\brepresent(?:s|ed|ing)?\b", between, re.IGNORECASE):
+            is_count_total = False
+            notes.append("Logic: REPRESENTING detected -> Count is Covered")
         # 1. Explicit "OR" relationship (Equivalence -> Count is Subset)
         elif OR_REGEX.search(between):
             is_count_total = False
@@ -561,7 +571,7 @@ class SimpleCoverageAnalyzer:
         elif pct_before_cnt:
             is_count_total = False
             notes.append(
-                "Logic: PCT before Count (no subset indicator) -> Count is Total"
+                "Logic: PCT before Count (no subset indicator) -> Count is Covered"
             )
         # 3. Proximity to Union Term (Heuristic)
         else:
@@ -823,7 +833,7 @@ class SimpleCoverageAnalyzer:
                 return
 
             # Check for qualitative terms (e.g. "majority", "most")
-            # If present, we assume the count is the Total, and the term describes the subset.
+            # If present, map to a percentage and run one-count/one-percent logic.
             qual_match = next(
                 (
                     m
@@ -835,73 +845,22 @@ class SimpleCoverageAnalyzer:
             )
 
             if qual_match:
-                data["employee_count_total"] = count
-                qinfo = interpret_qualitative_match(
-                    qual_match, analysis, backward=40, prefer_note=False
+                # For qualitative+count cases, do not apply qualitative percentages.
+                # Treat the raw count as the covered/not-covered subset, with total = count.
+                has_status_negation = any(
+                    m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                    for m in analysis._matches
                 )
-                pct = qinfo.get("percentage")
-                amb_mult = qinfo.get("ambiguity_multiplier")
-                
-                if pct is not None:
-                    data["percentage"] = pct
-                    if qinfo.get("type"):
-                        data["type"] = qinfo.get("type")
-                    else:
-                        data["type"] = CoverageType.QUALITATIVE.value
-                    if qinfo.get("qualitative_bounds") is not None:
-                        data["qualitative_bounds"] = qinfo.get("qualitative_bounds")
-
-                    has_status_negation = any(
-                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-                        for m in analysis._matches
-                    )
-
-                    ratio = round((pct / 100.0) * count)
-
-                    # Check for exceptions which should prevent filling the remainder
-                    has_exceptions = bool(analysis.except_terms or analysis.outside_terms)
-                    if has_exceptions:
-                        data["has_exceptions"] = True
-
-                        # Downgrade 100% to 95% if exceptions exist to leave room for the exception
-                        # e.g. "All employees non-union except US" -> 95% non-union, 5% buffer for US
-                        if pct >= 99.0:
-                            pct = 95.0
-                            notes.append("Downgraded from 100% to 95% due to exception")
-
-                    # Only infer complement for qualitative negations if they are extremes
-                    infer_complement = should_infer_complement(
-                        pct,
-                        data["type"] == CoverageType.QUALITATIVE.value,
-                        has_status_negation,
-                        has_exceptions
-                    )
-
-                    if infer_complement:
-                        apply_coverage_logic(
-                            data,
-                            total=count,
-                            subset=ratio,
-                            is_negated=has_status_negation,
-                            notes=notes,
-                            note_fmt=f"Qualitative '{qual_match['text']}' of {{total}} total -> {{subset}} {{status}}"
-                            + (" (negated)" if has_status_negation else ""),
-                        )
-                    else:
-                        data["employee_count_not_covered"] = ratio
-                        data["negated"] = True
-                        data["negation_type"] = NegationType.NOT_COVERED.value
-                        notes.append(f"Qualitative '{qual_match['text']}' of {count} total -> {ratio} not covered (negated). Covered count not inferred.")
-                elif amb_mult is not None:
-                    # Store multiplier for later resolution in Tracker
-                    data["ambiguity_multiplier"] = amb_mult
-                    data["type"] = CoverageType.QUALITATIVE.value
-                    data["employee_count_total"] = count
-                    notes.append(f"Count (total): {count} (qualitative multiplier {amb_mult}x)")
-                else:
-                    data["type"] = CoverageType.CALCULATED.value
-                    data["employee_count_total"] = count
-                    notes.append(f"Count (total): {count} (qualitative term present)")
+                data["percentage"] = None
+                data["type"] = CoverageType.CALCULATED.value
+                apply_coverage_logic(
+                    data,
+                    total=count,
+                    subset=count,
+                    is_negated=has_status_negation,
+                    notes=notes,
+                    note_fmt=f"Qualitative '{qual_match['text']}' with explicit count -> Count ({{status}}): {{subset}}",
+                )
 
             elif analysis.has_remaining_other:
                 data["employee_count_total"] = count
