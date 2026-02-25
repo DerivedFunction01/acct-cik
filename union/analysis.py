@@ -6823,6 +6823,147 @@ class Tracker:
 
         return metrics
 
+    def build_country_provenance_report(self) -> Dict[str, Any]:
+        """
+        Builds a country-array report focused on final country totals plus
+        method/source-type breakdowns.
+        """
+        method_keys = [
+            SourceType.EXPLICIT.value,
+            SourceType.CALCULATED.value,
+            SourceType.INFERRED.value,
+            SourceType.WEIGHTED_DIVISION.value,
+            SourceType.FALLBACK.value,
+            SourceType.INHERITED.value,
+        ]
+
+        def empty_bucket() -> Dict[str, Any]:
+            return {
+                "employee_count_total": None,
+                "employee_count_covered": None,
+                "employee_count_not_covered": None,
+                "coverage_percent_values": [],
+                "entry_count": 0,
+            }
+
+        def add_nullable(acc: Optional[float], value: Optional[float]) -> Optional[float]:
+            if value is None:
+                return acc
+            if acc is None:
+                return float(value)
+            return float(acc + value)
+
+        # Collect country codes from explicit country totals, keywords, and entries.
+        country_codes: set[str] = set(self.country_totals.keys()) | set(self.country_keywords.keys())
+        for e in self.entries:
+            if e.scope == Scope.COUNTRY and isinstance(e.key, str):
+                if e.key not in REGION_CODES and e.key not in IGNORED_REGIONS:
+                    country_codes.add(e.key)
+            elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and "::" in e.key:
+                c_code = e.key.split("::")[0]
+                if c_code not in REGION_CODES and c_code not in IGNORED_REGIONS:
+                    country_codes.add(c_code)
+
+        countries = []
+        for code in sorted(country_codes):
+            if code in REGION_CODES or code in IGNORED_REGIONS:
+                continue
+
+            country_entries: List[Entry] = []
+            segment_entries: List[Entry] = []
+            for e in self.entries:
+                if e.scope == Scope.COUNTRY and e.key == code:
+                    country_entries.append(e)
+                elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and e.key.startswith(f"{code}::"):
+                    segment_entries.append(e)
+
+            # Prefer country-scope resolved entry as final snapshot.
+            primary_country_entry = None
+            if country_entries:
+                primary_country_entry = max(
+                    country_entries,
+                    key=lambda x: ((x.total_count or 0.0), x.sent_idx),
+                )
+
+            total_val = None
+            covered_val = None
+            not_covered_val = None
+            pct_val = None
+
+            if primary_country_entry:
+                total_val = primary_country_entry.total_count
+                covered_val = primary_country_entry.covered_count
+                not_covered_val = primary_country_entry.not_covered_count
+                pct_val = primary_country_entry.percentage
+
+            if total_val is None and code in self.country_totals:
+                total_val = self.country_totals.get(code)
+
+            if covered_val is None and segment_entries:
+                seg_cov = sum(s.covered_count for s in segment_entries if s.covered_count is not None)
+                covered_val = float(seg_cov) if seg_cov > 0 else None
+            if not_covered_val is None and segment_entries:
+                seg_not = sum(
+                    s.not_covered_count for s in segment_entries if s.not_covered_count is not None
+                )
+                not_covered_val = float(seg_not) if seg_not > 0 else None
+
+            if pct_val is None and total_val and covered_val is not None and total_val > 0:
+                pct_val = round((covered_val / total_val) * 100.0, 2)
+
+            method_breakdown = {k: empty_bucket() for k in method_keys}
+
+            for e in country_entries + segment_entries:
+                field_sources = [
+                    ("employee_count_total", e.total_count, e.total_count_source_type),
+                    ("employee_count_covered", e.covered_count, e.covered_count_source_type),
+                    ("employee_count_not_covered", e.not_covered_count, e.not_covered_count_source_type),
+                    ("coverage_percent_values", e.percentage, e.percentage_source_type),
+                ]
+
+                used_bucket_keys = set()
+                for field_name, val, stype in field_sources:
+                    if stype not in method_breakdown:
+                        continue
+                    bucket = method_breakdown[stype]
+                    used_bucket_keys.add(stype)
+                    if field_name == "coverage_percent_values":
+                        if val is not None:
+                            bucket["coverage_percent_values"].append(float(val))
+                    else:
+                        bucket[field_name] = add_nullable(bucket[field_name], val)
+                for k in used_bucket_keys:
+                    method_breakdown[k]["entry_count"] += 1
+
+            union_indicator = 1 if (
+                (covered_val is not None and covered_val > 0)
+                or any(v > 0 for v in self.country_keywords.get(code, {}).values())
+            ) else None
+
+            countries.append(
+                {
+                    "country_code": code,
+                    "country_name": None,
+                    "is_domestic": code == self.domestic_country_code,
+                    "country_totals": {
+                        "employee_count_total": total_val,
+                        "employee_count_covered": covered_val,
+                        "employee_count_not_covered": not_covered_val,
+                        "coverage_percent": pct_val,
+                        "union_indicator": union_indicator,
+                    },
+                    "method_breakdown": method_breakdown,
+                    "country_keywords": self.country_keywords.get(code, {}),
+                }
+            )
+
+        return {
+            "schema_version": "3.0",
+            "domestic_country_code": self.domestic_country_code,
+            "countries": countries,
+            "notes": [],
+        }
+
 
 class UnionAnalyzer:
     def __init__(self, domestic_country_code: str = "US"):
@@ -7066,6 +7207,7 @@ class UnionAnalyzer:
         results = []
         risk_items = []
         summary = {}
+        country_report: Dict[str, Any] = {}
 
         if item_type == "item1a":
             risk_items = self._analyze_item1a(sentences, reporting_year)
@@ -7194,12 +7336,14 @@ class UnionAnalyzer:
             summary = self.compute_weighted_coverage(
                 results, tracker, all_region_totals
             )
+            country_report = tracker.build_country_provenance_report()
 
         return {
             "items": results,
             "risk_items": risk_items,
             "risk_summary": self.risk_digest.summarize(risk_items),
             "summary": summary,
+            "country_report": country_report,
         }
 
     def _populate_tracker(
