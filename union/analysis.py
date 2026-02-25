@@ -3179,12 +3179,19 @@ class Tracker:
         countries = geo_context.get("countries", [])
         regions = geo_context.get("regions", [])
         codes = {c.get("code") for c in countries}
+        is_unknown_region = region in UNK_SET
+
         # 1. Global Update
-        if "GLO" in codes or (region == Region.UNKNOWN.value and not codes):
+        if "GLO" in codes:
             self.global_total = max(self.global_total, count)
+        elif is_unknown_region:
+            # Unknown only contributes to lookup global when no single-country
+            # attribution is possible.
+            if not codes or len(countries) != 1:
+                self.global_total = max(self.global_total, count)
 
         # 2. Regional Update
-        if region and region not in (Region.UNKNOWN.value,):
+        if region and not is_unknown_region:
             # If International Region, only update if it's NOT Global code
             if region == Region.INTERNATIONAL.value and "GLO" in codes:
                 pass
@@ -3213,7 +3220,6 @@ class Tracker:
                     code = self.domestic_country_code
                 if count > self.country_totals.get(code, 0):
                     self.country_totals[code] = count
-
     def register_mentions(self, geo_context: Dict[str, Any]):
         if geo_context.get("domestic_negated"):
             self.domestic_is_negated = True
@@ -6844,7 +6850,24 @@ class UnionAnalyzer:
                 else:
                     final_count = max_count
 
-                tracker.update(final_count, geo_context)
+                census_geo_context = geo_context
+                # Avoid leaking inherited geography into generic headcount
+                # statements (e.g. "we have 80,000 employees") when there is
+                # no union/coverage signal in the current sentence.
+                if (
+                    geo_context.get("specificity") == Specificity.INHERITED.value
+                    and not analysis.is_union
+                    and not analysis.union_terms
+                    and not analysis.coverage_terms
+                ):
+                    census_geo_context = {
+                        "region": Region.UNKNOWN.value,
+                        "countries": [],
+                        "regions": [],
+                        "specificity": Specificity.IMPLICIT.value,
+                    }
+
+                tracker.update(final_count, census_geo_context)
 
     def _prepare_counts(
         self,
@@ -8195,6 +8218,15 @@ class UnionAnalyzer:
                         Specificity.INFERRED_UNION.value,
                     ):
                         region_key = geo_context["region"]
+                        fallback_countries = geo_context.get("countries", [])
+                        if region_key in UNK_SET:
+                            if len(fallback_countries) == 1:
+                                c_code = fallback_countries[0].get("code")
+                                region_key = (
+                                    self.domestic_country_code if c_code == "DOM" else c_code
+                                )
+                            else:
+                                region_key = Scope.GLOBAL.value
 
                         prev_val = (
                             previous_totals.get(region_key, 0) if previous_totals else 0
