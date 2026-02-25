@@ -1319,7 +1319,7 @@ class UnionExtractor:
         
         # 4c. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
         # e.g. "Japanese trade union", "German metal trade union"
-        def lower_dynamic_side_effect(m, val):
+        def lower_dynamic_side_effect(m: re.Match, val: str):
             analysis.union_terms.append(val)
             # Group 1 is the TitleCase part (potential location)
             loc_term = m.group(1)
