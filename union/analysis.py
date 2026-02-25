@@ -3086,9 +3086,8 @@ class Tracker:
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
-        self.mentioned_countries: set[str] = (
-            {domestic_country_code} if domestic_country_code else set()
-        )
+        # Start empty; only populate from actual detected context.
+        self.mentioned_countries: set[str] = set()
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
         self.country_keywords: Dict[str, Dict[str, int]] = {}
@@ -4568,9 +4567,12 @@ class Tracker:
             if c and (len(c) == 2 or c == target_country)
         }
         other_countries = valid_countries - {target_country}
+        single_country_context = (
+            len(valid_countries) == 1 and target_country in valid_countries
+        )
 
         # Condition: No other countries mentioned
-        if not other_countries:
+        if single_country_context:
             # Inherit global total if we are defaulting to target and have no specific data
             if (
                 self.global_total > 0
@@ -4591,7 +4593,7 @@ class Tracker:
             elif e.key in UNK_SET:
                 # Unknown scope defaults to domestic only in single-country context.
                 # Otherwise route it to Global.
-                if not other_countries:
+                if single_country_context:
                     e.key = target_country
                     e.scope = Scope.COUNTRY
                     self.resolution_log.append(
@@ -4628,7 +4630,7 @@ class Tracker:
         for unk_key in UNK_SET:
             if unk_key in self.country_totals:
                 val = self.country_totals.pop(unk_key)
-                if not other_countries:
+                if single_country_context:
                     self.country_totals[target_country] = max(
                         self.country_totals.get(target_country, 0), val
                     )
@@ -4656,7 +4658,7 @@ class Tracker:
         for unk_key in UNK_SET:
             if unk_key in self.region_totals:
                 val = self.region_totals.pop(unk_key)
-                if not other_countries:
+                if single_country_context:
                     self.country_totals[target_country] = max(
                         self.country_totals.get(target_country, 0), val
                     )
