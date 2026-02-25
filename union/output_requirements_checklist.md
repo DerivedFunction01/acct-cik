@@ -1,0 +1,126 @@
+# Output Requirements Checklist (Country Array + Provenance)
+
+Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit a separate output focused on country-level results.
+
+## 1) Top-Level JSON
+
+```jsonc
+{
+  "schema_version": "3.0", // output schema version
+  "domestic_country_code": "US", // home country used for domestic/international split
+  "countries": [], // one object per country
+  "notes": [] // optional run-level notes/warnings
+}
+```
+
+## 2) Countries Array (One object per country)
+
+```jsonc
+{
+  "country_code": "DE",
+  "country_name": "Germany",
+  "is_domestic": false, // true only for domestic_country_code
+
+  "country_totals": {
+    "employee_count_total": 3100.0, // final resolved total for this country (all methods combined)
+    "employee_count_covered": 1224.0, // final resolved covered count (all methods combined)
+    "employee_count_not_covered": 1876.0, // final resolved non-covered count
+    "coverage_percent": 39.48, // final country % (prefer covered/total when available)
+    "union_indicator": 1 // 1 if any union coverage signal exists for this country, else null
+  },
+
+  "method_breakdown": {
+    "EXPLICIT": {
+      "employee_count_total": 3100.0, // counts explicitly stated in text
+      "employee_count_covered": 1224.0, // covered count explicitly stated in text
+      "employee_count_not_covered": null, // non-covered explicitly stated in text (null if not explicitly present)
+      "coverage_percent_values": [68.0], // percentages explicitly stated in text
+      "entry_count": 1 // number of contributing entries in this source type
+    },
+    "CALCULATED": {
+      "employee_count_total": null, // totals computed from arithmetic over text-grounded values
+      "employee_count_covered": null, // covered counts computed from text-grounded values
+      "employee_count_not_covered": 1876.0, // e.g., total - covered
+      "coverage_percent_values": [39.48], // percentages computed from counts
+      "entry_count": 2
+    },
+    "INFERRED": {
+      "employee_count_total": null, // inferred from qualitative/implicit logic (not fallback denominator)
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "coverage_percent_values": [], // inferred/dummy qualitative percentages
+      "entry_count": 0
+    },
+    "WEIGHTED_DIVISION": {
+      "employee_count_total": null, // totals allocated by weighted-division logic
+      "employee_count_covered": null, // covered counts resulting from weighted allocations
+      "employee_count_not_covered": null,
+      "coverage_percent_values": [], // usually empty; this bucket mostly carries count allocations
+      "entry_count": 0
+    },
+    "FALLBACK": {
+      "employee_count_total": null, // denominator synthesized via fallback
+      "employee_count_covered": null, // covered derived from % * fallback denominator
+      "employee_count_not_covered": null,
+      "coverage_percent_values": [], // only if the percentage itself was fallback-sourced
+      "entry_count": 0
+    },
+    "INHERITED": {
+      "employee_count_total": null, // true carry-forward inheritance only (context transfer)
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "coverage_percent_values": [],
+      "entry_count": 0
+    }
+  },
+
+  "country_keywords": {
+    "IG Metall": 1,
+    "works council": 1
+  }
+}
+```
+
+### Mixed Provenance Example (Important)
+
+```jsonc
+{
+  "country_code": "GB",
+  "method_breakdown": {
+    "EXPLICIT": {
+      "coverage_percent_values": [25.0], // 25% explicitly appears in text
+      "employee_count_total": null,
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "entry_count": 1
+    },
+    "FALLBACK": {
+      "employee_count_total": 120.0, // no UK total in text, so fallback denominator applied
+      "employee_count_covered": 30.0, // derived from explicit 25% * fallback denominator
+      "employee_count_not_covered": 90.0,
+      "coverage_percent_values": [],
+      "entry_count": 1
+    }
+  }
+}
+```
+
+## 3) Aggregation Rules
+
+1. `countries[]` should include every country code present in resolved entries.
+2. `country_totals` uses resolved final values (same arithmetic basis as tracker entries).
+3. `method_breakdown` groups contributions by `*_source_type` (`EXPLICIT`, `CALCULATED`, `INFERRED`, `WEIGHTED_DIVISION`, `FALLBACK`, `INHERITED`).
+4. `coverage_percent_values` stores raw percent contributions by method; final `country_totals.coverage_percent` is computed from final covered/total where available.
+5. If percentage exists but counts are missing, keep percentage in its method bucket and keep missing count fields as `null`.
+6. `country_keywords` should come directly from tracker keyword tallies for that country code.
+7. Mixed provenance is valid: percent can be `EXPLICIT` while counts for that same record are `FALLBACK`.
+8. Default for missing numeric fields is `null` (never `0` unless the value is explicitly/derived as zero).
+
+## 4) Inheritance Clarification
+
+To distinguish true inheritance vs computed use of inherited context:
+
+- True carry-forward/context inheritance -> `source_type = INHERITED`
+- Inherited denominator used to compute values -> `source_type = CALCULATED`
+
+This must follow the `DETAIL_TO_SOURCE_TYPE` mapping in `output_enums.py`.
