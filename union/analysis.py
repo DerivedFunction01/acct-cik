@@ -56,6 +56,7 @@ from defs.output_enums import (
     CountSourceDetail,
     TotalSourceDetail,
     DenominatorSourceDetail,
+    DETAIL_TO_SOURCE_TYPE,
     PercentageQualifier,
     NegationType,
     TemporalScope,
@@ -3115,85 +3116,7 @@ class Scope(Enum):
 def _infer_source_type_from_detail(source: Optional[str]) -> str:
     if not source:
         return SourceType.UNKNOWN.value
-    explicit_details = {
-        PercentageSourceDetail.EXPLICIT_PERCENTAGE.value,
-        CountSourceDetail.EXPLICIT_COVERED_COUNT.value,
-        CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value,
-        TotalSourceDetail.EXPLICIT_SCOPE_TOTAL.value,
-        DenominatorSourceDetail.EXPLICIT_SCOPE_TOTAL.value,
-        DenominatorSourceDetail.CENSUS_UPGRADE.value,
-    }
-    calculated_details = {
-        PercentageSourceDetail.CALCULATED_PERCENTAGE.value,
-        PercentageSourceDetail.CALCULATED_ZERO_FROM_GAP_FIX.value,
-        PercentageSourceDetail.CALCULATED_FROM_COUNTS.value,
-        PercentageSourceDetail.CALCULATED_FROM_REMAINING_GAP.value,
-        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED.value,
-        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value,
-        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
-        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
-        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
-        CountSourceDetail.REMAINING_GAP_FILL.value,
-        CountSourceDetail.REMAINING_GAP_FILL_ZERO.value,
-        PercentageSourceDetail.AGGREGATE_PROPAGATION.value,
-        TotalSourceDetail.CENSUS_GAP_FIX.value,
-        TotalSourceDetail.CENSUS_UPGRADE.value,
-        TotalSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
-        TotalSourceDetail.REMAINING_GAP_FILL.value,
-        DenominatorSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
-    }
-    inherited_details = {
-        TotalSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
-        TotalSourceDetail.COUNTRY_CENSUS_UPDATE.value,
-        DenominatorSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
-        DenominatorSourceDetail.COUNTRY_CENSUS_UPDATE.value,
-    }
-    inferred_details = {
-        PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE.value,
-        PercentageSourceDetail.UNION_CONTEXT_ONLY.value,
-        PercentageSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
-        PercentageSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
-        PercentageSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
-        PercentageSourceDetail.DUMMY_INFERRED_REGION_WEIGHTED.value,
-        PercentageSourceDetail.DUMMY_INFERRED_EXTERNAL_DATA.value,
-        PercentageSourceDetail.DUMMY_INFERRED_DEFAULT_RATE.value,
-        CountSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
-        CountSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
-        CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
-        TotalSourceDetail.COUNTRY_CENSUS_ONLY.value,
-        TotalSourceDetail.REGION_TOTAL_ONLY.value,
-        DenominatorSourceDetail.COUNTRY_CENSUS_ONLY.value,
-        DenominatorSourceDetail.REGION_TOTAL_ONLY.value,
-    }
-    weighted_details = {
-        TotalSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
-        DenominatorSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
-    }
-    fallback_details = {
-        PercentageSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
-        CountSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
-        TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value,
-        TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value,
-        TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value,
-        DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value,
-        DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value,
-        DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value,
-        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
-    }
-
-    if source in explicit_details:
-        return SourceType.EXPLICIT.value
-    if source in calculated_details:
-        return SourceType.CALCULATED.value
-    if source in weighted_details:
-        return SourceType.WEIGHTED_DIVISION.value
-    if source in fallback_details:
-        return SourceType.FALLBACK.value
-    if source in inherited_details:
-        return SourceType.INHERITED.value
-    if source in inferred_details:
-        return SourceType.INFERRED.value
-    return SourceType.UNKNOWN.value
+    return DETAIL_TO_SOURCE_TYPE.get(source, SourceType.UNKNOWN.value)
 
 
 @dataclass

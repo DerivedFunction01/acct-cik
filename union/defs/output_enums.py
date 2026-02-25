@@ -123,3 +123,84 @@ class RelationshipStatus(Enum):
     NEUTRAL = "NEUTRAL"
     NEGATIVE = "NEGATIVE"
     UNKNOWN = "UNKNOWN"
+
+def load_details_source():
+    detail_map: dict[str, str] = {}
+    for _detail in (
+        PercentageSourceDetail.EXPLICIT_PERCENTAGE,
+        CountSourceDetail.EXPLICIT_COVERED_COUNT,
+        CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT,
+        TotalSourceDetail.EXPLICIT_SCOPE_TOTAL,
+        DenominatorSourceDetail.EXPLICIT_SCOPE_TOTAL,
+        DenominatorSourceDetail.CENSUS_UPGRADE,
+    ):
+        detail_map[_detail.value] = SourceType.EXPLICIT.value
+
+    for _detail in (
+        PercentageSourceDetail.CALCULATED_PERCENTAGE,
+        PercentageSourceDetail.CALCULATED_ZERO_FROM_GAP_FIX,
+        PercentageSourceDetail.CALCULATED_FROM_COUNTS,
+        PercentageSourceDetail.CALCULATED_FROM_REMAINING_GAP,
+        PercentageSourceDetail.AGGREGATE_PROPAGATION,
+        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED,
+        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR,
+        CountSourceDetail.REMAINING_GAP_FILL,
+        CountSourceDetail.REMAINING_GAP_FILL_ZERO,
+        TotalSourceDetail.CENSUS_GAP_FIX,
+        TotalSourceDetail.CENSUS_UPGRADE,
+        TotalSourceDetail.INHERITED_FROM_CENSUS_TOTAL,
+        TotalSourceDetail.REMAINING_GAP_FILL,
+        DenominatorSourceDetail.INHERITED_FROM_CENSUS_TOTAL,
+    ):
+        detail_map[_detail.value] = SourceType.CALCULATED.value
+
+    for _detail in (
+        PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE,
+        PercentageSourceDetail.UNION_CONTEXT_ONLY,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY,
+        PercentageSourceDetail.DUMMY_INFERRED_REGION_WEIGHTED,
+        PercentageSourceDetail.DUMMY_INFERRED_EXTERNAL_DATA,
+        PercentageSourceDetail.DUMMY_INFERRED_DEFAULT_RATE,
+        CountSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER,
+        CountSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY,
+        CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY,
+        TotalSourceDetail.COUNTRY_CENSUS_ONLY,
+        TotalSourceDetail.REGION_TOTAL_ONLY,
+        DenominatorSourceDetail.COUNTRY_CENSUS_ONLY,
+        DenominatorSourceDetail.REGION_TOTAL_ONLY,
+    ):
+        detail_map[_detail.value] = SourceType.INFERRED.value
+
+    for _detail in (
+        TotalSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL,
+        DenominatorSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL,
+    ):
+        detail_map[_detail.value] = SourceType.WEIGHTED_DIVISION.value
+
+    for _detail in (
+        PercentageSourceDetail.FALLBACK_NEGATION_GUARD_ZERO,
+        CountSourceDetail.FALLBACK_NEGATION_GUARD_ZERO,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_REGION,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL,
+    ):
+        detail_map[_detail.value] = SourceType.FALLBACK.value
+
+    for _detail in (
+        TotalSourceDetail.COUNTRY_CENSUS_BACKFILL,
+        TotalSourceDetail.COUNTRY_CENSUS_UPDATE,
+        DenominatorSourceDetail.COUNTRY_CENSUS_BACKFILL,
+        DenominatorSourceDetail.COUNTRY_CENSUS_UPDATE,
+    ):
+        detail_map[_detail.value] = SourceType.INHERITED.value
+    return detail_map
+
+DETAIL_TO_SOURCE_TYPE = load_details_source()
