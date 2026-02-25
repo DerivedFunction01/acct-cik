@@ -63,7 +63,7 @@ emp_df["emp"] = emp_df.groupby("cik", group_keys=False)["emp"].apply(
 )
 
 emp_df["emp"] = emp_df.groupby("cik", group_keys=False)["emp"].apply(
-    lambda s: s.ffill(limit=2).bfill(limit=2)
+    lambda s: s.ffill(limit=4).bfill(limit=4)
 )
 emp_df["cik"] = emp_df["cik"].astype("Int64")
 emp_df["year"] = emp_df["year"].astype("Int64")
