@@ -6851,21 +6851,6 @@ class UnionAnalyzer:
                     final_count = max_count
 
                 census_geo_context = geo_context
-                # Avoid leaking inherited geography into generic headcount
-                # statements (e.g. "we have 80,000 employees") when there is
-                # no union/coverage signal in the current sentence.
-                if (
-                    geo_context.get("specificity") == Specificity.INHERITED.value
-                    and not analysis.is_union
-                    and not analysis.union_terms
-                    and not analysis.coverage_terms
-                ):
-                    census_geo_context = {
-                        "region": Region.UNKNOWN.value,
-                        "countries": [],
-                        "regions": [],
-                        "specificity": Specificity.IMPLICIT.value,
-                    }
 
                 tracker.update(final_count, census_geo_context)
 
