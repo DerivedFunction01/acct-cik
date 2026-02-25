@@ -1568,7 +1568,9 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "South Korea",
-        ["south korea", "korea", "korean", "krw"],
+        ["south korea", "krw", add_restrictions(
+            to_build_alternation(["korea", "korean"]), lookbehinds=[r"north"])
+        ],
         Region.ASIA_PACIFIC,
         [
             Location("Seoul", ["seoul"]),
@@ -1930,7 +1932,7 @@ ASIA_PACIFIC = {
     Nation("Nauru", ["nauru", "nauruan"], Region.ASIA_PACIFIC, code="NR"),
     Nation("Nepal", ["nepal", "nepalese"], Region.ASIA_PACIFIC, code="NP"),
     Nation("New Caledonia", ["new caledonia"], Region.ASIA_PACIFIC, code="NC"),
-    Nation("North Korea", ["north korea", "dprk"], Region.ASIA_PACIFIC, code="KP"),
+    Nation("North Korea", ["north korean?", "dprk"], Region.ASIA_PACIFIC, code="KP"),
     Nation(
         "Northern Mariana Islands",
         ["northern mariana islands"],
