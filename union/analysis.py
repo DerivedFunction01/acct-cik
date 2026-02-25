@@ -1059,7 +1059,9 @@ class UnionExtraAnalyzer:
         # Return something if there is anything risk/relations related to return
         if not (
             analysis.union_terms
+            or analysis.negation_terms
             or analysis.risk_terms
+            or analysis.generic_risk_terms
             or analysis.supplier_terms
             or analysis.relationship_terms
             or analysis.relationship_quality_terms
@@ -1084,7 +1086,7 @@ class UnionExtraAnalyzer:
             ),
             "sentence": sentence,
             "labor_keywords": analysis.union_terms,
-            "risk_keywords": analysis.risk_terms,
+            "risk_keywords": analysis.risk_terms + analysis.generic_risk_terms,
             "relationship_keywords": analysis.relationship_terms,
             "relationship_quality_keywords": analysis.relationship_quality_terms,
             "relationship_status": relationship_status,
@@ -1092,7 +1094,6 @@ class UnionExtraAnalyzer:
             "union_mention": analysis.union_terms,
             "temporal_scope": temporal_scope,
             "conditional": is_conditional,
-            "negated": bool(analysis.negation_terms),
             "risk_negated": risk_negated,
             "note": None,
             "is_union": analysis.is_union,
