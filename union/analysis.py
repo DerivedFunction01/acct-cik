@@ -1056,8 +1056,14 @@ class UnionExtraAnalyzer:
         elif is_conditional:
             temporal_scope = TemporalScope.CONDITIONAL.value
 
-        # Return something if there is something to return (Union terms OR Risk terms)
-        if not (analysis.union_terms or analysis.risk_terms):
+        # Return something if there is anything risk/relations related to return
+        if not (
+            analysis.union_terms
+            or analysis.risk_terms
+            or analysis.supplier_terms
+            or analysis.relationship_terms
+            or analysis.relationship_quality_terms
+        ):
             return {}
 
         # Detect whether any explicit risk term is locally negated
@@ -1068,6 +1074,7 @@ class UnionExtraAnalyzer:
             check_local_negation(m["span"], analysis.text, backward=30, forward=10)
             for m in risk_matches
         )
+        relationship_status = determine_relationship_status(analysis)
 
         return {
             "type": (
@@ -1078,6 +1085,9 @@ class UnionExtraAnalyzer:
             "sentence": sentence,
             "labor_keywords": analysis.union_terms,
             "risk_keywords": analysis.risk_terms,
+            "relationship_keywords": analysis.relationship_terms,
+            "relationship_quality_keywords": analysis.relationship_quality_terms,
+            "relationship_status": relationship_status,
             "third_party": analysis.supplier_terms,
             "union_mention": analysis.union_terms,
             "temporal_scope": temporal_scope,
@@ -1086,6 +1096,69 @@ class UnionExtraAnalyzer:
             "risk_negated": risk_negated,
             "note": None,
             "is_union": analysis.is_union,
+        }
+
+
+class RiskDigest:
+    """
+    Aggregates risk items into compact summaries for downstream reporting.
+    """
+
+    def summarize(self, risk_items: List[Dict[str, Any]]) -> Dict[str, Any]:
+        by_type: Dict[str, int] = {}
+        by_temporal_scope: Dict[str, int] = {}
+        relationship_status_counts: Dict[str, int] = {}
+        risk_term_counts: Dict[str, int] = {}
+        labor_term_counts: Dict[str, int] = {}
+        relationship_term_counts: Dict[str, int] = {}
+        supplier_term_counts: Dict[str, int] = {}
+        negated_count = 0
+        risk_negated_count = 0
+        conditional_count = 0
+
+        for item in risk_items:
+            r_type = item.get("type")
+            if r_type:
+                by_type[r_type] = by_type.get(r_type, 0) + 1
+
+            t_scope = item.get("temporal_scope")
+            if t_scope:
+                by_temporal_scope[t_scope] = by_temporal_scope.get(t_scope, 0) + 1
+
+            rel_status = item.get("relationship_status")
+            if rel_status:
+                relationship_status_counts[rel_status] = (
+                    relationship_status_counts.get(rel_status, 0) + 1
+                )
+
+            for t in item.get("risk_keywords", []) or []:
+                risk_term_counts[t] = risk_term_counts.get(t, 0) + 1
+            for t in item.get("labor_keywords", []) or []:
+                labor_term_counts[t] = labor_term_counts.get(t, 0) + 1
+            for t in item.get("relationship_keywords", []) or []:
+                relationship_term_counts[t] = relationship_term_counts.get(t, 0) + 1
+            for t in item.get("third_party", []) or []:
+                supplier_term_counts[t] = supplier_term_counts.get(t, 0) + 1
+
+            if item.get("conditional"):
+                conditional_count += 1
+            if item.get("negated"):
+                negated_count += 1
+            if item.get("risk_negated"):
+                risk_negated_count += 1
+
+        return {
+            "total_items": len(risk_items),
+            "by_type": by_type,
+            "by_temporal_scope": by_temporal_scope,
+            "relationship_status": relationship_status_counts,
+            "negated_items": negated_count,
+            "risk_negated_items": risk_negated_count,
+            "conditional_items": conditional_count,
+            "risk_terms": risk_term_counts,
+            "labor_terms": labor_term_counts,
+            "relationship_terms": relationship_term_counts,
+            "third_party_terms": supplier_term_counts,
         }
 
 
@@ -6382,6 +6455,7 @@ class UnionAnalyzer:
         self.extractor = UnionExtractor()
         self.simple_analyzer = SimpleCoverageAnalyzer()
         self.extra_analyzer = UnionExtraAnalyzer()
+        self.risk_digest = RiskDigest()
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
         self.domestic_country_code = domestic_country_code
@@ -6616,10 +6690,13 @@ class UnionAnalyzer:
         """
         sentences = self.extractor.split_sentences(text)
         results = []
+        risk_items = []
         summary = {}
 
         if item_type == "item1a":
-            results = self._analyze_item1a(sentences, reporting_year)
+            risk_items = self._analyze_item1a(sentences, reporting_year)
+            # Backward compatibility: keep risk rows under `items` for item1a callers.
+            results = risk_items
         else:
             # 1. Split into paragraphs to handle local context
             paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
@@ -6655,7 +6732,7 @@ class UnionAnalyzer:
                 p_sentences = self.extractor.split_sentences(p_text)
 
                 # Analyze block with context from previous paragraph
-                block_results, local_totals, last_geo_context, last_geo_sentence_idx = (
+                block_results, block_risk_items, local_totals, last_geo_context, last_geo_sentence_idx = (
                     self._analyze_block(
                         p_sentences,
                         reporting_year=reporting_year,
@@ -6676,6 +6753,7 @@ class UnionAnalyzer:
                         all_region_totals[reg] = count
 
                 results.extend(block_results)
+                risk_items.extend(block_risk_items)
 
                 # Handle Excluded Geographies (Implicit Coverage)
                 for idx, analysis in enumerate([self.extractor.analyze_sentence(s) for s in p_sentences]):
@@ -6742,7 +6820,12 @@ class UnionAnalyzer:
                 results, tracker, all_region_totals
             )
 
-        return {"items": results, "summary": summary}
+        return {
+            "items": results,
+            "risk_items": risk_items,
+            "risk_summary": self.risk_digest.summarize(risk_items),
+            "summary": summary,
+        }
 
     def _populate_tracker(
         self,
@@ -8072,7 +8155,7 @@ class UnionAnalyzer:
         previous_totals: Optional[Dict[str, float]] = None,
         start_index: int = 0,
         cik: Optional[int] = None,
-    ) -> Tuple[List[Dict[str, Any]], Dict[str, float], Optional[Dict], int]:
+    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, float], Optional[Dict], int]:
         """
         Analyzes a block of sentences (paragraph) for Item 1.
         Returns results, totals found in THIS block, and the final geo context.
@@ -8088,6 +8171,7 @@ class UnionAnalyzer:
         local_tracker.resolve()
 
         results = []
+        risk_items = []
         analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
 
         # Context inheritance state
@@ -8130,8 +8214,15 @@ class UnionAnalyzer:
                     )
                     if risk_item:
                         risk_item["sentence_index"] = start_index + k
-                        results.append(risk_item)
+                        risk_items.append(risk_item)
                 break
+
+            risk_item = self.extra_analyzer.create_risk_item(
+                sent, analysis, is_historical=False
+            )
+            if risk_item:
+                risk_item["sentence_index"] = current_idx
+                risk_items.append(risk_item)
 
             # 2. Update Context (Worker Counts)
             effective_counts = get_effective_counts(analysis)
@@ -8498,7 +8589,13 @@ class UnionAnalyzer:
         # Apply splitting logic for ambiguous qualitative negations
         merged_results = self._apply_splitting_logic(merged_results)
 
-        return merged_results, effective_totals, last_geo_context, last_geo_sentence_idx
+        return (
+            merged_results,
+            risk_items,
+            effective_totals,
+            last_geo_context,
+            last_geo_sentence_idx,
+        )
 
     def _determine_coverage_data(
         self,
@@ -8615,7 +8712,7 @@ class UnionAnalyzer:
         Analyzes sentences for Item 1A (Risk Factors).
         """
         results = []
-        for sent in sentences:
+        for idx, sent in enumerate(sentences):
             analysis = self.extractor.analyze_sentence(sent)
 
             is_historical = False
@@ -8642,6 +8739,7 @@ class UnionAnalyzer:
                     sent, analysis, is_historical=is_historical
                 )
                 if result:
+                    result["sentence_index"] = idx
                     results.append(result)
         return results
 
