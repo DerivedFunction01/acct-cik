@@ -251,9 +251,10 @@ EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*
 CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&|of|the)*", re.IGNORECASE)
 
 # Regex for "TitleCase {gap} trade/labor union" (lowercase suffix)
-# Captures group 1: The TitleCase part (potential location)
+# Captures group 1: one or more TitleCase entities, optionally chained by commas/conjunctions
+# e.g. "Korean, Chinese, and Japanese trade unions"
 LOWER_DYNAMIC_UNION_REGEX = re.compile(
-    r"\b((?:[A-Z][\w-]+\s+){0,2}[A-Z][\w-]+)(?:\s+[a-z]+){0,1}\s+(?:trade|labou?r)\s+unions?\b"
+    r"\b((?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2})(?:\s*(?:,|and|or|&)\s*(?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}))*)\s+(?:trade|labou?r)\s+unions?\b"
 )
 
 
@@ -1320,24 +1321,57 @@ class UnionExtractor:
         # 4c. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
         # e.g. "Japanese trade union", "German metal trade union"
         def lower_dynamic_side_effect(m: re.Match, val: str):
-            analysis.union_terms.append(val)
-            # Group 1 is the TitleCase part (potential location)
-            loc_term = m.group(1)
-            loc_info = self.matcher.get_location(loc_term)
-            
-            if loc_info:
-                region, country, city, code = loc_info
-                geo_obj = GeoMatch(
-                    text=val,
-                    region=region,
-                    country=country,
-                    city=city,
-                    geo_code=code,
-                    source_type=GeoSource.INFERRED_UNION,
-                )
-                analysis.geo_matches.append(geo_obj)
-                if analysis._matches:
-                    analysis._matches[-1]["geo_obj"] = geo_obj
+            # Group 1 is the chained TitleCase part (potential locations)
+            loc_chain = m.group(1)
+            parts = [
+                p.strip(" ,")
+                for p in re.split(r"\s*(?:,|and|or|&)\s*", loc_chain, flags=re.IGNORECASE)
+                if p.strip(" ,")
+            ]
+
+            # Keep deterministic order and avoid duplicate entity emissions.
+            seen_parts = set()
+            normalized_parts = []
+            for part in parts:
+                p_lower = part.lower()
+                if p_lower in seen_parts:
+                    continue
+                seen_parts.add(p_lower)
+                normalized_parts.append(part)
+
+            suffix = "trade union"
+            if re.search(r"\blabou?r\b", val, re.IGNORECASE):
+                suffix = "labor union"
+
+            found_geo = False
+            for loc_term in normalized_parts:
+                loc_info = self.matcher.get_location(loc_term)
+                union_label = f"{loc_term} {suffix}"
+                analysis.union_terms.append(union_label)
+
+                if loc_info:
+                    region, country, city, code = loc_info
+                    geo_obj = GeoMatch(
+                        text=union_label,
+                        region=region,
+                        country=country,
+                        city=city,
+                        geo_code=code,
+                        source_type=GeoSource.INFERRED_UNION,
+                    )
+                    analysis.geo_matches.append(geo_obj)
+                    if analysis._matches:
+                        analysis._matches[-1]["geo_obj"] = geo_obj
+                    found_geo = True
+
+            # Fallback for non-chained/single term that didn't split cleanly.
+            if not normalized_parts:
+                analysis.union_terms.append(val)
+
+            # Preserve original term only when no location matched,
+            # so downstream logic still has a union indicator.
+            if not found_geo and val not in analysis.union_terms:
+                analysis.union_terms.append(val)
 
         process_matches(
             LOWER_DYNAMIC_UNION_REGEX,
