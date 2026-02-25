@@ -250,6 +250,12 @@ EXCLUSION_CONNECTOR_REGEX = re.compile(r"(?:[\s,-]|of|the|in|for|at)*", re.IGNOR
 EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*$", re.IGNORECASE)
 CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&|of|the)*", re.IGNORECASE)
 
+# Regex for "TitleCase {gap} trade/labor union" (lowercase suffix)
+# Captures group 1: The TitleCase part (potential location)
+LOWER_DYNAMIC_UNION_REGEX = re.compile(
+    r"\b((?:[A-Z][\w-]+\s+){0,2}[A-Z][\w-]+)(?:\s+[a-z]+){0,1}\s+(?:trade|labou?r)\s+unions?\b"
+)
+
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -1252,6 +1258,36 @@ class UnionExtractor:
             MatchType.UNION_NAME,
             expand_dynamic_match,
             dynamic_union_side_effect,
+            update_working_text=True,
+        )
+        
+        # 4c. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
+        # e.g. "Japanese trade union", "German metal trade union"
+        def lower_dynamic_side_effect(m, val):
+            analysis.union_terms.append(val)
+            # Group 1 is the TitleCase part (potential location)
+            loc_term = m.group(1)
+            loc_info = self.matcher.get_location(loc_term)
+            
+            if loc_info:
+                region, country, city, code = loc_info
+                geo_obj = GeoMatch(
+                    text=val,
+                    region=region,
+                    country=country,
+                    city=city,
+                    geo_code=code,
+                    source_type=GeoSource.INFERRED_UNION,
+                )
+                analysis.geo_matches.append(geo_obj)
+                if analysis._matches:
+                    analysis._matches[-1]["geo_obj"] = geo_obj
+
+        process_matches(
+            LOWER_DYNAMIC_UNION_REGEX,
+            MatchType.UNION_NAME,
+            None,
+            lower_dynamic_side_effect,
             update_working_text=True,
         )
 
