@@ -28,6 +28,7 @@ from defs.region_regex import (
     GLOBAL_SET,
     INT_SET,
     REGION_CODES,
+    UNK_SET,
     Region,
     INT_LANGUAGE_MAP,
     GeoSource,
@@ -3273,11 +3274,11 @@ class Tracker:
             constituents = get_composite_constituents(comp_code)
             if not constituents:
                 continue
-            
+
             comp_sum = 0.0
             for c in constituents:
                 comp_sum += self.country_totals.get(c, 0.0)
-            
+
             current = self.country_totals.get(comp_code, 0.0)
             if comp_sum > current:
                 self.country_totals[comp_code] = comp_sum
@@ -3355,10 +3356,10 @@ class Tracker:
             if code:
                 if code == "DOM":
                     code = self.domestic_country_code
-                
+
                 if code not in self.country_keywords:
                     self.country_keywords[code] = {}
-                
+
                 for kw in keywords:
                     # Check if keyword implies a specific geography to avoid cross-contamination
                     check_kw = kw
@@ -3368,12 +3369,12 @@ class Tracker:
                     union_info = RegionMatcher.get_union(check_kw)
                     if union_info:
                         _, _, u_code = union_info
-                        
+
                         # Case 1: Union is specific to a country (e.g. DE)
                         if u_code and u_code not in INT_LANGUAGE_MAP and u_code not in ["INT", "GLO"]:
                             if code != u_code:
                                 continue
-                        
+
                         # Case 2: Union is language-specific (e.g. INT_ES)
                         elif u_code in INT_LANGUAGE_MAP:
                             allowed_countries = INT_LANGUAGE_MAP[u_code]
@@ -3392,20 +3393,20 @@ class Tracker:
 
         codes = [c.get("code") for c in countries]
 
-        if region and region not in (Region.INTERNATIONAL.value, Region.UNKNOWN.value):
+        if region and region not in INT_SET | UNK_SET:
             scope = Scope.REGION
             key = region
-        elif region == Region.INTERNATIONAL.value:
+        elif region in INT_SET:
             if "GLO" in codes:
                 scope = Scope.GLOBAL
                 key = Scope.GLOBAL.value
             else:
                 scope = Scope.REGION
                 key = region
-        elif region == Region.AGGREGATE.value:
+        elif region in AGG_SET:
             scope = Scope.AGGREGATE
             key = Region.AGGREGATE.value
-        elif region == Region.UNKNOWN.value:
+        elif region in UNK_SET:
             if "DOM" in codes:
                 key = self.domestic_country_code
                 scope = Scope.COUNTRY
@@ -4852,15 +4853,15 @@ class Tracker:
             return
 
         has_unions = any(e.is_union_record for e in self.entries)
-        
+
         # If no global total provided and no unions to infer from, abort
         if self.global_total <= 0 and not has_unions:
             return
-            
+
         calculate_virtual = (self.global_total <= 0)
         if calculate_virtual:
             self.is_using_virtual = True
-            
+
         # Ensure domestic entry exists so it gets populated with the distributed total
         # instead of defaulting to 0% coverage in _resolve_single_country
         dom_entry_exists = any(
