@@ -6935,6 +6935,13 @@ class Tracker:
                 for k in used_bucket_keys:
                     method_breakdown[k]["entry_count"] += 1
 
+            explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
+            explicit_pcts = explicit_bucket.get("coverage_percent_values", [])
+            reported_pct = None
+            # Preserve "as stated" behavior: keep scalar only if a single explicit percentage exists.
+            if len(explicit_pcts) == 1:
+                reported_pct = explicit_pcts[0]
+
             union_indicator = 1 if (
                 (covered_val is not None and covered_val > 0)
                 or any(v > 0 for v in self.country_keywords.get(code, {}).values())
@@ -6951,6 +6958,12 @@ class Tracker:
                         "employee_count_not_covered": not_covered_val,
                         "coverage_percent": pct_val,
                         "union_indicator": union_indicator,
+                    },
+                    "reported_totals": {
+                        "employee_count_total": explicit_bucket.get("employee_count_total"),
+                        "employee_count_covered": explicit_bucket.get("employee_count_covered"),
+                        "employee_count_not_covered": explicit_bucket.get("employee_count_not_covered"),
+                        "coverage_percent": reported_pct,
                     },
                     "method_breakdown": method_breakdown,
                     "country_keywords": self.country_keywords.get(code, {}),
