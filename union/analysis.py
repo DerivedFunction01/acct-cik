@@ -4569,7 +4569,7 @@ class Tracker:
                 e.key = target_country
                 e.scope = Scope.COUNTRY
                 self.resolution_log.append(
-                    f"Resolved 'Domestic'/'Unknown' to '{target_country}'"
+                    f"Resolved 'Domestic' to '{target_country}'"
                 )
             elif (
                 e.scope == Scope.SEGMENT
