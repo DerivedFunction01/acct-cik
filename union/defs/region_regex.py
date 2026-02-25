@@ -3196,14 +3196,12 @@ INT_UNION_MAP = {
             "Siderurgia",
             "Petróleo",
             "Minas",
-            "Sindical",
-            "Nacional",
         ],
         [
             "Sindicato",
             "Central",
         ],
-        r"(?:\s+(?:de|para|&|[A-Z][\w-]*)){0,3}\s+",
+        r"(?:\s+(?:de|para|&|Sindical|Nacional|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_ES": (
         [
@@ -3233,8 +3231,6 @@ INT_UNION_MAP = {
             "Minas",
             "Automóvil",
             "Energía",
-            "Sindical",
-            "Nacional",
         ],
         [
             "Sindicato",
@@ -3245,7 +3241,7 @@ INT_UNION_MAP = {
             "Asociaci(?:ó|o)n",
             "Comisi(?:ó|o)nes",
         ],
-        r"(?:\s+(?:del?|de|y|para|los?|las?|el|&|[A-Z][\w-]*)){0,3}\s+",
+        r"(?:\s+(?:del?|de|y|para|los?|las?|el|&|Sindical|Nacional|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_PT": (
         [
@@ -3276,8 +3272,6 @@ INT_UNION_MAP = {
             "Minas",
             "Automóvel",
             "Energia",
-            "Sindical",
-            "Nacional",
         ],
         [
             "Sindicato",
@@ -3287,7 +3281,7 @@ INT_UNION_MAP = {
             "Central",
             "Associação",
         ],
-        r"(?:\s+(?:dos?|das?|des?|de|e|para|os|as|&|[A-Z][\w-]*)){0,3}\s+",
+        r"(?:\s+(?:dos?|das?|des?|de|e|para|os|as|&|Sindical|Nacional|[A-Z][\w-]*)){0,3}\s+",
     ),
     "INT_FR": (
         [
