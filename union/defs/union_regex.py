@@ -293,7 +293,7 @@ class RISK_TERMS:
     PHRASES = [
         # Union disputes, campaigns, disagreements
         build_compound(
-            [CORE.UNION, CORE.REUNIONIZE],
+            [CORE.UNION, CORE.REUNIONIZE, CORE.BARGAIN, CORE.LABOR],
             [
                 CORE.DISPUTE,
                 r"campaigns?",
@@ -301,15 +301,16 @@ class RISK_TERMS:
                 CORE.NEGOTIATE,
                 r"drives?",
                 r"efforts?",
+                r"elections?",
                 r"strikes?",
                 r"walkouts?",
-                r"work\s+stoppages?",
             ],
         ),
         # Collective bargaining disputes
-        build_compound(
-            [CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]
-        ),
+        build_compound([CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]),
+        r"strikes?",
+        r"walkouts?",
+        r"work\s+stoppages?",
     ]
 
 
