@@ -51,6 +51,11 @@ from defs.region_regex import group_by_scope
 from defs.output_enums import (
     Specificity,
     CoverageType,
+    SourceType,
+    PercentageSourceDetail,
+    CountSourceDetail,
+    TotalSourceDetail,
+    DenominatorSourceDetail,
     PercentageQualifier,
     NegationType,
     TemporalScope,
@@ -3107,6 +3112,90 @@ class Scope(Enum):
     UNKNOWN = "UNKNOWN"
 
 
+def _infer_source_type_from_detail(source: Optional[str]) -> str:
+    if not source:
+        return SourceType.UNKNOWN.value
+    explicit_details = {
+        PercentageSourceDetail.EXPLICIT_PERCENTAGE.value,
+        CountSourceDetail.EXPLICIT_COVERED_COUNT.value,
+        CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value,
+        TotalSourceDetail.EXPLICIT_SCOPE_TOTAL.value,
+        DenominatorSourceDetail.EXPLICIT_SCOPE_TOTAL.value,
+        DenominatorSourceDetail.CENSUS_UPGRADE.value,
+    }
+    calculated_details = {
+        PercentageSourceDetail.CALCULATED_PERCENTAGE.value,
+        PercentageSourceDetail.CALCULATED_ZERO_FROM_GAP_FIX.value,
+        PercentageSourceDetail.CALCULATED_FROM_COUNTS.value,
+        PercentageSourceDetail.CALCULATED_FROM_REMAINING_GAP.value,
+        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED.value,
+        CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
+        CountSourceDetail.REMAINING_GAP_FILL.value,
+        CountSourceDetail.REMAINING_GAP_FILL_ZERO.value,
+        PercentageSourceDetail.AGGREGATE_PROPAGATION.value,
+        TotalSourceDetail.CENSUS_GAP_FIX.value,
+        TotalSourceDetail.CENSUS_UPGRADE.value,
+        TotalSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
+        TotalSourceDetail.REMAINING_GAP_FILL.value,
+        DenominatorSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
+    }
+    inherited_details = {
+        TotalSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
+        TotalSourceDetail.COUNTRY_CENSUS_UPDATE.value,
+        DenominatorSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
+        DenominatorSourceDetail.COUNTRY_CENSUS_UPDATE.value,
+    }
+    inferred_details = {
+        PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE.value,
+        PercentageSourceDetail.UNION_CONTEXT_ONLY.value,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
+        PercentageSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
+        PercentageSourceDetail.DUMMY_INFERRED_REGION_WEIGHTED.value,
+        PercentageSourceDetail.DUMMY_INFERRED_EXTERNAL_DATA.value,
+        PercentageSourceDetail.DUMMY_INFERRED_DEFAULT_RATE.value,
+        CountSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
+        CountSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
+        CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
+        TotalSourceDetail.COUNTRY_CENSUS_ONLY.value,
+        TotalSourceDetail.REGION_TOTAL_ONLY.value,
+        DenominatorSourceDetail.COUNTRY_CENSUS_ONLY.value,
+        DenominatorSourceDetail.REGION_TOTAL_ONLY.value,
+    }
+    weighted_details = {
+        TotalSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
+        DenominatorSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
+    }
+    fallback_details = {
+        PercentageSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
+        CountSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value,
+        TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value,
+        DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value,
+        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
+    }
+
+    if source in explicit_details:
+        return SourceType.EXPLICIT.value
+    if source in calculated_details:
+        return SourceType.CALCULATED.value
+    if source in weighted_details:
+        return SourceType.WEIGHTED_DIVISION.value
+    if source in fallback_details:
+        return SourceType.FALLBACK.value
+    if source in inherited_details:
+        return SourceType.INHERITED.value
+    if source in inferred_details:
+        return SourceType.INFERRED.value
+    return SourceType.UNKNOWN.value
+
+
 @dataclass
 # The coverage statement.
 class Entry:
@@ -3147,6 +3236,31 @@ class Entry:
     is_parent_breakdown: bool = False
     is_covered_breakdown: bool = False
     is_not_covered_breakdown: bool = False
+    # Provenance for distinguishing explicit vs calculated vs inferred/fallback values
+    percentage_source: Optional[str] = None
+    covered_count_source: Optional[str] = None
+    not_covered_count_source: Optional[str] = None
+    total_count_source: Optional[str] = None
+    denominator_source: Optional[str] = None
+    percentage_source_type: Optional[str] = None
+    covered_count_source_type: Optional[str] = None
+    not_covered_count_source_type: Optional[str] = None
+    total_count_source_type: Optional[str] = None
+    denominator_source_type: Optional[str] = None
+    source_notes: List[str] = field(default_factory=list)
+
+    def __post_init__(self):
+        for field_name in (
+            "percentage_source",
+            "covered_count_source",
+            "not_covered_count_source",
+            "total_count_source",
+            "denominator_source",
+        ):
+            source_val = getattr(self, field_name)
+            type_field = f"{field_name}_type"
+            if source_val and getattr(self, type_field) is None:
+                setattr(self, type_field, _infer_source_type_from_detail(source_val))
 
     # Hash
     def __hash__(self):
@@ -3181,6 +3295,42 @@ class Tracker:
         self._limiter_countries: Set = {"CN", "VN"}
         self.is_using_virtual: bool = False
         self.domestic_is_negated: bool = False
+
+    @staticmethod
+    def _source_type_from_detail(source: Optional[str]) -> str:
+        return _infer_source_type_from_detail(source)
+
+    @staticmethod
+    def _mark_source(entry: Entry, field_name: str, source: Optional[str]):
+        if source:
+            setattr(entry, field_name, source)
+            if field_name.endswith("_source"):
+                type_field = f"{field_name}_type"
+                if hasattr(entry, type_field):
+                    setattr(
+                        entry, type_field, Tracker._source_type_from_detail(source)
+                    )
+
+    @staticmethod
+    def _add_source_note(entry: Entry, note: Optional[str]):
+        if note:
+            entry.source_notes.append(note)
+
+    @staticmethod
+    def _initial_percentage_source(
+        coverage_type: Optional[str], is_qualitative: bool, is_explicit: bool
+    ) -> Optional[str]:
+        if coverage_type == CoverageType.EXPLICIT_PERCENT.value or is_explicit:
+            return PercentageSourceDetail.EXPLICIT_PERCENTAGE.value
+        if coverage_type == CoverageType.CALCULATED.value:
+            return PercentageSourceDetail.CALCULATED_PERCENTAGE.value
+        if coverage_type == CoverageType.REMAINING.value:
+            return PercentageSourceDetail.REMAINING_STATEMENT.value
+        if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
+            return PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE.value
+        if coverage_type == CoverageType.UNION_CONTEXT.value:
+            return PercentageSourceDetail.UNION_CONTEXT_ONLY.value
+        return None
 
     def _calculate_boosted_rate(
         self, base_rate: float, key: Optional[str] = None
@@ -3429,6 +3579,7 @@ class Tracker:
         is_exception_entry: bool = False,
         exception_limit_percent: Optional[float] = None,
         is_exception_remainder: bool = False,
+        coverage_type: Optional[str] = None,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -3538,6 +3689,9 @@ class Tracker:
 
         # Handle splitting of multiple countries if specific unions are mapped
         if len(countries) > 1 and union_names_map:
+            pct_source = self._initial_percentage_source(
+                coverage_type, is_qualitative, is_explicit
+            )
             for c in countries:
                 c_code = c["code"]
                 real_code = self.domestic_country_code if c_code == "DOM" else c_code
@@ -3574,6 +3728,22 @@ class Tracker:
                         is_exception_entry=is_exception_entry,
                         exception_limit_percent=exception_limit_percent,
                         is_exception_remainder=is_exception_remainder,
+                        percentage_source=pct_source,
+                        covered_count_source=(
+                            CountSourceDetail.SPLIT_ALLOCATED_COVERED_COUNT.value
+                            if (covered_count is not None and percentage is not None)
+                            else None
+                        ),
+                        total_count_source=(
+                            TotalSourceDetail.SPLIT_SCOPE_TOTAL.value
+                            if percentage is not None
+                            else None
+                        ),
+                        denominator_source=(
+                            DenominatorSourceDetail.SPLIT_SCOPE_TOTAL.value
+                            if percentage is not None
+                            else None
+                        ),
                     )
                 )
             return
@@ -3593,6 +3763,25 @@ class Tracker:
             related_codes.extend(
                 [r["name"] for r in geo_context["regions"] if r.get("name")]
             )
+
+        pct_source = self._initial_percentage_source(
+            coverage_type, is_qualitative, is_explicit
+        )
+        covered_source = (
+            CountSourceDetail.EXPLICIT_COVERED_COUNT.value
+            if covered_count is not None
+            else None
+        )
+        not_covered_source = (
+            CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value
+            if not_covered_count is not None
+            else None
+        )
+        total_source = (
+            TotalSourceDetail.EXPLICIT_SCOPE_TOTAL.value
+            if scope_total is not None
+            else None
+        )
 
         self.entries.append(
             Entry(
@@ -3614,6 +3803,15 @@ class Tracker:
                 is_exception_entry=is_exception_entry,
                 exception_limit_percent=exception_limit_percent,
                 is_exception_remainder=is_exception_remainder,
+                percentage_source=pct_source,
+                covered_count_source=covered_source,
+                not_covered_count_source=not_covered_source,
+                total_count_source=total_source,
+                denominator_source=(
+                    DenominatorSourceDetail.EXPLICIT_SCOPE_TOTAL.value
+                    if scope_total is not None
+                    else None
+                ),
             )
         )
 
@@ -3731,6 +3929,19 @@ class Tracker:
                 e.total_count = census_total
                 e.not_covered_count = census_total
                 e.percentage = 0.0
+                self._mark_source(
+                    e, "total_count_source", TotalSourceDetail.CENSUS_GAP_FIX.value
+                )
+                self._mark_source(
+                    e,
+                    "not_covered_count_source",
+                    CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value,
+                )
+                self._mark_source(
+                    e,
+                    "percentage_source",
+                    PercentageSourceDetail.CALCULATED_ZERO_FROM_GAP_FIX.value,
+                )
                 self.resolution_log.append(
                     f"Fixed Zero-Total for {name}: 0 not covered implies 0% coverage."
                 )
@@ -3764,11 +3975,36 @@ class Tracker:
                         e.percentage = round(
                             (e.covered_count / census_total) * 100.0, 2
                         )
+                        self._mark_source(
+                            e,
+                            "not_covered_count_source",
+                            CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value,
+                        )
                     elif e.not_covered_count is not None:
                         e.covered_count = census_total - e.not_covered_count
                         e.percentage = round(
                             (e.covered_count / census_total) * 100.0, 2
                         )
+                        self._mark_source(
+                            e,
+                            "covered_count_source",
+                            CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED.value,
+                        )
+                    self._mark_source(
+                        e,
+                        "total_count_source",
+                        TotalSourceDetail.CENSUS_UPGRADE.value,
+                    )
+                    self._mark_source(
+                        e,
+                        "denominator_source",
+                        DenominatorSourceDetail.CENSUS_UPGRADE.value,
+                    )
+                    self._mark_source(
+                        e,
+                        "percentage_source",
+                        PercentageSourceDetail.CALCULATED_FROM_COUNTS.value,
+                    )
 
                     self.resolution_log.append(
                         f"Upgraded implicit total for {name} ({e.key}) from {old_total} to {census_total} (Census Match)"
@@ -3807,10 +4043,39 @@ class Tracker:
                     if e.is_negated:
                         e.not_covered_count = calculated_count
                         e.covered_count = max(0, census_total - calculated_count)
+                        self._mark_source(
+                            e,
+                            "not_covered_count_source",
+                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
+                        )
+                        self._mark_source(
+                            e,
+                            "covered_count_source",
+                            CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED.value,
+                        )
                     else:
                         e.covered_count = calculated_count
+                        self._mark_source(
+                            e,
+                            "covered_count_source",
+                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
+                        )
 
                     e.total_count = census_total
+                    self._mark_source(
+                        e,
+                        "total_count_source",
+                        TotalSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
+                    )
+                    self._mark_source(
+                        e,
+                        "denominator_source",
+                        DenominatorSourceDetail.INHERITED_FROM_CENSUS_TOTAL.value,
+                    )
+                    self._add_source_note(
+                        e,
+                        "Denominator inherited from census context and used in calculation.",
+                    )
                     self.resolution_log.append(
                         f"Resolved COUNT for {name} ({e.key}): {e.percentage}% of {census_total}"
                     )
@@ -3844,6 +4109,11 @@ class Tracker:
                                 )
 
                         e.percentage = round(raw_pct, 2)
+                        self._mark_source(
+                            e,
+                            "percentage_source",
+                            PercentageSourceDetail.CALCULATED_FROM_COUNTS.value,
+                        )
                         self.resolution_log.append(
                             f"Resolved PCT for {name} ({e.key}): {e.covered_count}/{census_total}"
                         )
@@ -3883,14 +4153,59 @@ class Tracker:
                 if target.is_negated:
                     target.not_covered_count = gap
                     target.covered_count = 0.0
+                    self._mark_source(
+                        target,
+                        "not_covered_count_source",
+                        CountSourceDetail.REMAINING_GAP_FILL.value,
+                    )
+                    self._mark_source(
+                        target,
+                        "covered_count_source",
+                        CountSourceDetail.REMAINING_GAP_FILL_ZERO.value,
+                    )
                 else:
                     target.covered_count = gap
                     target.not_covered_count = 0.0
+                    self._mark_source(
+                        target,
+                        "covered_count_source",
+                        CountSourceDetail.REMAINING_GAP_FILL.value,
+                    )
+                    self._mark_source(
+                        target,
+                        "not_covered_count_source",
+                        CountSourceDetail.REMAINING_GAP_FILL_ZERO.value,
+                    )
+                self._mark_source(
+                    target,
+                    "total_count_source",
+                    TotalSourceDetail.REMAINING_GAP_FILL.value,
+                )
+                self._mark_source(
+                    target,
+                    "denominator_source",
+                    DenominatorSourceDetail.REMAINING_GAP_FILL.value,
+                )
                 self.resolution_log.append(f"Resolved REMAINING for {name}: {gap}")
 
             elif target.covered_count is None and target.percentage is None:
                 target.covered_count = gap
                 target.total_count = census_total
+                self._mark_source(
+                    target,
+                    "covered_count_source",
+                    CountSourceDetail.REMAINING_GAP_FILL.value,
+                )
+                self._mark_source(
+                    target,
+                    "total_count_source",
+                    TotalSourceDetail.REMAINING_GAP_FILL.value,
+                )
+                self._mark_source(
+                    target,
+                    "denominator_source",
+                    DenominatorSourceDetail.REMAINING_GAP_FILL.value,
+                )
                 if census_total > 0:
                     raw_pct = (gap / census_total) * 100.0
 
@@ -3913,6 +4228,11 @@ class Tracker:
                             )
 
                     target.percentage = round(raw_pct, 2)
+                    self._mark_source(
+                        target,
+                        "percentage_source",
+                        PercentageSourceDetail.CALCULATED_FROM_REMAINING_GAP.value,
+                    )
                 self.resolution_log.append(
                     f"Resolved PCT for {name} ({target.key}): {gap}/{census_total}"
                 )
@@ -4014,6 +4334,11 @@ class Tracker:
                                 if pct is not None and not e.is_dummy_percent:
                                     t.percentage = pct
                                     t.is_qualitative = e.is_qualitative
+                                    self._mark_source(
+                                        t,
+                                        "percentage_source",
+                                        PercentageSourceDetail.AGGREGATE_PROPAGATION.value,
+                                    )
                                     self.resolution_log.append(
                                         f"Propagated {pct:.1f}% from Aggregate ({e.key}) to {t.key}"
                                     )
@@ -4023,6 +4348,17 @@ class Tracker:
                                         t.covered_count = round(
                                             (pct / 100.0) * t.total_count
                                         )
+                                        self._mark_source(
+                                            t,
+                                            "covered_count_source",
+                                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
+                                        )
+                                        if t.denominator_source is None:
+                                            self._mark_source(
+                                                t,
+                                                "denominator_source",
+                                                DenominatorSourceDetail.EXISTING_TOTAL_AFTER_AGGREGATE_PROPAGATION.value,
+                                            )
 
                             if e.is_union_record:
                                 t.is_union_record = True
@@ -4513,6 +4849,16 @@ class Tracker:
         if country_entry:
             if country_entry.total_count is None and census_total > 0:
                 country_entry.total_count = census_total
+                self._mark_source(
+                    country_entry,
+                    "total_count_source",
+                    TotalSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
+                )
+                self._mark_source(
+                    country_entry,
+                    "denominator_source",
+                    DenominatorSourceDetail.COUNTRY_CENSUS_BACKFILL.value,
+                )
                 self.resolution_log.append(
                     f"Backfilled total for {country_code}: {census_total}"
                 )
@@ -4523,6 +4869,16 @@ class Tracker:
                 # Update if census is larger (e.g. from virtual pool)
                 old = country_entry.total_count
                 country_entry.total_count = census_total
+                self._mark_source(
+                    country_entry,
+                    "total_count_source",
+                    TotalSourceDetail.COUNTRY_CENSUS_UPDATE.value,
+                )
+                self._mark_source(
+                    country_entry,
+                    "denominator_source",
+                    DenominatorSourceDetail.COUNTRY_CENSUS_UPDATE.value,
+                )
                 self.resolution_log.append(
                     f"Updated total for {country_code} from {old} to {census_total} (census match)"
                 )
@@ -4551,6 +4907,21 @@ class Tracker:
                     country_entry.not_covered_count = country_entry.total_count
                     country_entry.percentage = 0.0
                     country_entry.is_negated = True
+                    self._mark_source(
+                        country_entry,
+                        "covered_count_source",
+                        CountSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
+                    )
+                    self._mark_source(
+                        country_entry,
+                        "not_covered_count_source",
+                        CountSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
+                    )
+                    self._mark_source(
+                        country_entry,
+                        "percentage_source",
+                        PercentageSourceDetail.INFERRED_ZERO_FROM_PLACEHOLDER.value,
+                    )
                     self.resolution_log.append(
                         f"Inferred 0% coverage for {country_code} (Placeholder with Total)"
                     )
@@ -4572,6 +4943,11 @@ class Tracker:
                         percentage=0.0,
                         is_explicit=False,
                         is_negated=True,
+                        covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
+                        not_covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
+                        percentage_source=PercentageSourceDetail.INFERRED_ZERO_FROM_CENSUS_ONLY.value,
+                        total_count_source=TotalSourceDetail.COUNTRY_CENSUS_ONLY.value,
+                        denominator_source=DenominatorSourceDetail.COUNTRY_CENSUS_ONLY.value,
                     )
                 )
                 self.resolution_log.append(
@@ -4627,6 +5003,11 @@ class Tracker:
                         percentage=0.0,
                         is_explicit=False,
                         is_negated=True,
+                        covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
+                        not_covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
+                        percentage_source=PercentageSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
+                        total_count_source=TotalSourceDetail.REGION_TOTAL_ONLY.value,
+                        denominator_source=DenominatorSourceDetail.REGION_TOTAL_ONLY.value,
                     )
                 )
                 # self.resolution_log.append(f"Inferred 0% coverage for {region_name}: Census {region_total} exists but no union entries found.")
@@ -4983,6 +5364,14 @@ class Tracker:
                             e.percentage = round(rate * 100, 2)
                             e.is_qualitative = True
                             e.is_dummy_percent = True
+                            self._mark_source(
+                                e,
+                                "percentage_source",
+                                PercentageSourceDetail.DUMMY_INFERRED_REGION_WEIGHTED.value,
+                            )
+                            self._add_source_note(
+                                e, "Inferred from weighted sum of boosted constituent rates."
+                            )
                             self.resolution_log.append(
                                 f"Applied inferred rate {e.percentage}% to {e.key} (Aggregated from boosted constituents)"
                             )
@@ -5002,6 +5391,22 @@ class Tracker:
                             e.percentage = round(boosted_rate * 100, 2)
                             e.is_qualitative = True
                             e.is_dummy_percent = True
+                            if rate is not None:
+                                self._mark_source(
+                                    e,
+                                    "percentage_source",
+                                    PercentageSourceDetail.DUMMY_INFERRED_EXTERNAL_DATA.value,
+                                )
+                            else:
+                                self._mark_source(
+                                    e,
+                                    "percentage_source",
+                                    PercentageSourceDetail.DUMMY_INFERRED_DEFAULT_RATE.value,
+                                )
+                            self._add_source_note(
+                                e,
+                                f"Applied keyword booster x{multiplier:.2f} (keywords={self.total_union_keywords}).",
+                            )
                             source_desc = (
                                 "External Data" if rate is not None else "Default"
                             )
@@ -5047,6 +5452,17 @@ class Tracker:
                 and e.covered_count is None
             ):
                 e.covered_count = round((e.percentage / 100.0) * e.total_count)
+                self._mark_source(
+                    e,
+                    "covered_count_source",
+                    CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
+                )
+                if e.denominator_source is None:
+                    self._mark_source(
+                        e,
+                        "denominator_source",
+                        DenominatorSourceDetail.EXISTING_TOTAL.value,
+                    )
                 self.resolution_log.append(
                     f"Calculated covered count for {e.key}: {e.percentage}% of {e.total_count} -> {e.covered_count}"
                 )
@@ -5259,6 +5675,8 @@ class Tracker:
                     is_explicit=False,
                     total_count=self.country_totals.get(self.domestic_country_code, 0),
                     sent_idx=0,
+                    total_count_source=TotalSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
+                    denominator_source=DenominatorSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL.value,
                 )
             )
             self.resolution_log.append(
@@ -5462,6 +5880,16 @@ class Tracker:
                 if is_scope_negated:
                     e.covered_count = 0.0
                     e.percentage = 0.0
+                    self._mark_source(
+                        e,
+                        "covered_count_source",
+                        CountSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
+                    )
+                    self._mark_source(
+                        e,
+                        "percentage_source",
+                        PercentageSourceDetail.FALLBACK_NEGATION_GUARD_ZERO.value,
+                    )
                     self.resolution_log.append(
                         f"Zeroed out {e.key} as safety measure due to negation."
                     )
@@ -5725,6 +6153,28 @@ class Tracker:
                     assert isinstance(e, Entry)
                     e.total_count = small_denom
                     e.covered_count = round(((e.percentage or 0)/ 100.0) * small_denom)
+                    if scope_type == Scope.COUNTRY.value:
+                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                    elif scope_type == Scope.REGION.value:
+                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                    else:
+                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                    self._mark_source(e, "total_count_source", denom_source)
+                    if denom_source == TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value:
+                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                    elif denom_source == TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value:
+                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                    else:
+                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                    self._mark_source(e, "denominator_source", den_detail)
+                    self._mark_source(
+                        e,
+                        "covered_count_source",
+                        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
+                    )
+                    self._add_source_note(
+                        e, f"Fallback pool source: {pool_source}; base_geo={geo_name}."
+                    )
 
                     log_msg = f"Resolved COUNT for {e.key} using fallback: {e.percentage}% of {small_denom}"
                     if num_segments > 1:
@@ -6812,6 +7262,7 @@ class UnionAnalyzer:
                     is_exception_entry=cov.get("is_exception_entry", False),
                     exception_limit_percent=cov.get("exception_limit_percent"),
                     is_exception_remainder=cov.get("is_exception_remainder", False),
+                    coverage_type=cov.get("type"),
                 )
 
             # Resolve missing coverage data using collected totals
