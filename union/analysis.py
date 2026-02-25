@@ -3428,9 +3428,14 @@ class Tracker:
                     else c_code
                 )
                 scope = Scope.COUNTRY
-            else:
+            elif len(countries) > 1:
                 key = Scope.GLOBAL.value
                 scope = Scope.GLOBAL
+            else:
+                # Keep Unknown explicit; resolve later in _route_domestic based on
+                # whether we have a domestic-only union context.
+                key = Region.UNKNOWN.value
+                scope = Scope.REGION
 
         if len(countries) == 1:
             country_code = countries[0]["code"]
@@ -4567,9 +4572,19 @@ class Tracker:
             if c and (len(c) == 2 or c == target_country)
         }
         other_countries = valid_countries - {target_country}
+        
+        has_union_records = any(e.is_union_record for e in self.entries)
+        has_non_domestic_mentions = any(
+            c and len(c) == 2 and c != target_country for c in self.mentioned_countries
+        )
+        implicit_domestic_union_context = (
+            not valid_countries
+            and has_union_records
+            and not has_non_domestic_mentions
+        )
         single_country_context = (
             len(valid_countries) == 1 and target_country in valid_countries
-        )
+        ) or implicit_domestic_union_context
 
         # Condition: No other countries mentioned
         if single_country_context:
@@ -5729,6 +5744,17 @@ class Tracker:
                     e.total_count = parts_sum
 
     def calculate_metrics(self) -> Dict[str, Any]:
+        # Keep a reporting baseline for domestic mention tracking without
+        # seeding geography resolution.
+        if self.domestic_country_code:
+            self.country_keywords.setdefault(self.domestic_country_code, {})
+
+        domestic_kw_mentions = 0
+        if self.domestic_country_code:
+            domestic_kw_mentions = sum(
+                self.country_keywords.get(self.domestic_country_code, {}).values()
+            )
+
         metrics = {
             "likely_percentage": None,
             "secondary_percentage": None,
@@ -5737,6 +5763,13 @@ class Tracker:
             "global_total_count": 0.0,
             "measured_population_coverage": None,
             "country_keywords": self.country_keywords,
+            "domestic_country_code": self.domestic_country_code,
+            "domestic_union_keyword_mentions": domestic_kw_mentions,
+            "domestic_geo_explicitly_mentioned": (
+                self.domestic_country_code in self.mentioned_countries
+                if self.domestic_country_code
+                else False
+            ),
             "_logs": [],  # New key to store logs
             "resolution": self.resolution_log,
         }
