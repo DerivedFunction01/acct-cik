@@ -5749,12 +5749,6 @@ class Tracker:
         if self.domestic_country_code:
             self.country_keywords.setdefault(self.domestic_country_code, {})
 
-        domestic_kw_mentions = 0
-        if self.domestic_country_code:
-            domestic_kw_mentions = sum(
-                self.country_keywords.get(self.domestic_country_code, {}).values()
-            )
-
         metrics = {
             "likely_percentage": None,
             "secondary_percentage": None,
@@ -5764,7 +5758,6 @@ class Tracker:
             "measured_population_coverage": None,
             "country_keywords": self.country_keywords,
             "domestic_country_code": self.domestic_country_code,
-            "domestic_union_keyword_mentions": domestic_kw_mentions,
             "domestic_geo_explicitly_mentioned": (
                 self.domestic_country_code in self.mentioned_countries
                 if self.domestic_country_code
