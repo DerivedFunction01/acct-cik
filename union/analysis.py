@@ -2814,6 +2814,27 @@ def determine_geo_context(
             else (list(regions)[0].value if regions else Region.UNKNOWN.value)
         )
 
+        union_names_map = {}
+        if union_matches and countries:
+            for c in countries:
+                c_code = c["code"]
+                check_code = domestic_country_code if c_code == "DOM" else c_code
+                
+                specifics = []
+                for um in union_matches:
+                    if um.geo_code == check_code:
+                        specifics.append(um.text)
+                    elif um.geo_code and um.geo_code in INT_LANGUAGE_MAP:
+                        if check_code in INT_LANGUAGE_MAP[um.geo_code]:
+                            specifics.append(um.text)
+                if specifics:
+                    union_names_map[c["code"]] = sorted(list(set(specifics)))
+
+        union_name_indicator = None
+        if union_matches and len(countries) == 1:
+            # Use the first union match as the indicator for segment key generation
+            union_name_indicator = union_matches[0].text
+
         return {
             "region": region_val,
             "countries": countries,
@@ -2830,7 +2851,9 @@ def determine_geo_context(
             "union_names_mentioned": (
                 [m.text for m in union_matches] if union_matches else None
             ),
+            "union_name_indicator": union_name_indicator,
             "note": "; ".join(conflict_notes) if conflict_notes else None,
+            "union_names_map": union_names_map,
             "domestic_negated": domestic_negated,
         }
 
@@ -3269,23 +3292,6 @@ class Tracker:
                     f"Updated region '{r_name}' from {current} to {agg_count} based on country sum."
                 )
 
-        # Update composite countries from constituents
-        for comp_code in COMPOSITE_COUNTRIES:
-            constituents = get_composite_constituents(comp_code)
-            if not constituents:
-                continue
-
-            comp_sum = 0.0
-            for c in constituents:
-                comp_sum += self.country_totals.get(c, 0.0)
-
-            current = self.country_totals.get(comp_code, 0.0)
-            if comp_sum > current:
-                self.country_totals[comp_code] = comp_sum
-                self.resolution_log.append(
-                    f"Updated composite '{comp_code}' from {current} to {comp_sum} based on constituent sum."
-                )
-
         # If only 1 country exists in a region, and the region total is larger than the country, update that country's total.
         for r_name, codes in mentioned_in_region.items():
             if len(codes) == 1:
@@ -3386,6 +3392,7 @@ class Tracker:
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
         union_name = geo_context.get("union_name_indicator")
+        union_names_map = geo_context.get("union_names_map", {})
 
         # Determine scope
         scope = Scope.GLOBAL
@@ -3424,6 +3431,48 @@ class Tracker:
         elif len(countries) > 1:
             scope = Scope.AGGREGATE
             key = region if region else Scope.AGGREGATE.value
+
+        # Handle splitting of multiple countries if specific unions are mapped
+        if len(countries) > 1 and union_names_map:
+            for c in countries:
+                c_code = c["code"]
+                real_code = self.domestic_country_code if c_code == "DOM" else c_code
+                
+                u_names = union_names_map.get(c_code)
+                if u_names:
+                    key_suffix = " | ".join(u_names)
+                    key = f"{real_code}::{key_suffix}"
+                    scope = Scope.SEGMENT
+                else:
+                    key = f"{real_code}::Segment_{len(self.entries)}"
+                    scope = Scope.SEGMENT
+                
+                # For split entries, we only propagate percentage if it applies to the group.
+                # Counts are set to None to avoid double-counting the aggregate total,
+                # unless we implement weighted division here (which is handled elsewhere).
+                self.entries.append(
+                    Entry(
+                        covered_count=covered_count if percentage is not None else None,
+                        not_covered_count=None,
+                        percentage=percentage,
+                        total_count=scope_total if percentage is not None else None,
+                        key=key,
+                        is_qualitative=is_qualitative,
+                        qualitative_bounds=qualitative_bounds,
+                        is_remaining=is_remaining,
+                        is_explicit=is_explicit,
+                        is_union_record=is_union_record,
+                        is_negated=is_negated,
+                        scope=scope,
+                        sent_idx=sentence_index,
+                        related_geo_codes=[real_code],
+                        ambiguity_multiplier=ambiguity_multiplier,
+                        is_exception_entry=is_exception_entry,
+                        exception_limit_percent=exception_limit_percent,
+                        is_exception_remainder=is_exception_remainder,
+                    )
+                )
+            return
 
         if union_name:
             country_code = countries[0]["code"]
