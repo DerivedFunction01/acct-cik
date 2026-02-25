@@ -1221,21 +1221,40 @@ class UnionExtractor:
 
                 # Fallback: Check if it matches a known foreign dynamic pattern
                 # This maps "Sindicato de..." back to "INT_IBERIA", etc.
+                matched_codes = []
                 for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
                     assert isinstance(pattern, re.Pattern)
                     if pattern.fullmatch(val):
-                        # We found the language origin.
-                        # We don't know the specific country yet, but we have the language code.
+                        matched_codes.append(code)
+
+                final_code = None
+                if matched_codes:
+                    # Priority logic for Iberian cluster
+                    iberian_set = {"INT_IBERIA", "INT_ES", "INT_PT"}
+                    matches_set = set(matched_codes)
+
+                    if matches_set.intersection(iberian_set):
+                        if "INT_ES" in matches_set and "INT_PT" in matches_set:
+                            final_code = "INT_IBERIA"
+                        elif "INT_ES" in matches_set:
+                            final_code = "INT_ES"
+                        elif "INT_PT" in matches_set:
+                            final_code = "INT_PT"
+                        else:
+                            final_code = "INT_IBERIA"
+                    else:
+                        final_code = matched_codes[0]
+
+                if final_code:
                         geo_obj = GeoMatch(
                             text=val,
                             region=Region.INTERNATIONAL,  # Broad region, refined by analysis.py using code
-                            geo_code=code,
+                            geo_code=final_code,
                             source_type=GeoSource.INFERRED_UNION,
                         )
                         analysis.geo_matches.append(geo_obj)
                         if analysis._matches:
                             analysis._matches[-1]["geo_obj"] = geo_obj
-                        break
 
         process_matches(
             DYNAMIC_UNION_REGEX,
