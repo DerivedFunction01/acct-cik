@@ -585,6 +585,25 @@ class MinimalTextCleaner:
 
     phone_number_pattern = re.compile(r"(?:\b\+?\d{1,3}[-.\s]*)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b")
 
+    # Law/Act Year Pattern
+    law_terms = [
+        r"Acts?",
+        r"Codes?",
+        r"Laws?",
+        r"Regulations?",
+        r"Rules?",
+        r"Statutes?",
+        r"Ord(?:inance|er)s?",
+        r"Treat(?:y|ies)",
+    ]
+    law_pattern_str = build_alternation(law_terms)
+    
+    law_year_regex = re.compile(
+        rf"\b((?:{law_pattern_str})\s+(?:of\s+)?)(?:19|20)\d{{2}}\b|"
+        rf"\b(?:19|20)\d{{2}}(\s+(?:[\w-]+\s+){{0,2}}{law_pattern_str})\b",
+        re.IGNORECASE
+    )
+
     def __init__(self):
         pass
 
@@ -868,6 +887,9 @@ class MinimalTextCleaner:
             paragraph = self.page_pattern.sub(" ", paragraph)
             paragraph = self.bullet_pattern.sub(" ", paragraph)
             paragraph = self.page_number_pattern.sub(" ", paragraph)
+
+            # Remove years from laws
+            paragraph = self.law_year_regex.sub(lambda m: m.group(1) or m.group(2), paragraph)
 
             # 4b. Date and Year Removal
             paragraph = self.slash_date_pattern.sub(self._convert_slash_date, paragraph)
