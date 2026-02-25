@@ -304,10 +304,13 @@ class RISK_TERMS:
                 r"elections?",
                 r"strikes?",
                 r"walkouts?",
+                r"work\s+stoppages?",
             ],
         ),
         # Collective bargaining disputes
         build_compound([CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]),
+    ]
+    GENERIC_PHRASES = [
         r"strikes?",
         r"walkouts?",
         r"work\s+stoppages?",
@@ -398,6 +401,7 @@ BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)
+GENERIC_RISK_REGEX = build_regex(RISK_TERMS.GENERIC_PHRASES)
 
 NEGATION_TERMS = [
     r"no",
