@@ -1190,6 +1190,29 @@ class UnionExtractor:
                 if analysis._matches:
                     analysis._matches[-1]["geo_obj"] = geo_obj
             else:
+                # Fallback 1: Check if the dynamic name contains a known location (e.g. "Japanese Union...")
+                # Since we mask the text, we must extract the location here if the union name itself isn't known.
+                if self.matcher.location_regexes:
+                    for regex in self.matcher.location_regexes:
+                        loc_match = regex.search(val)
+                        if loc_match:
+                            loc_term = loc_match.group(0)
+                            loc_info = self.matcher.get_location(loc_term)
+                            if loc_info:
+                                region, country, city, code = loc_info
+                                # Create a GeoMatch derived from the union name
+                                geo_obj = GeoMatch(
+                                    text=val, # Use full union text as the match
+                                    region=region,
+                                    country=country,
+                                    geo_code=code,
+                                    source_type=GeoSource.INFERRED_UNION, # Treat as inferred from union
+                                )
+                                analysis.geo_matches.append(geo_obj)
+                                if analysis._matches:
+                                    analysis._matches[-1]["geo_obj"] = geo_obj
+                                break # Stop after first location found to avoid ambiguity
+
                 # Fallback: Check if it matches a known foreign dynamic pattern
                 # This maps "Sindicato de..." back to "INT_IBERIA", etc.
                 for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
