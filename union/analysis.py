@@ -3413,12 +3413,19 @@ class Tracker:
             scope = Scope.AGGREGATE
             key = Region.AGGREGATE.value
         elif region in UNK_SET:
-            if "DOM" in codes:
-                key = self.domestic_country_code
+            # Unknown geography should only collapse to domestic when we have a
+            # single-country context. Otherwise treat as global.
+            if len(countries) == 1:
+                c_code = countries[0].get("code")
+                key = (
+                    self.domestic_country_code
+                    if c_code in DOMESTIC_SET | {"DOM"}
+                    else c_code
+                )
                 scope = Scope.COUNTRY
             else:
-                key = Region.DOMESTIC.value
-                scope = Scope.REGION
+                key = Scope.GLOBAL.value
+                scope = Scope.GLOBAL
 
         if len(countries) == 1:
             country_code = countries[0]["code"]
@@ -3428,8 +3435,12 @@ class Tracker:
             key = f"{country_code}::Segment_{len(self.entries)}"
 
         elif len(countries) > 1:
-            scope = Scope.AGGREGATE
-            key = region if region else Scope.AGGREGATE.value
+            if region in UNK_SET:
+                scope = Scope.GLOBAL
+                key = Scope.GLOBAL.value
+            else:
+                scope = Scope.AGGREGATE
+                key = region if region else Scope.AGGREGATE.value
 
         # Handle splitting of multiple countries if specific unions are mapped
         if len(countries) > 1 and union_names_map:
@@ -4571,6 +4582,21 @@ class Tracker:
                 self.resolution_log.append(
                     f"Resolved 'Domestic' to '{target_country}'"
                 )
+            elif e.key in UNK_SET:
+                # Unknown scope defaults to domestic only in single-country context.
+                # Otherwise route it to Global.
+                if not other_countries:
+                    e.key = target_country
+                    e.scope = Scope.COUNTRY
+                    self.resolution_log.append(
+                        f"Resolved 'Unknown' to domestic country '{target_country}' (single-country context)"
+                    )
+                else:
+                    e.key = Scope.GLOBAL.value
+                    e.scope = Scope.GLOBAL
+                    self.resolution_log.append(
+                        "Resolved 'Unknown' to 'GLOBAL' (multi-country context)"
+                    )
             elif (
                 e.scope == Scope.SEGMENT
                 and e.key
@@ -4592,6 +4618,23 @@ class Tracker:
                 f"Remapped country total DOM ({val}) to {target_country}"
             )
 
+        # Remap Unknown Totals
+        for unk_key in UNK_SET:
+            if unk_key in self.country_totals:
+                val = self.country_totals.pop(unk_key)
+                if not other_countries:
+                    self.country_totals[target_country] = max(
+                        self.country_totals.get(target_country, 0), val
+                    )
+                    self.resolution_log.append(
+                        f"Remapped country total '{unk_key}' ({val}) to '{target_country}' (single-country context)"
+                    )
+                else:
+                    self.global_total = max(self.global_total, val)
+                    self.resolution_log.append(
+                        f"Remapped country total '{unk_key}' ({val}) to GLOBAL (multi-country context)"
+                    )
+
         # Remap Region Totals for Domestic
         for key in DOMESTIC_SET:
             if key in self.region_totals:
@@ -4602,6 +4645,23 @@ class Tracker:
                 self.resolution_log.append(
                     f"Remapped region total '{key}' ({val}) to country '{target_country}'"
                 )
+
+        # Remap Region Totals for Unknown
+        for unk_key in UNK_SET:
+            if unk_key in self.region_totals:
+                val = self.region_totals.pop(unk_key)
+                if not other_countries:
+                    self.country_totals[target_country] = max(
+                        self.country_totals.get(target_country, 0), val
+                    )
+                    self.resolution_log.append(
+                        f"Remapped region total '{unk_key}' ({val}) to country '{target_country}' (single-country context)"
+                    )
+                else:
+                    self.global_total = max(self.global_total, val)
+                    self.resolution_log.append(
+                        f"Remapped region total '{unk_key}' ({val}) to GLOBAL (multi-country context)"
+                    )
 
     def _resolve_int_codes(self):
         """
