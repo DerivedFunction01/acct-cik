@@ -2945,13 +2945,17 @@ INT_LANGUAGE_MAP = {
     "INT_NORDIC": {"SE", "NO", "DK", "FI", "IS"},
 }
 
-DOMESTIC_SET = {
+UNK_SET = {
     Region.UNKNOWN,
     Region.UNKNOWN.value,
+}
+
+DOMESTIC_SET = {
     Region.DOMESTIC,
     Region.DOMESTIC.value,
     "DOM",
-}
+} | UNK_SET
+
 INT_SET = {
     Region.INTERNATIONAL,
     Region.INTERNATIONAL.value,
