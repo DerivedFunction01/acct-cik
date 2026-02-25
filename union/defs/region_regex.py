@@ -2975,7 +2975,7 @@ DOMESTIC_SET = {
     Region.DOMESTIC,
     Region.DOMESTIC.value,
     "DOM",
-} | UNK_SET
+}
 
 INT_SET = {
     Region.INTERNATIONAL,
