@@ -14,6 +14,7 @@ from defs.regex_lib import (
 )
 from defs.union_regex import (
     CORE,
+    GENERIC_RISK_REGEX,
     UNION_REGEX,
     RISK_REGEX,
     DYNAMIC_UNION_REGEX,
@@ -314,6 +315,7 @@ class SentenceAnalysis:
     union_terms: List[str] = field(default_factory=list)
     works_councils: List[str] = field(default_factory=list)
     risk_terms: List[str] = field(default_factory=list)
+    generic_risk_terms: List[str] = field(default_factory=list)
     negation_terms: List[str] = field(default_factory=list)
     relationship_terms: List[str] = field(default_factory=list)
     relationship_quality_terms: List[str] = field(default_factory=list)
@@ -1427,6 +1429,14 @@ class UnionExtractor:
             lambda m, val: analysis.risk_terms.append(val),
         )
 
+        # 6.5 Extract Generic Risk terms
+        process_matches(
+            GENERIC_RISK_REGEX,
+            MatchType.RISK_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.generic_risk_terms.append(val),
+        )
+
         # 7. Extract Union Terms (Generic)
         process_matches(
             UNION_REGEX,
@@ -1865,6 +1875,7 @@ class UnionExtractor:
             or has_union_geo
             or has_negation
             or bool(analysis.coverage_terms)
+            or bool(analysis.generic_risk_terms)
             or (has_quant and has_worker_context)
             or bool(analysis.worker_counts)
         )
