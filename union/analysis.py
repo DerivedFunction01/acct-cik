@@ -2832,8 +2832,7 @@ def determine_geo_context(
 
         union_name_indicator = None
         if union_matches and len(countries) == 1:
-            # Use the first union match as the indicator for segment key generation
-            union_name_indicator = union_matches[0].text
+            union_name_indicator = " | ".join([m.text for m in union_matches])
 
         return {
             "region": region_val,
