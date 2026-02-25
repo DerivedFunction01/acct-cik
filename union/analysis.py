@@ -1060,6 +1060,15 @@ class UnionExtraAnalyzer:
         if not (analysis.union_terms or analysis.risk_terms):
             return {}
 
+        # Detect whether any explicit risk term is locally negated
+        risk_matches = [
+            m for m in analysis._matches if m.get("type") == MatchType.RISK_TERM
+        ]
+        risk_negated = any(
+            check_local_negation(m["span"], analysis.text, backward=30, forward=10)
+            for m in risk_matches
+        )
+
         return {
             "type": (
                 RiskType.UNION_RISK.value
@@ -1070,10 +1079,11 @@ class UnionExtraAnalyzer:
             "labor_keywords": analysis.union_terms,
             "risk_keywords": analysis.risk_terms,
             "third_party": analysis.supplier_terms,
-            "specific_to_unions": bool(analysis.union_terms),
             "union_mention": analysis.union_terms,
             "temporal_scope": temporal_scope,
             "conditional": is_conditional,
+            "negated": bool(analysis.negation_terms),
+            "risk_negated": risk_negated,
             "note": None,
             "is_union": analysis.is_union,
         }
