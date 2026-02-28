@@ -5397,6 +5397,23 @@ class Tracker:
         Applies a dummy percentage to union records that lack quantitative data,
         provided there are no negations for that country/region.
         """
+        # Guardrail: If we already have concrete count-based entries, do not
+        # fabricate additional dummy percentages for sparse records.
+        has_existing_count_data = any(
+            e.is_union_record
+            and not e.is_dummy_percent
+            and (
+                e.covered_count is not None
+                or e.not_covered_count is not None
+            )
+            for e in self.entries
+        )
+        if has_existing_count_data:
+            self.resolution_log.append(
+                "Skipped dummy percentage application: concrete count-based union entries already exist."
+            )
+            return
+
         # 1. Identify negated scopes
         negated_keys = set()
         negated_geos = set()
