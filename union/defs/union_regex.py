@@ -29,6 +29,7 @@ class CORE(Enum):
     BARGAIN = r"Bargain(?:ing|s)?"
     NEGOTIATE = r"Negotiat(?:e|es|ed|ing|ions?)?"
     LABOR = r"Labo(?:u)?rs?"
+    TRADE = r"Trades?"
     ORGANIZED = r"Organized?"
     STRIKE = r"Strikes?"
     DISPUTE = r"Disputes?"
@@ -134,7 +135,7 @@ REPRESENTATION_TERMS = [
 
 GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
 LOOSE_GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|and|[A-Z][\'\w-]*)){0,3}\s+"
-
+STD_GAP = r"(?:[\'\w-]+\s+){0,3}"
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
 TITLE_PREFIX = r"(?:[A-Z][\'\w-]*\s+)*"
@@ -230,6 +231,12 @@ WORKS_REGEX = build_regex(WORK_COUNCIL_TERMS)
 UNION_PHRASES = [
     # collective + bargain + agreement
     COLLECTIVE_BARGAIN,
+    # Labor union, trade union
+    build_compound(
+        [CORE.LABOR, CORE.TRADE],
+        CORE.UNION,
+        sep_prefix=r"[\s-]+",
+    ),
     # union / unionized / unionization
     CORE.UNION.value,
     # reunionize, re-unionization,
@@ -237,7 +244,7 @@ UNION_PHRASES = [
     # labor + (agreements, contracts, organizations)
     build_compound(
         [CORE.LABOR],
-        SUFFIX_AGREEMENTS + SUFFIX_ORGS + [CORE.UNION],
+        SUFFIX_AGREEMENTS + SUFFIX_ORGS,
         sep_prefix=r"[\s-]+",
     ),
     # organized labor
@@ -357,7 +364,7 @@ RELATIONSHIP_NEUTRAL_TERMS = [
 ]
 
 RELATIONSHIP_SUBJECTS = [
-    r"relations\b",
+    r"relations?\b",
     r"relationships?\b",
     r"communications?\b",
     r"engagement\b",
@@ -374,7 +381,7 @@ RELATIONSHIP_PHRASES = [
     build_compound(
         RELATIONSHIP_SUBJECTS,
         [r"with"] + WORKER_TERMS + [CORE.LABOR, CORE.UNION],
-        sep_prefix=GAP,
+        sep_prefix=STD_GAP,
     ),
     # cordial relationship
     build_compound(
@@ -382,7 +389,7 @@ RELATIONSHIP_PHRASES = [
         + RELATIONSHIP_NEGATIVE_TERMS
         + RELATIONSHIP_NEUTRAL_TERMS,
         RELATIONSHIP_SUBJECTS,
-        sep_prefix=GAP,
+        sep_prefix=STD_GAP,
     ),
     # "Working relationship"
     r"working\s+relationships?",
@@ -432,7 +439,7 @@ COVERAGE_TERMS = (
         r"representation",
         r"affiliation",
         # employees/workers + represented by
-        build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=GAP),
+        build_compound(WORKER_TERMS, REPRESENTATION_TERMS, sep_prefix=STD_GAP),
     ]
 )
 COVERAGE_REGEX = build_regex(COVERAGE_TERMS)
@@ -455,13 +462,22 @@ NON_COVERAGE_PHRASES = [
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
     build_compound(
-        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + UNION_PHRASES, sep_prefix=GAP
+        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP
     ),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
 
 # Negation patterns
-NON_UNION_REGEX = build_regex([CORE.NONUNION])
+NON_UNION_REGEX = build_regex(
+    [
+        CORE.NONUNION.value,
+        build_compound(
+            NEGATION_TERMS + [r"not\s+under", r"outside"],
+            UNION_PHRASES,
+            sep_prefix=STD_GAP,
+        ),
+    ]
+)
 
 # Exclusion patterns to discard entire paragraphs
 EXCLUSION_MAP = {
