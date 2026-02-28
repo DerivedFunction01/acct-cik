@@ -5397,22 +5397,43 @@ class Tracker:
         Applies a dummy percentage to union records that lack quantitative data,
         provided there are no negations for that country/region.
         """
-        # Guardrail: If we already have concrete count-based entries, do not
-        # fabricate additional dummy percentages for sparse records.
-        has_existing_count_data = any(
-            e.is_union_record
-            and not e.is_dummy_percent
-            and (
-                e.covered_count is not None
-                or e.not_covered_count is not None
-            )
-            for e in self.entries
-        )
-        if has_existing_count_data:
+        # Build concrete-data maps so dummy percentages can be blocked per geo scope
+        # (country/region), not globally.
+        concrete_country_keys = set()
+        concrete_region_keys = set()
+        for c_entry in self.entries:
+            if not (
+                c_entry.is_union_record
+                and not c_entry.is_dummy_percent
+                and (
+                    c_entry.covered_count is not None
+                    or c_entry.not_covered_count is not None
+                    or c_entry.total_count is not None
+                )
+            ):
+                continue
+
+            base_key = str(c_entry.key).split("::")[0] if c_entry.key is not None else ""
+            if not base_key:
+                continue
+
+            if c_entry.scope == Scope.SEGMENT and len(base_key) == 2:
+                concrete_country_keys.add(base_key)
+                r_name = _CODE_TO_REGION.get(base_key)
+                if r_name:
+                    concrete_region_keys.add(r_name)
+            elif c_entry.scope == Scope.COUNTRY and len(base_key) == 2:
+                concrete_country_keys.add(base_key)
+                r_name = _CODE_TO_REGION.get(base_key)
+                if r_name:
+                    concrete_region_keys.add(r_name)
+            elif c_entry.scope == Scope.REGION:
+                concrete_region_keys.add(_CODE_TO_REGION.get(base_key, base_key))
+
+        if concrete_country_keys or concrete_region_keys:
             self.resolution_log.append(
-                "Skipped dummy percentage application: concrete count-based union entries already exist."
+                "Scoped dummy guards enabled (country/region concrete count data detected)."
             )
-            return
 
         # 1. Identify negated scopes
         negated_keys = set()
@@ -5453,6 +5474,29 @@ class Tracker:
             is_existing_dummy = e.is_dummy_percent
 
             if is_candidate or is_existing_dummy:
+                # Scoped guard: don't apply dummy if same country/region already has
+                # concrete union count-based data.
+                base_key = str(e.key).split("::")[0] if e.key is not None else ""
+                scoped_country = None
+                scoped_region = None
+                if e.scope in (Scope.COUNTRY, Scope.SEGMENT) and len(base_key) == 2:
+                    scoped_country = base_key
+                if e.scope == Scope.REGION:
+                    scoped_region = _CODE_TO_REGION.get(base_key, base_key)
+                elif scoped_country:
+                    scoped_region = _CODE_TO_REGION.get(scoped_country)
+
+                if scoped_country and scoped_country in concrete_country_keys:
+                    self.resolution_log.append(
+                        f"Skipped dummy for {e.key}: concrete count data exists for country {scoped_country}."
+                    )
+                    continue
+                if e.scope == Scope.REGION and scoped_region and scoped_region in concrete_region_keys:
+                    self.resolution_log.append(
+                        f"Skipped dummy for {e.key}: concrete count data exists in region {scoped_region}."
+                    )
+                    continue
+
                 # Check negation conflicts (Key or Related Geo)
                 if e.key not in negated_keys and not any(
                     g in negated_geos for g in e.related_geo_codes
