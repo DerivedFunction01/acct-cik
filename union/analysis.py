@@ -2536,6 +2536,8 @@ class ComplexCoverageAnalyzer:
                 excluded_match_ids.add(id(p))
 
         total_candidates = []
+        # Guardrail: a "total" should be strictly larger than the rest of local numeric assignments.
+        assignment_values = [item.get("override_val", item["match"]["val"]) for item in count_assignments]
 
         for item in count_assignments:
             ctype = item["type"]
@@ -2551,9 +2553,48 @@ class ComplexCoverageAnalyzer:
                 excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":
-                total_candidates.append(val)
+                other_vals = [v for v in assignment_values if v != val]
+                max_other = max(other_vals) if other_vals else None
+                if max_other is None or val > max_other:
+                    total_candidates.append(val)
+                    logic_notes.append(f"Assigned {val} to total")
+                else:
+                    logic_notes.append(
+                        f"Rejected total candidate {val} (not greater than other values; max_other={max_other})"
+                    )
+                    # Try fallback classification instead of discarding the value.
+                    # Prefer the closer of explicit negative vs positive status cues.
+                    neg_dist = get_min_distance_to_matches(
+                        item["match"]["span"],
+                        self.analysis._matches,
+                        list(NEGATIVE_COVERAGE_MATCH_TYPES),
+                        look_backward=True,
+                        look_forward=True,
+                    )
+                    pos_dist = get_min_distance_to_matches(
+                        item["match"]["span"],
+                        self.analysis._matches,
+                        UNION_MATCH_TYPES,
+                        look_backward=True,
+                        look_forward=True,
+                    )
+                    if neg_dist < 80 and neg_dist <= pos_dist:
+                        current = self.data["employee_count_not_covered"] or 0
+                        self.data["employee_count_not_covered"] = current + val
+                        logic_notes.append(
+                            f"Reassigned rejected total {val} to not covered (neg_dist={neg_dist}, pos_dist={pos_dist})"
+                        )
+                    elif pos_dist < 80:
+                        current = self.data["employee_count_covered"] or 0
+                        self.data["employee_count_covered"] = current + val
+                        logic_notes.append(
+                            f"Reassigned rejected total {val} to covered (pos_dist={pos_dist}, neg_dist={neg_dist})"
+                        )
+                    else:
+                        logic_notes.append(
+                            f"No fallback type found for rejected total {val}"
+                        )
                 excluded_match_ids.add(id(item["match"]))
-                logic_notes.append(f"Assigned {val} to total")
 
         if total_candidates:
             # 0. Check for subset/overlap indicators in single-country context
