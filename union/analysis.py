@@ -9107,7 +9107,14 @@ class UnionAnalyzer:
             effective_counts = get_effective_counts(analysis)
             current_sentence_count = None
             if effective_counts and not is_historical:
-                current_sentence_count = max(effective_counts)
+                range_avg = self._detect_count_range(analysis, effective_counts)
+                summation = self._detect_summation(analysis, effective_counts)
+                if range_avg is not None:
+                    current_sentence_count = range_avg
+                elif summation is not None:
+                    current_sentence_count = summation
+                else:
+                    current_sentence_count = max(effective_counts)
 
             # 3. Relevance Check
             if not analysis.is_relevant:
