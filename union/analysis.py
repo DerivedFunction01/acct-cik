@@ -8562,321 +8562,280 @@ class UnionAnalyzer:
             if i in skip_indices or "geographic_context" not in results[i]:
                 continue
             current = results[i]
+            anchor_sentence_indices = {
+                sidx for sidx in [current.get("sentence_index")] if sidx is not None
+            }
+            j = i + 1
+            while j < len(results):
+                if j in skip_indices:
+                    j += 1
+                    continue
 
-            if i + 1 < len(results):
-                next_item = results[i + 1]
-                # Skip if one sentence is union related, and the other isn't.
+                next_item = results[j]
+                # Stop merging when stream changes (e.g. risk rows or unrelated payloads)
+                if "geographic_context" not in next_item:
+                    break
+
+                # Stop if one sentence is union related and the other isn't.
                 cur_is_union = current.get("is_union", False)
                 next_is_union = next_item.get("is_union", False)
-
                 if cur_is_union and cur_is_union != next_is_union:
-                    merged_results.append(current)
-                    continue
-                if "geographic_context" not in next_item:
-                    merged_results.append(current)
-                    continue
+                    break
 
-                # Criteria: Next item inherits from Current, and Current has data
+                # Criteria: next item inherits from one of the merged sentence anchors
                 c_pct = current["coverage_data"].get("percentage")
                 is_saturated = c_pct == 100.0
                 is_empty = c_pct == 0.0
-
-                if (
+                inherited_from = next_item["geographic_context"].get(
+                    "inherited_from_sentence_index"
+                )
+                if not (
                     next_item["geographic_context"]["specificity"]
                     == Specificity.INHERITED.value
-                    and next_item["geographic_context"].get(
-                        "inherited_from_sentence_index"
-                    )
-                    == current.get("sentence_index")
+                    and inherited_from in anchor_sentence_indices
                     and not is_saturated
                     and not is_empty
                     and not next_item.get("is_remaining", False)
                 ):
+                    break
 
-                    c_data = current["coverage_data"]
-                    n_data = next_item["coverage_data"]
+                c_data = current["coverage_data"]
+                n_data = next_item["coverage_data"]
 
-                    should_merge = True
+                should_merge = True
 
-                    # 1. Data Collision Check
-                    # Do not merge if both items have data for the same field
-                    if (
-                        c_data["percentage"] is not None
-                        and n_data["percentage"] is not None
-                    ):
-                        should_merge = False
-                    if (
-                        c_data["employee_count_covered"] is not None
-                        and n_data["employee_count_covered"] is not None
-                    ):
-                        should_merge = False
-                    if (
-                        c_data["employee_count_not_covered"] is not None
-                        and n_data["employee_count_not_covered"] is not None
-                    ):
-                        should_merge = False
-                    # If both have a total, don't merge
-                    if (
-                        c_data["employee_count_total"] is not None
-                        and n_data["employee_count_total"] is not None
-                    ):
-                        should_merge = False
+                # 1. Data Collision Check
+                # Do not merge if both items have data for the same field
+                if c_data["percentage"] is not None and n_data["percentage"] is not None:
+                    should_merge = False
+                if (
+                    c_data["employee_count_covered"] is not None
+                    and n_data["employee_count_covered"] is not None
+                ):
+                    should_merge = False
+                if (
+                    c_data["employee_count_not_covered"] is not None
+                    and n_data["employee_count_not_covered"] is not None
+                ):
+                    should_merge = False
+                # If both have a total, don't merge
+                if (
+                    c_data["employee_count_total"] is not None
+                    and n_data["employee_count_total"] is not None
+                ):
+                    should_merge = False
 
-                    # 2. Subject Conflict Check (Specific Unions)
-                    # Do not merge if both items mention different specific unions (e.g. UAW vs Teamsters)
-                    if should_merge:
-                        k_curr = current.get("keyword_matched")
-                        k_next = next_item.get("keyword_matched")
-                        if k_curr and k_next:
-                            specific_curr = {
-                                t for t in k_curr if self.matcher.get_union(t)
-                            }
-                            specific_next = {
-                                t for t in k_next if self.matcher.get_union(t)
-                            }
-
-                            if (
-                                specific_curr
-                                and specific_next
-                                and specific_curr.isdisjoint(specific_next)
-                            ):
-                                should_merge = False
-                    # 3. Worker Term Conflict Check
-                    if should_merge:
-                        w_curr = current.get("worker_terms", [])
-                        w_next = next_item.get("worker_terms", [])
-
-                        if w_curr and w_next:
-                            spec_curr = {
-                                w.lower()
-                                for w in w_curr
-                                if w.lower() not in GENERIC_WORKER_TERMS
-                                and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
-                            }
-                            spec_next = {
-                                w.lower()
-                                for w in w_next
-                                if w.lower() not in GENERIC_WORKER_TERMS
-                                and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
-                            }
-
-                            if (
-                                spec_curr
-                                and spec_next
-                                and spec_curr.isdisjoint(spec_next)
-                            ):
-                                should_merge = False
-
-                    if should_merge:
-                        # Merge Percentage
+                # 2. Subject Conflict Check (Specific Unions)
+                if should_merge:
+                    k_curr = current.get("keyword_matched")
+                    k_next = next_item.get("keyword_matched")
+                    if k_curr and k_next:
+                        specific_curr = {t for t in k_curr if self.matcher.get_union(t)}
+                        specific_next = {t for t in k_next if self.matcher.get_union(t)}
                         if (
-                            c_data["percentage"] is None
-                            and n_data["percentage"] is not None
+                            specific_curr
+                            and specific_next
+                            and specific_curr.isdisjoint(specific_next)
                         ):
-                            c_data["percentage"] = n_data["percentage"]
-                            c_data["negated"] = n_data["negated"]
-                            c_data["negation_type"] = n_data["negation_type"]
-                            c_data["type"] = n_data["type"]
-                            c_data["note"] = (
-                                (c_data["note"] or "") + " | " + (n_data["note"] or "")
-                            )
+                            should_merge = False
 
-                        # Merge Counts
-                        if (
-                            not c_data["employee_count_covered"]
-                            and n_data["employee_count_covered"]
-                        ):
-                            c_data["employee_count_covered"] = n_data[
-                                "employee_count_covered"
-                            ]
+                # 3. Worker Term Conflict Check
+                if should_merge:
+                    w_curr = current.get("worker_terms", [])
+                    w_next = next_item.get("worker_terms", [])
 
-                        # Use potential total from current sentence if available (local count priority)
-                        if not c_data["employee_count_total"] and current.get(
-                            "potential_total"
-                        ):
-                            c_data["employee_count_total"] = current["potential_total"]
-                            c_data["note"] = (
-                                c_data.get("note") or ""
-                            ) + f" | Used local count {current['potential_total']}"
+                    if w_curr and w_next:
+                        spec_curr = {
+                            w.lower()
+                            for w in w_curr
+                            if w.lower() not in GENERIC_WORKER_TERMS
+                            and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
+                        }
+                        spec_next = {
+                            w.lower()
+                            for w in w_next
+                            if w.lower() not in GENERIC_WORKER_TERMS
+                            and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
+                        }
 
-                        if (
-                            not c_data["employee_count_not_covered"]
-                            and n_data["employee_count_not_covered"]
-                        ):
-                            c_data["employee_count_not_covered"] = n_data[
-                                "employee_count_not_covered"
-                            ]
+                        if spec_curr and spec_next and spec_curr.isdisjoint(spec_next):
+                            should_merge = False
 
-                        # Recalculate missing values if percentage is present
-                        if c_data["percentage"] is not None:
-                            pct = c_data["percentage"]
-                            total = c_data.get("employee_count_total")
-                            covered = c_data.get("employee_count_covered")
-                            not_covered = c_data.get("employee_count_not_covered")
-                            is_negated = c_data.get("negated")
-                            neg_type = c_data.get("negation_type")
+                if not should_merge:
+                    break
 
-                            # Case 1: Have Total + Pct -> Calculate Parts
-                            if total and (covered is None or not_covered is None):
-                                subset = round((pct / 100.0) * total)
+                # Merge Percentage
+                if c_data["percentage"] is None and n_data["percentage"] is not None:
+                    c_data["percentage"] = n_data["percentage"]
+                    c_data["negated"] = n_data["negated"]
+                    c_data["negation_type"] = n_data["negation_type"]
+                    c_data["type"] = n_data["type"]
+                    c_data["note"] = (
+                        (c_data["note"] or "") + " | " + (n_data["note"] or "")
+                    )
 
-                                # Check for qualitative ambiguity (don't infer inverse for "Majority non-union")
-                                infer_complement = should_infer_complement(
-                                    pct,
-                                    c_data.get("type") == CoverageType.QUALITATIVE.value,
-                                    is_negated,
-                                    c_data.get("has_exceptions", False)
-                                )
+                # Merge Counts
+                if (
+                    not c_data["employee_count_covered"]
+                    and n_data["employee_count_covered"]
+                ):
+                    c_data["employee_count_covered"] = n_data["employee_count_covered"]
 
-                                # Downgrade 100% to 95% if exceptions exist (Merged context)
-                                if c_data.get("has_exceptions") and pct >= 99.0:
-                                    pct = 95.0
-                                    c_data["note"] = (c_data.get("note") or "") + " | Downgraded 100%->95% (exception)"
+                # Use potential total from current sentence if available (local count priority)
+                if not c_data["employee_count_total"] and current.get("potential_total"):
+                    c_data["employee_count_total"] = current["potential_total"]
+                    c_data["note"] = (
+                        c_data.get("note") or ""
+                    ) + f" | Used local count {current['potential_total']}"
 
-                                if is_negated:
-                                    # Distinguish zero-coverage semantics from "X% not covered"
-                                    if neg_type == NegationType.ZERO_COVERAGE.value:
-                                        if covered is None:
-                                            c_data["employee_count_covered"] = 0
-                                        if not_covered is None:
-                                            c_data["employee_count_not_covered"] = total
-                                    else:
-                                        if not_covered is None:
-                                            c_data["employee_count_not_covered"] = subset
-                                        if covered is None and infer_complement:
-                                            c_data["employee_count_covered"] = (
-                                                total - subset
-                                            )
-                                else:
-                                    if covered is None:
-                                        c_data["employee_count_covered"] = subset
-                                    if not_covered is None:
-                                        c_data["employee_count_not_covered"] = (
-                                            total - subset
-                                        )
-                                c_data["note"] = (
-                                    c_data.get("note") or ""
-                                ) + " | Derived counts from merged %"
+                if (
+                    not c_data["employee_count_not_covered"]
+                    and n_data["employee_count_not_covered"]
+                ):
+                    c_data["employee_count_not_covered"] = n_data[
+                        "employee_count_not_covered"
+                    ]
 
-                            # Case 2: Have Part + Pct -> Calculate Total (Denominator)
-                            elif not total and pct > 0:
-                                derived_total = None
-                                if (
-                                    is_negated
-                                    and neg_type != NegationType.ZERO_COVERAGE.value
-                                    and not_covered is not None
-                                ):
-                                    derived_total = round(not_covered / (pct / 100.0))
-                                    c_data["employee_count_covered"] = (
-                                        derived_total - not_covered
-                                    )
-                                elif not is_negated and covered is not None:
-                                    derived_total = round(covered / (pct / 100.0))
-                                    c_data["employee_count_not_covered"] = (
-                                        derived_total - covered
-                                    )
+                # Recalculate missing values if percentage is present
+                if c_data["percentage"] is not None:
+                    pct = c_data["percentage"]
+                    total = c_data.get("employee_count_total")
+                    covered = c_data.get("employee_count_covered")
+                    not_covered = c_data.get("employee_count_not_covered")
+                    is_negated = c_data.get("negated")
+                    neg_type = c_data.get("negation_type")
 
-                                if derived_total is not None:
-                                    c_data["employee_count_total"] = derived_total
-                                    c_data["note"] = (
-                                        c_data.get("note") or ""
-                                    ) + " | Derived total from merged %"
-
-                            # Case 3: Refinement (Assumed 100% -> Actual %)
-                            elif total and pct > 0 and pct < 100:
-                                if covered == total:
-                                    derived_total = round(covered / (pct / 100.0))
-                                    c_data["employee_count_total"] = derived_total
-                                    c_data["employee_count_not_covered"] = (
-                                        derived_total - covered
-                                    )
-                                    c_data["note"] = (
-                                        (c_data.get("note") or "")
-                                        + f" | Refined Total from {total} to {derived_total} using {pct}%"
-                                    )
-                                elif not_covered == total:
-                                    if is_negated:
-                                        derived_total = round(
-                                            not_covered / (pct / 100.0)
-                                        )
-                                        c_data["employee_count_total"] = derived_total
-                                        c_data["employee_count_covered"] = (
-                                            derived_total - not_covered
-                                        )
-                                        c_data["note"] = (
-                                            (c_data.get("note") or "")
-                                            + f" | Refined Total from {total} to {derived_total} using {pct}% (negated)"
-                                        )
-                                    else:
-                                        derived_total = round(
-                                            not_covered / ((100 - pct) / 100.0)
-                                        )
-                                        c_data["employee_count_total"] = derived_total
-                                        c_data["employee_count_covered"] = (
-                                            derived_total - not_covered
-                                        )
-                                        c_data["note"] = (
-                                            (c_data.get("note") or "")
-                                            + f" | Refined Total from {total} to {derived_total} using {pct}% (remainder)"
-                                        )
-
-                        # NEW: Type-based coverage inference
-                        # If next item indicates coverage (union terms) and specifies worker types
-
-                        # Gather targets from types and specific terms
-                        targets = set(next_item.get("worker_types", []))
-                        for w in next_item.get("worker_terms", []):
-                            if (
-                                w.lower() not in GENERIC_WORKER_TERMS
-                                and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
-                            ):
-                                targets.add(w)
-
-                        if next_item.get("keyword_matched") and targets:
-                            # Check if current item has counts for these types
-                            c_map = current.get("worker_type_map", {})
-
-                            matched_count = 0.0
-                            found_match = False
-
-                            for w_type in targets:
-                                w_type_lower = w_type.lower()
-                                if w_type_lower in c_map:
-                                    matched_count += c_map[w_type_lower]
-                                    found_match = True
-
-                            if found_match:
-                                target_field = (
-                                    "employee_count_not_covered"
-                                    if n_data.get("negated")
-                                    else "employee_count_covered"
-                                )
-                                current_val = c_data.get(target_field) or 0.0
-                                c_data[target_field] = current_val + matched_count
-
-                                # Recalculate percentage if total exists
-                                if c_data.get("employee_count_total"):
-                                    cov = c_data.get("employee_count_covered") or 0.0
-                                    c_data["percentage"] = round(
-                                        (cov / c_data["employee_count_total"]) * 100, 2
-                                    )
-                                    c_data["type"] = CoverageType.CALCULATED.value
-                                    c_data["note"] = (
-                                        (c_data.get("note") or "")
-                                        + f" | Inferred coverage for {matched_count} (matched types)"
-                                    )
-
-                        # Add merge hint
-                        merge_note = f" [Merged with next sentence: '{next_item.get('sentence', '')[:30]}...']"
-                        c_data["note"] = (c_data.get("note") or "") + merge_note
-                        current["merged_sentence_index"] = next_item.get(
-                            "sentence_index"
+                    # Case 1: Have Total + Pct -> Calculate Parts
+                    if total and (covered is None or not_covered is None):
+                        subset = round((pct / 100.0) * total)
+                        infer_complement = should_infer_complement(
+                            pct,
+                            c_data.get("type") == CoverageType.QUALITATIVE.value,
+                            is_negated,
+                            c_data.get("has_exceptions", False),
                         )
 
-                        # Merge is_union flag (if continuation is union-specific, the whole item is)
-                        if next_item.get("is_union"):
-                            current["is_union"] = True
-                        skip_indices.add(i + 1)
+                        if c_data.get("has_exceptions") and pct >= 99.0:
+                            pct = 95.0
+                            c_data["note"] = (c_data.get("note") or "") + " | Downgraded 100%->95% (exception)"
+
+                        if is_negated:
+                            if neg_type == NegationType.ZERO_COVERAGE.value:
+                                if covered is None:
+                                    c_data["employee_count_covered"] = 0
+                                if not_covered is None:
+                                    c_data["employee_count_not_covered"] = total
+                            else:
+                                if not_covered is None:
+                                    c_data["employee_count_not_covered"] = subset
+                                if covered is None and infer_complement:
+                                    c_data["employee_count_covered"] = total - subset
+                        else:
+                            if covered is None:
+                                c_data["employee_count_covered"] = subset
+                            if not_covered is None:
+                                c_data["employee_count_not_covered"] = total - subset
+                        c_data["note"] = (c_data.get("note") or "") + " | Derived counts from merged %"
+
+                    # Case 2: Have Part + Pct -> Calculate Total (Denominator)
+                    elif not total and pct > 0:
+                        derived_total = None
+                        if (
+                            is_negated
+                            and neg_type != NegationType.ZERO_COVERAGE.value
+                            and not_covered is not None
+                        ):
+                            derived_total = round(not_covered / (pct / 100.0))
+                            c_data["employee_count_covered"] = derived_total - not_covered
+                        elif not is_negated and covered is not None:
+                            derived_total = round(covered / (pct / 100.0))
+                            c_data["employee_count_not_covered"] = derived_total - covered
+
+                        if derived_total is not None:
+                            c_data["employee_count_total"] = derived_total
+                            c_data["note"] = (c_data.get("note") or "") + " | Derived total from merged %"
+
+                    # Case 3: Refinement (Assumed 100% -> Actual %)
+                    elif total and pct > 0 and pct < 100:
+                        if covered == total:
+                            derived_total = round(covered / (pct / 100.0))
+                            c_data["employee_count_total"] = derived_total
+                            c_data["employee_count_not_covered"] = derived_total - covered
+                            c_data["note"] = (
+                                (c_data.get("note") or "")
+                                + f" | Refined Total from {total} to {derived_total} using {pct}%"
+                            )
+                        elif not_covered == total:
+                            if is_negated:
+                                derived_total = round(not_covered / (pct / 100.0))
+                                c_data["employee_count_total"] = derived_total
+                                c_data["employee_count_covered"] = derived_total - not_covered
+                                c_data["note"] = (
+                                    (c_data.get("note") or "")
+                                    + f" | Refined Total from {total} to {derived_total} using {pct}% (negated)"
+                                )
+                            else:
+                                derived_total = round(not_covered / ((100 - pct) / 100.0))
+                                c_data["employee_count_total"] = derived_total
+                                c_data["employee_count_covered"] = derived_total - not_covered
+                                c_data["note"] = (
+                                    (c_data.get("note") or "")
+                                    + f" | Refined Total from {total} to {derived_total} using {pct}% (remainder)"
+                                )
+
+                # Type-based coverage inference
+                targets = set(next_item.get("worker_types", []))
+                for w in next_item.get("worker_terms", []):
+                    if (
+                        w.lower() not in GENERIC_WORKER_TERMS
+                        and w.lower().rstrip("s") not in GENERIC_WORKER_TERMS
+                    ):
+                        targets.add(w)
+
+                if next_item.get("keyword_matched") and targets:
+                    c_map = current.get("worker_type_map", {})
+                    matched_count = 0.0
+                    found_match = False
+
+                    for w_type in targets:
+                        w_type_lower = w_type.lower()
+                        if w_type_lower in c_map:
+                            matched_count += c_map[w_type_lower]
+                            found_match = True
+
+                    if found_match:
+                        target_field = (
+                            "employee_count_not_covered"
+                            if n_data.get("negated")
+                            else "employee_count_covered"
+                        )
+                        current_val = c_data.get(target_field) or 0.0
+                        c_data[target_field] = current_val + matched_count
+
+                        if c_data.get("employee_count_total"):
+                            cov = c_data.get("employee_count_covered") or 0.0
+                            c_data["percentage"] = round(
+                                (cov / c_data["employee_count_total"]) * 100, 2
+                            )
+                            c_data["type"] = CoverageType.CALCULATED.value
+                            c_data["note"] = (
+                                (c_data.get("note") or "")
+                                + f" | Inferred coverage for {matched_count} (matched types)"
+                            )
+
+                merge_note = f" [Merged with next sentence: '{next_item.get('sentence', '')[:30]}...']"
+                c_data["note"] = (c_data.get("note") or "") + merge_note
+                current["merged_sentence_index"] = next_item.get("sentence_index")
+
+                if next_item.get("is_union"):
+                    current["is_union"] = True
+
+                n_idx = next_item.get("sentence_index")
+                if n_idx is not None:
+                    anchor_sentence_indices.add(n_idx)
+
+                skip_indices.add(j)
+                j += 1
 
             merged_results.append(current)
         return merged_results
