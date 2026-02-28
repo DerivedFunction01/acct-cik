@@ -7165,23 +7165,91 @@ class Tracker:
             not_covered_val = None
             pct_val = None
 
-            if primary_country_entry:
-                total_val = primary_country_entry.total_count
-                covered_val = primary_country_entry.covered_count
-                not_covered_val = primary_country_entry.not_covered_count
-                pct_val = primary_country_entry.percentage
-
-            if total_val is None and code in self.country_totals:
-                total_val = self.country_totals.get(code)
-
-            if covered_val is None and segment_entries:
-                seg_cov = sum(s.covered_count for s in segment_entries if s.covered_count is not None)
-                covered_val = float(seg_cov) if seg_cov > 0 else None
-            if not_covered_val is None and segment_entries:
-                seg_not = sum(
-                    s.not_covered_count for s in segment_entries if s.not_covered_count is not None
+            # Mirror calculate_metrics country aggregation semantics for parity.
+            c_agg_covered = 0.0
+            c_agg_total = 0.0
+            c_has_data = False
+            for c in country_entries:
+                c_cov = 0.0
+                c_tot = 0.0
+                c_has_local_data = False
+                segs = [
+                    s
+                    for s in segment_entries
+                    if s.key and s.key.startswith(f"{c.key}::")
+                ]
+                has_segment_counts = any(
+                    (s.covered_count is not None) or (s.total_count is not None)
+                    for s in segs
                 )
-                not_covered_val = float(seg_not) if seg_not > 0 else None
+
+                if c.covered_count is not None:
+                    c_cov = c.covered_count
+                    c_tot = c.total_count if c.total_count else 0.0
+                    c_has_local_data = True
+                elif c.percentage is not None and c.total_count:
+                    c_cov = (c.percentage / 100.0) * c.total_count
+                    c_tot = c.total_count
+                    c_has_local_data = True
+
+                if c_has_local_data and has_segment_counts:
+                    seg_cov_preview = sum(
+                        s.covered_count for s in segs if s.covered_count is not None
+                    )
+                    seg_tot_preview = sum(
+                        s.total_count for s in segs if s.total_count is not None
+                    )
+                    if c_cov == 0 and (seg_cov_preview > 0 or seg_tot_preview > 0):
+                        c_has_local_data = False
+                        c_cov = 0.0
+                        c_tot = 0.0
+
+                if not c_has_local_data and segs:
+                    seg_cov = sum(
+                        s.covered_count for s in segs if s.covered_count is not None
+                    )
+                    seg_tot = (
+                        c.total_count
+                        if c.total_count
+                        else sum(s.total_count for s in segs if s.total_count)
+                    )
+                    if seg_cov > 0 or seg_tot > 0:
+                        c_cov = seg_cov
+                        c_tot = seg_tot
+                        c_has_local_data = True
+
+                if c_has_local_data:
+                    c_agg_covered += c_cov
+                    c_agg_total += c_tot
+                    c_has_data = True
+
+            if c_has_data:
+                total_val = c_agg_total
+                covered_val = c_agg_covered
+            else:
+                if primary_country_entry:
+                    total_val = primary_country_entry.total_count
+                    covered_val = primary_country_entry.covered_count
+                    not_covered_val = primary_country_entry.not_covered_count
+                    pct_val = primary_country_entry.percentage
+                if total_val is None and code in self.country_totals:
+                    total_val = self.country_totals.get(code)
+
+                if covered_val is None and segment_entries:
+                    seg_cov = sum(
+                        s.covered_count for s in segment_entries if s.covered_count is not None
+                    )
+                    covered_val = float(seg_cov) if seg_cov > 0 else None
+                if not_covered_val is None and segment_entries:
+                    seg_not = sum(
+                        s.not_covered_count for s in segment_entries if s.not_covered_count is not None
+                    )
+                    not_covered_val = float(seg_not) if seg_not > 0 else None
+
+            if not_covered_val is None and total_val is not None and covered_val is not None:
+                residual = float(total_val) - float(covered_val)
+                if residual >= 0:
+                    not_covered_val = residual
 
             if pct_val is None and total_val and covered_val is not None and total_val > 0:
                 pct_val = round((covered_val / total_val) * 100.0, 2)
