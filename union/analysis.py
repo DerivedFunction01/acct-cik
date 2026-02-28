@@ -3348,6 +3348,8 @@ class Tracker:
         self.mentioned_countries: set[str] = set()
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
+        self.global_sentence_keywords: Set[Tuple[int, str]] = set()
+        self.country_sentence_keywords: Dict[str, Set[Tuple[int, str]]] = {}
         self.country_keywords: Dict[str, Dict[str, int]] = {}
         self._boosted_rate_cache: Dict[
             Tuple[float, Optional[str]], Tuple[float, float]
@@ -3434,10 +3436,12 @@ class Tracker:
         k = self.total_union_keywords  # e.g., 56 in your Autoliv case
         k_specific = 0
         if key:
-            k_specific = sum(self.country_keywords.get(key, {}).values())
+            k_specific = len(self.country_sentence_keywords.get(key, set()))
             if k_specific == 0 and isinstance(key, str) and "::" in key:
                 country_code = key.split("::")[0]
-                k_specific = sum(self.country_keywords.get(country_code, {}).values())
+                k_specific = len(
+                    self.country_sentence_keywords.get(country_code, set())
+                )
 
         # -----------------------------
         # 1. Logistic keyword multiplier
@@ -3557,6 +3561,16 @@ class Tracker:
             or base in COMPOSITE_COUNTRIES
             or is_region(base)
         )
+
+    def register_sentence_keywords(
+        self, sentence_index: int, keywords: Optional[List[str]]
+    ) -> None:
+        if sentence_index < 0 or not keywords:
+            return
+        for kw in keywords:
+            self.global_sentence_keywords.add((sentence_index, kw))
+        self.total_union_keywords = len(self.global_sentence_keywords)
+
     def register_mentions(self, geo_context: Dict[str, Any]):
         if geo_context.get("domestic_negated"):
             self.domestic_is_negated = True
@@ -3692,12 +3706,12 @@ class Tracker:
             return
 
         keywords = keywords or []
-        keyword_count = len(keywords)
 
         if geo_context.get("domestic_negated"):
             self.domestic_is_negated = True
 
-        self.total_union_keywords += keyword_count
+        # Safe fallback in case pass-1 registration did not occur.
+        self.register_sentence_keywords(sentence_index, keywords)
 
         countries = geo_context.get("countries", [])
         for c in countries:
@@ -3708,6 +3722,8 @@ class Tracker:
 
                 if code not in self.country_keywords:
                     self.country_keywords[code] = {}
+                if code not in self.country_sentence_keywords:
+                    self.country_sentence_keywords[code] = set()
 
                 for kw in keywords:
                     # Check if keyword implies a specific geography to avoid cross-contamination
@@ -3731,6 +3747,7 @@ class Tracker:
                                 continue
 
                     self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
+                    self.country_sentence_keywords[code].add((sentence_index, kw))
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -7726,6 +7743,10 @@ class UnionAnalyzer:
                     is_historical = True
             if (is_historical or analysis.has_historical) and not analysis.has_current:
                 continue
+
+            tracker.register_sentence_keywords(
+                idx, self._get_annotated_keywords(analysis)
+            )
 
             # Determine context (reusing logic to ensure consistency with Pass 2)
             geo_context = self._determine_geo_context(
