@@ -69,12 +69,12 @@ class WebTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "European U"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
-        (re.compile(r"\bthe\s+Union\s+of\s+south\s+africa", re.IGNORECASE), "South Africa"), # South africa
-        (re.compile(r"\bUnion\s+of\s+south\s+american?", re.IGNORECASE), "South America"), # South africa
+        (re.compile(r"\bthe\s+Union\s+of\s+south\s+africa\b", re.IGNORECASE), "South Africa"), # South africa
+        (re.compile(r"\bUnion\s+of\s+south\s+american?\b", re.IGNORECASE), "South America"), # South africa
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "Speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
-        (re.compile(r"(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)", re.IGNORECASE), "fracture"),
-        (re.compile(r"monetary\s+unions?", re.IGNORECASE), "currency agreement"),
+        (re.compile(r"\b(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)\b", re.IGNORECASE), "fracture"),
+        (re.compile(r"\bmonetary\s+unions?\b", re.IGNORECASE), "currency agreement"),
         (re.compile(r"\b(?:kosher|orthodox|kashrut)\s+unions?\b", re.IGNORECASE), "certification"),
         (re.compile(r"\bUnion\s+of\s+Orthodox\s+(?:Jewish\s+)?(?:Congregations)?\b", re.IGNORECASE), "certification"),
         (
@@ -1238,14 +1238,13 @@ class ContextualNumberCleaner:
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
         street_terms = [
-            r"ave(?:nue)?",
-            r"street",
-            r"str?",
-            r"blvd",
+            r"ave(?:nue)?\.?",
+            r"st(?:reet)?\.?",
+            r"blvd\.?",
             r"boulevard",
-            r"cir(?:cle)?",
+            r"cir(?:cle)?\.?",
             r"court",
-            r"ct"
+            r"ct\.?",
         ]
 
         other_terms_gap = [
@@ -1280,9 +1279,27 @@ class ContextualNumberCleaner:
             r"areas",
             r"units?",
         ]
-        
+
+        # Boundary strategy:
+        # - Terms without periods are wrapped in word boundaries.
+        # - Terms with periods use a non-word/end lookahead instead of trailing \b.
+        #   This avoids misses for tokens like "st." where \b after "." can fail.
+        gap_terms_with_period = [t for t in other_terms_gap if r"\." in t]
+        gap_terms_without_period = [t for t in other_terms_gap if r"\." not in t]
+
+        gap_term_parts = []
+        if gap_terms_without_period:
+            gap_term_parts.append(rf"\b{build_alternation(gap_terms_without_period)}\b")
+        if gap_terms_with_period:
+            gap_term_parts.append(
+                rf"(?:{build_alternation(gap_terms_with_period)})(?=\W|$)"
+            )
+        gap_term_pattern = build_alternation(gap_term_parts)
+
+        strict_term_pattern = rf"\b{build_alternation(other_terms_strict)}\b"
+
         self.other_terms_regex = re.compile(
-            rf"\b({number_range}|{percent_range})\s+((?:(?:[\'\w-]+\s+){{0,2}}{build_alternation(other_terms_gap)})|(?:{build_alternation(other_terms_strict)}))",
+            rf"\b({number_range}|{percent_range})\s+((?:(?:[\'\w-]+\s+){{0,2}}(?:{gap_term_pattern}))|(?:{strict_term_pattern}))",
             re.IGNORECASE,
         )
         

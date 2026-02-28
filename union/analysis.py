@@ -3401,8 +3401,25 @@ class Tracker:
             if not is_disjoint:
                 if code == "DOM":
                     code = self.domestic_country_code
-                if count > self.country_totals.get(code, 0):
-                    self.country_totals[code] = count
+                # Route container/composite keys to region totals, not country totals.
+                if self._is_container_geo_key(code):
+                    target_region = _CODE_TO_REGION.get(code, code)
+                    if count > self.region_totals.get(target_region, 0):
+                        self.region_totals[target_region] = count
+                else:
+                    if count > self.country_totals.get(code, 0):
+                        self.country_totals[code] = count
+
+    def _is_container_geo_key(self, key: Optional[str]) -> bool:
+        if not key:
+            return False
+        base = str(key).split("::")[0]
+        return (
+            base in IGNORED_REGIONS
+            or base in REGION_CODES
+            or base in COMPOSITE_COUNTRIES
+            or is_region(base)
+        )
     def register_mentions(self, geo_context: Dict[str, Any]):
         if geo_context.get("domestic_negated"):
             self.domestic_is_negated = True
@@ -4549,47 +4566,71 @@ class Tracker:
                     )
 
     def _get_region_entries(self, region_identifier: str) -> List[Entry]:
-        region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
-        relevant = []
-        # Dynamic definition for International: Include all non-domestic regions
-        is_international_agg = region_name == Region.INTERNATIONAL.value
+        """
+        Collects entries contained by a region/container key.
+        Supports canonical regions (e.g. Europe), generic aliases, and composites (e.g. EU_UNION, CIS).
+        """
+        container = _CODE_TO_REGION.get(region_identifier, region_identifier)
+        relevant: List[Entry] = []
+        seen_ids: Set[int] = set()
+        is_international_agg = container == Region.INTERNATIONAL.value
+
+        def add_entry(entry: Entry):
+            marker = id(entry)
+            if marker in seen_ids:
+                return
+            seen_ids.add(marker)
+            relevant.append(entry)
 
         for e in self.entries:
-            # 1. Direct Region Match
+            key = str(e.key) if e.key is not None else ""
+            base = key.split("::")[0] if key else ""
+
+            if not base:
+                continue
+
+            # Direct region/container match
             if e.scope == Scope.REGION:
-                # Resolve entry key to canonical region name (e.g. EU -> Europe)
-                entry_region = _CODE_TO_REGION.get(e.key, e.key)
-                if entry_region == region_name:
-                    relevant.append(e)
+                e_region = _CODE_TO_REGION.get(base, base)
+                if (
+                    base == region_identifier
+                    or base == container
+                    or e_region == container
+                ):
+                    add_entry(e)
                     continue
 
-            # 2. Child Country Match
-            code = None
-            if e.scope == Scope.COUNTRY:
-                code = e.key
-            elif e.scope == Scope.SEGMENT:
-                # Try to extract code from "US::UAW" or "North America::Pilots"
-                if e.key:
-                    parts = e.key.split("::")
-                    if parts[0] == region_name:
-                        relevant.append(e)
-                        continue
-                    code = parts[0]
+            # Containment-based matching for countries/segments and composites.
+            if e.scope in (Scope.COUNTRY, Scope.SEGMENT):
+                if is_contained(
+                    container_key=region_identifier,
+                    item_key=base,
+                    domestic_country_code=self.domestic_country_code,
+                ) or is_contained(
+                    container_key=container,
+                    item_key=base,
+                    domestic_country_code=self.domestic_country_code,
+                ):
+                    add_entry(e)
+                    continue
 
-            if code:
-                # Check mapping
-                if _CODE_TO_REGION.get(code) == region_name:
-                    relevant.append(e)
+                # Canonical region fallback (for plain region names like Europe).
+                if _CODE_TO_REGION.get(base) == container and not self._is_container_geo_key(base):
+                    add_entry(e)
 
         if is_international_agg:
-            # Include other Region entries (e.g. Europe, Asia) to treat International as superset
+            # International aggregates non-domestic geographies.
             for e in self.entries:
-                if (
-                    e.scope == Scope.REGION
-                    and e.key not in IGNORED_REGIONS
-                    and e.key != Region.DOMESTIC.value
+                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if not base or base in IGNORED_REGIONS:
+                    continue
+                if is_contained(
+                    container_key=Region.INTERNATIONAL.value,
+                    item_key=base,
+                    domestic_country_code=self.domestic_country_code,
                 ):
-                    relevant.append(e)
+                    add_entry(e)
+
         return relevant
 
     def _inject_placeholders(self, region_identifier: str):
@@ -4796,6 +4837,10 @@ class Tracker:
                 entries.remove(e)
 
     def _resolve_single_country(self, country_code: str, census_total: float):
+        # Guardrail: container/composite geographies should not be resolved as countries.
+        if self._is_container_geo_key(country_code):
+            return
+
         relevant_entries = [
             e
             for e in self.entries
@@ -4896,11 +4941,6 @@ class Tracker:
                     )
 
         if not relevant_entries:
-            # Check if this is a region code (container) to avoid zeroing out composites
-            # Also skip GLO (Global) as it is a container for everything
-            if country_code in REGION_CODES or country_code in IGNORED_REGIONS:
-                # self.resolution_log.append(f"Skipped 0% inference for {country_code}: It is a region/container code.")
-                return
             if census_total > 0:
                 self.entries.append(
                     Entry(
@@ -4961,25 +5001,8 @@ class Tracker:
         entries = self._get_region_entries(region_name)
         self._drop_redundant_entries(entries)
         if not entries:
-            if region_total > 0:
-                self.entries.append(
-                    Entry(
-                        scope=Scope.REGION,
-                        key=region_name,
-                        total_count=region_total,
-                        covered_count=0.0,
-                        not_covered_count=region_total,
-                        percentage=0.0,
-                        is_explicit=False,
-                        is_negated=True,
-                        covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
-                        not_covered_count_source=CountSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
-                        percentage_source=PercentageSourceDetail.INFERRED_ZERO_FROM_REGION_TOTAL_ONLY.value,
-                        total_count_source=TotalSourceDetail.REGION_TOTAL_ONLY.value,
-                        denominator_source=DenominatorSourceDetail.REGION_TOTAL_ONLY.value,
-                    )
-                )
-                # self.resolution_log.append(f"Inferred 0% coverage for {region_name}: Census {region_total} exists but no union entries found.")
+            # Do not infer synthetic 0%-coverage region placeholders from census totals.
+            # Region containers are often employment placeholders.
             return
         self._resolve_overlaps_list(region_name, entries)
 
