@@ -3240,17 +3240,44 @@ class Tracker:
             entry.source_notes.append(note)
 
     @staticmethod
+    def _derive_count_source_from_percentage(
+        entry: Entry, *, denominator_is_fallback: bool = False, census: bool = False
+    ) -> str:
+        """
+        Derive count provenance from percentage provenance.
+        """
+        if denominator_is_fallback:
+            return CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value
+
+        p_src_type = entry.percentage_source_type
+        if p_src_type is None and entry.percentage_source:
+            p_src_type = Tracker._source_type_from_detail(entry.percentage_source)
+
+        if p_src_type == SourceType.INFERRED.value:
+            # Covers qualitative inferred percentages (e.g., "immaterial" -> 1%)
+            return CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+
+        if entry.is_dummy_percent:
+            return CountSourceDetail.INFERRED_FROM_DUMMY_PERCENTAGE.value
+
+        if census:
+            return CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value
+        return CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value
+
+    @staticmethod
     def _initial_percentage_source(
         coverage_type: Optional[str], is_qualitative: bool, is_explicit: bool
     ) -> Optional[str]:
+        # Qualitative provenance should always win for inferred soft percentages
+        # (e.g. "immaterial" -> 1%), even if upstream flags leak explicit context.
+        if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
+            return PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE.value
         if coverage_type == CoverageType.EXPLICIT_PERCENT.value or is_explicit:
             return PercentageSourceDetail.EXPLICIT_PERCENTAGE.value
         if coverage_type == CoverageType.CALCULATED.value:
             return PercentageSourceDetail.CALCULATED_PERCENTAGE.value
         if coverage_type == CoverageType.REMAINING.value:
             return PercentageSourceDetail.REMAINING_STATEMENT.value
-        if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
-            return PercentageSourceDetail.QUALITATIVE_INFERRED_PERCENTAGE.value
         if coverage_type == CoverageType.UNION_CONTEXT.value:
             return PercentageSourceDetail.UNION_CONTEXT_ONLY.value
         return None
@@ -3690,16 +3717,23 @@ class Tracker:
         pct_source = self._initial_percentage_source(
             coverage_type, is_qualitative, is_explicit
         )
-        covered_source = (
-            CountSourceDetail.EXPLICIT_COVERED_COUNT.value
-            if covered_count is not None
-            else None
-        )
-        not_covered_source = (
-            CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value
-            if not_covered_count is not None
-            else None
-        )
+        # Do not mark counts as explicit when the driving signal is qualitative.
+        # Example: "immaterial" -> inferred 1% then derived counts from a total.
+        if covered_count is not None:
+            if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
+                covered_source = CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+            else:
+                covered_source = CountSourceDetail.EXPLICIT_COVERED_COUNT.value
+        else:
+            covered_source = None
+
+        if not_covered_count is not None:
+            if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
+                not_covered_source = CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+            else:
+                not_covered_source = CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value
+        else:
+            not_covered_source = None
         total_source = (
             TotalSourceDetail.EXPLICIT_SCOPE_TOTAL.value
             if scope_total is not None
@@ -3966,22 +4000,28 @@ class Tracker:
                     if e.is_negated:
                         e.not_covered_count = calculated_count
                         e.covered_count = max(0, census_total - calculated_count)
+                        derived_src = self._derive_count_source_from_percentage(
+                            e, census=True
+                        )
                         self._mark_source(
                             e,
                             "not_covered_count_source",
-                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
+                            derived_src,
                         )
                         self._mark_source(
                             e,
                             "covered_count_source",
-                            CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_NOT_COVERED.value,
+                            derived_src,
                         )
                     else:
                         e.covered_count = calculated_count
+                        derived_src = self._derive_count_source_from_percentage(
+                            e, census=True
+                        )
                         self._mark_source(
                             e,
                             "covered_count_source",
-                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_CENSUS_TOTAL.value,
+                            derived_src,
                         )
 
                     e.total_count = census_total
@@ -4271,10 +4311,16 @@ class Tracker:
                                         t.covered_count = round(
                                             (pct / 100.0) * t.total_count
                                         )
+                                        denom_is_fallback = (
+                                            t.total_count_source_type == SourceType.FALLBACK.value
+                                            or t.denominator_source_type == SourceType.FALLBACK.value
+                                        )
                                         self._mark_source(
                                             t,
                                             "covered_count_source",
-                                            CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
+                                            self._derive_count_source_from_percentage(
+                                                t, denominator_is_fallback=denom_is_fallback
+                                            ),
                                         )
                                         if t.denominator_source is None:
                                             self._mark_source(
@@ -5375,10 +5421,16 @@ class Tracker:
                 and e.covered_count is None
             ):
                 e.covered_count = round((e.percentage / 100.0) * e.total_count)
+                denom_is_fallback = (
+                    e.total_count_source_type == SourceType.FALLBACK.value
+                    or e.denominator_source_type == SourceType.FALLBACK.value
+                )
                 self._mark_source(
                     e,
                     "covered_count_source",
-                    CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value,
+                    self._derive_count_source_from_percentage(
+                        e, denominator_is_fallback=denom_is_fallback
+                    ),
                 )
                 if e.denominator_source is None:
                     self._mark_source(
@@ -6093,7 +6145,9 @@ class Tracker:
                     self._mark_source(
                         e,
                         "covered_count_source",
-                        CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
+                        self._derive_count_source_from_percentage(
+                            e, denominator_is_fallback=True
+                        ),
                     )
                     self._add_source_note(
                         e, f"Fallback pool source: {pool_source}; base_geo={geo_name}."

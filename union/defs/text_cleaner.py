@@ -552,6 +552,7 @@ class MinimalTextCleaner:
         "items?",
         "chapters?",
         "numbers?",
+        "trust",
     ]
 
     EXHIBIT_FRAGMENT = build_alternation(EXHIBIT_NOUNS)

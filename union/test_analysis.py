@@ -14,6 +14,7 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
+    """We employ 50 part-time and 20 full-time workers. All part-time workers are unionized.""",
     """
 TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
@@ -143,7 +144,7 @@ GLOBAL SUMMARY
 
 We do not provide a precise global unionization rate, as certain regional operations do not disclose specific metrics for competitive or operational reasons. We believe our diversified geographic footprint and largely non-unionized workforce provide flexibility for operational efficiency.""",
     """
-The Company offers fair terms and conditions of employment. The Company's overall purpose, Code of Conduct, talent development strategies, and employment policies support the principles in the United Nations Universal Declaration of Human Rights, and the International Labor Organization’s Fundamental Principles and Labor Standards.
+The Company offers fair terms and conditions of employment with 80,000 employees. The Company's overall purpose, Code of Conduct, talent development strategies, and employment policies support the principles in the United Nations Universal Declaration of Human Rights, and the International Labor Organization’s Fundamental Principles and Labor Standards.
 
 The Company considers its relationship with its employees to be good. While there have been a small number of minor labor disputes historically, such disputes have not had a significant or lasting impact on the Company's relationship with its employees, and customer perception of its employee practices or its business results. 
 
@@ -303,6 +304,9 @@ if __name__ == "__main__":
 
         results = analysis_output.get("items", [])
         summary = analysis_output.get("summary", {})
+        report = analysis_output.get("country_report", {})
+        risk_summary = analysis_output.get("risk_summary", {})
+
 
         # Pretty print results
         print(f"Total Sentences Extracted: {len(results)}\n")
@@ -312,6 +316,13 @@ if __name__ == "__main__":
         print("\nCALCULATED SUMMARY:\n")
         print(json.dumps(summary, indent=2))
 
+        print("\n" + "=" * 80)
+        print("\nCOUNTRY REPORT:\n")
+        print(json.dumps(report, indent=2))
+
+        print("\n" + "=" * 80)
+        print("\nRISK SUMMARY:\n")
+        print(json.dumps(risk_summary, indent=2))
 
     # Combined Consistency Test
     print("\n" + "=" * 80)
