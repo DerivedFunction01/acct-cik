@@ -1548,6 +1548,29 @@ class ComplexCoverageAnalyzer:
 
         matched = False
         notes = []
+        chosen_total = None
+        chosen_subset = None
+        note_fmt = None
+
+        # Only enforce "ignore smaller ratio population" in single-geo context:
+        # one explicit country/region reference with no competing entities.
+        explicit_geo_codes = {
+            gm.geo_code
+            for gm in self.analysis.geo_matches
+            if gm.source_type == GeoSource.EXPLICIT and gm.geo_code
+        }
+        single_geo_context = len(explicit_geo_codes) == 1
+        baseline_total = max(
+            (
+                v
+                for v in [
+                    self.data.get("employee_count_total"),
+                    self.context_total,
+                ]
+                if v is not None
+            ),
+            default=0.0,
+        )
 
         # Helper to check negation
         is_negated = False
@@ -1567,50 +1590,60 @@ class ComplexCoverageAnalyzer:
 
         # Check 1: small / large ~= pct
         if abs(ratio_subset_total - pct) < 2.0:
-            apply_coverage_logic(
-                self.data,
-                total=large,
-                subset=small,
-                is_negated=is_negated,
-                notes=notes,
-                note_fmt="Match: {subset}/{total} ~= "
+            chosen_total = large
+            chosen_subset = small
+            note_fmt = (
+                "Match: {subset}/{total} ~= "
                 + f"{pct}%"
                 + (" (Negated)" if is_negated else "")
-                + ". Total {total}.",
+                + ". Total {total}."
             )
             matched = True
 
         # Check 2: small / (small+large) ~= pct
         elif abs(ratio_part_sum - pct) < 2.0:
-            apply_coverage_logic(
-                self.data,
-                total=total_sum,
-                subset=small,
-                is_negated=is_negated,
-                notes=notes,
-                note_fmt="Match: {subset}/({subset}+{other}) ~= "
+            chosen_total = total_sum
+            chosen_subset = small
+            note_fmt = (
+                "Match: {subset}/({subset}+{other}) ~= "
                 + f"{pct}%"
                 + (" (Negated)" if is_negated else "")
-                + ". Total {total}.",
+                + ". Total {total}."
             )
             matched = True
 
         # Check 3: large / (small+large) ~= pct
         elif abs(ratio_large_sum - pct) < 2.0:
-            apply_coverage_logic(
-                self.data,
-                total=total_sum,
-                subset=large,
-                is_negated=is_negated,
-                notes=notes,
-                note_fmt="Match: {subset}/({other}+{subset}) ~= "
+            chosen_total = total_sum
+            chosen_subset = large
+            note_fmt = (
+                "Match: {subset}/({other}+{subset}) ~= "
                 + f"{pct}%"
                 + (" (Negated)" if is_negated else "")
-                + ". Total {total}.",
+                + ". Total {total}."
             )
             matched = True
 
         if matched:
+            assert chosen_total is not None
+            assert chosen_subset is not None
+            assert note_fmt is not None
+
+            if single_geo_context and baseline_total > 0 and chosen_total < baseline_total:
+                self.data["note"] = (
+                    (self.data.get("note") or "" + " | " if self.data.get("note") else "")
+                    + f"Ignored ratio population {chosen_total} (smaller than known {baseline_total}) in single-geo context"
+                )
+                return False
+
+            apply_coverage_logic(
+                self.data,
+                total=chosen_total,
+                subset=chosen_subset,
+                is_negated=is_negated,
+                notes=notes,
+                note_fmt=note_fmt,
+            )
             self.data["percentage"] = pct
             self.data["type"] = CoverageType.EXPLICIT_PERCENT.value
             self.data["note"] = " | ".join(notes)
@@ -1901,6 +1934,10 @@ class ComplexCoverageAnalyzer:
                 vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
             return vm
 
+        # In subset clauses (e.g. "of which 200 of 300 ..."), avoid synthesizing
+        # the complement remainder from local ratio math to prevent double counting.
+        is_subset_clause = self._is_subset_breakdown_span(base_span)
+
         # Calculate values
         if is_count_total:
             total_val = count
@@ -1915,12 +1952,13 @@ class ComplexCoverageAnalyzer:
                         "type": "not_covered",
                     }
                 )
-                self.local_assignments.append(
-                    {
-                        "match": make_virtual_match(covered_val, base_span, count_match),
-                        "type": "covered",
-                    }
-                )
+                if not is_subset_clause:
+                    self.local_assignments.append(
+                        {
+                            "match": make_virtual_match(covered_val, base_span, count_match),
+                            "type": "covered",
+                        }
+                    )
             else:
                 covered_val = subset_val
                 not_covered_val = max(0, total_val - subset_val)
@@ -1931,12 +1969,13 @@ class ComplexCoverageAnalyzer:
                         "type": "covered",
                     }
                 )
-                self.local_assignments.append(
-                    {
-                        "match": make_virtual_match(not_covered_val, base_span, count_match),
-                        "type": "not_covered",
-                    }
-                )
+                if not is_subset_clause:
+                    self.local_assignments.append(
+                        {
+                            "match": make_virtual_match(not_covered_val, base_span, count_match),
+                            "type": "not_covered",
+                        }
+                    )
             note_suffix = "(Total)"
         else:
             # Count is subset
@@ -2003,6 +2042,8 @@ class ComplexCoverageAnalyzer:
             }
             return linked
 
+        is_subset_clause = self._is_subset_breakdown_span(total_match["span"])
+
         # Queue assignments instead of updating data directly
         self.local_assignments.append({"match": total_match, "type": "total"})
 
@@ -2012,24 +2053,26 @@ class ComplexCoverageAnalyzer:
             )
             # Add virtual remainder
             rem_val = max(0, total_val - part_val)
-            self.local_assignments.append(
-                {
-                    "match": make_virtual_match(rem_val, total_match["span"], total_match),
-                    "type": "covered",
-                }
-            )
+            if not is_subset_clause:
+                self.local_assignments.append(
+                    {
+                        "match": make_virtual_match(rem_val, total_match["span"], total_match),
+                        "type": "covered",
+                    }
+                )
         else:
             self.local_assignments.append(
                 {"match": ensure_linked_match(part_match), "type": "covered"}
             )
             # Add virtual remainder
             rem_val = max(0, total_val - part_val)
-            self.local_assignments.append(
-                {
-                    "match": make_virtual_match(rem_val, total_match["span"], total_match),
-                    "type": "not_covered",
-                }
-            )
+            if not is_subset_clause:
+                self.local_assignments.append(
+                    {
+                        "match": make_virtual_match(rem_val, total_match["span"], total_match),
+                        "type": "not_covered",
+                    }
+                )
 
         self.data["note"] = (
             self.data["note"] or ""
@@ -2068,6 +2111,10 @@ class ComplexCoverageAnalyzer:
                 vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
             return vm
 
+        # In subset clauses (e.g. "of which 200 of 300 ..."), avoid synthesizing
+        # complement remainder to prevent parent + child double counting.
+        is_subset_clause = self._is_subset_breakdown_span(part_match["span"])
+
         # Queue assignments
         # Total is the max value match
         total_match = m1 if m1["val"] == total else m2
@@ -2075,25 +2122,35 @@ class ComplexCoverageAnalyzer:
 
         if is_negated:
             self.local_assignments.append({"match": part_match, "type": "not_covered"})
-            self.local_assignments.append(
-                {
-                    "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
-                    "type": "covered",
-                }
-            )
+            if not is_subset_clause:
+                self.local_assignments.append(
+                    {
+                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
+                        "type": "covered",
+                    }
+                )
         else:
             self.local_assignments.append({"match": part_match, "type": "covered"})
-            self.local_assignments.append(
-                {
-                    "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
-                    "type": "not_covered",
-                }
-            )
+            if not is_subset_clause:
+                self.local_assignments.append(
+                    {
+                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
+                        "type": "not_covered",
+                    }
+                )
 
         self.data["note"] = (
             self.data["note"] or ""
         ) + f" | Local subset: {part} of {total}"
         return True
+
+    def _is_subset_breakdown_span(self, span: Tuple[int, int]) -> bool:
+        """
+        Returns True when the local numeric span appears in a subset clause
+        (e.g. "of which/whom/those"), which should suppress synthetic remainders.
+        """
+        pre = construct_window(span, self.analysis.text, backward=80, forward=0)
+        return bool(self.subset_regex.search(pre))
 
     def _resolve_mixed_coverage(
         self, counts: List[float] = [], excluded_match_ids: Set[int] = set()
