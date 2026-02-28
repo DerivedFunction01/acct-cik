@@ -141,6 +141,15 @@ UNION_MATCH_TYPES = [
     MatchType.SPECIFIC_UNION,
     MatchType.UNION_NAME,
 ]
+NEGATIVE_COVERAGE_MATCH_TYPES = (
+    MatchType.NON_UNION,
+    MatchType.NON_COVERAGE,
+)
+
+
+def has_status_negation_matches(matches: List[Dict[str, Any]]) -> bool:
+    """True when extracted matches include explicit non-coverage/non-union status."""
+    return any(m.get("type") in NEGATIVE_COVERAGE_MATCH_TYPES for m in matches)
 
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
@@ -479,10 +488,7 @@ class SimpleCoverageAnalyzer:
             return
 
         # Check for status negation (e.g. "non-union", "not covered")
-        has_status_negation = any(
-            m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-            for m in analysis._matches
-        )
+        has_status_negation = has_status_negation_matches(analysis._matches)
 
         if pct is not None:
             data["percentage"] = pct
@@ -822,7 +828,7 @@ class SimpleCoverageAnalyzer:
                 dist_neg = get_min_distance_to_matches(
                     count_match["span"],
                     analysis._matches,
-                    [MatchType.NON_UNION, MatchType.NON_COVERAGE, MatchType.NEGATION],
+                    list(NEGATIVE_COVERAGE_MATCH_TYPES),
                 )
                 dist_pos = get_min_distance_to_matches(
                     count_match["span"], analysis._matches, UNION_MATCH_TYPES
@@ -865,10 +871,7 @@ class SimpleCoverageAnalyzer:
             if qual_match:
                 # For qualitative+count cases, do not apply qualitative percentages.
                 # Treat the raw count as the covered/not-covered subset, with total = count.
-                has_status_negation = any(
-                    m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-                    for m in analysis._matches
-                )
+                has_status_negation = has_status_negation_matches(analysis._matches)
                 data["percentage"] = None
                 data["type"] = CoverageType.CALCULATED.value
                 apply_coverage_logic(
@@ -1458,7 +1461,7 @@ class ComplexCoverageAnalyzer:
         dist_non_cov = get_min_distance_to_matches(
             span,
             self.analysis._matches,
-            [MatchType.NON_UNION, MatchType.NON_COVERAGE],
+            list(NEGATIVE_COVERAGE_MATCH_TYPES),
             look_backward=False,
             look_forward=True,
         )
@@ -2215,7 +2218,7 @@ class ComplexCoverageAnalyzer:
             m
             for m in self.analysis._matches
             if m["type"]
-            in (MatchType.NON_UNION, MatchType.NEGATION, MatchType.NON_COVERAGE)
+            in NEGATIVE_COVERAGE_MATCH_TYPES
         ]
         totals = [
             m
@@ -8278,11 +8281,7 @@ class UnionAnalyzer:
                         # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
                         # e.g. "excluding Japan, the remaining..."
                         min_dist = get_min_distance_to_matches(
-                            raw["span"],
-                            analysis._matches,
-                            [MatchType.REMAINING_OTHER],
-                            look_backward=False,
-                            look_forward=True,
+                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER]
                         )
                         
                         if min_dist < 40:
@@ -9355,10 +9354,7 @@ class UnionAnalyzer:
                         data["note"] = qinfo.get("note")
 
                     # Check for status negation (e.g. "not represented", "non-union")
-                    has_status_negation = any(
-                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-                        for m in analysis._matches
-                    )
+                    has_status_negation = has_status_negation_matches(analysis._matches)
                     if has_status_negation:
                         data["negated"] = True
                         data["negation_type"] = NegationType.NOT_COVERED.value
@@ -9371,10 +9367,7 @@ class UnionAnalyzer:
                     else:
                         data["note"] = f"Qualitative multiplier: {amb_mult}x"
 
-                    has_status_negation = any(
-                        m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
-                        for m in analysis._matches
-                    )
+                    has_status_negation = has_status_negation_matches(analysis._matches)
                     if has_status_negation:
                         data["negated"] = True
                         data["negation_type"] = NegationType.NOT_COVERED.value
