@@ -1445,6 +1445,25 @@ class ComplexCoverageAnalyzer:
 
         return self.data
 
+    def _is_local_non_coverage_context(
+        self, span: Tuple[int, int], backward: int = 30, forward: int = 30
+    ) -> bool:
+        """
+        Detect local non-coverage context using both lexical negation and
+        extracted NON_UNION/NON_COVERAGE match types.
+        """
+        if check_local_negation(span, self.analysis.text, backward=backward, forward=forward):
+            return True
+
+        dist_non_cov = get_min_distance_to_matches(
+            span,
+            self.analysis._matches,
+            [MatchType.NON_UNION, MatchType.NON_COVERAGE],
+            look_backward=False,
+            look_forward=True,
+        )
+        return dist_non_cov < 50
+
     def _handle_ranges(self, counts: List[float] = []) -> bool:
         """
         Detects ranges like "20% to 25%" or "500 to 600 employees".
@@ -1739,8 +1758,8 @@ class ComplexCoverageAnalyzer:
                 part_match = counts[0] if counts[0]["val"] == part else counts[1]
                 total_match = counts[0] if counts[0]["val"] == total else counts[1]
                 
-                is_negated = check_local_negation(
-                    part_match["span"], self.analysis.text, backward=30, forward=30
+                is_negated = self._is_local_non_coverage_context(
+                    part_match["span"], backward=30, forward=30
                 )
                 
                 # Queue assignments
@@ -1923,8 +1942,8 @@ class ComplexCoverageAnalyzer:
         else:
             is_count_total = True
 
-        is_negated = check_local_negation(
-            pct_match["span"], self.analysis.text, backward=30, forward=30
+        is_negated = self._is_local_non_coverage_context(
+            pct_match["span"], backward=30, forward=30
         )
             
         # Helper to propagate link id
@@ -2008,8 +2027,8 @@ class ComplexCoverageAnalyzer:
 
     def _apply_local_pattern(self, total_match, part_match, pct_match):
         # Determine if Part is Covered or Not Covered based on local context
-        is_negated = check_local_negation(
-            pct_match["span"], self.analysis.text, backward=30, forward=30
+        is_negated = self._is_local_non_coverage_context(
+            pct_match["span"], backward=30, forward=30
         )
 
         total_val = total_match["val"]
@@ -2101,8 +2120,8 @@ class ComplexCoverageAnalyzer:
 
         # Determine which match is the part for negation checking
         part_match = m1 if m1["val"] == part else m2
-        is_negated = check_local_negation(
-            part_match["span"], self.analysis.text, backward=30, forward=30
+        is_negated = self._is_local_non_coverage_context(
+            part_match["span"], backward=30, forward=30
         )
         
         def make_virtual_match(val, span, source_match):
@@ -8259,7 +8278,11 @@ class UnionAnalyzer:
                         # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
                         # e.g. "excluding Japan, the remaining..."
                         min_dist = get_min_distance_to_matches(
-                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER]
+                            raw["span"],
+                            analysis._matches,
+                            [MatchType.REMAINING_OTHER],
+                            look_backward=False,
+                            look_forward=True,
                         )
                         
                         if min_dist < 40:

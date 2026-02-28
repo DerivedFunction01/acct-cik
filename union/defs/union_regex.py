@@ -135,7 +135,7 @@ REPRESENTATION_TERMS = [
 
 GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|[A-Z][\'\w-]*)){0,3}\s+"
 LOOSE_GAP = r"(?:'s?)?(?:\s+(?:of|the|for|&|and|[A-Z][\'\w-]*)){0,3}\s+"
-STD_GAP = r"(?:[\'\w-]+\s+){0,3}"
+STD_GAP = r"(?:\s+[\'\w-]+){0,3}\s+"
 
 # Expansion patterns for full name capture (e.g. "United" in "United Auto Workers")
 TITLE_PREFIX = r"(?:[A-Z][\'\w-]*\s+)*"
