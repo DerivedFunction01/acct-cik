@@ -1923,16 +1923,16 @@ class UnionExtractor:
                     analysis.is_relevant = False
                     analysis.is_union = False
 
-            # Boilerplate: Exclude if no quantitative data and matches boilerplate
-            elif BOILERPLATE_REGEX.search(text):
-                has_data = bool(
-                    analysis.percentages
-                    or analysis.worker_counts
-                    or analysis.numbers
-                    or analysis.qualitative_terms
-                )
-                if not has_data:
-                    analysis.is_relevant = False
+            # # Boilerplate: Exclude if no quantitative data and matches boilerplate
+            # elif BOILERPLATE_REGEX.search(text):
+            #     has_data = bool(
+            #         analysis.percentages
+            #         or analysis.worker_counts
+            #         or analysis.numbers
+            #         or analysis.qualitative_terms
+            #     )
+            #     if not has_data:
+            #         analysis.is_relevant = False
 
         # Post-processing: Resolve INT_* union matches using explicit geo matches in the same sentence
         explicit_map = {
