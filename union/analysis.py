@@ -5417,12 +5417,12 @@ class Tracker:
             if not base_key:
                 continue
 
-            if c_entry.scope == Scope.SEGMENT and len(base_key) == 2:
+            if c_entry.scope == Scope.SEGMENT:
                 concrete_country_keys.add(base_key)
                 r_name = _CODE_TO_REGION.get(base_key)
                 if r_name:
                     concrete_region_keys.add(r_name)
-            elif c_entry.scope == Scope.COUNTRY and len(base_key) == 2:
+            elif c_entry.scope == Scope.COUNTRY:
                 concrete_country_keys.add(base_key)
                 r_name = _CODE_TO_REGION.get(base_key)
                 if r_name:
@@ -8662,6 +8662,30 @@ class UnionAnalyzer:
 
                 c_data = current["coverage_data"]
                 n_data = next_item["coverage_data"]
+
+                # Guard: do not convert a pure employment baseline sentence
+                # (count only, no union signal) into a union block by merging
+                # with adjacent no-data union-language continuations.
+                current_is_employment_baseline = (
+                    bool(current.get("potential_total"))
+                    and not current.get("keyword_matched")
+                    and not current.get("is_union", False)
+                    and c_data.get("percentage") is None
+                    and c_data.get("employee_count_covered") is None
+                    and c_data.get("employee_count_not_covered") is None
+                    and c_data.get("employee_count_total") is None
+                )
+                next_has_quantitative_data = any(
+                    n_data.get(k) is not None
+                    for k in (
+                        "percentage",
+                        "employee_count_covered",
+                        "employee_count_not_covered",
+                        "employee_count_total",
+                    )
+                )
+                if current_is_employment_baseline and not next_has_quantitative_data:
+                    break
 
                 should_merge = True
 
