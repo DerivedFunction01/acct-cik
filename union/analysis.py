@@ -155,7 +155,6 @@ FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
 
-
 def get_text_segments(text: str) -> List[Tuple[int, int, str]]:
     delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
     delimiters.extend(list(SUBSET_REGEX.finditer(text)))
@@ -189,9 +188,19 @@ def get_min_distance_to_matches(
     match_types: List[MatchType],
     look_backward: bool = True,
     look_forward: bool = True,
+    text: Optional[str] = None,
 ) -> float:
     t_start, t_end = target_span
     min_dist = float("inf")
+
+    def has_hard_delimiter_between(a_start: int, a_end: int, b_start: int, b_end: int) -> bool:
+        if text is None:
+            return False
+        lo = min(a_end, b_end)
+        hi = max(a_start, b_start)
+        if hi <= lo:
+            return False
+        return bool(SEGMENT_DELIMITER_REGEX.search(text[lo:hi]))
 
     for m in matches:
         if m["type"] in match_types:
@@ -200,10 +209,14 @@ def get_min_distance_to_matches(
             if m_end < t_start:
                 # Match is before target
                 if look_backward:
+                    if has_hard_delimiter_between(m_start, m_end, t_start, t_end):
+                        continue
                     dist = t_start - m_end
             elif t_end < m_start:
                 # Match is after target
                 if look_forward:
+                    if has_hard_delimiter_between(t_start, t_end, m_start, m_end):
+                        continue
                     dist = m_start - t_end
             else:
                 # Overlapping
@@ -600,10 +613,10 @@ class SimpleCoverageAnalyzer:
         # 3. Proximity to Union Term (Heuristic)
         else:
             dist_pct = get_min_distance_to_matches(
-                pct_match["span"], analysis._matches, UNION_MATCH_TYPES
+                pct_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
             )
             dist_count = get_min_distance_to_matches(
-                count_match["span"], analysis._matches, UNION_MATCH_TYPES
+                count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
             )
             # If union term is closer to Percentage -> Percentage describes coverage -> Count is Total
             if dist_pct < dist_count:
@@ -816,7 +829,7 @@ class SimpleCoverageAnalyzer:
             is_associated = False
             if count_match:
                 dist = get_min_distance_to_matches(
-                    count_match["span"], analysis._matches, UNION_MATCH_TYPES
+                    count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
                 )
                 if dist < 100:
                     is_associated = True
@@ -829,9 +842,10 @@ class SimpleCoverageAnalyzer:
                     count_match["span"],
                     analysis._matches,
                     list(NEGATIVE_COVERAGE_MATCH_TYPES),
+                    text=analysis.text,
                 )
                 dist_pos = get_min_distance_to_matches(
-                    count_match["span"], analysis._matches, UNION_MATCH_TYPES
+                    count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
                 )
 
                 is_exception_covered = None
@@ -1464,6 +1478,7 @@ class ComplexCoverageAnalyzer:
             list(NEGATIVE_COVERAGE_MATCH_TYPES),
             look_backward=False,
             look_forward=True,
+            text=self.analysis.text,
         )
         return dist_non_cov < 50
 
@@ -1484,7 +1499,7 @@ class ComplexCoverageAnalyzer:
                 ):
                     # Validate association
                     dist = get_min_distance_to_matches(
-                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES
+                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
                     )
                     if dist > 100:
                         return False
@@ -1517,7 +1532,7 @@ class ComplexCoverageAnalyzer:
 
                     # Validate association
                     dist = get_min_distance_to_matches(
-                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES
+                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
                     )
                     is_associated = dist < 100
 
@@ -1693,7 +1708,7 @@ class ComplexCoverageAnalyzer:
                     if OF_REGEX.search(text_between) and len(text_between.strip()) < 30:
                         # Validate association
                         dist = get_min_distance_to_matches(
-                            span1, self.analysis._matches, UNION_MATCH_TYPES
+                            span1, self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
                         )
                         if dist > 100:
                             continue
@@ -2570,6 +2585,7 @@ class ComplexCoverageAnalyzer:
                         list(NEGATIVE_COVERAGE_MATCH_TYPES),
                         look_backward=True,
                         look_forward=True,
+                        text=self.analysis.text,
                     )
                     pos_dist = get_min_distance_to_matches(
                         item["match"]["span"],
@@ -2577,6 +2593,7 @@ class ComplexCoverageAnalyzer:
                         UNION_MATCH_TYPES,
                         look_backward=True,
                         look_forward=True,
+                        text=self.analysis.text,
                     )
                     if neg_dist < 80 and neg_dist <= pos_dist:
                         current = self.data["employee_count_not_covered"] or 0
@@ -8322,7 +8339,7 @@ class UnionAnalyzer:
                         # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
                         # e.g. "excluding Japan, the remaining..."
                         min_dist = get_min_distance_to_matches(
-                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER]
+                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER], text=analysis.text
                         )
                         
                         if min_dist < 40:
