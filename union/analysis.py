@@ -8773,7 +8773,19 @@ class UnionAnalyzer:
                         "employee_count_total",
                     )
                 )
-                if current_is_employment_baseline and not next_has_quantitative_data:
+                has_type_inference_signal = (
+                    bool(next_item.get("keyword_matched"))
+                    and bool(current.get("worker_type_map"))
+                    and (
+                        bool(next_item.get("worker_types"))
+                        or bool(next_item.get("worker_terms"))
+                    )
+                )
+                if (
+                    current_is_employment_baseline
+                    and not next_has_quantitative_data
+                    and not has_type_inference_signal
+                ):
                     break
 
                 should_merge = True
@@ -9069,6 +9081,38 @@ class UnionAnalyzer:
             if v > effective_totals.get(k, 0):
                 effective_totals[k] = v
 
+        # Worker type lookup for cross-sentence inference
+        worker_type_lookup: Dict[str, Dict[str, float]] = {}
+        worker_type_total_lookup: Dict[str, float] = {}
+
+        def _normalize_country_code(code: Optional[str]) -> Optional[str]:
+            if not code:
+                return None
+            return self.domestic_country_code if code == "DOM" else code
+
+        def _worker_lookup_keys(ctx: Dict[str, Any]) -> List[str]:
+            keys: List[str] = []
+            countries = ctx.get("countries", []) or []
+            for c in countries:
+                c_code = _normalize_country_code(c.get("code"))
+                if c_code:
+                    keys.append(f"C:{c_code}")
+
+            region_name = ctx.get("region")
+            if region_name and region_name not in UNK_SET:
+                keys.append(f"R:{region_name}")
+
+            for r in (ctx.get("regions", []) or []):
+                r_code = r.get("code")
+                r_name = r.get("name")
+                if r_code:
+                    keys.append(f"R:{r_code}")
+                if r_name:
+                    keys.append(f"R:{r_name}")
+
+            # Preserve insertion order while removing duplicates
+            return list(dict.fromkeys(keys))
+
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
             current_idx = start_index + idx
@@ -9291,6 +9335,86 @@ class UnionAnalyzer:
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
+
+            lookup_keys = _worker_lookup_keys(geo_context)
+            if type_map and lookup_keys:
+                type_total = sum(type_map.values())
+                if current_sentence_count:
+                    type_total = max(type_total, current_sentence_count)
+
+                for lk in lookup_keys:
+                    bucket = worker_type_lookup.setdefault(lk, {})
+                    for t_name, t_count in type_map.items():
+                        bucket[t_name.lower()] = max(bucket.get(t_name.lower(), 0.0), t_count)
+                    worker_type_total_lookup[lk] = max(
+                        worker_type_total_lookup.get(lk, 0.0), type_total
+                    )
+
+            has_quantitative_data = any(
+                coverage_data.get(k) is not None
+                for k in (
+                    "percentage",
+                    "employee_count_covered",
+                    "employee_count_not_covered",
+                    "employee_count_total",
+                )
+            )
+            if not has_quantitative_data and analysis.is_union:
+                targets: set[str] = set(t.lower() for t in (analysis.worker_types or []))
+                for w in analysis.worker_terms or []:
+                    w_low = w.lower()
+                    if (
+                        w_low not in GENERIC_WORKER_TERMS
+                        and w_low.rstrip("s") not in GENERIC_WORKER_TERMS
+                    ):
+                        targets.add(w_low)
+
+                if targets and lookup_keys:
+                    matched_by_type: Dict[str, float] = {}
+                    found_match = False
+                    lookup_total = 0.0
+                    for lk in lookup_keys:
+                        bucket = worker_type_lookup.get(lk, {})
+                        lookup_total = max(lookup_total, worker_type_total_lookup.get(lk, 0.0))
+                        for target in targets:
+                            if target in bucket:
+                                matched_by_type[target] = max(
+                                    matched_by_type.get(target, 0.0), bucket[target]
+                                )
+                                found_match = True
+
+                    matched_count = sum(matched_by_type.values())
+
+                    if found_match and matched_count > 0:
+                        if coverage_data.get("negated"):
+                            coverage_data["employee_count_not_covered"] = (
+                                coverage_data.get("employee_count_not_covered") or 0.0
+                            ) + matched_count
+                        else:
+                            coverage_data["employee_count_covered"] = (
+                                coverage_data.get("employee_count_covered") or 0.0
+                            ) + matched_count
+
+                        if (
+                            coverage_data.get("employee_count_total") is None
+                            and lookup_total >= matched_count
+                            and lookup_total > 0
+                        ):
+                            coverage_data["employee_count_total"] = lookup_total
+
+                        total_val = coverage_data.get("employee_count_total")
+                        covered_val = coverage_data.get("employee_count_covered")
+                        if total_val and covered_val is not None and total_val > 0:
+                            coverage_data["percentage"] = round(
+                                (covered_val / total_val) * 100.0, 2
+                            )
+                            coverage_data["type"] = CoverageType.CALCULATED.value
+
+                        note = f"Inferred coverage for {matched_count} (worker type lookup)"
+                        coverage_data["note"] = (
+                            ((coverage_data.get("note") + " | ") if coverage_data.get("note") else "")
+                            + note
+                        )
 
             # 8. Construct Result (Handle Splits)
             split_items = []
