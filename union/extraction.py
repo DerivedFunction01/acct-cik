@@ -244,6 +244,7 @@ DEMOGRAPHIC_GEO_PHRASE_REGEX = build_regex(
         r"people\s+of\s+color",
         r"racial(?:ly)?",
         r"ethnic(?:ity|ally)?",
+        r"identif(?:y(?:ing)|ie(?:s|d))",
     ],
     ignore_case=True,
 )
