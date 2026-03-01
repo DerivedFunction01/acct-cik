@@ -8485,6 +8485,25 @@ class Tracker:
                                 if fallback_denom:
                                     stype = SourceType.FALLBACK.value
 
+                    # Virtual pool is a global-mode fallback. When active, reclassify
+                    # downstream fallback/calculated derivatives to VIRTUAL_POOL.
+                    if self.is_using_virtual and stype in (
+                        SourceType.FALLBACK.value,
+                        SourceType.CALCULATED.value,
+                    ):
+                        denom_linked = (
+                            e.total_count_source_type in (
+                                SourceType.VIRTUAL_POOL.value,
+                                SourceType.FALLBACK.value,
+                            )
+                            or e.denominator_source_type in (
+                                SourceType.VIRTUAL_POOL.value,
+                                SourceType.FALLBACK.value,
+                            )
+                        )
+                        if denom_linked:
+                            stype = SourceType.VIRTUAL_POOL.value
+
                     if stype not in method_breakdown:
                         continue
                     bucket = method_breakdown[stype]
