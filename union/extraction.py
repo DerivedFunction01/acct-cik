@@ -1560,6 +1560,14 @@ class UnionExtractor:
             lambda m, val: analysis.diversity_terms.append(val),
         )
 
+        # 11C: Extract Worker Counts (Specific)
+        process_matches(
+            WORKER_COUNT_REGEX,
+            MatchType.WORKER_COUNT,
+            lambda m: float(next((g for g in m.groups() if g is not None), "0")),
+            lambda m, val: analysis.worker_counts.append(val),
+        )
+
         # 12. Extract Worker Terms (Generic)
         process_matches(
             WORKER_TERM_REGEX,
@@ -1920,6 +1928,57 @@ class UnionExtractor:
                 geo_gid = best_geo["geo_obj"].list_group_id or id(best_geo["geo_obj"])
                 for m in group:
                     m["linked_geo_group_id"] = geo_gid
+
+        # 25. Link Worker Types to Numeric Matches
+        # Group worker types and numeric matches (Count, Number)
+        worker_type_matches = [
+            m for m in analysis._matches 
+            if m["type"] == MatchType.WORKER_TYPE
+        ]
+        numeric_matches_all = [
+            m for m in analysis._matches 
+            if m["type"] in {MatchType.WORKER_COUNT, MatchType.NUMBER}
+        ]
+        
+        # Sort
+        worker_type_matches.sort(key=lambda x: x["span"][0])
+        numeric_matches_all.sort(key=lambda x: x["span"][0])
+        
+        for wt in worker_type_matches:
+            # Find closest numeric match
+            best_num = None
+            min_dist = float('inf')
+            
+            wt_start, wt_end = wt["span"]
+            
+            for num in numeric_matches_all:
+                n_start, n_end = num["span"]
+                
+                dist = float('inf')
+                # Check for overlap (Type inside Count)
+                if (n_start <= wt_start and wt_end <= n_end):
+                    dist = 0
+                else:
+                    if n_end <= wt_start: # Num before Type
+                        dist = wt_start - n_end
+                    elif wt_end <= n_start: # Type before Num
+                        dist = n_start - wt_end
+                
+                if dist < 80: # Close proximity
+                    # Check for hard delimiters if not overlapping
+                    if dist > 0:
+                        text_between = text[n_end:wt_start] if n_end <= wt_start else text[wt_end:n_start]
+                        if SEGMENT_DELIMITER_REGEX.search(text_between):
+                            continue
+                            
+                    if dist < min_dist:
+                        min_dist = dist
+                        best_num = num
+            
+            if best_num:
+                gid = best_num.get("worker_group_id") or id(best_num)
+                best_num["worker_group_id"] = gid
+                wt["worker_group_id"] = gid
 
         # Determine relevancy
         # Sentence-level keyword cache used by analysis/tracker logic.
