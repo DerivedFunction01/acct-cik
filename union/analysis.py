@@ -2574,6 +2574,47 @@ class ComplexCoverageAnalyzer:
                     entry["override_val"] = la["override_val"]
                 count_assignments.append(entry)
 
+        # 4c. Positive worker-type propagation:
+        # In purely positive union context, when one grouped worker-type count is
+        # covered, propagate covered to other grouped worker-type counts that
+        # remain untyped (prevents losing early list members due distance).
+        if count_assignments:
+            worker_type_count = len(self.analysis.worker_types or [])
+            specific_worker_terms = {
+                str(w).lower()
+                for w in (self.analysis.worker_terms or [])
+                if str(w).lower() not in GENERIC_WORKER_TERMS
+                and str(w).lower().rstrip("s") not in GENERIC_WORKER_TERMS
+            }
+            has_multiple_worker_buckets = (
+                worker_type_count >= 2 or len(specific_worker_terms) >= 2
+            )
+            is_positive_only = (
+                bool(positives)
+                and not bool(negatives)
+                and not bool(self.analysis.negation_terms)
+            )
+
+            if has_multiple_worker_buckets and is_positive_only:
+                covered_group_ids = {
+                    item["match"].get("worker_group_id")
+                    for item in count_assignments
+                    if item.get("type") == "covered"
+                    and item["match"].get("worker_group_id") is not None
+                }
+                if covered_group_ids:
+                    for item in count_assignments:
+                        if item.get("type") is not None:
+                            continue
+                        gid = item["match"].get("worker_group_id")
+                        # Restrict propagation to grouped worker-linked counts.
+                        if gid is None:
+                            continue
+                        item["type"] = "covered"
+                    logic_notes.append(
+                        "Positive worker-type propagation -> covered for untyped grouped counts"
+                    )
+
         # 5. Propagate Types (List Logic)
         # Sort by position
         count_assignments.sort(key=lambda x: x["match"]["span"][0])
