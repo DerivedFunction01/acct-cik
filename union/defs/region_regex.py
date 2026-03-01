@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 class Region(Enum):
-    NORTH_AMERICA = "North America (US/CA)"
+    NORTH_AMERICA = "North America"
     LATIN_AMERICA = "Latin America"
     EUROPE = "Europe"
     MIDDLE_EAST_AFRICA = "Middle East/Africa"
@@ -3941,6 +3941,11 @@ def is_contained(
     if container_key == "EU" and check_key == "GB":
         return False
 
+    # Special case: Treat Mexico as part of NA when both are explicitly mentioned.
+    # LATAM -> MX is already covered by the default region logic.
+    if container_key == GeoCode.NORTH_AMERICA.value and check_key == "MX":
+        return True
+
     # Check for Composite Countries (e.g. CIS containing RU)
     if container_key in COMPOSITE_COUNTRIES:
         constituents = get_composite_constituents(container_key)
@@ -4411,6 +4416,18 @@ def weighted_division(
             key_to_weight["EU"] = eu_w - gb_w
             note += "Excluded UK from EU weight. "
 
+    # Special handling for LATAM and Mexico (MX) coexistence
+    # LATAM typically includes MX in company reporting context, so subtract to avoid
+    # double counting when both are explicitly present.
+    if GeoCode.LATIN_AMERICA.value in key_to_weight and "MX" in key_to_weight:
+        latam_w = key_to_weight[GeoCode.LATIN_AMERICA.value]
+        mx_w = key_to_weight["MX"]
+        if latam_w > mx_w:
+            key_to_weight[GeoCode.LATIN_AMERICA.value] = latam_w - mx_w
+            note += "Excluded MX from LATAM weight. "
+
+    # NA (North America) in this schema is US/CA, so no NA-MX subtraction here.
+
     # 1.5 Handle Excluded Domestic Country (Ambiguity Penalty)
     # If domestic is excluded, and we only have 1 entity, don't give it 100% of the rest.
     # Inject a phantom "Rest of World" entity to absorb weight.
@@ -4787,6 +4804,12 @@ def group_by_scope(
                 # Ensure it's not the same region name (e.g. Europe inside Europe)
                 if entity.get("key") != current_head.get("key"):
                     is_child = True
+            # Override: treat MX as grouped under NA when NA is the explicit parent scope.
+            elif (
+                current_head.get("key") == GeoCode.NORTH_AMERICA.value
+                and child_key == "MX"
+            ):
+                is_child = True
         
         # Check for Composite Countries acting as containers
         elif current_head.get("key") in COMPOSITE_COUNTRIES:
