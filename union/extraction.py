@@ -224,6 +224,29 @@ UNION_DENOMINATOR_REGEX = build_regex(
 )
 
 DIVERSITY_REGEX = build_regex(DIVERSITY_TERMS)
+DEMOGRAPHIC_GEO_PHRASE_REGEX = build_regex(
+    [
+        build_compound(
+            [
+                r"asian",
+                r"indian",
+                r"african",
+                r"hispanic",
+                r"latino",
+                r"latina",
+                r"black",
+                r"white",
+                r"native",
+                r"arab",
+            ],
+            [r"americans?", r"american"],
+        ),
+        r"people\s+of\s+color",
+        r"racial(?:ly)?",
+        r"ethnic(?:ity|ally)?",
+    ],
+    ignore_case=True,
+)
 SUBSET_REGEX = build_regex(
     [
         r"of\s+(?:which|whom|these|those)",
@@ -1965,6 +1988,17 @@ class UnionExtractor:
                     m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                     for m in analysis._matches
                 )
+                has_demographic_geo_phrase = bool(
+                    DEMOGRAPHIC_GEO_PHRASE_REGEX.search(text)
+                )
+
+                # Diversity demographic phrases (e.g. "Asian American", "Indian-American")
+                # should not create geographic context for country/region routing.
+                if has_demographic_geo_phrase:
+                    analysis.geo_matches = []
+                    analysis._matches = [
+                        m for m in analysis._matches if m.get("type") != MatchType.GEO
+                    ]
 
                 # Filter ambiguous coverage terms that often appear with diversity (e.g. "representation", "members")
                 strong_coverage = [
