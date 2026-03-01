@@ -5164,6 +5164,102 @@ class Tracker:
         constituents = [e for e in entries if e.scope == Scope.COUNTRY]
         self._resolve_geographic_gaps(region_name, region_total, constituents)
 
+    def _region_to_pseudo_country_code(self, region_key: str) -> Optional[str]:
+        canonical = _CODE_TO_REGION.get(region_key, region_key)
+        major_map = {
+            Region.NORTH_AMERICA.value: "NA",
+            Region.EUROPE.value: "EU",
+            Region.ASIA_PACIFIC.value: "APAC",
+            Region.LATIN_AMERICA.value: "LATAM",
+            Region.MIDDLE_EAST_AFRICA.value: "MEA",
+        }
+        if canonical in major_map:
+            return major_map[canonical]
+        # Composite categorizations are already code-like keys.
+        if region_key in COMPOSITE_REGION_MAP:
+            return region_key
+        return None
+
+    def _region_has_constituent_children(self, region_key: str) -> bool:
+        canonical = _CODE_TO_REGION.get(region_key, region_key)
+
+        # Composite container: use its explicit constituents.
+        if region_key in COMPOSITE_REGION_MAP:
+            constituents = set(get_composite_constituents(region_key))
+            if any(c in self.country_totals and self.country_totals[c] > 0 for c in constituents):
+                return True
+            for e in self.entries:
+                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if base in constituents and e.scope in (Scope.COUNTRY, Scope.SEGMENT):
+                    return True
+            return False
+
+        # Canonical major-region children.
+        for c_code, c_total in self.country_totals.items():
+            if c_code in REGION_CODES or c_code in IGNORED_REGIONS:
+                continue
+            if c_total > 0 and _CODE_TO_REGION.get(c_code) == canonical:
+                return True
+
+        for e in self.entries:
+            if e.scope not in (Scope.COUNTRY, Scope.SEGMENT):
+                continue
+            base = str(e.key).split("::")[0] if e.key is not None else ""
+            if (
+                base
+                and base not in REGION_CODES
+                and base not in IGNORED_REGIONS
+                and _CODE_TO_REGION.get(base) == canonical
+            ):
+                return True
+        return False
+
+    def _promote_region_entries_to_pseudo_countries(self) -> None:
+        """
+        Promote region-only entries into pseudo-country entities when no child
+        constituents are present (e.g. Europe -> EU, CIS -> CIS).
+        """
+        promoted_region_keys: Set[str] = set()
+
+        for e in self.entries:
+            if e.scope != Scope.REGION or not isinstance(e.key, str):
+                continue
+            if e.key in IGNORED_REGIONS:
+                continue
+
+            pseudo_code = self._region_to_pseudo_country_code(e.key)
+            if not pseudo_code:
+                continue
+            if self._region_has_constituent_children(e.key):
+                continue
+
+            original_key = e.key
+            e.key = pseudo_code
+            e.scope = Scope.COUNTRY
+            promoted_region_keys.add(original_key)
+            self.resolution_log.append(
+                f"Promoted region '{original_key}' to pseudo-country '{pseudo_code}' (no child constituents)."
+            )
+
+        # Move region totals to country totals for promoted regions.
+        for region_key in promoted_region_keys:
+            pseudo_code = self._region_to_pseudo_country_code(region_key)
+            if not pseudo_code:
+                continue
+            canonical = _CODE_TO_REGION.get(region_key, region_key)
+            moved_total = 0.0
+            if region_key in self.region_totals:
+                moved_total = max(moved_total, self.region_totals.get(region_key, 0.0))
+            if canonical in self.region_totals:
+                moved_total = max(moved_total, self.region_totals.get(canonical, 0.0))
+            if moved_total > 0:
+                self.country_totals[pseudo_code] = max(
+                    self.country_totals.get(pseudo_code, 0.0), moved_total
+                )
+                self.resolution_log.append(
+                    f"Promoted region total '{region_key}' ({moved_total}) to pseudo-country '{pseudo_code}'."
+                )
+
     def _route_domestic(self, target_country: Optional[str] = None):
         if target_country is None:
             target_country = self.domestic_country_code
@@ -5957,6 +6053,9 @@ class Tracker:
         self._apply_dummy_union_percentage()
         # 0.5 Resolve Aggregates (Propagate down)
         self._resolve_aggregates()
+        # 0.6 Promote region-only records to pseudo-country entities when
+        # they have no resolved child constituents.
+        self._promote_region_entries_to_pseudo_countries()
         # 1. Resolve Countries
         for country_code, census_total in self.country_totals.items():
             self._resolve_single_country(country_code, census_total)
@@ -7145,29 +7244,84 @@ class Tracker:
                 return float(value)
             return float(acc + value)
 
-        # Collect country codes from explicit country totals, keywords, and entries.
-        country_codes: set[str] = set(self.country_totals.keys()) | set(self.country_keywords.keys())
+        major_region_code_map = {
+            Region.NORTH_AMERICA.value: "NA",
+            Region.EUROPE.value: "EU",
+            Region.ASIA_PACIFIC.value: "APAC",
+            Region.LATIN_AMERICA.value: "LATAM",
+            Region.MIDDLE_EAST_AFRICA.value: "MEA",
+        }
+        promoted_region_codes = set(major_region_code_map.values()) | set(
+            COMPOSITE_REGION_MAP.keys()
+        )
+        pseudo_region_by_code: Dict[str, str] = {}
+
+        explicit_country_codes: set[str] = set(self.country_totals.keys()) | set(
+            self.country_keywords.keys()
+        )
         for e in self.entries:
             if e.scope == Scope.COUNTRY and isinstance(e.key, str):
-                if e.key not in REGION_CODES and e.key not in IGNORED_REGIONS:
-                    country_codes.add(e.key)
-            elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and "::" in e.key:
+                if (
+                    (e.key not in REGION_CODES and e.key not in IGNORED_REGIONS)
+                    or e.key in promoted_region_codes
+                ):
+                    explicit_country_codes.add(e.key)
+            elif (
+                e.scope == Scope.SEGMENT
+                and isinstance(e.key, str)
+                and "::" in e.key
+            ):
                 c_code = e.key.split("::")[0]
-                if c_code not in REGION_CODES and c_code not in IGNORED_REGIONS:
-                    country_codes.add(c_code)
+                if (
+                    (c_code not in REGION_CODES and c_code not in IGNORED_REGIONS)
+                    or c_code in promoted_region_codes
+                ):
+                    explicit_country_codes.add(c_code)
+
+        def has_region_children(region_name: str) -> bool:
+            return any(
+                (c not in REGION_CODES and c not in IGNORED_REGIONS)
+                and _CODE_TO_REGION.get(c) == region_name
+                for c in explicit_country_codes
+            )
+
+        # Collect country codes from explicit country totals, keywords, and entries.
+        country_codes: set[str] = set(explicit_country_codes)
+        for e in self.entries:
+            if e.scope != Scope.REGION or not isinstance(e.key, str):
+                continue
+            region_name = _CODE_TO_REGION.get(e.key, e.key)
+            if region_name in major_region_code_map and not has_region_children(region_name):
+                p_code = major_region_code_map[region_name]
+                country_codes.add(p_code)
+                pseudo_region_by_code[p_code] = region_name
 
         countries = []
         for code in sorted(country_codes):
-            if code in REGION_CODES or code in IGNORED_REGIONS:
+            is_pseudo_region = code in pseudo_region_by_code
+            if (
+                (code in REGION_CODES and not is_pseudo_region and code not in promoted_region_codes)
+                or code in IGNORED_REGIONS
+            ):
                 continue
 
             country_entries: List[Entry] = []
             segment_entries: List[Entry] = []
-            for e in self.entries:
-                if e.scope == Scope.COUNTRY and e.key == code:
-                    country_entries.append(e)
-                elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and e.key.startswith(f"{code}::"):
-                    segment_entries.append(e)
+            if is_pseudo_region:
+                region_name = pseudo_region_by_code[code]
+                for e in self.entries:
+                    if (
+                        e.scope == Scope.REGION
+                        and isinstance(e.key, str)
+                        and _CODE_TO_REGION.get(e.key, e.key) == region_name
+                    ):
+                        country_entries.append(e)
+            else:
+                for e in self.entries:
+                    if e.scope == Scope.COUNTRY and e.key == code:
+                        country_entries.append(e)
+                    elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and e.key.startswith(f"{code}::"):
+                        segment_entries.append(e)
 
             # Prefer country-scope resolved entry as final snapshot.
             primary_country_entry = None
@@ -7251,6 +7405,9 @@ class Tracker:
                     pct_val = primary_country_entry.percentage
                 if total_val is None and code in self.country_totals:
                     total_val = self.country_totals.get(code)
+                if total_val is None and is_pseudo_region:
+                    region_name = pseudo_region_by_code[code]
+                    total_val = self.region_totals.get(region_name)
 
                 if covered_val is None and segment_entries:
                     seg_cov = sum(
@@ -7310,7 +7467,7 @@ class Tracker:
             countries.append(
                 {
                     "country_code": code,
-                    "country_name": None,
+                    "country_name": pseudo_region_by_code.get(code),
                     "is_domestic": code == self.domestic_country_code,
                     "country_totals": {
                         "employee_count_total": total_val,
@@ -9412,7 +9569,7 @@ class UnionAnalyzer:
 
                         note = f"Inferred coverage for {matched_count} (worker type lookup)"
                         coverage_data["note"] = (
-                            ((coverage_data.get("note") + " | ") if coverage_data.get("note") else "")
+                            (((coverage_data.get("note") or "") + " | ") if coverage_data.get("note") else "")
                             + note
                         )
 
