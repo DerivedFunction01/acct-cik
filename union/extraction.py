@@ -162,7 +162,7 @@ WORKER_TYPE_REGEX = build_regex(
         r"hourly",
         r"contracted",
         r"salar(?:y|ied)",
-        r"(?:part|full)[- ]time",
+        r"(?:part|full)[- ]?time",
         r"temporary",
         r"seasonal",
     ]
