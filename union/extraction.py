@@ -1493,14 +1493,6 @@ class UnionExtractor:
             lambda m, val: analysis.union_terms.append(val),
         )
 
-        # 7b. Extract Works Councils
-        process_matches(
-            WORKS_REGEX,
-            MatchType.WORKS_COUNCIL,
-            lambda m: m.group(0),
-            lambda m, val: analysis.works_councils.append(val),
-        )
-
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regexes:
 
@@ -1603,8 +1595,14 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.coverage_terms.append(val),
         )
-
-        # 17b. Extract Legal Requirement Terms (e.g. "required by law", "labor law")
+        # 17b. Extract Works Councils
+        process_matches(
+            WORKS_REGEX,
+            MatchType.WORKS_COUNCIL,
+            lambda m: m.group(0),
+            lambda m, val: analysis.works_councils.append(val),
+        )
+        # 17c. Extract Legal Requirement Terms (e.g. "required by law", "labor law")
         process_matches(
             LEGAL_REQUIREMENT_REGEX,
             MatchType.LEGAL_REQUIREMENT,

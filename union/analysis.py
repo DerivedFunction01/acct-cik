@@ -1065,7 +1065,11 @@ class UnionExtraAnalyzer:
         }
 
     def create_risk_item(
-        self, sentence: str, analysis: SentenceAnalysis, is_historical: bool = False
+        self,
+        sentence: str,
+        analysis: SentenceAnalysis,
+        is_historical: bool = False,
+        item1a_mode: bool = False,
     ) -> Dict[str, Any]:
         """
         Creates a risk item dictionary if relevant terms are found.
@@ -1081,16 +1085,47 @@ class UnionExtraAnalyzer:
         elif is_conditional:
             temporal_scope = TemporalScope.CONDITIONAL.value
 
-        # Return something if there is anything risk/relations related to return
-        if not (
+        has_legal_requirement = bool(analysis.legal_requirement_terms)
+        has_boilerplate = bool(analysis.boilerplate_terms)
+        has_relationship = bool(
+            analysis.relationship_terms or analysis.relationship_quality_terms
+        )
+        has_explicit_risk = bool(analysis.risk_terms)
+        has_generic_risk = bool(analysis.generic_risk_terms)
+        has_labor_anchor = bool(
             analysis.union_terms
             or analysis.negation_terms
-            or analysis.risk_terms
-            or analysis.generic_risk_terms
+            or analysis.coverage_terms
+            or analysis.works_councils
             or analysis.supplier_terms
-            or analysis.relationship_terms
-            or analysis.relationship_quality_terms
-        ):
+        )
+        has_negative_relationship_quality = any(
+            q.lower() in RELATIONSHIP_NEGATIVE_TERMS
+            for q in analysis.relationship_quality_terms
+        )
+
+        if item1a_mode:
+            has_signal = bool(
+                analysis.union_terms
+                or analysis.negation_terms
+                or has_explicit_risk
+                or has_generic_risk
+                or analysis.supplier_terms
+                or has_relationship
+                or has_legal_requirement
+                or has_boilerplate
+            )
+        else:
+            # Item 1 should be stricter: union mention alone is not a risk row.
+            has_signal = bool(
+                has_explicit_risk
+                or (has_generic_risk and has_labor_anchor)
+                or (has_negative_relationship_quality and has_labor_anchor)
+                or has_legal_requirement
+                or has_boilerplate
+            )
+
+        if not has_signal:
             return {}
 
         # Detect whether any explicit risk term is locally negated
@@ -1103,6 +1138,18 @@ class UnionExtraAnalyzer:
         )
         relationship_status = determine_relationship_status(analysis)
         labor_keywords = analysis.sentence_union_keywords or analysis.union_terms
+        risk_keywords = analysis.risk_terms + analysis.generic_risk_terms
+
+        if has_explicit_risk or (has_generic_risk and has_labor_anchor):
+            risk_signal_type = "RISK_EVENT"
+        elif has_legal_requirement:
+            risk_signal_type = "LEGAL_REQUIREMENT"
+        elif has_boilerplate:
+            risk_signal_type = "BOILERPLATE"
+        elif has_relationship:
+            risk_signal_type = "RELATIONSHIP_CONTEXT"
+        else:
+            risk_signal_type = "OTHER_CONTEXT"
 
         return {
             "type": (
@@ -1110,9 +1157,10 @@ class UnionExtraAnalyzer:
                 if analysis.union_terms
                 else RiskType.LABOR_RISK.value
             ),
+            "risk_signal_type": risk_signal_type,
             "sentence": sentence,
             "labor_keywords": labor_keywords,
-            "risk_keywords": analysis.risk_terms + analysis.generic_risk_terms,
+            "risk_keywords": risk_keywords,
             "relationship_keywords": analysis.relationship_terms,
             "relationship_quality_keywords": analysis.relationship_quality_terms,
             "relationship_status": relationship_status,
@@ -1121,6 +1169,10 @@ class UnionExtraAnalyzer:
             "temporal_scope": temporal_scope,
             "conditional": is_conditional,
             "risk_negated": risk_negated,
+            "has_legal_requirement": has_legal_requirement,
+            "has_boilerplate": has_boilerplate,
+            "legal_requirement_keywords": analysis.legal_requirement_terms,
+            "boilerplate_keywords": analysis.boilerplate_terms,
             "note": None,
             "is_union": analysis.is_union,
         }
@@ -1133,12 +1185,16 @@ class RiskDigest:
 
     def summarize(self, risk_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         by_type: Dict[str, int] = {}
+        by_signal_type: Dict[str, int] = {}
         by_temporal_scope: Dict[str, int] = {}
         relationship_status_counts: Dict[str, int] = {}
         risk_term_counts: Dict[str, int] = {}
+        works_councils: Dict[str, int] = {}
         labor_term_counts: Dict[str, int] = {}
         relationship_term_counts: Dict[str, int] = {}
         supplier_term_counts: Dict[str, int] = {}
+        legal_requirement_term_counts: Dict[str, int] = {}
+        boilerplate_term_counts: Dict[str, int] = {}
         global_keywords_seen: Set[str] = set()
         global_keywords: List[str] = []
         negated_count = 0
@@ -1155,6 +1211,9 @@ class RiskDigest:
             r_type = item.get("type")
             if r_type:
                 by_type[r_type] = by_type.get(r_type, 0) + 1
+            signal_type = item.get("risk_signal_type")
+            if signal_type:
+                by_signal_type[signal_type] = by_signal_type.get(signal_type, 0) + 1
 
             t_scope = item.get("temporal_scope")
             if t_scope:
@@ -1180,6 +1239,16 @@ class RiskDigest:
             for t in item.get("third_party", []) or []:
                 supplier_term_counts[t] = supplier_term_counts.get(t, 0) + 1
                 _register_keyword(t)
+            for t in item.get("legal_requirement_keywords", []) or []:
+                legal_requirement_term_counts[t] = (
+                    legal_requirement_term_counts.get(t, 0) + 1
+                )
+                _register_keyword(t)
+            for t in item.get("boilerplate_keywords", []) or []:
+                boilerplate_term_counts[t] = (
+                    boilerplate_term_counts.get(t, 0) + 1
+                )
+                _register_keyword(t)
 
             if item.get("conditional"):
                 conditional_count += 1
@@ -1191,6 +1260,7 @@ class RiskDigest:
         return {
             "total_items": len(risk_items),
             "by_type": by_type,
+            "by_signal_type": by_signal_type,
             "by_temporal_scope": by_temporal_scope,
             "relationship_status": relationship_status_counts,
             "negated_items": negated_count,
@@ -1200,6 +1270,8 @@ class RiskDigest:
             "labor_terms": labor_term_counts,
             "relationship_terms": relationship_term_counts,
             "third_party_terms": supplier_term_counts,
+            "legal_requirement_terms": legal_requirement_term_counts,
+            "boilerplate_terms": boilerplate_term_counts,
             "global_keywords": global_keywords,
         }
 
@@ -10174,7 +10246,10 @@ class UnionAnalyzer:
                     r_analysis = analyzed_sentences[k]
                     r_sent = sentences[k]
                     risk_item = self.extra_analyzer.create_risk_item(
-                        r_sent, r_analysis, is_historical=True
+                        r_sent,
+                        r_analysis,
+                        is_historical=True,
+                        item1a_mode=False,
                     )
                     if risk_item:
                         risk_item["sentence_index"] = start_index + k
@@ -10182,7 +10257,10 @@ class UnionAnalyzer:
                 break
 
             risk_item = self.extra_analyzer.create_risk_item(
-                sent, analysis, is_historical=False
+                sent,
+                analysis,
+                is_historical=False,
+                item1a_mode=False,
             )
             if risk_item:
                 risk_item["sentence_index"] = current_idx
@@ -10785,7 +10863,10 @@ class UnionAnalyzer:
                 or analysis.relationship_terms
             ):
                 result = self.extra_analyzer.create_risk_item(
-                    sent, analysis, is_historical=is_historical
+                    sent,
+                    analysis,
+                    is_historical=is_historical,
+                    item1a_mode=True,
                 )
                 if result:
                     result["sentence_index"] = idx

@@ -734,6 +734,9 @@ EUROPE = {
             "euro",
         ],
         Region.EUROPE,
+        [],
+        [],
+        [r"ewc"],
         code="EU",
     ),
     Nation(
