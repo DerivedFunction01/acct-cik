@@ -1100,6 +1100,7 @@ class UnionExtraAnalyzer:
             for m in risk_matches
         )
         relationship_status = determine_relationship_status(analysis)
+        labor_keywords = analysis.sentence_union_keywords or analysis.union_terms
 
         return {
             "type": (
@@ -1108,7 +1109,7 @@ class UnionExtraAnalyzer:
                 else RiskType.LABOR_RISK.value
             ),
             "sentence": sentence,
-            "labor_keywords": analysis.union_terms,
+            "labor_keywords": labor_keywords,
             "risk_keywords": analysis.risk_terms + analysis.generic_risk_terms,
             "relationship_keywords": analysis.relationship_terms,
             "relationship_quality_keywords": analysis.relationship_quality_terms,
@@ -1136,9 +1137,17 @@ class RiskDigest:
         labor_term_counts: Dict[str, int] = {}
         relationship_term_counts: Dict[str, int] = {}
         supplier_term_counts: Dict[str, int] = {}
+        global_keywords_seen: Set[str] = set()
+        global_keywords: List[str] = []
         negated_count = 0
         risk_negated_count = 0
         conditional_count = 0
+
+        def _register_keyword(term: str) -> None:
+            if not term or term in global_keywords_seen:
+                return
+            global_keywords_seen.add(term)
+            global_keywords.append(term)
 
         for item in risk_items:
             r_type = item.get("type")
@@ -1157,12 +1166,18 @@ class RiskDigest:
 
             for t in item.get("risk_keywords", []) or []:
                 risk_term_counts[t] = risk_term_counts.get(t, 0) + 1
+                _register_keyword(t)
             for t in item.get("labor_keywords", []) or []:
                 labor_term_counts[t] = labor_term_counts.get(t, 0) + 1
+                _register_keyword(t)
             for t in item.get("relationship_keywords", []) or []:
                 relationship_term_counts[t] = relationship_term_counts.get(t, 0) + 1
+                _register_keyword(t)
+            for t in item.get("relationship_quality_keywords", []) or []:
+                _register_keyword(t)
             for t in item.get("third_party", []) or []:
                 supplier_term_counts[t] = supplier_term_counts.get(t, 0) + 1
+                _register_keyword(t)
 
             if item.get("conditional"):
                 conditional_count += 1
@@ -1183,6 +1198,7 @@ class RiskDigest:
             "labor_terms": labor_term_counts,
             "relationship_terms": relationship_term_counts,
             "third_party_terms": supplier_term_counts,
+            "global_keywords": global_keywords,
         }
 
 

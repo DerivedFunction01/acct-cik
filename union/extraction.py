@@ -1098,6 +1098,39 @@ class UnionExtractor:
             elif not update_working_text:
                 working_text = "".join(chars)
 
+        # Pre-pass: Extract risk terms before any masking-heavy passes.
+        # This preserves phrases like "union dispute" that can be obscured later.
+        seen_risk_spans = set()
+
+        def risk_side_effect(m, val):
+            span_key = m.span()
+            if span_key in seen_risk_spans:
+                return
+            seen_risk_spans.add(span_key)
+            analysis.risk_terms.append(val)
+
+        def generic_risk_side_effect(m, val):
+            span_key = m.span()
+            if span_key in seen_risk_spans:
+                return
+            seen_risk_spans.add(span_key)
+            analysis.generic_risk_terms.append(val)
+
+        process_matches(
+            RISK_REGEX,
+            MatchType.RISK_TERM,
+            lambda m: m.group(0),
+            risk_side_effect,
+            revert=True,
+        )
+        process_matches(
+            GENERIC_RISK_REGEX,
+            MatchType.RISK_TERM,
+            lambda m: m.group(0),
+            generic_risk_side_effect,
+            revert=True,
+        )
+
         # 0. Subset indicators
         process_matches(
             SUBSET_REGEX,
@@ -1429,22 +1462,6 @@ class UnionExtractor:
             lambda m, val: analysis.negation_terms.append(
                 val
             ),  # Treat as negation term for general logic
-        )
-
-        # 6. Extract Risk Terms
-        process_matches(
-            RISK_REGEX,
-            MatchType.RISK_TERM,
-            lambda m: m.group(0),
-            lambda m, val: analysis.risk_terms.append(val),
-        )
-
-        # 6.5 Extract Generic Risk terms
-        process_matches(
-            GENERIC_RISK_REGEX,
-            MatchType.RISK_TERM,
-            lambda m: m.group(0),
-            lambda m, val: analysis.generic_risk_terms.append(val),
         )
 
         # 7. Extract Union Terms (Generic)
