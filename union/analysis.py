@@ -2717,17 +2717,94 @@ class ComplexCoverageAnalyzer:
         # Guardrail: a "total" should be strictly larger than the rest of local numeric assignments.
         assignment_values = [item.get("override_val", item["match"]["val"]) for item in count_assignments]
 
+        subset_matches = [
+            m for m in self.analysis._matches if m.get("type") == MatchType.SUBSET
+        ]
+
+        def _is_subset_child_of_assigned_parent(
+            item: Dict[str, Any], assigned_parent_values: List[float], assignment_type: str
+        ) -> bool:
+            if (
+                not self.analysis.has_subset_indicator
+                or not subset_matches
+                or not assigned_parent_values
+            ):
+                return False
+
+            c_start, _ = item["match"]["span"]
+            c_val = item.get("override_val", item["match"]["val"])
+            c_span = item["match"]["span"]
+
+            parenthetical_spans = list(getattr(self.analysis, "parenthetical_spans", []) or [])
+
+            def _enclosing_parenthetical(span: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+                for p_start, p_end in parenthetical_spans:
+                    if p_start <= span[0] and span[1] <= p_end:
+                        return (p_start, p_end)
+                return None
+
+            count_parenthetical = _enclosing_parenthetical(c_span)
+
+            # Require nearby preceding subset indicator with no hard delimiter in-between.
+            nearest_subset = None
+            nearest_dist = float("inf")
+            for sm in subset_matches:
+                s_start, s_end = sm["span"]
+                if s_end > c_start:
+                    continue
+                dist = c_start - s_end
+                if dist > 60:
+                    continue
+                subset_parenthetical = _enclosing_parenthetical(sm["span"])
+                # Scope subset indicators to the same parenthetical phrase.
+                # This prevents "including ..." inside () from suppressing counts outside ().
+                if subset_parenthetical != count_parenthetical:
+                    continue
+                between = self.analysis.text[s_end:c_start]
+                if SEGMENT_DELIMITER_REGEX.search(between):
+                    continue
+                if dist < nearest_dist:
+                    nearest_dist = dist
+                    nearest_subset = sm
+
+            if nearest_subset is None:
+                return False
+
+            # Only suppress when a parent value of same assignment type is already present.
+            if any(parent_val >= c_val for parent_val in assigned_parent_values):
+                logic_notes.append(
+                    f"Skipped subset {assignment_type} {c_val} (subset indicator near '{nearest_subset.get('val', '')}')"
+                )
+                return True
+
+            return False
+
+        assigned_covered_values: List[float] = []
+        assigned_not_covered_values: List[float] = []
+
         for item in count_assignments:
             ctype = item["type"]
             val = item.get("override_val", item["match"]["val"])
             if ctype == "covered":
+                if _is_subset_child_of_assigned_parent(
+                    item, assigned_covered_values, "covered"
+                ):
+                    excluded_match_ids.add(id(item["match"]))
+                    continue
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
+                assigned_covered_values.append(val)
                 excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
+                if _is_subset_child_of_assigned_parent(
+                    item, assigned_not_covered_values, "not covered"
+                ):
+                    excluded_match_ids.add(id(item["match"]))
+                    continue
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
+                assigned_not_covered_values.append(val)
                 excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to not covered")
             elif ctype == "total":

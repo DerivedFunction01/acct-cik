@@ -261,6 +261,7 @@ SUBSET_REGEX = build_regex(
         r":",
     ]
 )
+PARENTHETICAL_REGEX = re.compile(r"\([^()]{1,300}\)")
 
 EXCLUSIONS = [
     r"except(?:\s+for)?",
@@ -315,6 +316,7 @@ class MatchType(Enum):
     WORKER_TYPE = "WORKER_TYPE"
     DIVERSITY_TERM = "DIVERSITY_TERM"
     SUBSET = "SUBSET"
+    PARENTHETICAL = "PARENTHETICAL"
     WORKS_COUNCIL = "WORKS_COUNCIL"
     EXCEPT = "EXCEPT"
     OUTSIDE = "OUTSIDE"
@@ -362,6 +364,7 @@ class SentenceAnalysis:
     worker_types: List[str] = field(default_factory=list)
     diversity_terms: List[str] = field(default_factory=list)
     subset_indicators: List[str] = field(default_factory=list)
+    parenthetical_spans: List[Tuple[int, int]] = field(default_factory=list)
     remaining_others: List[str] = field(default_factory=list)
     except_terms: List[str] = field(default_factory=list)
     outside_terms: List[str] = field(default_factory=list)
@@ -1174,6 +1177,14 @@ class UnionExtractor:
             MatchType.SUBSET,
             lambda m: m.group(0),
             lambda m, val: analysis.subset_indicators.append(val),
+            revert=True,
+        )
+        # 0.05 Parenthetical phrase spans (for subset scoping)
+        process_matches(
+            PARENTHETICAL_REGEX,
+            MatchType.PARENTHETICAL,
+            lambda m: m.group(0),
+            lambda m, val: analysis.parenthetical_spans.append(m.span()),
             revert=True,
         )
         # 0.1 Remaining others
