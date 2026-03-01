@@ -422,6 +422,7 @@ RELATIONSHIP_NEGATIVE_TERMS = [
     "unstable",
     "disruptive",
     "uncooperative",
+    r"problem(?:s|atic)?",
 ]
 RELATIONSHIP_NEUTRAL_TERMS = [
     r"neutral",
