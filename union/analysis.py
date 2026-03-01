@@ -2222,8 +2222,8 @@ class ComplexCoverageAnalyzer:
         elif check_local_regex(
             m1["span"], self.analysis.text, OF_REGEX, backward=25, forward=0
         ):
-            is_subset = True
-
+            if not SUBSET_REGEX.search(text_between):
+                is_subset = True
         if not is_subset:
             return False
 
