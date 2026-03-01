@@ -408,6 +408,21 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
 
 BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", r"expect(?:ed|ing|s|ations?)?", r"relations?", "closely", "publically", r"disclos(?:ed?|es|ing)", r"disclosures?", r"believe(?:s|d)?", r"oppos(?:es?|ed|ing)"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
+LEGAL_REQUIREMENT_TERMS = [
+    r"required\s+by\s+laws?",
+    r"labor\s+law?",
+    r"labor\s+relations?\s+acts?",
+    r"national\s+labor\s+relations?\s+board",
+    r"NLRB",
+    CORE.CO_DET_RIGHTS.value,
+    CORE.WORKS_COUNCIL.value,
+    r"statutory",
+    r"mandated?\s+by\s+law",
+    r"by\s+law",
+    r"RLA",
+    r"Railway\s+Labor\s+Act",
+]
+LEGAL_REQUIREMENT_REGEX = build_regex(LEGAL_REQUIREMENT_TERMS)
 
 UNION_REGEX = build_regex(LABOR_TERMS.SPECIFIC_PHRASES)
 RISK_REGEX = build_regex(RISK_TERMS.PHRASES)

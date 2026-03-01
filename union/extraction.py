@@ -28,6 +28,7 @@ from defs.union_regex import (
     SUPPLIER_REGEX,
     COVERAGE_REGEX,
     BOILERPLATE_REGEX,
+    LEGAL_REQUIREMENT_REGEX,
     PERSONNEL_EVENT_REGEX,
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
@@ -294,6 +295,8 @@ class MatchType(Enum):
     EXCEPT = "EXCEPT"
     OUTSIDE = "OUTSIDE"
     BARGAINING_UNIT_COUNT = "BARGAINING_UNIT_COUNT"
+    LEGAL_REQUIREMENT = "LEGAL_REQUIREMENT"
+    BOILERPLATE = "BOILERPLATE"
 
 
 @dataclass
@@ -339,6 +342,8 @@ class SentenceAnalysis:
     except_terms: List[str] = field(default_factory=list)
     outside_terms: List[str] = field(default_factory=list)
     bargaining_unit_counts: List[float] = field(default_factory=list)
+    legal_requirement_terms: List[str] = field(default_factory=list)
+    boilerplate_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1597,6 +1602,22 @@ class UnionExtractor:
             MatchType.COVERAGE_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.coverage_terms.append(val),
+        )
+
+        # 17b. Extract Legal Requirement Terms (e.g. "required by law", "labor law")
+        process_matches(
+            LEGAL_REQUIREMENT_REGEX,
+            MatchType.LEGAL_REQUIREMENT,
+            lambda m: m.group(0),
+            lambda m, val: analysis.legal_requirement_terms.append(val),
+        )
+
+        # 17c. Extract Boilerplate Terms (contextual language, non-event risk signal)
+        process_matches(
+            BOILERPLATE_REGEX,
+            MatchType.BOILERPLATE,
+            lambda m: m.group(0),
+            lambda m, val: analysis.boilerplate_terms.append(val),
         )
 
         working_text = text
