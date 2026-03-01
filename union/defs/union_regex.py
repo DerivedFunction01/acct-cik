@@ -15,7 +15,7 @@ Use enums to build core terms, then use another enum or function to build out th
 
 from enum import Enum
 import re
-from defs.regex_lib import build_alternation, build_compound, build_regex, to_build_alternation
+from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, to_build_alternation
 from defs.region_regex import INT_UNION_MAP
 
 
@@ -262,12 +262,20 @@ MEMBERSHIP_PHRASES = [
 
 DIVERSITY_TERMS = [
     r"(?:wo)?m(?:e|a)n",
+    build_compound(
+        [r"cis", r"trans"],
+        [r"wom[ae]n", r"m[ae]n", r"male", r"female", r"gender(?:ed)?", r"employees?", r"persons?", r"workers?", r"people?"],
+        sep_prefix=r"[- ]+",
+    ),
+    r"lgbtq?(?:\+|ia)?",
+    r"non[- ]?binary",
     r"females?",
     r"males?",
-    r"gender",
+    r"genders?",
+    r"sex(?:es)?",
     r"diversity",
     r"inclusion",
-    r"minorit(?:y|ies)",
+    add_restrictions(r"minorit(?:y|ies)", lookaheads=[r"of"]),
     r"ethnic(?:ity|ally)?",
     r"races?",
     r"racial(?:ly)",
@@ -284,7 +292,6 @@ DIVERSITY_TERMS = [
     r"blacks?",
     r"indigenous",
     r"jew(?:s|ish)",
-    r"lgbtq?",
     r"underrepresented",
     build_compound(r"gen(?:eration|\.)?", [r"Z", r"X", r"Y", r"W"]),
     r"Millennials?",
