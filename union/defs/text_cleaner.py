@@ -1038,7 +1038,6 @@ class ContextualNumberCleaner:
             r"centers?",
             r"mines?",  # coal mines
             r"air(?:line|craft|port|plane)?s?",
-            r"compan(?:y|ies)",
         ]
 
         asset_pattern = build_alternation(asset_terms)
