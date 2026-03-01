@@ -3436,7 +3436,13 @@ class Tracker:
         k = self.total_union_keywords  # e.g., 56 in your Autoliv case
         k_specific = 0
         if key:
-            k_specific = len(self.country_sentence_keywords.get(key, set()))
+            specific_key = key
+            if isinstance(specific_key, str) and specific_key in INT_SET:
+                specific_key = "INT"
+            elif isinstance(specific_key, str) and specific_key in DOMESTIC_SET:
+                specific_key = self.domestic_country_code
+
+            k_specific = len(self.country_sentence_keywords.get(specific_key, set()))
             if k_specific == 0 and isinstance(key, str) and "::" in key:
                 country_code = key.split("::")[0]
                 k_specific = len(
@@ -3714,40 +3720,84 @@ class Tracker:
         self.register_sentence_keywords(sentence_index, keywords)
 
         countries = geo_context.get("countries", [])
+        keyword_target_codes: List[str] = []
+
         for c in countries:
             code = c.get("code")
-            if code:
-                if code == "DOM":
-                    code = self.domestic_country_code
+            if not code:
+                continue
+            if code == "DOM":
+                code = self.domestic_country_code
+            keyword_target_codes.append(code)
 
-                if code not in self.country_keywords:
-                    self.country_keywords[code] = {}
-                if code not in self.country_sentence_keywords:
-                    self.country_sentence_keywords[code] = set()
+        # If no explicit country is present, still route keyword signal to a
+        # concrete key (domestic or region/composite pseudo-country).
+        if not keyword_target_codes:
+            region_key = geo_context.get("region")
+            if region_key in DOMESTIC_SET:
+                keyword_target_codes.append(self.domestic_country_code)
+            elif region_key in INT_SET:
+                keyword_target_codes.append("INT")
+            elif isinstance(region_key, str):
+                pseudo = self._region_to_pseudo_country_code(region_key)
+                if pseudo:
+                    keyword_target_codes.append(pseudo)
 
-                for kw in keywords:
-                    # Check if keyword implies a specific geography to avoid cross-contamination
-                    check_kw = kw
-                    if "::" in kw:
-                        check_kw = kw.split("::")[1]
+            for r in geo_context.get("regions", []) or []:
+                r_key = r.get("code") or r.get("name")
+                if not r_key:
+                    continue
+                if r_key in DOMESTIC_SET:
+                    keyword_target_codes.append(self.domestic_country_code)
+                    continue
+                if r_key in INT_SET:
+                    keyword_target_codes.append("INT")
+                    continue
+                pseudo = self._region_to_pseudo_country_code(str(r_key))
+                if pseudo:
+                    keyword_target_codes.append(pseudo)
 
-                    union_info = RegionMatcher.get_union(check_kw)
-                    if union_info:
-                        _, _, u_code = union_info
+            # "non-[domestic]" without specifics should still map to INT.
+            if geo_context.get("domestic_negated") and not keyword_target_codes:
+                keyword_target_codes.append("INT")
 
-                        # Case 1: Union is specific to a country (e.g. DE)
-                        if u_code and u_code not in INT_LANGUAGE_MAP and u_code not in ["INT", "GLO"]:
-                            if code != u_code:
-                                continue
+        # Preserve insertion order while deduping.
+        keyword_target_codes = list(dict.fromkeys(keyword_target_codes))
 
-                        # Case 2: Union is language-specific (e.g. INT_ES)
-                        elif u_code in INT_LANGUAGE_MAP:
-                            allowed_countries = INT_LANGUAGE_MAP[u_code]
-                            if code not in allowed_countries:
-                                continue
+        for code in keyword_target_codes:
+            if code not in self.country_keywords:
+                self.country_keywords[code] = {}
+            if code not in self.country_sentence_keywords:
+                self.country_sentence_keywords[code] = set()
 
-                    self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
-                    self.country_sentence_keywords[code].add((sentence_index, kw))
+            for kw in keywords:
+                # Check if keyword implies a specific geography to avoid cross-contamination
+                check_kw = kw
+                if "::" in kw:
+                    check_kw = kw.split("::")[1]
+
+                union_info = RegionMatcher.get_union(check_kw)
+                if union_info:
+                    _, _, u_code = union_info
+
+                    # Case 1: Union is specific to a country (e.g. DE)
+                    # Apply strict match only for ISO country-like keys.
+                    if (
+                        u_code
+                        and u_code not in INT_LANGUAGE_MAP
+                        and u_code not in ["INT", "GLO"]
+                    ):
+                        if len(code) == 2 and code != u_code:
+                            continue
+
+                    # Case 2: Union is language-specific (e.g. INT_ES)
+                    elif u_code in INT_LANGUAGE_MAP:
+                        allowed_countries = INT_LANGUAGE_MAP[u_code]
+                        if len(code) == 2 and code not in allowed_countries:
+                            continue
+
+                self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
+                self.country_sentence_keywords[code].add((sentence_index, kw))
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
