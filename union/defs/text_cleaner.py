@@ -1237,9 +1237,16 @@ class ContextualNumberCleaner:
         # 11. Small digits followed by char (e.g. "4-S", "4 S")
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
+        # NEW: Expansion for St. -> Street to disambiguate from Saint
+        # Look for TitleCase or Alphanumeric word before St.
+        # Exclude common prepositions to avoid "In St. Louis" -> "In Street Louis"
+        self.st_expansion_regex = re.compile(
+            r"\b(?!(?:In|At|On|To|From|Of|With|By|For|The)\b)([A-Z0-9][\w]*)\s+St\.?\b",
+        )
+
         street_terms = [
             r"ave(?:nue)?\.?",
-            r"st(?:reet)?\.?",
+            r"street",
             r"blvd\.?",
             r"boulevard",
             r"cir(?:cle)?\.?",
@@ -1362,6 +1369,7 @@ class ContextualNumberCleaner:
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
+            paragraph = self.st_expansion_regex.sub(r"\1 Street", paragraph)
             paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
             paragraph = self.union_street_regex.sub(r" ", paragraph)
             paragraph = self.location_unit_regex.sub(r" \1 ", paragraph)
