@@ -734,7 +734,7 @@ EUROPE = {
             "euro",
         ],
         Region.EUROPE,
-        code="EUR",
+        code="EU",
     ),
     Nation(
         "Nordics",
