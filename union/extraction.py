@@ -117,7 +117,7 @@ TOTAL_MODIFIER_REGEX = build_regex(
         r"entire",
         r"overall",
         r"combined",
-        r"full",
+        add_restrictions(r"full", lookaheads=[r"time"], lookahead_sep=r"[- ]?"),
         r"whole",
         r"employ(?:s|ed|ees?)?",
         r"equal(?:s|ed|ing)?",
@@ -2154,7 +2154,6 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
