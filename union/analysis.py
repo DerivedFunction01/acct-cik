@@ -28,7 +28,9 @@ from defs.region_regex import (
     GLOBAL_SET,
     INT_SET,
     REGION_CODES,
+    REGION_NAME_MAP,
     UNK_SET,
+    GeoCode,
     Region,
     INT_LANGUAGE_MAP,
     GeoSource,
@@ -87,7 +89,7 @@ def refine_generic_code(
     allowed = None
     if code.startswith("INT_") and code in INT_LANGUAGE_MAP:
         allowed = INT_LANGUAGE_MAP[code]
-    elif code in ["INT", "GLO"]:
+    elif code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
         allowed = None  # Any specific country is allowed
     else:
         return code, None
@@ -2922,7 +2924,7 @@ def determine_geo_context(
             if (
                 m.geo_code
                 and not m.geo_code.startswith("INT_")
-                and m.geo_code not in ["INT", "GLO"]
+                and m.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
             ):
                 strong_codes.add(m.geo_code)
         has_other_specific_codes = bool(
@@ -2942,7 +2944,7 @@ def determine_geo_context(
                         continue
                     domestic_negated = True
                     # Map "Outside Domestic" -> International
-                    m.geo_code = "INT"
+                    m.geo_code = GeoCode.INTERNATIONAL.value
                     m.country = "International"
                     m.region = Region.INTERNATIONAL
                 else:
@@ -3061,7 +3063,7 @@ def determine_geo_context(
         if union_matches and countries:
             for c in countries:
                 c_code = c["code"]
-                check_code = domestic_country_code if c_code == "DOM" else c_code
+                check_code = domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
                 
                 specifics = []
                 for um in union_matches:
@@ -3108,7 +3110,7 @@ def determine_geo_context(
             m = specific_unions[0]
 
             # If union is generic (INT/GLO), check if we should inherit specific context instead
-            if m.geo_code in ["INT", "GLO"] and last_context:
+            if m.geo_code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value] and last_context:
                 last_region = last_context.get("region")
                 last_countries = last_context.get("countries", [])
 
@@ -3178,7 +3180,7 @@ def determine_geo_context(
     if any(m.lower() in strong_global_modifiers for m in analysis.total_modifiers):
         return {
             "region": Region.INTERNATIONAL.value,
-            "countries": [{"code": "GLO", "name": "Global"}],
+            "countries": [{"code": GeoCode.GLOBAL.value, "name": "Global"}],
             "specificity": Specificity.IMPLICIT.value,
             "note": "Inferred from global modifier",
         }
@@ -3454,7 +3456,7 @@ class Tracker:
         if key:
             specific_key = key
             if isinstance(specific_key, str) and specific_key in INT_SET:
-                specific_key = "INT"
+                specific_key = GeoCode.INTERNATIONAL.value
             elif isinstance(specific_key, str) and specific_key in DOMESTIC_SET:
                 specific_key = self.domestic_country_code
 
@@ -3528,7 +3530,7 @@ class Tracker:
         is_unknown_region = region in UNK_SET
 
         # 1. Global Update
-        if "GLO" in codes:
+        if GeoCode.GLOBAL.value in codes:
             self.global_total = max(self.global_total, count)
         elif is_unknown_region:
             # Unknown only contributes to lookup global when no single-country
@@ -3539,7 +3541,7 @@ class Tracker:
         # 2. Regional Update
         if region and not is_unknown_region:
             # If International Region, only update if it's NOT Global code
-            if region == Region.INTERNATIONAL.value and "GLO" in codes:
+            if region == Region.INTERNATIONAL.value and GeoCode.GLOBAL.value in codes:
                 pass
             else:
                 current = self.region_totals.get(region, 0)
@@ -3562,7 +3564,7 @@ class Tracker:
                         break
 
             if not is_disjoint:
-                if code == "DOM":
+                if code == GeoCode.DOMESTIC.value:
                     code = self.domestic_country_code
                 # Route container/composite keys to region totals, not country totals.
                 if self._is_container_geo_key(code):
@@ -3631,7 +3633,7 @@ class Tracker:
         for c in countries:
             if c.get("code"):
                 code = c["code"]
-                if code == "DOM":
+                if code == GeoCode.DOMESTIC.value:
                     code = self.domestic_country_code
                 self.mentioned_countries.add(code)
         regions = geo_context.get("regions", [])
@@ -3772,7 +3774,7 @@ class Tracker:
             code = c.get("code")
             if not code:
                 continue
-            if code == "DOM":
+            if code == GeoCode.DOMESTIC.value:
                 code = self.domestic_country_code
             keyword_target_codes.append(code)
 
@@ -3783,7 +3785,7 @@ class Tracker:
             if region_key in DOMESTIC_SET:
                 keyword_target_codes.append(self.domestic_country_code)
             elif region_key in INT_SET:
-                keyword_target_codes.append("INT")
+                keyword_target_codes.append(GeoCode.INTERNATIONAL.value)
             elif isinstance(region_key, str):
                 pseudo = self._region_to_pseudo_country_code(region_key)
                 if pseudo:
@@ -3797,7 +3799,7 @@ class Tracker:
                     keyword_target_codes.append(self.domestic_country_code)
                     continue
                 if r_key in INT_SET:
-                    keyword_target_codes.append("INT")
+                    keyword_target_codes.append(GeoCode.INTERNATIONAL.value)
                     continue
                 pseudo = self._region_to_pseudo_country_code(str(r_key))
                 if pseudo:
@@ -3805,7 +3807,7 @@ class Tracker:
 
             # "non-[domestic]" without specifics should still map to INT.
             if geo_context.get("domestic_negated") and not keyword_target_codes:
-                keyword_target_codes.append("INT")
+                keyword_target_codes.append(GeoCode.INTERNATIONAL.value)
 
         # Preserve insertion order while deduping.
         keyword_target_codes = list(dict.fromkeys(keyword_target_codes))
@@ -3831,7 +3833,7 @@ class Tracker:
                     if (
                         u_code
                         and u_code not in INT_LANGUAGE_MAP
-                        and u_code not in ["INT", "GLO"]
+                        and u_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                     ):
                         if len(code) == 2 and code != u_code:
                             continue
@@ -3860,7 +3862,7 @@ class Tracker:
             scope = Scope.REGION
             key = region
         elif region in INT_SET:
-            if "GLO" in codes:
+            if GeoCode.GLOBAL.value in codes:
                 scope = Scope.GLOBAL
                 key = Scope.GLOBAL.value
             else:
@@ -3876,7 +3878,7 @@ class Tracker:
                 c_code = countries[0].get("code")
                 key = (
                     self.domestic_country_code
-                    if c_code in DOMESTIC_SET | {"DOM"}
+                    if c_code in DOMESTIC_SET | {GeoCode.DOMESTIC.value}
                     else c_code
                 )
                 scope = Scope.COUNTRY
@@ -3891,7 +3893,7 @@ class Tracker:
 
         if len(countries) == 1:
             country_code = countries[0]["code"]
-            if country_code == "DOM":
+            if country_code == GeoCode.DOMESTIC.value:
                 country_code = self.domestic_country_code
             scope = Scope.SEGMENT
             key = f"{country_code}::Segment_{len(self.entries)}"
@@ -3911,7 +3913,7 @@ class Tracker:
             )
             for c in countries:
                 c_code = c["code"]
-                real_code = self.domestic_country_code if c_code == "DOM" else c_code
+                real_code = self.domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
                 
                 u_names = union_names_map.get(c_code)
                 if u_names:
@@ -3967,7 +3969,7 @@ class Tracker:
 
         if union_name:
             country_code = countries[0]["code"]
-            if country_code == "DOM":
+            if country_code == GeoCode.DOMESTIC.value:
                 country_code = self.domestic_country_code
             scope = Scope.SEGMENT
             key = f"{country_code}::{union_name}"
@@ -4610,7 +4612,7 @@ class Tracker:
         if region_identifier in COMPOSITE_REGION_MAP:
             target_countries = set(COMPOSITE_REGION_MAP[region_identifier])
         else:
-            # Resolve code to region name if possible (e.g. "EU" -> "Europe")
+            # Resolve code to region name if possible (e.g. GeoCode.EUROPE.value -> "Europe")
             region_name = _CODE_TO_REGION.get(region_identifier, region_identifier)
 
         agg_covered = 0.0
@@ -5263,17 +5265,9 @@ class Tracker:
 
     def _region_to_pseudo_country_code(self, region_key: str) -> Optional[str]:
         canonical = _CODE_TO_REGION.get(region_key, region_key)
-        major_map = {
-            Region.NORTH_AMERICA.value: "NA",
-            Region.EUROPE.value: "EU",
-            Region.ASIA_PACIFIC.value: "APAC",
-            Region.LATIN_AMERICA.value: "LATAM",
-            Region.MIDDLE_EAST_AFRICA.value: "MEA",
-        }
-        if canonical in INT_SET:
-            return "INT"
-        if canonical in major_map:
-            return major_map[canonical]
+
+        if canonical in REGION_NAME_MAP:
+            return REGION_NAME_MAP[canonical]
         # Composite categorizations are already code-like keys.
         if region_key in COMPOSITE_REGION_MAP:
             return region_key
@@ -5515,7 +5509,7 @@ class Tracker:
             )
 
         # Filter for valid country codes (2 letters usually)
-        # Treat "INT" as a valid country code for this logic if it is the target
+        # Treat GeoCode.INTERNATIONAL.value as a valid country code for this logic if it is the target
         valid_countries = {
             c
             for c in self.mentioned_countries
@@ -5582,8 +5576,8 @@ class Tracker:
                 )
 
         # Remap Totals
-        if "DOM" in self.country_totals:
-            val = self.country_totals.pop("DOM")
+        if GeoCode.DOMESTIC.value in self.country_totals:
+            val = self.country_totals.pop(GeoCode.DOMESTIC.value)
             self.country_totals[target_country] = max(
                 self.country_totals.get(target_country, 0), val
             )
@@ -6078,7 +6072,7 @@ class Tracker:
 
         # Safeguard: If domestic is negated, ensure we have at least one external entity
         if self.domestic_is_negated and not unique_entities:
-            unique_entities.add("INT")
+            unique_entities.add(GeoCode.INTERNATIONAL.value)
 
         # --- Filter duplicates/aliases/containers BEFORE calculation ---
         to_remove = set()
@@ -6389,7 +6383,7 @@ class Tracker:
                     #     scopes_to_check.add(r_name)
                 elif e.scope == Scope.REGION and e.key:
                     scopes_to_check.add(e.key)
-                # scopes_to_check.add("GLO")
+                # scopes_to_check.add(GeoCode.GLOBAL.value)
                 # scopes_to_check.add(Scope.GLOBAL.value)
 
                 is_scope_negated = False
@@ -7523,16 +7517,8 @@ class Tracker:
                 floor_vals[k] += 1
             return {k: float(v) for k, v in floor_vals.items()}
 
-        major_region_code_map = {
-            Region.NORTH_AMERICA.value: "NA",
-            Region.EUROPE.value: "EU",
-            Region.ASIA_PACIFIC.value: "APAC",
-            Region.LATIN_AMERICA.value: "LATAM",
-            Region.MIDDLE_EAST_AFRICA.value: "MEA",
-            Region.INTERNATIONAL.value: "INT",
-        }
         region_name_to_code: Dict[str, str] = {
-            region_name: code for region_name, code in major_region_code_map.items()
+            region_name: code for region_name, code in REGION_NAME_MAP.items()
         }
         # Add any additional region aliases/codes known by matcher tables.
         for r_code in REGION_CODES:
@@ -7542,9 +7528,9 @@ class Tracker:
             if isinstance(r_name, str):
                 region_name_to_code.setdefault(r_name, r_code)
         pseudo_region_name_by_code = {
-            code: region_name for region_name, code in major_region_code_map.items()
+            code: region_name for region_name, code in REGION_NAME_MAP.items()
         }
-        promoted_region_codes = set(major_region_code_map.values()) | set(
+        promoted_region_codes = set(REGION_NAME_MAP.values()) | set(
             COMPOSITE_REGION_MAP.keys()
         )
         pseudo_region_by_code: Dict[str, str] = {}
@@ -7601,8 +7587,8 @@ class Tracker:
             if e.scope != Scope.REGION or not isinstance(e.key, str):
                 continue
             region_name = _CODE_TO_REGION.get(e.key, e.key)
-            if region_name in major_region_code_map and not has_region_children(region_name):
-                p_code = major_region_code_map[region_name]
+            if region_name in REGION_NAME_MAP and not has_region_children(region_name):
+                p_code = REGION_NAME_MAP[region_name]
                 country_codes.add(p_code)
                 pseudo_region_by_code[p_code] = region_name
 
@@ -7863,7 +7849,7 @@ class Tracker:
             aggregate_key = e.key
             if isinstance(aggregate_key, str):
                 if aggregate_key in AGG_SET:
-                    aggregate_key = "AGG"
+                    aggregate_key = GeoCode.AGGREGATE.value
                 elif aggregate_key in region_name_to_code:
                     aggregate_key = region_name_to_code[aggregate_key]
                 elif is_region(aggregate_key):
@@ -8144,7 +8130,7 @@ class UnionAnalyzer:
 
         for m in unique_excluded:
             # Skip if remapped to INT (e.g. "Outside US") - that's handled as main context
-            if m.geo_code == "INT" and m.country == "International":
+            if m.geo_code == GeoCode.INTERNATIONAL.value and m.country == "International":
                 continue
 
             geo_ctx = {
@@ -9091,7 +9077,7 @@ class UnionAnalyzer:
                 if (
                     obj.geo_code
                     and not obj.geo_code.startswith("INT_")
-                    and obj.geo_code not in ["INT", "GLO"]
+                    and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj
 
@@ -9154,7 +9140,7 @@ class UnionAnalyzer:
                 )
 
         return self._resolve_counts_generic(
-            analysis, geo_entries, total_key="GLO", allow_naive_split=True, excluded_keys=excluded_codes, capacities=capacities
+            analysis, geo_entries, total_key=GeoCode.GLOBAL.value, allow_naive_split=True, excluded_keys=excluded_codes, capacities=capacities
         )
 
     def _map_assignments_to_geo(
@@ -9180,7 +9166,7 @@ class UnionAnalyzer:
                 if (
                     obj.geo_code
                     and not obj.geo_code.startswith("INT_")
-                    and obj.geo_code not in ["INT", "GLO"]
+                    and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj
 
@@ -9806,7 +9792,7 @@ class UnionAnalyzer:
         def _normalize_country_code(code: Optional[str]) -> Optional[str]:
             if not code:
                 return None
-            return self.domestic_country_code if code == "DOM" else code
+            return self.domestic_country_code if code == GeoCode.DOMESTIC.value else code
 
         def _worker_lookup_keys(ctx: Dict[str, Any]) -> List[str]:
             keys: List[str] = []
@@ -9985,7 +9971,7 @@ class UnionAnalyzer:
                             if len(fallback_countries) == 1:
                                 c_code = fallback_countries[0].get("code")
                                 region_key = (
-                                    self.domestic_country_code if c_code == "DOM" else c_code
+                                    self.domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
                                 )
                             else:
                                 region_key = Scope.GLOBAL.value

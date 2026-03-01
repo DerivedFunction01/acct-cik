@@ -25,6 +25,18 @@ class Region(Enum):
     AGGREGATE = "Aggregate"
 
 
+class GeoCode(Enum):
+    AGGREGATE = "AGG"
+    DOMESTIC = "DOM"
+    INTERNATIONAL = "INT"
+    GLOBAL = "GLO"
+    UNKNOWN = "UNK"
+    NORTH_AMERICA = "NA"
+    EUROPE = "EU"
+    ASIA_PACIFIC = "APAC"
+    LATIN_AMERICA = "LATAM"
+    MIDDLE_EAST_AFRICA = "MEA"
+
 class GeoSource(Enum):
     EXPLICIT = "EXPLICIT"
     SPECIFIC_UNION = "GEO_UNION"
@@ -697,7 +709,7 @@ NORTH_AMERICA = {
         "North America",
         ["north america", "north american"],
         Region.NORTH_AMERICA,
-        code="NA",
+        code=GeoCode.NORTH_AMERICA.value,
     ),
 }
 
@@ -709,7 +721,7 @@ EUROPE = {
         [],
         [],
         [],
-        code="EU",
+        code=GeoCode.EUROPE.value,
     ),
     Nation(
         "European Union",
@@ -1484,7 +1496,7 @@ ASIA_PACIFIC = {
         "Asia",
         ["asia", "asian", "asia pacific", "apac", "asia-pacific"],
         Region.ASIA_PACIFIC,
-        code="APAC",
+        code=GeoCode.ASIA_PACIFIC.value,
     ),
     Nation(
         "Oceania",
@@ -1964,7 +1976,7 @@ LATIN_AMERICA = {
         ],
         Region.LATIN_AMERICA,
         [],
-        code="LATAM",
+        code=GeoCode.LATIN_AMERICA.value,
     ),
     Nation(
         "South America",
@@ -2244,7 +2256,7 @@ MIDDLE_EAST_AFRICA = {
         "Middle East & Africa",
         ["middle east and africa", "middle east & africa", "mena"],
         Region.MIDDLE_EAST_AFRICA,
-        code="MEA",
+        code=GeoCode.MIDDLE_EAST_AFRICA.value,
     ),
     Nation(
         "Gulf States",
@@ -2703,7 +2715,7 @@ INTERNATIONAL = {
         Region.INTERNATIONAL,
         [],
         [r"CGT"],
-        code="INT",
+        code=GeoCode.INTERNATIONAL.value,
     ),
     Nation(
         "Global",
@@ -2719,7 +2731,7 @@ INTERNATIONAL = {
             "PSI",
             "Public Services International",
         ],
-        code="GLO",
+        code=GeoCode.GLOBAL.value,
     ),
     Nation(
         "Iberian (Ambiguous)",
@@ -2906,7 +2918,7 @@ INTERNATIONAL = {
         [],
         [],
         [],
-        code="DOM",
+        code=GeoCode.DOMESTIC.value,
     ),
 }
 
@@ -2969,29 +2981,30 @@ INT_LANGUAGE_MAP = {
 UNK_SET = {
     Region.UNKNOWN,
     Region.UNKNOWN.value,
+    GeoCode.UNKNOWN.value
 }
 
 DOMESTIC_SET = {
     Region.DOMESTIC,
     Region.DOMESTIC.value,
-    "DOM",
+    GeoCode.DOMESTIC.value
 }
 
 INT_SET = {
     Region.INTERNATIONAL,
     Region.INTERNATIONAL.value,
-    "INT",
+    GeoCode.INTERNATIONAL.value
 }
 
 GLOBAL_SET = {
     Region.GLOBAL,
     Region.GLOBAL.value,
-    "GLO",
+    GeoCode.GLOBAL.value
 }
 AGG_SET = {
     Region.AGGREGATE,
     Region.AGGREGATE.value,
-    "AGG"
+    GeoCode.AGGREGATE.value
 }
 IGNORED_REGIONS = GLOBAL_SET | DOMESTIC_SET | INT_SET | AGG_SET | UNK_SET
 
@@ -3194,7 +3207,7 @@ COMPOSITE_REGION_MAP["SSA"] = [
 ]
 
 # MEA is ME + AFRICA
-COMPOSITE_REGION_MAP["MEA"] = list(
+COMPOSITE_REGION_MAP[GeoCode.MIDDLE_EAST_AFRICA.value] = list(
     set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"])
 )
 
@@ -3554,12 +3567,13 @@ INT_UNION_MAP = {
     ),
 }
 REGION_CODES = {
-    "NA",
-    "EU",
-    "APAC",
-    "LATAM",
-    "INT",
-    "DOM",
+    GeoCode.NORTH_AMERICA.value,
+    GeoCode.EUROPE.value,
+    GeoCode.ASIA_PACIFIC.value,
+    GeoCode.LATIN_AMERICA.value,
+    GeoCode.MIDDLE_EAST_AFRICA.value,
+    GeoCode.DOMESTIC.value,
+    GeoCode.INTERNATIONAL.value,
 }
 
 
@@ -3866,6 +3880,14 @@ class RegionMatcher:
                 )
         return results
 
+REGION_NAME_MAP = {
+    Region.EUROPE.value: GeoCode.EUROPE.value,
+    Region.NORTH_AMERICA.value: GeoCode.NORTH_AMERICA.value,
+    Region.ASIA_PACIFIC.value: GeoCode.ASIA_PACIFIC.value,
+    Region.LATIN_AMERICA.value: GeoCode.LATIN_AMERICA.value,
+    Region.MIDDLE_EAST_AFRICA.value: GeoCode.MIDDLE_EAST_AFRICA.value,
+    Region.INTERNATIONAL.value: GeoCode.INTERNATIONAL.value,
+}
 
 def _build_code_to_region_map():
     mapping = {}
@@ -3878,18 +3900,12 @@ def _build_code_to_region_map():
         MIDDLE_EAST_AFRICA,
         INTERNATIONAL,
     ]
-    region_name_map = {
-        Region.EUROPE.value: "EU",
-        Region.NORTH_AMERICA.value: "NA",
-        Region.ASIA_PACIFIC.value: "APAC",
-        Region.LATIN_AMERICA.value: "LATAM",
-        Region.MIDDLE_EAST_AFRICA.value: "MEA",
-    }
+
     for r_set in all_regions:
         for nation in r_set:
             if nation.code:
                 mapping[nation.code] = nation.region.value
-                code_mapping[nation.code] = region_name_map.get(nation.region.value, nation.region.value)
+                code_mapping[nation.code] = REGION_NAME_MAP.get(nation.region.value, nation.region.value)
     return mapping, code_mapping
 
 
@@ -4133,7 +4149,7 @@ def _build_code_to_weight_map():
                 mapping[code] = total_w / count
 
     # Force containers to 0 to prevent accidental distribution
-    for code in ["DOM", "GLO", "INT"]:
+    for code in [GeoCode.DOMESTIC.value, GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
         mapping[code] = 0.0
     return mapping
 
@@ -4748,7 +4764,7 @@ def group_by_scope(
             # International contains everything except Domestic and Global
             if (
                 child_region not in (Region.DOMESTIC, Region.GLOBAL)
-                and child_key != "DOM"
+                and child_key != GeoCode.DOMESTIC.value
             ):
                 is_child = True
         elif head_region in (Region.DOMESTIC, Region.UNKNOWN):
