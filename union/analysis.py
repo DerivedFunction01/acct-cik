@@ -2416,17 +2416,6 @@ class ComplexCoverageAnalyzer:
                         excluded_match_ids.add(id(pct_match))
                 return
 
-        # 3b. "Of Whom" / "Of Which" Logic (Subset Indicator)
-        # If we have counts followed by "of whom/which ... union", the counts are TOTAL.
-        # e.g. "10 employees, 0% of whom are union" -> 10 is Total.
-        subset_indicator_spans = []
-        for m in self.analysis._matches:
-            # Check for "of whom", "of which", "of these"
-            if m["type"] == MatchType.PERCENT:
-                # Look immediately before the percent for "of whom" pattern isn't captured by regex usually
-                # But we can check text between last count and this percent
-                pass
-
         # We'll check this dynamically during assignment
         def is_followed_by_subset_indicator(count_match):
             # Look ahead for "of whom", "of which" before the next count or end of sentence
@@ -2515,6 +2504,7 @@ class ComplexCoverageAnalyzer:
                 candidates.append(("not_covered", n))
             for t in search_totals:
                 if not _is_total_anchor_for_count(target_match, t):
+                    print(target_match, t)
                     continue
                 candidates.append(("total", t))
 
