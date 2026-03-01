@@ -29,6 +29,7 @@ from defs.union_regex import (
     COVERAGE_REGEX,
     BOILERPLATE_REGEX,
     LEGAL_REQUIREMENT_REGEX,
+    LEGAL_PROCESS_REGEX,
     PERSONNEL_EVENT_REGEX,
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
@@ -324,6 +325,7 @@ class MatchType(Enum):
     BARGAINING_UNIT_COUNT = "BARGAINING_UNIT_COUNT"
     LEGAL_REQUIREMENT = "LEGAL_REQUIREMENT"
     BOILERPLATE = "BOILERPLATE"
+    LEGAL_PROCESS = "LEGAL_PROCESS"
 
 
 @dataclass
@@ -372,6 +374,7 @@ class SentenceAnalysis:
     bargaining_unit_counts: List[float] = field(default_factory=list)
     legal_requirement_terms: List[str] = field(default_factory=list)
     boilerplate_terms: List[str] = field(default_factory=list)
+    legal_process_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -388,6 +391,7 @@ class SentenceAnalysis:
 
     is_relevant: bool = False
     is_union: bool = False
+    suppress_coverage_counts: bool = False
 
 
 @dataclass
@@ -1691,6 +1695,14 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.boilerplate_terms.append(val),
         )
+        
+        # 17e. Extract legal-process terms (procedural governance language)
+        process_matches(
+            LEGAL_PROCESS_REGEX,
+            MatchType.LEGAL_PROCESS,
+            lambda m: m.group(0),
+            lambda m, val: analysis.legal_process_terms.append(val),
+        )
 
         working_text = text
         # 18. Extract Qualitative Terms
@@ -2129,6 +2141,46 @@ class UnionExtractor:
                 ):
                     analysis.is_relevant = False
                     analysis.is_union = False
+
+            # Coverage suppression for procedural/risk boilerplate numerics:
+            # keep sentence available for risk extraction, but do not allow
+            # counts/percentages to enter coverage math.
+            has_quantitative = bool(
+                analysis.percentages or analysis.worker_counts or analysis.numbers
+            )
+            has_status_negation = any(
+                m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
+                for m in analysis._matches
+            )
+            has_hard_coverage_signal = bool(
+                analysis.has_union_denominator
+                or analysis.worker_counts
+                or has_status_negation
+            )
+
+            if (
+                analysis.legal_process_terms
+                and has_quantitative
+                and not has_hard_coverage_signal
+            ):
+                analysis.suppress_coverage_counts = True
+
+            risk_or_boilerplate_numeric = bool(
+                has_quantitative
+                and (
+                    analysis.risk_terms
+                    or analysis.generic_risk_terms
+                    or analysis.boilerplate_terms
+                )
+                and not (
+                    analysis.coverage_terms
+                    or analysis.has_union_denominator
+                    or analysis.worker_counts
+                    or has_status_negation
+                )
+            )
+            if risk_or_boilerplate_numeric:
+                analysis.suppress_coverage_counts = True
 
             # # Boilerplate: Exclude if no quantitative data and matches boilerplate
             # elif BOILERPLATE_REGEX.search(text):
