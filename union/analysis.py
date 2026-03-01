@@ -8474,6 +8474,16 @@ class Tracker:
                             is_weighted_from_agg = True
                         if is_weighted_from_agg:
                             stype = SourceType.WEIGHTED_DIVISION.value
+                        else:
+                            # Reclassify calculated covered/not_covered parts as FALLBACK
+                            # when their denominator provenance is fallback-based.
+                            if field_name in ("cov", "not_cov"):
+                                fallback_denom = (
+                                    e.total_count_source_type == SourceType.FALLBACK.value
+                                    or e.denominator_source_type == SourceType.FALLBACK.value
+                                )
+                                if fallback_denom:
+                                    stype = SourceType.FALLBACK.value
 
                     if stype not in method_breakdown:
                         continue
