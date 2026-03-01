@@ -7289,9 +7289,38 @@ class Tracker:
                 if _CODE_TO_REGION.get(c_code) == region_name
             )
             if c_sum > r_total * 1.05:
-                self.resolution_log.append(
-                    f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})"
+                    self.resolution_log.append(
+                        f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})"
+                    )
+
+    def _dedupe_country_entries(self, entries: List[Entry]) -> List[Entry]:
+        """
+        Keep one strongest country entry per country key to avoid duplicate
+        country-level processing in metrics/provenance.
+        """
+        by_key: Dict[str, Entry] = {}
+        for e in entries:
+            key = str(e.key)
+            curr = by_key.get(key)
+            if curr is None:
+                by_key[key] = e
+                continue
+
+            def _score(x: Entry) -> Tuple[int, int, int, int, int, int, float]:
+                return (
+                    1 if x.covered_count is not None else 0,
+                    1 if x.not_covered_count is not None else 0,
+                    1 if x.percentage is not None else 0,
+                    1 if x.total_count is not None else 0,
+                    1 if x.is_explicit else 0,
+                    1 if x.sent_idx != -1 else 0,
+                    float(x.total_count or 0.0),
                 )
+
+            if _score(e) > _score(curr):
+                by_key[key] = e
+
+        return list(by_key.values())
 
     def validate(self):
         """
@@ -7411,6 +7440,7 @@ class Tracker:
                 for e in self.entries
                 if e.scope == Scope.COUNTRY and _CODE_TO_REGION.get(e.key) == r_name
             ]
+            c_entries = self._dedupe_country_entries(c_entries)
             log(f"      Found {len(c_entries)} country entries")
 
             # Find countries implied by segments that don't have explicit entries
@@ -8300,6 +8330,7 @@ class Tracker:
                         e.key, code
                     ):
                         segment_entries.append(e)
+            country_entries = self._dedupe_country_entries(country_entries)
 
             # Prefer country-scope resolved entry as final snapshot.
             primary_country_entry = None
