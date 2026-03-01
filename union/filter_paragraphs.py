@@ -46,6 +46,11 @@ RAW_PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
 # Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
 MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
 
+# Census detection patterns
+CENSUS_YEAR_REGEX = re.compile(r"<\d{4}>")
+CENSUS_TERM_REGEX = re.compile(r"\bemploy(?:ees?|ed|s|ment|ing)?\b", re.IGNORECASE)
+CENSUS_NUMBER_REGEX = re.compile(r"(?<!<)\b\d+\b(?!\.\d)(?!>)")
+
 # =============================================================================
 # REGEX COMPILATION
 # =============================================================================
@@ -260,6 +265,31 @@ def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
 
     return merged
 
+def has_census_context(text: str) -> bool:
+    if not CENSUS_YEAR_REGEX.search(text):
+        return False
+    
+    # Find employment terms
+    emp_matches = list(CENSUS_TERM_REGEX.finditer(text))
+    if not emp_matches:
+        return False
+        
+    # Find numbers
+    num_matches = list(CENSUS_NUMBER_REGEX.finditer(text))
+    if not num_matches:
+        return False
+        
+    # Check proximity (e.g. within 150 chars)
+    for nm in num_matches:
+        n_start, n_end = nm.span()
+        for em in emp_matches:
+            e_start, e_end = em.span()
+            
+            dist = max(0, max(n_start, e_start) - min(n_end, e_end))
+            if dist < 150:
+                return True
+    return False
+
 def is_relevant_paragraph(text: str, allow_risk: bool = False) -> bool:
     """
     Checks if the paragraph contains relevant union/risk keywords.
@@ -342,6 +372,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     filtered = []
     extracted_percents = []
+    
+    prev_census_block = None
+    prev_census_raw = None
 
     for block in raw_blocks:
 
@@ -369,9 +402,25 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         cleaned_block = " ".join(cleaned_block.split())
 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
+            prev_census_block = None
+            prev_census_raw = None
             continue
 
         if is_relevant_paragraph(cleaned_block, allow_risk):
+            if prev_census_block:
+                filtered.append(prev_census_block)
+                if prev_census_raw:
+                    # Extract raw percents from the original block
+                    for sent in SENTENCE_SPLIT_PATTERN.split(prev_census_raw):
+                        if UNION_REGEX.search(sent):
+                            for m in RAW_PERCENT_REGEX.findall(sent):
+                                try:
+                                    extracted_percents.append(float(m))
+                                except ValueError:
+                                    pass
+                prev_census_block = None
+                prev_census_raw = None
+
             filtered.append(cleaned_block)
             # Extract raw percents from the original block (before number normalization)
             for sent in SENTENCE_SPLIT_PATTERN.split(block):
@@ -381,6 +430,14 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                             extracted_percents.append(float(m))
                         except ValueError:
                             pass
+        else:
+            if has_census_context(cleaned_block):
+                prev_census_block = cleaned_block
+                prev_census_raw = block
+            else:
+                prev_census_block = None
+                prev_census_raw = None
+
     return filtered, extracted_percents
 
 def create_target_db():
