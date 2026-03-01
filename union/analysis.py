@@ -996,6 +996,7 @@ class SimpleCoverageAnalyzer:
             "negated": False,
             "negation_type": None,
             "type": CoverageType.NONE.value,
+            "is_global_contribution": False,
             "note": None,
         }
 
@@ -1003,6 +1004,10 @@ class SimpleCoverageAnalyzer:
         if not analysis.is_union:
             data["type"] = None
             return data
+
+        # Check for global contribution modifier (e.g. "Percentage of the Company's Employees")
+        if analysis.global_percent_modifiers:
+            data["is_global_contribution"] = True
 
         effective_counts = get_effective_counts(analysis)
 
@@ -3535,6 +3540,7 @@ class Entry:
     is_exception_remainder: bool = False
     is_parent_breakdown: bool = False
     is_covered_breakdown: bool = False
+    is_global_contribution: bool = False
     is_not_covered_breakdown: bool = False
     # Provenance for distinguishing explicit vs calculated vs inferred/fallback values
     percentage_source: Optional[str] = None
@@ -3987,6 +3993,7 @@ class Tracker:
         exception_limit_percent: Optional[float] = None,
         is_exception_remainder: bool = False,
         coverage_type: Optional[str] = None,
+        is_global_contribution: bool = False,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -4209,6 +4216,23 @@ class Tracker:
             scope = Scope.SEGMENT
             key = f"{country_code}::{union_name}"
 
+        # Handle Global Contribution Logic (e.g. "6.3% of Company's Employees")
+        # If this flag is set, the percentage applies to the Global Total, not the local segment total.
+        # We calculate the covered count based on the global total and assign it to this segment.
+        if is_global_contribution and percentage is not None and self.global_total > 0:
+            calculated_count = round((percentage / 100.0) * self.global_total)
+            covered_count = calculated_count
+            # For a specific union segment defined by a contribution %, we assume the segment itself is 100% union.
+            # e.g. "ABX Teamsters is 6.3% of Company" -> ABX Teamsters count is X, and all X are union.
+            scope_total = calculated_count 
+            percentage = 100.0 # Local percentage is 100%
+            coverage_type = CoverageType.CALCULATED.value
+            self.resolution_log.append(
+                f"Resolved Global Contribution for {key}: {covered_count} ({percentage}% of Global {self.global_total})"
+            )
+            # Reset flag so we don't double-process
+            is_global_contribution = False
+
         related_codes = [c["code"] for c in countries if c.get("code")]
         if "regions" in geo_context:
             related_codes.extend(
@@ -4274,6 +4298,7 @@ class Tracker:
                     if scope_total is not None
                     else None
                 ),
+                is_global_contribution=is_global_contribution,
             )
         )
 
@@ -7190,6 +7215,34 @@ class Tracker:
             """Helper function to append logs to the metrics dict"""
             metrics["_logs"].append(message)
 
+        def combine_pure_percentages(
+            percentages: List[float], approx_tol: float = 2.0
+        ) -> Tuple[Optional[float], str]:
+            """
+            Combine explicit standalone percentages with anti-double-count safeguards.
+            Preference:
+            1) If largest ~= sum(smaller), treat largest as roll-up total.
+            2) Else if additive sum <= 100, use additive sum.
+            3) Else fallback to unweighted average.
+            """
+            vals = [float(p) for p in percentages if p is not None]
+            vals = [p for p in vals if 0.0 <= p <= 100.0]
+            if not vals:
+                return None, "none"
+            if len(vals) == 1:
+                return vals[0], "single"
+
+            vals_sorted = sorted(vals, reverse=True)
+            largest = vals_sorted[0]
+            smaller_sum = sum(vals_sorted[1:])
+            total_sum = sum(vals_sorted)
+
+            if abs(largest - smaller_sum) <= approx_tol:
+                return largest, "largest_matches_sum_smaller"
+            if total_sum <= 100.0 + 1e-9:
+                return total_sum, "additive_sum"
+            return (sum(vals) / len(vals)), "average_fallback"
+
         log("=" * 80)
         log("STARTING METRICS CALCULATION (BOTTOM-UP PRIORITY)")
         log("=" * 80)
@@ -7334,19 +7387,26 @@ class Tracker:
                             s.percentage for s in segs if s.percentage is not None
                         ]
                         if valid_seg_pcts:
-                            # If single segment or multiple, use the first/avg.
-                            # For single segment (common case), this is accurate.
-                            if len(valid_seg_pcts) == 1:
-                                c_pct_only = valid_seg_pcts[0]
-                                log(
-                                    f"            → Found segment percentage: {c_pct_only}%"
-                                )
-                            else:
-                                # Simple average for multiple unweighted segments
-                                c_pct_only = sum(valid_seg_pcts) / len(valid_seg_pcts)
-                                log(
-                                    f"            → Found avg segment percentage: {c_pct_only:.2f}%"
-                                )
+                            c_pct_only, combine_mode = combine_pure_percentages(
+                                valid_seg_pcts
+                            )
+                            if c_pct_only is not None:
+                                if combine_mode == "single":
+                                    log(
+                                        f"            → Found segment percentage: {c_pct_only}%"
+                                    )
+                                elif combine_mode == "largest_matches_sum_smaller":
+                                    log(
+                                        f"            → Using largest segment percent as roll-up total: {c_pct_only:.2f}% (largest≈sum(smaller))"
+                                    )
+                                elif combine_mode == "additive_sum":
+                                    log(
+                                        f"            → Summed segment percentages: {c_pct_only:.2f}% (<=100 additive)"
+                                    )
+                                else:
+                                    log(
+                                        f"            → Found avg segment percentage: {c_pct_only:.2f}% (fallback)"
+                                    )
 
                 # If still no local data (counts), check if country itself has percentage
                 if not c_has_local_data and c_pct_only is None:
@@ -7436,12 +7496,25 @@ class Tracker:
 
             # Try to derive region percentage from pure percentages if no counts found
             if not has_data and region_pure_pcts:
-                # Average the percentages found in this region
-                avg_pct = sum(region_pure_pcts) / len(region_pure_pcts)
-                metrics["derived_regional_coverage"][r_name] = round(avg_pct, 2)
-                log(
-                    f"    ✓ Derived region {r_name} percentage from unweighted average of {len(region_pure_pcts)} entries: {avg_pct:.2f}%"
-                )
+                combined_pct, combine_mode = combine_pure_percentages(region_pure_pcts)
+                if combined_pct is not None:
+                    metrics["derived_regional_coverage"][r_name] = round(combined_pct, 2)
+                    if combine_mode == "largest_matches_sum_smaller":
+                        log(
+                            f"    ✓ Derived region {r_name} percentage using largest roll-up percent: {combined_pct:.2f}% (largest≈sum(smaller))"
+                        )
+                    elif combine_mode == "additive_sum":
+                        log(
+                            f"    ✓ Derived region {r_name} percentage from additive sum of {len(region_pure_pcts)} entries: {combined_pct:.2f}%"
+                        )
+                    elif combine_mode == "single":
+                        log(
+                            f"    ✓ Derived region {r_name} percentage from single entry: {combined_pct:.2f}%"
+                        )
+                    else:
+                        log(
+                            f"    ✓ Derived region {r_name} percentage from unweighted average of {len(region_pure_pcts)} entries: {combined_pct:.2f}%"
+                        )
 
             # C. Update Metrics
             if has_data:
@@ -8879,6 +8952,7 @@ class UnionAnalyzer:
                     exception_limit_percent=cov.get("exception_limit_percent"),
                     is_exception_remainder=cov.get("is_exception_remainder", False),
                     coverage_type=cov.get("type"),
+                    is_global_contribution=cov.get("is_global_contribution", False),
                 )
 
             # Resolve missing coverage data using collected totals
