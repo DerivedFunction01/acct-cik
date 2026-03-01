@@ -1239,6 +1239,10 @@ class RiskDigest:
             for t in item.get("third_party", []) or []:
                 supplier_term_counts[t] = supplier_term_counts.get(t, 0) + 1
                 _register_keyword(t)
+            for t in item.get("works_councils", []) or []:
+                works_councils[t] = works_councils.get(t, 0) + 1
+                _register_keyword(t)
+            
             for t in item.get("legal_requirement_keywords", []) or []:
                 legal_requirement_term_counts[t] = (
                     legal_requirement_term_counts.get(t, 0) + 1
