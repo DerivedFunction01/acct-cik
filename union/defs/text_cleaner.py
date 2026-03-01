@@ -1075,6 +1075,12 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # Matches: "12 [separate] bargaining units", "12 [employee] bargaining units"
+        # self.bargaining_unit_regex = re.compile(
+        #     rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,5}}bargaining\s+units?)\b",
+        #     re.IGNORECASE,
+        # )
+
         change_pattern = build_alternation(CHANGE_TERMS)
 
         # Matches: "10% of the increase"
@@ -1356,6 +1362,7 @@ class ContextualNumberCleaner:
             paragraph = self.birth_year_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_pre_regex.sub(r" \1 ", paragraph)
             paragraph = self.diversity_post_regex.sub(r" \1 ", paragraph)
+            # paragraph = self.bargaining_unit_regex.sub(r" \1 ", paragraph)
             paragraph = self.union_regex.sub(
                 r" \1 ", paragraph
             )  # CONSOLIDATED union pattern

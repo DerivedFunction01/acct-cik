@@ -14,7 +14,8 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
-    """We employ 50 part-time and 20 full-time workers. All part-time workers are unionized.""",
+    """We employ domestic 50 part-time and 20 full-time workers. Union laws. Union regulations. All part-time workers are unionized.""",
+    """We have 2,000 in Europe, in Germany, France, and Italy. We have 1000 unionized in Europe, for those located in Germany, France and Italy with 15 bargaining units. We have 301 unionized in Asia and North America. We have 9512 unionized in Israel and Brazil.""",
     """
 TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
@@ -154,7 +155,7 @@ In addition, the Company’s employees in other regions are represented by the f
 
 In many European countries, Canada, Mexico, Brazil and South Korea, wages, salaries and general working conditions are negotiated with local unions and/or are subject to centrally negotiated collective bargaining agreements. The terms of the Company's various agreements with unions typically range between one to three years. Some of the Company's subsidiaries in Europe, Canada, Mexico, Brazil and South Korea must negotiate with the applicable local unions with respect to important changes in operations, working and employment conditions. Twice a year, members of the Company’s management conduct a meeting with the European Works Council (EWC) to provide employee representatives with important information about the Company and a forum for the exchange of ideas and opinions. In many Asia Pacific countries, the central or regional governments provide guidance each year for salary adjustments or statutory minimum wage for workers. The Company's employees may join associations in accordance with local legislation and rules, although the level of unionization varies significantly throughout its operations.
 """,
-"""On a worldwide basis, we believe that our employee and labor relations are excellent.
+    """On a worldwide basis, we believe that our employee and labor relations are excellent.
 
 On a corporate level, all employees of SAP in the member states of the European Union (with the United Kingdom included for a 
 transition period until May 2024) and in the contract states of the European Economic Area are represented by the SAP SE Works 
@@ -285,7 +286,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print()
 
-    for item in ITEM_1:
+    for item in ITEM_1[1:2]:
         # Clean the text
         cleaned_text = company_cleaner.clean(item, company_name)
         cleaned_text = cleaner.clean(cleaned_text, company_name)
@@ -312,9 +313,9 @@ if __name__ == "__main__":
         print(f"Total Sentences Extracted: {len(results)}\n")
         print(json.dumps(results, indent=2))
 
-        print("\n" + "=" * 80)
-        print("\nCALCULATED SUMMARY:\n")
-        print(json.dumps(summary, indent=2))
+        # print("\n" + "=" * 80)
+        # print("\nCALCULATED SUMMARY:\n")
+        # print(json.dumps(summary, indent=2))
 
         print("\n" + "=" * 80)
         print("\nCOUNTRY REPORT:\n")
@@ -324,26 +325,26 @@ if __name__ == "__main__":
         print("\nRISK SUMMARY:\n")
         print(json.dumps(risk_summary, indent=2))
 
-    # Combined Consistency Test
-    print("\n" + "=" * 80)
-    print("Testing Combined Consistency Case\n")
-    cleaned_combined = cleaner.clean(ITEM_COMBINED)
-    cleaned_combined = currency_remover.clean(cleaned_combined)
-    cleaned_combined = contextual_cleaner.clean(cleaned_combined)
-    cleaned_combined = conciseness_cleaner.clean(cleaned_combined)
+    # # Combined Consistency Test
+    # print("\n" + "=" * 80)
+    # print("Testing Combined Consistency Case\n")
+    # cleaned_combined = cleaner.clean(ITEM_COMBINED)
+    # cleaned_combined = currency_remover.clean(cleaned_combined)
+    # cleaned_combined = contextual_cleaner.clean(cleaned_combined)
+    # cleaned_combined = conciseness_cleaner.clean(cleaned_combined)
 
-    print("Cleaned Text:\n")
-    print(cleaned_combined)
-    print("-" * 40)
-    analyzer.domestic_country_code = "CN"
-    analysis_output_combined = analyzer.analyze_paragraph(
-        cleaned_combined, item_type="item1", reporting_year=reporting_year
-    )
+    # print("Cleaned Text:\n")
+    # print(cleaned_combined)
+    # print("-" * 40)
+    # analyzer.domestic_country_code = "CN"
+    # analysis_output_combined = analyzer.analyze_paragraph(
+    #     cleaned_combined, item_type="item1", reporting_year=reporting_year
+    # )
 
-    for item in analysis_output_combined.get("items", []):
-        print(item["sentence"])
-        print(item.get("census_note") or item.get("note"))
-        print()
+    # for item in analysis_output_combined.get("items", []):
+    #     print(item["sentence"])
+    #     print(item.get("census_note") or item.get("note"))
+    #     print()
 
     # Item 1A
     cleaned_text = cleaner.clean(ITEM_1A)

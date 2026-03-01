@@ -3350,6 +3350,17 @@ class Entry:
         return hash(key)
 
 
+@dataclass
+class BargainingEntry:
+    bargaining_unit_count: float
+    key: str
+    scope: Scope
+    sent_idx: int
+    related_geo_codes: List[str] = field(default_factory=list)
+    bargaining_unit_count_source: str = CountSourceDetail.EXPLICIT_BARGAINING_UNIT_COUNT.value
+    bargaining_unit_count_source_type: str = SourceType.EXPLICIT.value
+
+
 class Tracker:
     """
     Tracks the 'Whole Pie' (Total Employee Counts) across different geographic scopes.
@@ -3362,6 +3373,8 @@ class Tracker:
         self.country_totals: Dict[str, float] = {}
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
+        self.bargaining_entries: List[BargainingEntry] = []
+        self._seen_bargaining_records: Set[Tuple[int, str, float]] = set()
         # Start empty; only populate from actual detected context.
         self.mentioned_countries: set[str] = set()
         self.domestic_country_code = domestic_country_code
@@ -4003,6 +4016,7 @@ class Tracker:
                 not_covered_source = CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value
         else:
             not_covered_source = None
+
         total_source = (
             TotalSourceDetail.EXPLICIT_SCOPE_TOTAL.value
             if scope_total is not None
@@ -4038,6 +4052,100 @@ class Tracker:
                     if scope_total is not None
                     else None
                 ),
+            )
+        )
+
+    def record_bargaining_units(
+        self,
+        bargaining_unit_count: Optional[float],
+        geo_context: Dict[str, Any],
+        sentence_index: int = -1,
+    ) -> None:
+        if sentence_index < 0 or bargaining_unit_count is None:
+            return
+        if bargaining_unit_count <= 0:
+            return
+
+        region = geo_context.get("region")
+        countries = geo_context.get("countries", [])
+
+        scope = Scope.GLOBAL
+        key = scope.value
+
+        codes = [c.get("code") for c in countries]
+
+        if region and region not in INT_SET | UNK_SET:
+            scope = Scope.REGION
+            key = region
+        elif region in INT_SET:
+            if GeoCode.GLOBAL.value in codes:
+                scope = Scope.GLOBAL
+                key = Scope.GLOBAL.value
+            else:
+                scope = Scope.REGION
+                key = region
+        elif region in AGG_SET:
+            scope = Scope.AGGREGATE
+            key = Region.AGGREGATE.value
+        elif region in UNK_SET:
+            if len(countries) == 1:
+                c_code = countries[0].get("code")
+                key = (
+                    self.domestic_country_code
+                    if c_code in DOMESTIC_SET
+                    else c_code
+                )
+                scope = Scope.COUNTRY
+            elif len(countries) > 1:
+                key = Scope.GLOBAL.value
+                scope = Scope.GLOBAL
+            else:
+                key = Region.UNKNOWN.value
+                scope = Scope.REGION
+
+        if len(countries) == 1:
+            country_code = countries[0]["code"]
+            if country_code == GeoCode.DOMESTIC.value:
+                country_code = self.domestic_country_code
+            scope = Scope.SEGMENT
+            key = f"{country_code}::Segment_{len(self.bargaining_entries)}"
+        elif len(countries) > 1:
+            if region in UNK_SET:
+                scope = Scope.GLOBAL
+                key = Scope.GLOBAL.value
+            else:
+                scope = Scope.AGGREGATE
+                key = region if region else Scope.AGGREGATE.value
+
+        related_codes = [c["code"] for c in countries if c.get("code")]
+        if "regions" in geo_context:
+            related_codes.extend(
+                [r["code"] for r in geo_context["regions"] if r.get("code")]
+            )
+            related_codes.extend(
+                [r["name"] for r in geo_context["regions"] if r.get("name")]
+            )
+
+        normalized_related_codes: List[str] = []
+        for code in related_codes:
+            if code == GeoCode.DOMESTIC.value:
+                code = self.domestic_country_code
+            if code not in normalized_related_codes:
+                normalized_related_codes.append(code)
+        
+        assert isinstance(key, str)
+        dedupe_key = (sentence_index, key, float(bargaining_unit_count))
+        if dedupe_key in self._seen_bargaining_records:
+            return
+        self._seen_bargaining_records.add(dedupe_key)
+
+        self.bargaining_entries.append(
+            BargainingEntry(
+                bargaining_unit_count=float(bargaining_unit_count),
+                key=key,
+                scope=scope,
+                sent_idx=sentence_index,
+                related_geo_codes=normalized_related_codes,
             )
         )
 
@@ -8125,6 +8233,59 @@ class Tracker:
             "notes": [],
         }
 
+    def build_bargaining_provenance_report(self) -> Dict[str, Any]:
+        by_scope: Dict[Tuple[str, str], Dict[str, Any]] = {}
+        entries_out: List[Dict[str, Any]] = []
+
+        for e in self.bargaining_entries:
+            entries_out.append(
+                {
+                    "sentence_index": e.sent_idx,
+                    "scope": e.scope.value,
+                    "key": e.key,
+                    "related_geo_codes": e.related_geo_codes,
+                    "bargaining_unit_count": e.bargaining_unit_count,
+                    "bargaining_unit_count_source": e.bargaining_unit_count_source,
+                    "bargaining_unit_count_source_type": e.bargaining_unit_count_source_type,
+                }
+            )
+
+            map_key = (e.scope.value, e.key)
+            bucket = by_scope.get(map_key)
+            if bucket is None:
+                bucket = {
+                    "scope": e.scope.value,
+                    "key": e.key,
+                    "related_geo_codes": list(e.related_geo_codes),
+                    "bargaining_unit_count_total": 0.0,
+                    "entry_count": 0,
+                }
+                by_scope[map_key] = bucket
+            bucket["bargaining_unit_count_total"] += e.bargaining_unit_count
+            bucket["entry_count"] += 1
+            for code in e.related_geo_codes:
+                if code not in bucket["related_geo_codes"]:
+                    bucket["related_geo_codes"].append(code)
+
+        scope_totals = sorted(
+            by_scope.values(),
+            key=lambda x: (x["scope"], x["key"]),
+        )
+        entries_out.sort(key=lambda x: (x["sentence_index"], x["scope"], x["key"]))
+
+        return {
+            "schema_version": "1.0",
+            "entries": entries_out,
+            "totals_by_scope": scope_totals,
+            "summary": {
+                "total_bargaining_units": sum(
+                    e["bargaining_unit_count"] for e in entries_out
+                ),
+                "entry_count": len(entries_out),
+                "scope_count": len(scope_totals),
+            },
+        }
+
 
 class UnionAnalyzer:
     def __init__(self, domestic_country_code: str = "US"):
@@ -8370,6 +8531,7 @@ class UnionAnalyzer:
         risk_items = []
         summary = {}
         country_report: Dict[str, Any] = {}
+        bargaining_report: Dict[str, Any] = {}
 
         if item_type == "item1a":
             risk_items = self._analyze_item1a(sentences, reporting_year)
@@ -8446,6 +8608,11 @@ class UnionAnalyzer:
             for item in results:
                 cov: Dict[str, Any] = item.get("coverage_data", {})
                 geo = item.get("geographic_context", {})
+                tracker.record_bargaining_units(
+                    bargaining_unit_count=cov.get("bargaining_unit_count"),
+                    geo_context=geo,
+                    sentence_index=item.get("sentence_index", -1),
+                )
 
                 # Handle Union Context (Denominator) items
                 if cov.get("type") == CoverageType.UNION_CONTEXT.value:
@@ -8499,6 +8666,7 @@ class UnionAnalyzer:
                 results, tracker, all_region_totals
             )
             country_report = tracker.build_country_provenance_report()
+            bargaining_report = tracker.build_bargaining_provenance_report()
 
         return {
             "items": results,
@@ -8506,6 +8674,7 @@ class UnionAnalyzer:
             "risk_summary": self.risk_digest.summarize(risk_items),
             "summary": summary,
             "country_report": country_report,
+            "bargaining_report": bargaining_report,
         }
 
     def _populate_tracker(
@@ -10204,6 +10373,10 @@ class UnionAnalyzer:
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
+
+            # Capture explicit bargaining unit counts (summed per user instruction)
+            if analysis.bargaining_unit_counts:
+                coverage_data["bargaining_unit_count"] = sum(analysis.bargaining_unit_counts)
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)

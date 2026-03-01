@@ -152,7 +152,7 @@ WORKER_COUNT_REGEX = build_regex(
 )
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
     [
-        rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}(?:collective\s+)?bargaining\s+units?",
+        rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}(?:collective[-\s]+)?bargaining[-\s]+units?",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
@@ -1189,7 +1189,15 @@ class UnionExtractor:
             lambda m, val: analysis.years.append(val),
         )
 
-        # 3. Extract Specific Unions (Highest Priority for Unions)
+        # 3.1 Extract Bargaining Unit Counts
+        process_matches(
+            BARGAINING_UNIT_COUNT_REGEX,
+            MatchType.BARGAINING_UNIT_COUNT,
+            lambda m: float(m.group(1)),
+            lambda m, val: analysis.bargaining_unit_counts.append(val),
+        )
+
+        # 3.2 Extract Specific Unions (Highest Priority for Unions)
         # These are explicit names like "UAW", "IG Metall" defined in region_regex
         if self.matcher.specific_union_regex:
 
@@ -1237,7 +1245,7 @@ class UnionExtractor:
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
             info = self.matcher.get_union(val)
-            
+
             # Determine if we should use the info immediately or try fallbacks
             use_info_immediately = False
             if info:
@@ -1245,7 +1253,7 @@ class UnionExtractor:
                 # If specific country (not INT/GLO/INT_), trust it immediately
                 if code and not (code.startswith(GeoCode.INTERNATIONAL.value) or code == GeoCode.GLOBAL.value):
                     use_info_immediately = True
-            
+
                 if use_info_immediately:
                     region, country, code = info
                     geo_obj = GeoMatch(
@@ -1302,7 +1310,7 @@ class UnionExtractor:
                 if analysis._matches:
                     analysis._matches[-1]["geo_obj"] = geo_obj
                 found_fallback = True
-            
+
             if found_fallback:
                 return
 
@@ -1370,7 +1378,7 @@ class UnionExtractor:
             dynamic_union_side_effect,
             update_working_text=True,
         )
-        
+
         # 4c. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
         # e.g. "Japanese trade union", "German metal trade union"
         def lower_dynamic_side_effect(m: re.Match, val: str):
@@ -1529,22 +1537,6 @@ class UnionExtractor:
             MatchType.DIVERSITY_TERM,
             lambda m: m.group(0),
             lambda m, val: analysis.diversity_terms.append(val),
-        )
-
-        # 11. Extract Worker Counts (Specific Numbers)
-        process_matches(
-            WORKER_COUNT_REGEX,
-            MatchType.WORKER_COUNT,
-            lambda m: float(next(g for g in m.groups() if g is not None)),
-            lambda m, val: analysis.worker_counts.append(val),
-        )
-
-        # 11.5 Extract Bargaining Unit Counts
-        process_matches(
-            BARGAINING_UNIT_COUNT_REGEX,
-            MatchType.BARGAINING_UNIT_COUNT,
-            lambda m: float(m.group(1)),
-            lambda m, val: analysis.bargaining_unit_counts.append(val),
         )
 
         # 12. Extract Worker Terms (Generic)
