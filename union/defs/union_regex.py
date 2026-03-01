@@ -392,6 +392,7 @@ class RISK_TERMS:
         DISRUPT.SLOWDOWN,
         DISRUPT.OUT,
         r"efforts?\s+to\s+organize",
+        build_compound([r"(?:un|not\s+)able", r"fail\s+to", r"didn\'t", r"not"], [r"agree"]),
     ]
 
 
