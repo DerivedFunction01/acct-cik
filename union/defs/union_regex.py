@@ -50,6 +50,65 @@ class CORE(Enum):
     WORKS_COUNCIL = r"Works\s+Councils?"
     CO_DET_RIGHTS = r"Co[- ]?Determination"
 
+INDUSTRY_PREFIX_TERMS = [
+    r"Steel",
+    r"Aluminum",
+    r"Automotive",
+    r"Aviation",
+    r"Building",
+    r"Construction",
+    r"Electrical",
+    r"Electronics",
+    r"Food",
+    r"Glass",
+    r"Healthcare",
+    r"Hospitality",
+    r"Hotel",
+    r"Maritime",
+    r"Meatpacking",
+    r"Mining",
+    r"Packaging",
+    r"Pharmaceutical",
+    r"Pulp",
+    r"Paper",
+    r"Rail",
+    r"Retail",
+    r"Shipbuilding",
+    r"Telecommunications",
+    r"Textile",
+    r"Timber",
+    r"Transit",
+    r"Trucking",
+    r"Forestry",
+    r"Rubber",
+    r"Allied(?:[- ][Ii]ndustrial)?",
+    r"Industrial",
+    r"Chemical",
+    r"Energy",
+    r"Transport(?:ation)?",
+    r"Manufacturing",
+    r"Service",
+    r"Oil",
+    r"Gas",
+    r"Coal",
+    r"Agricultur(?:e|al)",
+    r"Iron",
+    r"Dock",
+    r"Auto",
+    r"Longshore",
+]
+
+WORKER_COMPOUND_PREFIX_TERMS = INDUSTRY_PREFIX_TERMS + [
+    r"Metall?",
+    r"Rail(?:road)?",
+    r"Farm",
+    r"Mill",
+    r"Port",
+    r"Plant",
+    r"Warehouse",
+    r"Postal",
+]
+
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
@@ -60,23 +119,7 @@ WORKER_TERMS = [
     r"Associates",
     r"Miners?",
     build_compound(
-        [
-            r"Dock",
-            r"Steel",
-            r"Auto",
-            r"Metall?",
-            r"Iron",
-            r"Rail(?:road)?",
-            r"Farm",
-            r"Oil",
-            r"Gas",
-            r"Coal",
-            r"Mill",
-            r"Port",
-            r"Plant",
-            r"Warehouse",
-            r"Postal",
-        ],
+        WORKER_COMPOUND_PREFIX_TERMS,
         r"[Ww]orkers?",
         sep_prefix=r"\s*",
     ),
@@ -202,27 +245,6 @@ LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 
 # Optional industry-list prefix support for long formal union names.
 # This is intentionally explicit to avoid broad TitleCase over-capture.
-INDUSTRY_PREFIX_TERMS = [
-    r"Steel",
-    r"Paper",
-    r"Forestry",
-    r"Rubber",
-    r"Allied(?:[- ][Ii]ndustrial)?",
-    r"Industrial",
-    r"Chemical",
-    r"Energy",
-    r"Transport(?:ation)?",
-    r"Manufacturing",
-    r"Service",
-    r"Oil",
-    r"Gas",
-    r"Coal",
-    r"Agricultur(?:e|al)",
-    r"Iron",
-    r"Dock",
-    r"Auto",
-    r"Longshore",
-]
 _industry_term_alt = to_build_alternation(INDUSTRY_PREFIX_TERMS)
 _industry_sep = r"(?:,\s*|\s+(?:and|&)\s+)"
 INDUSTRY_TITLE_PREFIX_REGEX = re.compile(
