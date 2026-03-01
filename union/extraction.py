@@ -32,6 +32,7 @@ from defs.union_regex import (
     PERSONNEL_EVENT_REGEX,
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
+    INDUSTRY_TITLE_PREFIX_REGEX,
     DIVERSITY_TERMS,
     WORKS_REGEX,
     COVERAGE_VERBS
@@ -1278,6 +1279,13 @@ class UnionExtractor:
             prefix_match = LOOSE_TITLE_PREFIX_REGEX.search(pre_text)
             if prefix_match:
                 prefix = prefix_match.group(0)
+                return prefix + val, start - len(prefix), end
+
+            # Fallback for formal names that enumerate industries before the
+            # core worker/union segment (e.g., "Steel, Paper and Forestry, ...").
+            industry_prefix_match = INDUSTRY_TITLE_PREFIX_REGEX.search(pre_text)
+            if industry_prefix_match:
+                prefix = industry_prefix_match.group(0)
                 return prefix + val, start - len(prefix), end
 
             return val

@@ -200,6 +200,35 @@ _worker_term_alt = to_build_alternation(set(WORKER_TERMS) - {r"Teamsters?"}) + "
 _prefix_sep = r"(?:,\s*(?:(?:and|&)\s+)?|\s+(?:and|&)\s+|\s+)"
 LOOSE_TITLE_PREFIX_REGEX = re.compile(rf"(?:{_worker_term_alt}{_prefix_sep})+$")
 
+# Optional industry-list prefix support for long formal union names.
+# This is intentionally explicit to avoid broad TitleCase over-capture.
+INDUSTRY_PREFIX_TERMS = [
+    r"Steel",
+    r"Paper",
+    r"Forestry",
+    r"Rubber",
+    r"Allied(?:[- ][Ii]ndustrial)?",
+    r"Industrial",
+    r"Chemical",
+    r"Energy",
+    r"Transport(?:ation)?",
+    r"Manufacturing",
+    r"Service",
+    r"Oil",
+    r"Gas",
+    r"Coal",
+    r"Agricultur(?:e|al)",
+    r"Iron",
+    r"Dock",
+    r"Auto",
+    r"Longshore",
+]
+_industry_term_alt = to_build_alternation(INDUSTRY_PREFIX_TERMS)
+_industry_sep = r"(?:,\s*|\s+(?:and|&)\s+)"
+INDUSTRY_TITLE_PREFIX_REGEX = re.compile(
+    rf"(?:{_industry_term_alt}(?:{_industry_sep}{_industry_term_alt})*)(?:{_industry_sep})$"
+)
+
 COLLECTIVE_BARGAIN = build_alternation(
     [
         build_compound(
