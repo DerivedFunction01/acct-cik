@@ -9798,10 +9798,27 @@ class UnionAnalyzer:
 
         used_c = set()
         used_t = set()
+
+        # 1. Link by worker_group_id (Strongest link)
+        counts_by_id = {c.get("worker_group_id"): c for c in counts if c.get("worker_group_id")}
+
+        for t in types:
+            gid = t.get("worker_group_id")
+            if gid and gid in counts_by_id:
+                c = counts_by_id[gid]
+                if id(c) not in used_c and id(t) not in used_t:
+                    mapping[t["val"].lower()] = c["val"]
+                    used_c.add(id(c))
+                    used_t.add(id(t))
+
         pairs = []
         for c in counts:
+            if id(c) in used_c:
+                continue
             c_mid = get_midpoint(c["span"])
             for t in types:
+                if id(t) in used_t:
+                    continue
                 t_mid = get_midpoint(t["span"])
                 dist = abs(c_mid - t_mid)
                 pairs.append((dist, c, t))
