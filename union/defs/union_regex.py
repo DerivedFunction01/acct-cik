@@ -477,16 +477,34 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
 
 BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", r"expect(?:ed|ing|s|ations?)?", r"relations?", "closely", "publically", r"disclos(?:ed?|es|ing)", r"disclosures?", r"believe(?:s|d)?", r"oppos(?:es?|ed|ing)"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
+
+LEGAL_PROCESS_TERMS = [
+    r"national\s+labou?r\s+relations?\s+board",
+    r"NLRB",
+    r"national\s+mediation\s+board",
+    r"\bNMB\b",
+    r"presidential\s+emergency\s+board",
+    r"\bPEB\b",
+    r"RLA",
+    r"Railway\s+Labor\s+Act",
+    r"federal\s+mediat(?:or|ion)",
+    r"binding\s+arbitration",
+    r"arbitration",
+    r"cooling\s+off",
+    r"self\s+help",
+    r"representation\s+dispute",
+    r"authorization\s+cards?",
+    r"certif(?:y|ied|ication)",
+    r"craft\s+or\s+class",
+]
+LEGAL_PROCESS_REGEX = build_regex(LEGAL_PROCESS_TERMS)
+
 LEGAL_REQUIREMENT_TERMS = [
     r"labou?r\s+law?",
     r"labou?r\s+relations?\s+acts?",
-    r"national\s+labou?r\s+relations?\s+board",
-    r"NLRB",
     r"statutory",
     r"mandated?",
     r"by\s+law",
-    r"RLA",
-    r"Railway\s+Labor\s+Act",
     r"require(?:s|ment|d)?",
     r"mandatory",
 ]
