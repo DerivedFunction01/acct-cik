@@ -7517,6 +7517,65 @@ class Tracker:
                 floor_vals[k] += 1
             return {k: float(v) for k, v in floor_vals.items()}
 
+        def normalize_geo_code(
+            raw: Any, region_name_to_code: Dict[str, str]
+        ) -> Optional[str]:
+            if not isinstance(raw, str):
+                return None
+            code = raw.strip()
+            if not code:
+                return None
+            if code in IGNORED_REGIONS:
+                return None
+            if code in region_name_to_code:
+                return region_name_to_code[code]
+            if is_region(code):
+                return code
+            if re.fullmatch(r"[A-Z0-9_]{2,12}", code):
+                return code
+            return None
+
+        def reduce_child_codes(
+            child_codes: List[str],
+            *,
+            aggregate_key: Optional[str],
+            region_name_to_code: Dict[str, str],
+        ) -> List[str]:
+            # Remove aggregate self-reference first.
+            if aggregate_key:
+                child_codes = [c for c in child_codes if c != aggregate_key]
+
+            def is_concrete_child(code: str) -> bool:
+                return (
+                    code not in IGNORED_REGIONS
+                    and code not in AGG_SET
+                    and code not in DOMESTIC_SET
+                    and not is_region(code)
+                )
+
+            filtered_children: List[str] = []
+            for c in child_codes:
+                is_container_like = (
+                    is_region(c)
+                    or c in region_name_to_code.values()
+                    or c in COMPOSITE_REGION_MAP
+                )
+                if is_container_like:
+                    has_concrete_descendant = any(
+                        other != c
+                        and is_concrete_child(other)
+                        and is_contained(
+                            container_key=c,
+                            item_key=other,
+                            domestic_country_code=self.domestic_country_code,
+                        )
+                        for other in child_codes
+                    )
+                    if has_concrete_descendant:
+                        continue
+                filtered_children.append(c)
+            return filtered_children
+
         region_name_to_code: Dict[str, str] = {
             region_name: code for region_name, code in REGION_NAME_MAP.items()
         }
@@ -7534,6 +7593,7 @@ class Tracker:
             COMPOSITE_REGION_MAP.keys()
         )
         pseudo_region_by_code: Dict[str, str] = {}
+        aggregate_weighted_by_code: Dict[str, Dict[str, Any]] = {}
 
         explicit_country_codes: set[str] = set(self.country_totals.keys()) | set(
             self.country_keywords.keys()
@@ -7591,6 +7651,76 @@ class Tracker:
                 p_code = REGION_NAME_MAP[region_name]
                 country_codes.add(p_code)
                 pseudo_region_by_code[p_code] = region_name
+
+        # Precompute weighted allocations from aggregate parents for country-level
+        # method breakdown seeding/reclassification.
+        for e in self.entries:
+            is_aggregate_parent = (
+                e.scope == Scope.AGGREGATE
+                or (e.scope == Scope.REGION and e.key in AGG_SET)
+            )
+            if not is_aggregate_parent or not e.related_geo_codes:
+                continue
+
+            aggregate_key = e.key if isinstance(e.key, str) else None
+            if isinstance(aggregate_key, str):
+                if aggregate_key in AGG_SET:
+                    aggregate_key = GeoCode.AGGREGATE.value
+                elif aggregate_key in region_name_to_code:
+                    aggregate_key = region_name_to_code[aggregate_key]
+                elif is_region(aggregate_key):
+                    aggregate_key = aggregate_key
+
+            child_codes: List[str] = []
+            for raw_code in e.related_geo_codes:
+                normalized = normalize_geo_code(raw_code, region_name_to_code)
+                if normalized and normalized not in child_codes:
+                    child_codes.append(normalized)
+            child_codes = reduce_child_codes(
+                child_codes,
+                aggregate_key=aggregate_key if isinstance(aggregate_key, str) else None,
+                region_name_to_code=region_name_to_code,
+            )
+            if not child_codes:
+                continue
+
+            child_weights = {
+                c: float(self.country_totals.get(c, 0.0) or 0.0) for c in child_codes
+            }
+            alloc_total = alloc_map_by_weights(e.total_count, child_weights)
+            alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
+            alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
+
+            for c in child_codes:
+                bucket = aggregate_weighted_by_code.setdefault(
+                    c,
+                    {
+                        "employee_count_total": None,
+                        "employee_count_covered": None,
+                        "employee_count_not_covered": None,
+                        "coverage_percent_values": [],
+                        "entry_count": 0,
+                    },
+                )
+                c_total = alloc_total.get(c)
+                c_cov = alloc_covered.get(c)
+                c_not = alloc_not_covered.get(c)
+                bucket["employee_count_total"] = add_nullable(
+                    bucket["employee_count_total"], c_total
+                )
+                bucket["employee_count_covered"] = add_nullable(
+                    bucket["employee_count_covered"], c_cov
+                )
+                bucket["employee_count_not_covered"] = add_nullable(
+                    bucket["employee_count_not_covered"], c_not
+                )
+                if c_total is not None and c_cov is not None and c_total > 0:
+                    bucket["coverage_percent_values"].append(
+                        round((float(c_cov) / float(c_total)) * 100.0, 2)
+                    )
+                elif e.percentage is not None:
+                    bucket["coverage_percent_values"].append(float(e.percentage))
+                bucket["entry_count"] += 1
 
         countries = []
         for code in sorted(country_codes):
@@ -7744,6 +7874,33 @@ class Tracker:
 
                 used_bucket_keys = set()
                 for field_name, val, stype in field_sources:
+                    # Aggregate-propagated values are weighted split provenance.
+                    if stype == SourceType.CALCULATED.value:
+                        is_weighted_from_agg = False
+                        if (
+                            field_name == "coverage_percent_values"
+                            and e.percentage_source
+                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
+                        ):
+                            is_weighted_from_agg = True
+                        elif (
+                            field_name in (
+                                "employee_count_covered",
+                                "employee_count_not_covered",
+                            )
+                            and e.percentage_source
+                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
+                            and (
+                                e.covered_count_source
+                                == CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value
+                                or e.not_covered_count_source
+                                == CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value
+                            )
+                        ):
+                            is_weighted_from_agg = True
+                        if is_weighted_from_agg:
+                            stype = SourceType.WEIGHTED_DIVISION.value
+
                     if stype not in method_breakdown:
                         continue
                     bucket = method_breakdown[stype]
@@ -7755,6 +7912,27 @@ class Tracker:
                         bucket[field_name] = add_nullable(bucket[field_name], val)
                 for k in used_bucket_keys:
                     method_breakdown[k]["entry_count"] += 1
+
+            # Backfill weighted split method bucket from aggregate allocations
+            # when this country/pseudo-country has no direct weighted entries.
+            weighted_seed = aggregate_weighted_by_code.get(code)
+            if weighted_seed:
+                weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
+                if weighted_bucket["entry_count"] == 0:
+                    for f in (
+                        "employee_count_total",
+                        "employee_count_covered",
+                        "employee_count_not_covered",
+                    ):
+                        weighted_bucket[f] = add_nullable(
+                            weighted_bucket[f], weighted_seed.get(f)
+                        )
+                    weighted_bucket["coverage_percent_values"].extend(
+                        weighted_seed.get("coverage_percent_values", [])
+                    )
+                    weighted_bucket["entry_count"] += int(
+                        weighted_seed.get("entry_count") or 0
+                    )
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             explicit_pcts = explicit_bucket.get("coverage_percent_values", [])
@@ -7856,65 +8034,19 @@ class Tracker:
                     # Already code-like.
                     aggregate_key = aggregate_key
 
-            def normalize_geo_code(raw: Any) -> Optional[str]:
-                if not isinstance(raw, str):
-                    return None
-                code = raw.strip()
-                if not code:
-                    return None
-                if code in IGNORED_REGIONS:
-                    return None
-                if code in region_name_to_code:
-                    return region_name_to_code[code]
-                if is_region(code):
-                    return code
-                if re.fullmatch(r"[A-Z0-9_]{2,12}", code):
-                    return code
-                return None
-
             child_codes: List[str] = []
             for raw_code in e.related_geo_codes:
-                normalized = normalize_geo_code(raw_code)
+                normalized = normalize_geo_code(raw_code, region_name_to_code)
                 if normalized and normalized not in child_codes:
                     child_codes.append(normalized)
             if not child_codes:
                 continue
 
-            # Remove parent/container duplicates from child list
-            # (e.g., EU aggregate with DE/FR/IT should not include EU as its own child).
-            if isinstance(aggregate_key, str):
-                child_codes = [c for c in child_codes if c != aggregate_key]
-
-            def is_concrete_child(code: str) -> bool:
-                return (
-                    code not in IGNORED_REGIONS
-                    and code not in AGG_SET
-                    and code not in DOMESTIC_SET
-                    and not is_region(code)
-                )
-
-            filtered_children: List[str] = []
-            for c in child_codes:
-                is_container_like = (
-                    is_region(c)
-                    or c in region_name_to_code.values()
-                    or c in COMPOSITE_REGION_MAP
-                )
-                if is_container_like:
-                    has_concrete_descendant = any(
-                        other != c
-                        and is_concrete_child(other)
-                        and is_contained(
-                            container_key=c,
-                            item_key=other,
-                            domestic_country_code=self.domestic_country_code,
-                        )
-                        for other in child_codes
-                    )
-                    if has_concrete_descendant:
-                        continue
-                filtered_children.append(c)
-            child_codes = filtered_children
+            child_codes = reduce_child_codes(
+                child_codes,
+                aggregate_key=aggregate_key if isinstance(aggregate_key, str) else None,
+                region_name_to_code=region_name_to_code,
+            )
 
             if not child_codes:
                 continue
