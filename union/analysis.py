@@ -9773,50 +9773,64 @@ class UnionAnalyzer:
 
     def _resolve_counts_to_types(self, analysis: SentenceAnalysis) -> Dict[str, float]:
         """Maps worker counts to worker types (e.g. '112' -> 'hourly')."""
-        mapping = {}
+        mapping: Dict[str, float] = {}
         counts = [
             m
             for m in analysis._matches
             if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
         ]
 
-        # Include WORKER_TYPE
-        types = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TYPE]
+        worker_matches: List[Dict[str, Any]] = []
 
-        # Include specific WORKER_TERM (e.g. pilots, teachers)
-        terms = [m for m in analysis._matches if m["type"] == MatchType.WORKER_TERM]
-        for t in terms:
-            val_lower = t["val"].lower()
-            if (
-                val_lower not in GENERIC_WORKER_TERMS
-                and val_lower.rstrip("s") not in GENERIC_WORKER_TERMS
-            ):
-                types.append(t)
+        # Include WORKER_TYPE and specific WORKER_TERM (e.g. pilots, teachers)
+        for m in analysis._matches:
+            m_type = m["type"]
+            if m_type == MatchType.WORKER_TYPE:
+                worker_matches.append(m)
+            elif m_type == MatchType.WORKER_TERM:
+                val_lower = m["val"].lower()
+                if (
+                    val_lower not in GENERIC_WORKER_TERMS
+                    and val_lower.rstrip("s") not in GENERIC_WORKER_TERMS
+                ):
+                    worker_matches.append(m)
 
-        if not counts or not types:
+        if not counts or not worker_matches:
             return {}
 
         used_c = set()
         used_t = set()
 
-        # 1. Link by worker_group_id (Strongest link)
-        counts_by_id = {c.get("worker_group_id"): c for c in counts if c.get("worker_group_id")}
+        def _set_mapping(type_key: str, value: float) -> None:
+            # Keep the larger value when duplicate terms are encountered.
+            mapping[type_key] = max(mapping.get(type_key, 0.0), value)
 
-        for t in types:
+        # 1. Link by worker_group_id (Strongest link, provided by extractor)
+        for t in worker_matches:
             gid = t.get("worker_group_id")
-            if gid and gid in counts_by_id:
-                c = counts_by_id[gid]
-                if id(c) not in used_c and id(t) not in used_t:
-                    mapping[t["val"].lower()] = c["val"]
-                    used_c.add(id(c))
-                    used_t.add(id(t))
+            if not gid:
+                continue
+
+            candidates = [
+                c
+                for c in counts
+                if c.get("worker_group_id") == gid and id(c) not in used_c
+            ]
+            if not candidates or id(t) in used_t:
+                continue
+
+            t_mid = get_midpoint(t["span"])
+            c = min(candidates, key=lambda x: abs(get_midpoint(x["span"]) - t_mid))
+            _set_mapping(t["val"].lower(), c["val"])
+            used_c.add(id(c))
+            used_t.add(id(t))
 
         pairs = []
         for c in counts:
             if id(c) in used_c:
                 continue
             c_mid = get_midpoint(c["span"])
-            for t in types:
+            for t in worker_matches:
                 if id(t) in used_t:
                     continue
                 t_mid = get_midpoint(t["span"])
@@ -9827,7 +9841,7 @@ class UnionAnalyzer:
 
         for dist, c, t in pairs:
             if dist < 50 and id(c) not in used_c and id(t) not in used_t:
-                mapping[t["val"].lower()] = c["val"]
+                _set_mapping(t["val"].lower(), c["val"])
                 used_c.add(id(c))
                 used_t.add(id(t))
 

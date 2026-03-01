@@ -1560,12 +1560,34 @@ class UnionExtractor:
             lambda m, val: analysis.diversity_terms.append(val),
         )
 
+        def worker_count_side_effect(m, val):
+            analysis.worker_counts.append(val)
+
+            # WORKER_COUNT matching masks the whole span from later passes.
+            # Recover embedded worker terms (e.g. "800 pilots") so analysis can
+            # still build type maps for specific terms.
+            full_text = m.group(0)
+            full_start = m.start()
+            for term_m in WORKER_TERM_REGEX.finditer(full_text):
+                t_start = full_start + term_m.start()
+                t_end = full_start + term_m.end()
+                t_val = term_m.group(0)
+                analysis.worker_terms.append(t_val)
+                analysis._matches.append(
+                    {
+                        "type": MatchType.WORKER_TERM,
+                        "val": t_val,
+                        "span": (t_start, t_end),
+                        "text": t_val,
+                    }
+                )
+
         # 11C: Extract Worker Counts (Specific)
         process_matches(
             WORKER_COUNT_REGEX,
             MatchType.WORKER_COUNT,
             lambda m: float(next((g for g in m.groups() if g is not None), "0")),
-            lambda m, val: analysis.worker_counts.append(val),
+            worker_count_side_effect,
         )
 
         # 12. Extract Worker Terms (Generic)
@@ -1929,56 +1951,69 @@ class UnionExtractor:
                 for m in group:
                     m["linked_geo_group_id"] = geo_gid
 
-        # 25. Link Worker Types to Numeric Matches
-        # Group worker types and numeric matches (Count, Number)
+        # 25. Link Worker Type/Term Matches to Numeric Matches
+        # Group worker matches and numeric matches (Count, Number)
         worker_type_matches = [
-            m for m in analysis._matches 
+            m for m in analysis._matches
             if m["type"] == MatchType.WORKER_TYPE
         ]
+        worker_term_matches = [
+            m for m in analysis._matches
+            if m["type"] == MatchType.WORKER_TERM
+        ]
         numeric_matches_all = [
-            m for m in analysis._matches 
+            m for m in analysis._matches
             if m["type"] in {MatchType.WORKER_COUNT, MatchType.NUMBER}
         ]
-        
+
         # Sort
         worker_type_matches.sort(key=lambda x: x["span"][0])
+        worker_term_matches.sort(key=lambda x: x["span"][0])
         numeric_matches_all.sort(key=lambda x: x["span"][0])
-        
-        for wt in worker_type_matches:
-            # Find closest numeric match
-            best_num = None
-            min_dist = float('inf')
-            
-            wt_start, wt_end = wt["span"]
-            
-            for num in numeric_matches_all:
-                n_start, n_end = num["span"]
-                
-                dist = float('inf')
-                # Check for overlap (Type inside Count)
-                if (n_start <= wt_start and wt_end <= n_end):
-                    dist = 0
-                else:
-                    if n_end <= wt_start: # Num before Type
-                        dist = wt_start - n_end
-                    elif wt_end <= n_start: # Type before Num
-                        dist = n_start - wt_end
-                
-                if dist < 80: # Close proximity
-                    # Check for hard delimiters if not overlapping
-                    if dist > 0:
-                        text_between = text[n_end:wt_start] if n_end <= wt_start else text[wt_end:n_start]
-                        if SEGMENT_DELIMITER_REGEX.search(text_between):
-                            continue
-                            
-                    if dist < min_dist:
-                        min_dist = dist
-                        best_num = num
-            
-            if best_num:
-                gid = best_num.get("worker_group_id") or id(best_num)
-                best_num["worker_group_id"] = gid
-                wt["worker_group_id"] = gid
+
+        def _link_worker_matches_to_numeric(worker_matches):
+            for worker_match in worker_matches:
+                # Find closest numeric match
+                best_num = None
+                min_dist = float("inf")
+
+                worker_start, worker_end = worker_match["span"]
+
+                for num in numeric_matches_all:
+                    n_start, n_end = num["span"]
+
+                    dist = float("inf")
+                    # Check for overlap (Worker term/type inside Count)
+                    if n_start <= worker_start and worker_end <= n_end:
+                        dist = 0
+                    else:
+                        if n_end <= worker_start:  # Num before worker term/type
+                            dist = worker_start - n_end
+                        elif worker_end <= n_start:  # Worker term/type before num
+                            dist = n_start - worker_end
+
+                    if dist < 80:  # Close proximity
+                        # Check for hard delimiters if not overlapping
+                        if dist > 0:
+                            text_between = (
+                                text[n_end:worker_start]
+                                if n_end <= worker_start
+                                else text[worker_end:n_start]
+                            )
+                            if SEGMENT_DELIMITER_REGEX.search(text_between):
+                                continue
+
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_num = num
+
+                if best_num:
+                    gid = best_num.get("worker_group_id") or id(best_num)
+                    best_num["worker_group_id"] = gid
+                    worker_match["worker_group_id"] = gid
+
+        _link_worker_matches_to_numeric(worker_type_matches)
+        _link_worker_matches_to_numeric(worker_term_matches)
 
         # Determine relevancy
         # Sentence-level keyword cache used by analysis/tracker logic.
@@ -2119,6 +2154,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
