@@ -87,7 +87,7 @@ def refine_generic_code(
         return code, None
 
     allowed = None
-    if code.startswith("INT_") and code in INT_LANGUAGE_MAP:
+    if code.startswith(GeoCode.INT_LANG.value) and code in INT_LANGUAGE_MAP:
         allowed = INT_LANGUAGE_MAP[code]
     elif code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
         allowed = None  # Any specific country is allowed
@@ -2923,7 +2923,7 @@ def determine_geo_context(
         for m in explicit_matches:
             if (
                 m.geo_code
-                and not m.geo_code.startswith("INT_")
+                and not m.geo_code.startswith(GeoCode.INT_LANG.value)
                 and m.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
             ):
                 strong_codes.add(m.geo_code)
@@ -2959,7 +2959,7 @@ def determine_geo_context(
             # Refine INT_ codes (e.g. INT_DE) using context
             if (
                 m.geo_code
-                and m.geo_code.startswith("INT_")
+                and m.geo_code.startswith(GeoCode.INT_LANG.value)
                 and m.geo_code in INT_LANGUAGE_MAP
             ):
                 allowed = INT_LANGUAGE_MAP[m.geo_code]
@@ -5638,7 +5638,7 @@ class Tracker:
         for e in self.entries:
             key = str(e.key)
             prefix = key.split("::")[0]
-            if prefix.startswith("INT_"):
+            if prefix.startswith(GeoCode.INT_LANG.value):
                 int_codes.add(prefix)
 
         if not int_codes:
@@ -7975,7 +7975,7 @@ class UnionAnalyzer:
 
         annotated = []
         for term in keywords:
-            related = next((m for m in analysis.geo_matches if m.text == term and m.geo_code and m.geo_code.startswith("INT_")), None)
+            related = next((m for m in analysis.geo_matches if m.text == term and m.geo_code and m.geo_code.startswith(GeoCode.INT_LANG.value)), None)
             if related:
                 annotated.append(f"{related.geo_code}::{term}")
             else:
@@ -9076,7 +9076,7 @@ class UnionAnalyzer:
             for obj in geo_match_objs:
                 if (
                     obj.geo_code
-                    and not obj.geo_code.startswith("INT_")
+                    and not obj.geo_code.startswith(GeoCode.INT_LANG.value)
                     and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj
@@ -9165,7 +9165,7 @@ class UnionAnalyzer:
             for obj in geo_match_objs:
                 if (
                     obj.geo_code
-                    and not obj.geo_code.startswith("INT_")
+                    and not obj.geo_code.startswith(GeoCode.INT_LANG.value)
                     and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj

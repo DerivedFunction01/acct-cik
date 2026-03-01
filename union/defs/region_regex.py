@@ -36,6 +36,7 @@ class GeoCode(Enum):
     ASIA_PACIFIC = "APAC"
     LATIN_AMERICA = "LATAM"
     MIDDLE_EAST_AFRICA = "MEA"
+    INT_LANG = "INT_"
 
 class GeoSource(Enum):
     EXPLICIT = "EXPLICIT"

@@ -41,6 +41,7 @@ from defs.region_regex import (
     GeoSource,
     INT_LANGUAGE_MAP,
     _CODE_TO_REGION,
+    GeoCode,
 )
 
 # Regex for basic entities
@@ -1235,7 +1236,7 @@ class UnionExtractor:
             if info:
                 _, _, code = info
                 # If specific country (not INT/GLO/INT_), trust it immediately
-                if code and not (code.startswith("INT") or code == "GLO"):
+                if code and not (code.startswith(GeoCode.INTERNATIONAL.value) or code == GeoCode.GLOBAL.value):
                     use_info_immediately = True
             
                 if use_info_immediately:
@@ -1975,7 +1976,7 @@ class UnionExtractor:
                 if (
                     m.source_type == GeoSource.INFERRED_UNION
                     and m.geo_code
-                    and m.geo_code.startswith("INT_")
+                    and m.geo_code.startswith(GeoCode.INT_LANG.value)
                 ):
                     allowed_countries = INT_LANGUAGE_MAP.get(m.geo_code)
                     if allowed_countries:
