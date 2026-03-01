@@ -20,13 +20,13 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   "country_code": "DE",
   "country_name": "Germany",
   "is_domestic": false, // true only for domestic_country_code
-
+  "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
   "country_totals": {
     "employee_count_total": 3100.0, // final resolved total for this country (all methods combined)
     "employee_count_covered": 1224.0, // final resolved covered count (all methods combined)
     "employee_count_not_covered": 1876.0, // final resolved non-covered count
     "coverage_percent": 39.48, // final country % (prefer covered/total when available)
-    "union_indicator": 1 // 1 if any union coverage signal exists for this country, else null
+    
   },
 
   "method_breakdown": {

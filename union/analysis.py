@@ -7721,12 +7721,12 @@ class Tracker:
                         code, pseudo_region_name_by_code.get(code)
                     ),
                     "is_domestic": code == self.domestic_country_code,
+                    "union_indicator": union_indicator,
                     "country_totals": {
                         "employee_count_total": total_val,
                         "employee_count_covered": covered_val,
                         "employee_count_not_covered": not_covered_val,
                         "coverage_percent": pct_val,
-                        "union_indicator": union_indicator,
                     },
                     "reported_totals": {
                         "employee_count_total": explicit_bucket.get("employee_count_total"),
