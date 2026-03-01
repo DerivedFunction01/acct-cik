@@ -31,10 +31,6 @@ class CORE(Enum):
     LABOR = r"Labo(?:u)?rs?"
     TRADE = r"Trades?"
     ORGANIZED = r"Organized?"
-    STRIKE = r"Strikes?"
-    DISPUTE = r"Disputes?"
-    STOPPAGE = r"Stoppages?"
-    DISAGREEMENT = r"Disagreements?"
     FEDERATION = r"(?:Con)?[Ff]ederations?"
     GUILD = r"Guilds?"
     AMALGAMATED = r"Amalgamated"
@@ -49,6 +45,15 @@ class CORE(Enum):
     LODGE = r"Lodges?"
     WORKS_COUNCIL = r"Works\s+Councils?"
     CO_DET_RIGHTS = r"Co[- ]?Determination"
+
+class DISRUPT(Enum):
+    STRIKE = r"strikes?"
+    DISPUTE = r"disputes?"
+    STOPPAGE = r"(?:work\s+)?stoppages?"
+    DISAGREEMENT = r"disagreements?"
+    DISRUPT = r"disruptions?"
+    SLOWDOWN = r"slow[- ]?downs?"
+    OUT = build_compound([r"walk", r"sick", r"lock"], r"outs?")
 
 INDUSTRY_PREFIX_TERMS = [
     r"Steel",
@@ -354,10 +359,6 @@ DIVERSITY_TERMS = [
 class LABOR_TERMS:
     SPECIFIC_PHRASES = UNION_PHRASES + [CORE.NONUNION.value]
 
-_OUTS = build_compound(
-    [r"walk", r"sick", r"lock"],
-    r"outs?",
-)
 
 class RISK_TERMS:
     PHRASES = [
@@ -365,30 +366,32 @@ class RISK_TERMS:
         build_compound(
             [CORE.UNION, CORE.REUNIONIZE, CORE.BARGAIN, CORE.LABOR],
             [
-                CORE.DISPUTE,
+                DISRUPT.DISPUTE,
                 r"campaigns?",
-                CORE.DISAGREEMENT,
+                DISRUPT.DISAGREEMENT,
                 CORE.NEGOTIATE,
                 r"drives?",
                 r"efforts?",
                 r"elections?",
-                r"strikes?",
-                _OUTS,
-                r"work\s+stoppages?",
-                r"slowdowns",
+                DISRUPT.STRIKE,
+                DISRUPT.STOPPAGE,
+                DISRUPT.DISRUPT,
+                DISRUPT.SLOWDOWN,
+                DISRUPT.OUT,
             ],
         ),
         # Collective bargaining disputes
-        build_compound([CORE.BARGAIN], [CORE.DISPUTE, CORE.DISAGREEMENT]),
+        build_compound([CORE.BARGAIN], [DISRUPT.DISPUTE, DISRUPT.DISAGREEMENT]),
     ]
     GENERIC_PHRASES = [
-        r"strikes?",
-        r"work\s+stoppages?",
+        DISRUPT.DISPUTE,
+        DISRUPT.DISAGREEMENT,
+        DISRUPT.STRIKE,
+        DISRUPT.STOPPAGE,
+        DISRUPT.DISRUPT,
+        DISRUPT.SLOWDOWN,
+        DISRUPT.OUT,
         r"efforts?\s+to\s+organize",
-        r"disputes?",
-        r"disagreements?",
-        r"slowdowns",
-        _OUTS,
     ]
 
 
