@@ -8943,6 +8943,9 @@ class UnionAnalyzer:
                 last_geo_sentence_idx = idx
             tracker.register_mentions(geo_context)
 
+            if analysis.suppress_coverage_counts:
+                continue
+
             # Try to resolve specific counts to geography (e.g. "200 in China")
             mapped_counts, _, _ = self._resolve_counts_to_geography(analysis)
             if mapped_counts:
@@ -10462,6 +10465,10 @@ class UnionAnalyzer:
 
             # 3. Relevance Check
             if not analysis.is_relevant:
+                continue
+
+            # Exclude procedural/risk boilerplate numerics from coverage math.
+            if analysis.suppress_coverage_counts:
                 continue
 
             # 4. Determine Geographic Context

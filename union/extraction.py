@@ -1695,7 +1695,7 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.boilerplate_terms.append(val),
         )
-        
+
         # 17e. Extract legal-process terms (procedural governance language)
         process_matches(
             LEGAL_PROCESS_REGEX,
@@ -2152,9 +2152,9 @@ class UnionExtractor:
                 m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                 for m in analysis._matches
             )
+            
             has_hard_coverage_signal = bool(
-                analysis.has_union_denominator
-                or analysis.worker_counts
+                analysis.worker_counts
                 or has_status_negation
             )
 
