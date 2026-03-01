@@ -1563,8 +1563,16 @@ class UnionExtractor:
                 analysis.numbers = [
                     n for n in analysis.numbers if not (n < noise_threshold)
                 ]
+        # 14. Extract Coverage Terms (e.g. "represented", "covered")
+        process_matches(
+            COVERAGE_REGEX,
+            MatchType.COVERAGE_TERM,
+            lambda m: m.group(0),
+            lambda m, val: analysis.coverage_terms.append(val),
+        )
 
-        # 14. Extract Relationship Terms (e.g. "employee relations")
+        working_text = text
+        # 15. Extract Relationship Terms (e.g. "employee relations")
         process_matches(
             RELATIONSHIP_REGEX,
             MatchType.RELATIONSHIP_TERM,
@@ -1572,7 +1580,7 @@ class UnionExtractor:
             lambda m, val: analysis.relationship_terms.append(val),
         )
 
-        # 15. Extract Relationship Quality (e.g. "good", "strained")
+        # 16. Extract Relationship Quality (e.g. "good", "strained")
         process_matches(
             RELATIONSHIP_QUALITY_REGEX,
             MatchType.RELATIONSHIP_QUALITY,
@@ -1580,7 +1588,7 @@ class UnionExtractor:
             lambda m, val: analysis.relationship_quality_terms.append(val),
         )
 
-        # 16. Extract Supplier Terms (Third Party Risk)
+        # 17. Extract Supplier Terms (Third Party Risk)
         process_matches(
             SUPPLIER_REGEX,
             MatchType.SUPPLIER_TERM,
@@ -1588,13 +1596,6 @@ class UnionExtractor:
             lambda m, val: analysis.supplier_terms.append(val),
         )
 
-        # 17. Extract Coverage Terms (e.g. "represented", "covered")
-        process_matches(
-            COVERAGE_REGEX,
-            MatchType.COVERAGE_TERM,
-            lambda m: m.group(0),
-            lambda m, val: analysis.coverage_terms.append(val),
-        )
         # 17b. Extract Works Councils
         process_matches(
             WORKS_REGEX,
@@ -1610,7 +1611,7 @@ class UnionExtractor:
             lambda m, val: analysis.legal_requirement_terms.append(val),
         )
 
-        # 17c. Extract Boilerplate Terms (contextual language, non-event risk signal)
+        # 17d. Extract Boilerplate Terms (contextual language, non-event risk signal)
         process_matches(
             BOILERPLATE_REGEX,
             MatchType.BOILERPLATE,
