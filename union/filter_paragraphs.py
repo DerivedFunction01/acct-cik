@@ -214,6 +214,52 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
                 output.append(part)
     return output
 
+def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
+    """
+    Repairs broken text fragments by merging them with the previous paragraph
+    if they appear to be continuations (start with lowercase or previous was short/incomplete).
+    """
+    if not paragraphs:
+        return []
+
+    merged = []
+    current_buffer = paragraphs[0]
+
+    for i in range(1, len(paragraphs)):
+        next_p = paragraphs[i]
+        
+        # Skip empty strings
+        if not next_p.strip():
+            continue
+
+        should_merge = False
+        clean_next = next_p.strip()
+        
+        # Rule 1: Starts with lowercase
+        if clean_next and clean_next[0].islower():
+            should_merge = True
+        
+        # Rule 2: Previous is short and incomplete
+        if not should_merge and current_buffer:
+            clean_curr = current_buffer.strip()
+            # Ends with connector punctuation
+            if clean_curr.endswith((',', '-', ':')):
+                should_merge = True
+            # Short and no terminal punctuation (likely broken line)
+            elif len(clean_curr) < 100 and not clean_curr.endswith(('.', '!', '?', '"', "'", ')')):
+                should_merge = True
+
+        if should_merge:
+            current_buffer += " " + next_p
+        else:
+            merged.append(current_buffer)
+            current_buffer = next_p
+
+    if current_buffer:
+        merged.append(current_buffer)
+
+    return merged
+
 def is_relevant_paragraph(text: str, allow_risk: bool = False) -> bool:
     """
     Checks if the paragraph contains relevant union/risk keywords.
@@ -290,6 +336,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     # Apply mega paragraph splitting and cleanup
     raw_blocks = split_mega_paragraph(raw_blocks)
+
+    # Repair broken fragments (e.g. split sentences)
+    raw_blocks = repair_broken_fragments(raw_blocks)
 
     filtered = []
     extracted_percents = []
