@@ -494,8 +494,6 @@ LEGAL_PROCESS_TERMS = [
     r"impasse",
     r"cooling\s+off",
     r"self\s+help",
-    r"amendable",
-    r"amend(?:ed|ment|ing)",
     r"representation\s+dispute",
     r"authorization\s+cards?",
     r"certif(?:y|ied|ication)",

@@ -996,7 +996,6 @@ class SimpleCoverageAnalyzer:
             "negated": False,
             "negation_type": None,
             "type": CoverageType.NONE.value,
-            "is_global_contribution": False,
             "note": None,
         }
 
@@ -1004,10 +1003,6 @@ class SimpleCoverageAnalyzer:
         if not analysis.is_union:
             data["type"] = None
             return data
-
-        # Check for global contribution modifier (e.g. "Percentage of the Company's Employees")
-        if analysis.global_percent_modifiers:
-            data["is_global_contribution"] = True
 
         effective_counts = get_effective_counts(analysis)
 
@@ -3540,7 +3535,6 @@ class Entry:
     is_exception_remainder: bool = False
     is_parent_breakdown: bool = False
     is_covered_breakdown: bool = False
-    is_global_contribution: bool = False
     is_not_covered_breakdown: bool = False
     # Provenance for distinguishing explicit vs calculated vs inferred/fallback values
     percentage_source: Optional[str] = None
@@ -3993,7 +3987,6 @@ class Tracker:
         exception_limit_percent: Optional[float] = None,
         is_exception_remainder: bool = False,
         coverage_type: Optional[str] = None,
-        is_global_contribution: bool = False,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -4216,23 +4209,6 @@ class Tracker:
             scope = Scope.SEGMENT
             key = f"{country_code}::{union_name}"
 
-        # Handle Global Contribution Logic (e.g. "6.3% of Company's Employees")
-        # If this flag is set, the percentage applies to the Global Total, not the local segment total.
-        # We calculate the covered count based on the global total and assign it to this segment.
-        if is_global_contribution and percentage is not None and self.global_total > 0:
-            calculated_count = round((percentage / 100.0) * self.global_total)
-            covered_count = calculated_count
-            # For a specific union segment defined by a contribution %, we assume the segment itself is 100% union.
-            # e.g. "ABX Teamsters is 6.3% of Company" -> ABX Teamsters count is X, and all X are union.
-            scope_total = calculated_count 
-            percentage = 100.0 # Local percentage is 100%
-            coverage_type = CoverageType.CALCULATED.value
-            self.resolution_log.append(
-                f"Resolved Global Contribution for {key}: {covered_count} ({percentage}% of Global {self.global_total})"
-            )
-            # Reset flag so we don't double-process
-            is_global_contribution = False
-
         related_codes = [c["code"] for c in countries if c.get("code")]
         if "regions" in geo_context:
             related_codes.extend(
@@ -4298,7 +4274,6 @@ class Tracker:
                     if scope_total is not None
                     else None
                 ),
-                is_global_contribution=is_global_contribution,
             )
         )
 
@@ -6102,6 +6077,19 @@ class Tracker:
         Applies a dummy percentage to union records that lack quantitative data,
         provided there are no negations for that country/region.
         """
+        # Strict guard: if explicit percentages are present in this run,
+        # do not synthesize dummy percentages. This prevents explicit table
+        # percentages from being mixed with inferred dummy rates.
+        has_any_explicit_percentage = any(
+            e.percentage is not None and e.is_explicit and not e.is_dummy_percent
+            for e in self.entries
+        )
+        if has_any_explicit_percentage:
+            self.resolution_log.append(
+                "Skipped dummy percentage inference: explicit percentage entries detected."
+            )
+            return
+
         # Build concrete-data maps so dummy percentages can be blocked per geo scope
         # (country/region), not globally.
         concrete_country_keys = set()
@@ -6699,6 +6687,26 @@ class Tracker:
 
         # Group candidates by scope to distribute population
         candidates_by_scope = {}
+        explicit_pct_only_by_scope: Dict[Tuple[str, Any], List[Entry]] = {}
+
+        def _combine_explicit_percentages(
+            vals: List[float], approx_tol: float = 2.0
+        ) -> Optional[float]:
+            nums = [float(v) for v in vals if v is not None]
+            nums = [v for v in nums if 0.0 <= v <= 100.0]
+            if not nums:
+                return None
+            if len(nums) == 1:
+                return nums[0]
+            nums_sorted = sorted(nums, reverse=True)
+            largest = nums_sorted[0]
+            smaller_sum = sum(nums_sorted[1:])
+            total_sum = sum(nums_sorted)
+            if abs(largest - smaller_sum) <= approx_tol:
+                return largest
+            if total_sum <= 100.0 + 1e-9:
+                return total_sum
+            return sum(nums) / len(nums)
 
         for e in self.entries:
             # Only target entries with percentage but no counts
@@ -6707,8 +6715,7 @@ class Tracker:
                 and e.total_count is None
                 and e.covered_count is None
             ):
-
-                # Determine Target Scope
+                # Determine target scope early (used by both explicit and inferred paths)
                 country_code = None
                 scope_key = None
                 scope_type = None
@@ -6728,6 +6735,18 @@ class Tracker:
                 else:
                     scope_key = Scope.GLOBAL
                     scope_type = Scope.GLOBAL.value
+
+                # Do not fabricate counts for explicit percentage-only statements
+                # when no denominator is present. This avoids converting table
+                # percentages (e.g., "% of Company's Employees") into arbitrary
+                # fallback counts from virtual/distributed bases.
+                if e.is_explicit and not e.is_dummy_percent:
+                    key = (scope_type, scope_key)
+                    explicit_pct_only_by_scope.setdefault(key, []).append(e)
+                    self.resolution_log.append(
+                        f"Skipped fallback for {e.key}: explicit percentage without denominator."
+                    )
+                    continue
 
                 # Check for conflicting negations in the relevant scopes
                 scopes_to_check = set()
@@ -7108,6 +7127,127 @@ class Tracker:
                     self.resolution_log.append(log_msg)
             elif prevent_global_fallback:
                 self.resolution_log.append(f"Skipped fallback for {scope_key}: {pool_source}")
+
+        # Explicit percentage-only entries:
+        # apply combined explicit pct once to the scope's remaining fallback pool
+        # as an aggregate count anchor (do not fabricate per-segment denominators).
+        for (scope_type, scope_key), group in explicit_pct_only_by_scope.items():
+            if not group:
+                continue
+
+            combined_pct = _combine_explicit_percentages(
+                [e.percentage for e in group if e.percentage is not None]
+            )
+            if combined_pct is None:
+                continue
+
+            base_pop = 0.0
+            pool_source = "Direct"
+            prevent_global_fallback = False
+
+            if scope_type == Scope.COUNTRY.value:
+                base_pop = float(self.country_totals.get(scope_key, 0.0) or 0.0)
+                if base_pop > 0:
+                    pool_source = f"Country ({scope_key})"
+                if base_pop <= 0:
+                    r_name = _CODE_TO_REGION.get(scope_key)
+                    if r_name:
+                        region_total = float(self.region_totals.get(r_name, 0.0) or 0.0)
+                        if region_total > 0:
+                            siblings_sum = sum(
+                                float(c_total or 0.0)
+                                for c_code, c_total in self.country_totals.items()
+                                if c_code != scope_key and _CODE_TO_REGION.get(c_code) == r_name
+                            )
+                            rem = max(0.0, region_total - siblings_sum)
+                            base_pop = rem if rem > 0 else region_total
+                            pool_source = f"Region ({r_name}) Fallback"
+                            prevent_global_fallback = True
+                if base_pop <= 0 and not prevent_global_fallback:
+                    base_pop = float(self.global_total or 0.0)
+                    pool_source = "Global Fallback"
+            elif scope_type == Scope.REGION.value:
+                base_pop = float(self.region_totals.get(scope_key, 0.0) or 0.0)
+                pool_source = f"Region ({scope_key})" if base_pop > 0 else "Global Fallback"
+                if base_pop <= 0:
+                    base_pop = float(self.global_total or 0.0)
+            else:
+                base_pop = float(self.global_total or 0.0)
+                pool_source = "Global"
+
+            if base_pop <= 0:
+                self.resolution_log.append(
+                    f"Skipped explicit-pct aggregate fallback for {scope_key}: no fallback pool available."
+                )
+                continue
+
+            # Remaining unaccounted population in this scope.
+            consumed_pop = 0.0
+            if scope_type == Scope.COUNTRY.value:
+                for e in self.entries:
+                    if e in group:
+                        continue
+                    if e.total_count is None:
+                        continue
+                    if e.scope == Scope.COUNTRY and e.key == scope_key:
+                        consumed_pop += float(e.total_count)
+                    elif (
+                        e.scope == Scope.SEGMENT
+                        and isinstance(e.key, str)
+                        and self._segment_matches_country(e.key, str(scope_key))
+                    ):
+                        consumed_pop += float(e.total_count)
+            remaining_pop = max(0.0, base_pop - consumed_pop)
+            if remaining_pop <= 0:
+                remaining_pop = base_pop
+
+            denom = max(1.0, round(remaining_pop))
+            covered = round((combined_pct / 100.0) * denom)
+
+            agg_scope = Scope.COUNTRY if scope_type == Scope.COUNTRY.value else (
+                Scope.REGION if scope_type == Scope.REGION.value else Scope.GLOBAL
+            )
+            agg_key = str(scope_key) if scope_key is not None else Scope.GLOBAL.value
+
+            self.entries.append(
+                Entry(
+                    covered_count=float(covered),
+                    not_covered_count=float(max(0.0, denom - covered)),
+                    percentage=float(round(combined_pct, 2)),
+                    total_count=float(denom),
+                    key=agg_key,
+                    is_qualitative=False,
+                    is_explicit=False,
+                    is_union_record=True,
+                    scope=agg_scope,
+                    sent_idx=-1,
+                    percentage_source=PercentageSourceDetail.EXPLICIT_PERCENTAGE.value,
+                    covered_count_source=CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value,
+                    not_covered_count_source=CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value,
+                    total_count_source=(
+                        TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                        if scope_type == Scope.COUNTRY.value
+                        else (
+                            TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                            if scope_type == Scope.REGION.value
+                            else TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        )
+                    ),
+                    denominator_source=(
+                        DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                        if scope_type == Scope.COUNTRY.value
+                        else (
+                            DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                            if scope_type == Scope.REGION.value
+                            else DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        )
+                    ),
+                )
+            )
+
+            self.resolution_log.append(
+                f"Resolved aggregate COUNT for {agg_key} from explicit percentages: {combined_pct:.2f}% of {denom} (remaining fallback pool from {pool_source})."
+            )
 
     def _check_contradictions(self):
         """
@@ -8952,7 +9092,6 @@ class UnionAnalyzer:
                     exception_limit_percent=cov.get("exception_limit_percent"),
                     is_exception_remainder=cov.get("is_exception_remainder", False),
                     coverage_type=cov.get("type"),
-                    is_global_contribution=cov.get("is_global_contribution", False),
                 )
 
             # Resolve missing coverage data using collected totals

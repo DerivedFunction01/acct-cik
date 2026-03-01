@@ -14,8 +14,20 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
-    """We employ domestic 50 part-time and 20 full-time workers. Union laws. Union regulations. All part-time workers are unionized.""",
-    """We have 2,000 in Europe, in Germany, France, and Italy. We have 1000 unionized in Europe, for those located in Germany, France and Italy with 15 bargaining units. We have 301 unionized in Asia and North America. We have 9512 unionized in Israel and Brazil.""",
+    """
+In the air transportation industry, the primary competitive factors are operating costs, fuel efficiency, geographic coverage, aircraft range, aircraft reliability and capacity. The cost of airline operations is significantly impacted by the cost of flight crewmembers, which can vary among airlines depending on their collective bargaining agreements. Competitors in the air transportation industry include Amerijet International, Atlas Air, Kalitta Air, Northern Air Cargo, National Air Cargo Group, Air, and Western Global Airlines, Of these, Atlas Air, and National Air Cargo Group, (operating as National Airlines) also operate passenger aircraft as does Eastern Airlines, Cargo airlines also compete for cargo volumes with passenger airlines that have substantial belly cargo capacity. The table below summarizes the representation of our unionized employees at 2024.
+
+In 2024, for ABX, Labor Agreement Unit was International Brotherhood of Teamsters, Employee Type was Flight Crew, Contract Amendable Date was 2030, Percentage of the Company's Employees was 6.3%. 
+In 2024, for ATI, Labor Agreement Unit was Air Line Pilots Association, Employee Type was Flight Crew, Contract Amendable Date was 2021, Percentage of the Company's Employees was 10.8%. 
+In 2024, for OAI, Labor Agreement Unit was International Brotherhood of Teamsters, Employee Type was Flight Crew, Contract Amendable Date was 2021, Percentage of the Company's Employees was 6.6%. 
+In 2024, for ATI, Labor Agreement Unit was Association of Flight Attendants, Employee Type was Flight Attendant, Contract Amendable Date was 2023, Percentage of the Company's Employees was 0.8%. 
+In 2024, for OAI, Labor Agreement Unit was Association of Flight Attendants, Employee Type was Flight Attendant, Contract Amendable Date was 2021, Percentage of the Company's Employees was 6.8%. 
+In 2024, for OAI, Labor Agreement Unit was Transport Workers Union of America, Employee Type was Dispatchers, Contract Amendable Date was 2028, Percentage of the Company's Employees was 0.3%. 
+
+Under the Railway Labor Act, as amended (RLA), crewmember labor agreements do not expire, so the existing contract remains in effect throughout any negotiation process. If required, mediation under the RLA is conducted by the National Mediation Board (NMB), which has the sole discretion as to how long mediation can last and when it will end. In to direct negotiations and mediation, the RLA includes a provision for potential arbitration of unresolved issues and a cooling-off period before either party can resort to self-help, including, but not limited to, any work stoppage. As described under the heading Human Capital Management above, the labor relations of our airline are regulated under the Railway Labor Act, which vests in the NMB certain regulatory powers with respect to disputes between airlines and labor unions arising under collective bargaining agreements;
+
+""",
+    """We have 100 full-time and 200 part-time employees. 50 part time employees are unionized.""",
     """
 TechAdvance Manufacturing operates a diverse global workforce across 
 manufacturing, logistics, and technology divisions. As of the end of 2023, 
@@ -286,7 +298,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print()
 
-    for item in ITEM_1[1:2]:
+    for item in ITEM_1[0:2]:
         # Clean the text
         cleaned_text = company_cleaner.clean(item, company_name)
         cleaned_text = cleaner.clean(cleaned_text, company_name)
@@ -314,8 +326,8 @@ if __name__ == "__main__":
         print(json.dumps(results, indent=2))
 
         # print("\n" + "=" * 80)
-        # print("\nCALCULATED SUMMARY:\n")
-        # print(json.dumps(summary, indent=2))
+        print("\nCALCULATED SUMMARY:\n")
+        print(json.dumps(summary, indent=2))
 
         print("\n" + "=" * 80)
         print("\nCOUNTRY REPORT:\n")
