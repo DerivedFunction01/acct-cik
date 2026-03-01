@@ -150,6 +150,11 @@ WORKER_COUNT_REGEX = build_regex(
         rf"(\d+(?:\.\d+)?)\s+{build_alternation(COVERAGE_VERBS)}",
     ]
 )
+BARGAINING_UNIT_COUNT_REGEX = build_regex(
+    [
+        rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}(?:collective\s+)?bargaining\s+units?",
+    ]
+)
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
 WORKER_TYPE_REGEX = build_regex(
     [
@@ -288,6 +293,7 @@ class MatchType(Enum):
     WORKS_COUNCIL = "WORKS_COUNCIL"
     EXCEPT = "EXCEPT"
     OUTSIDE = "OUTSIDE"
+    BARGAINING_UNIT_COUNT = "BARGAINING_UNIT_COUNT"
 
 
 @dataclass
@@ -332,6 +338,7 @@ class SentenceAnalysis:
     remaining_others: List[str] = field(default_factory=list)
     except_terms: List[str] = field(default_factory=list)
     outside_terms: List[str] = field(default_factory=list)
+    bargaining_unit_counts: List[float] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1530,6 +1537,14 @@ class UnionExtractor:
             MatchType.WORKER_COUNT,
             lambda m: float(next(g for g in m.groups() if g is not None)),
             lambda m, val: analysis.worker_counts.append(val),
+        )
+
+        # 11.5 Extract Bargaining Unit Counts
+        process_matches(
+            BARGAINING_UNIT_COUNT_REGEX,
+            MatchType.BARGAINING_UNIT_COUNT,
+            lambda m: float(m.group(1)),
+            lambda m, val: analysis.bargaining_unit_counts.append(val),
         )
 
         # 12. Extract Worker Terms (Generic)
