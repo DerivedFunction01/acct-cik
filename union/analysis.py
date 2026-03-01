@@ -7574,11 +7574,26 @@ class Tracker:
                     explicit_country_codes.add(c_code)
 
         def has_region_children(region_name: str) -> bool:
-            return any(
-                (c not in REGION_CODES and c not in IGNORED_REGIONS)
-                and _CODE_TO_REGION.get(c) == region_name
-                for c in explicit_country_codes
+            region_code = region_name_to_code.get(region_name, region_name)
+            candidate_codes: set[str] = set(explicit_country_codes) | set(
+                self.country_totals.keys()
             )
+
+            for c in candidate_codes:
+                if (
+                    c == region_code
+                    or c in IGNORED_REGIONS
+                    or c in AGG_SET
+                    or c in DOMESTIC_SET
+                ):
+                    continue
+                if is_contained(
+                    container_key=region_code,
+                    item_key=c,
+                    domestic_country_code=self.domestic_country_code,
+                ):
+                    return True
+            return False
 
         # Collect country codes from explicit country totals, keywords, and entries.
         country_codes: set[str] = set(explicit_country_codes)
@@ -7616,7 +7631,15 @@ class Tracker:
                 for e in self.entries:
                     if e.scope == Scope.COUNTRY and e.key == code:
                         country_entries.append(e)
-                    elif e.scope == Scope.SEGMENT and self._segment_matches_country(e.key, code):
+                    elif e.scope == Scope.SEGMENT and self._segment_matches_country(
+                        e.key, code
+                    ):
+                        segment_entries.append(e)
+            if is_pseudo_region:
+                for e in self.entries:
+                    if e.scope == Scope.SEGMENT and self._segment_matches_country(
+                        e.key, code
+                    ):
                         segment_entries.append(e)
 
             # Prefer country-scope resolved entry as final snapshot.
@@ -7784,6 +7807,45 @@ class Tracker:
                 }
             )
 
+        # Drop redundant pseudo-countries when child countries are present.
+        # Keep pseudo-countries if they represent subtraction residuals (SUB::Region).
+        countries_by_code = {c.get("country_code"): c for c in countries}
+        redundant_pseudo_codes: set[str] = set()
+        for pseudo_code in pseudo_region_name_by_code:
+            if pseudo_code not in countries_by_code:
+                continue
+
+            has_subtraction_segment = any(
+                e.scope == Scope.SEGMENT
+                and self._segment_matches_country(e.key, pseudo_code)
+                and self._is_subtraction_segment_key(e.key)
+                for e in self.entries
+            )
+            if has_subtraction_segment:
+                continue
+
+            has_child_country = any(
+                c_code != pseudo_code
+                and c_code not in IGNORED_REGIONS
+                and c_code not in AGG_SET
+                and c_code not in DOMESTIC_SET
+                and is_contained(
+                    container_key=pseudo_code,
+                    item_key=c_code,
+                    domestic_country_code=self.domestic_country_code,
+                )
+                for c_code in countries_by_code.keys()
+            )
+            if has_child_country:
+                redundant_pseudo_codes.add(pseudo_code)
+
+        if redundant_pseudo_codes:
+            countries = [
+                c
+                for c in countries
+                if c.get("country_code") not in redundant_pseudo_codes
+            ]
+
         agg = []
         seen_agg = set()
         for e in self.entries:
@@ -7829,6 +7891,45 @@ class Tracker:
                 normalized = normalize_geo_code(raw_code)
                 if normalized and normalized not in child_codes:
                     child_codes.append(normalized)
+            if not child_codes:
+                continue
+
+            # Remove parent/container duplicates from child list
+            # (e.g., EU aggregate with DE/FR/IT should not include EU as its own child).
+            if isinstance(aggregate_key, str):
+                child_codes = [c for c in child_codes if c != aggregate_key]
+
+            def is_concrete_child(code: str) -> bool:
+                return (
+                    code not in IGNORED_REGIONS
+                    and code not in AGG_SET
+                    and code not in DOMESTIC_SET
+                    and not is_region(code)
+                )
+
+            filtered_children: List[str] = []
+            for c in child_codes:
+                is_container_like = (
+                    is_region(c)
+                    or c in region_name_to_code.values()
+                    or c in COMPOSITE_REGION_MAP
+                )
+                if is_container_like:
+                    has_concrete_descendant = any(
+                        other != c
+                        and is_concrete_child(other)
+                        and is_contained(
+                            container_key=c,
+                            item_key=other,
+                            domestic_country_code=self.domestic_country_code,
+                        )
+                        for other in child_codes
+                    )
+                    if has_concrete_descendant:
+                        continue
+                filtered_children.append(c)
+            child_codes = filtered_children
+
             if not child_codes:
                 continue
 
