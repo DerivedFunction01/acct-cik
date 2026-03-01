@@ -252,7 +252,7 @@ DEMOGRAPHIC_GEO_PHRASE_REGEX = build_regex(
 )
 SUBSET_REGEX = build_regex(
     [
-        r"of\s+(?:which|whom|these|those)",
+        r"of\s+(?:which|whom|these|those|them)",
         r"includ(?:ing|es?)",
         r"compris(?:ing|es?|ed)",
         r",\s+with",

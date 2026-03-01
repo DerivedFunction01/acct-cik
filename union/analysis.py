@@ -1487,7 +1487,7 @@ class ComplexCoverageAnalyzer:
     """
 
     # Uses a different subset regex made for percentage cases
-    subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those)\b", re.IGNORECASE)
+    subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those|them)\b", re.IGNORECASE)
 
     def __init__(
         self,
