@@ -637,6 +637,8 @@ NORTH_AMERICA = {
             "ILWU",
             r"International Longshore(?:mans'|men)? and Warehouse(?:mans'|men)? Union",
             r"International Association of Heat and Frost Insulators and Asbestos Workers",
+            r"Association of Professional Flight Attendants",
+            r"AFPA",
             "BCTGM",
             "Bakery, Confectionery, Tobacco Workers and Grain Millers",
             "AFSCME",
@@ -658,6 +660,7 @@ NORTH_AMERICA = {
             "PBA",
             "Police Benevolent Association",
         ],
+        [r"Railway Labor Act", r"RLA", r"National Mediation Board"],
         code="US",
     ),
     Nation(

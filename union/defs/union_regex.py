@@ -71,7 +71,7 @@ INDUSTRY_PREFIX_TERMS = [
     r"Pharmaceutical",
     r"Pulp",
     r"Paper",
-    r"Rail",
+    r"Rail(?:road)?",
     r"Retail",
     r"Shipbuilding",
     r"Telecommunications",
@@ -96,11 +96,9 @@ INDUSTRY_PREFIX_TERMS = [
     r"Dock",
     r"Auto(?:motive)?",
     r"Longshore",
-]
-
-WORKER_COMPOUND_PREFIX_TERMS = INDUSTRY_PREFIX_TERMS + [
+    r"Heat(?:[- ]Insulators?)?",
+    r"Frost(?:[- ]Insulators?)?",
     r"Metall?",
-    r"Rail(?:road)?",
     r"Farm",
     r"Mill",
     r"Port",
@@ -108,8 +106,9 @@ WORKER_COMPOUND_PREFIX_TERMS = INDUSTRY_PREFIX_TERMS + [
     r"Warehouse",
     r"Postal",
     r"Mine",
+    r"Tobacco",
+    r"Asbestos",
 ]
-
 WORKER_TERMS = [
     r"Workers?",
     r"Employees?",
@@ -120,7 +119,7 @@ WORKER_TERMS = [
     r"Associates",
     r"Miners?",
     build_compound(
-        WORKER_COMPOUND_PREFIX_TERMS,
+        INDUSTRY_PREFIX_TERMS,
         r"[Ww]orkers?",
         sep_prefix=r"\s*",
     ),
