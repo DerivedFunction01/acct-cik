@@ -5223,6 +5223,8 @@ class Tracker:
             Region.LATIN_AMERICA.value: "LATAM",
             Region.MIDDLE_EAST_AFRICA.value: "MEA",
         }
+        if canonical in INT_SET:
+            return "INT"
         if canonical in major_map:
             return major_map[canonical]
         # Composite categorizations are already code-like keys.
@@ -5232,6 +5234,28 @@ class Tracker:
 
     def _region_has_constituent_children(self, region_key: str) -> bool:
         canonical = _CODE_TO_REGION.get(region_key, region_key)
+
+        if canonical in INT_SET:
+            # International has children only when specific non-domestic entities
+            # are present (countries/segments/regions/composites).
+            for e in self.entries:
+                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if not base or base in IGNORED_REGIONS:
+                    continue
+                if base in INT_SET:
+                    continue
+                if e.scope in (Scope.COUNTRY, Scope.SEGMENT):
+                    # Any explicit non-domestic country/composite indicates children.
+                    if base not in DOMESTIC_SET and base != self.domestic_country_code:
+                        return True
+                elif e.scope == Scope.REGION and base not in INT_SET:
+                    return True
+            for c_code in self.country_totals:
+                if c_code in IGNORED_REGIONS or c_code in INT_SET:
+                    continue
+                if c_code not in DOMESTIC_SET and c_code != self.domestic_country_code:
+                    return True
+            return False
 
         # Composite container: use its explicit constituents.
         if region_key in COMPOSITE_REGION_MAP:
@@ -7300,6 +7324,7 @@ class Tracker:
             Region.ASIA_PACIFIC.value: "APAC",
             Region.LATIN_AMERICA.value: "LATAM",
             Region.MIDDLE_EAST_AFRICA.value: "MEA",
+            Region.INTERNATIONAL.value: "INT",
         }
         promoted_region_codes = set(major_region_code_map.values()) | set(
             COMPOSITE_REGION_MAP.keys()
