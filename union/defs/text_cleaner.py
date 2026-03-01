@@ -21,6 +21,7 @@ SPACE_PATTERN = re.compile(r"\s+")
 PUNCT_SPACE_PATTERN = re.compile(r"\s+([,\.;\:\!\?])")
 DOUBLE_PUNCT_PATTERN = re.compile(r"([,\.;\:\!\?])\1+")
 MISSING_SPACE_PATTERN = re.compile(r"(?:(?<!\b[A-Z])\.|[,;\:\!\?])(?=[a-zA-Z])")
+HANGING_APOSTROPHE_PATTERN = re.compile(r"\s+'(s|re|ve|t|m|ll|d)\b", re.IGNORECASE)
 
 
 def clean_spaces_and_punctuation(text: str) -> str:
@@ -33,6 +34,7 @@ def clean_spaces_and_punctuation(text: str) -> str:
     text = PUNCT_SPACE_PATTERN.sub(r"\1", text)
     text = DOUBLE_PUNCT_PATTERN.sub(r"\1", text)
     text = MISSING_SPACE_PATTERN.sub(r"\g<0> ", text)
+    text = HANGING_APOSTROPHE_PATTERN.sub(r"'\1", text)
     return text
 
 
