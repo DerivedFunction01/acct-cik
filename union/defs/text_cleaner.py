@@ -70,7 +70,7 @@ def normalize_unicode(text: str) -> str:
 class WebTextCleaner:
     false_positives = [
         (re.compile(r"\bcredit\s+unions?\b", re.IGNORECASE), "Bank"),
-        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "European U"),
+        (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "The EU"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
         (re.compile(r"\bthe\s+Union\s+of\s+south\s+africa\b", re.IGNORECASE), "South Africa"), # South africa
@@ -165,6 +165,20 @@ class MinimalTextCleaner:
         (re.compile(r"all[- ]in[- ]all", re.IGNORECASE), "in conclusion"),
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
     ] + WebTextCleaner.false_positives
+
+
+    ip_terms_pattern = build_alternation(
+        [
+            r"patents?",
+            r"trademarks?",
+            r"licenses?",
+            r"franchises?",
+            r"concessions?",
+            r"royalty\s+agreements?",
+        ]
+    )
+    ip_context_regex = re.compile(rf"\b(?:{ip_terms_pattern})\b", re.IGNORECASE)
+    labor_contract_regex = re.compile(r"\blabor\s+contracts?\b", re.IGNORECASE)
 
     # Bullet and Dashed Patterns
     bullet_pattern = re.compile(
@@ -880,6 +894,14 @@ class MinimalTextCleaner:
             # 2. False Positives
             for pat, repl in self.false_positives:
                 paragraph = pat.sub(repl.capitalize(), paragraph)
+
+            # Drop "labor contract(s)" only when sentence context is IP/legal boilerplate.
+            sentences = []
+            for sent in SENTENCE_SPLIT_PATTERN.split(paragraph):
+                if self.ip_context_regex.search(sent):
+                    sent = self.labor_contract_regex.sub(" ", sent)
+                sentences.append(sent)
+            paragraph = " ".join(sentences)
 
             # Normalize Covid
             paragraph = self.covid_pattern.sub("covid", paragraph)
@@ -2074,7 +2096,7 @@ def create_test_cases() -> List[TestCase]:
             name="False Positive - European Union",
             input_text="The European Union has strict regulations.",
             validations=[
-                (TestType.CONTAINS, "EUU", None),
+                (TestType.CONTAINS, "EU", None),
                 (TestType.NOT_CONTAINS, "European Union", None),
             ],
         ),
