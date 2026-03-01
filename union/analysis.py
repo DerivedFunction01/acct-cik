@@ -1154,7 +1154,7 @@ class UnionExtraAnalyzer:
         return {
             "type": (
                 RiskType.UNION_RISK.value
-                if analysis.union_terms
+                if analysis.union_terms or analysis.risk_terms
                 else RiskType.LABOR_RISK.value
             ),
             "risk_signal_type": risk_signal_type,
