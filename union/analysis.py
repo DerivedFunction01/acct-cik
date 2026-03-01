@@ -7467,6 +7467,7 @@ class Tracker:
             SourceType.CALCULATED.value,
             SourceType.INFERRED.value,
             SourceType.WEIGHTED_DIVISION.value,
+            SourceType.VIRTUAL_POOL.value,
             SourceType.FALLBACK.value,
             SourceType.INHERITED.value,
         ]
@@ -8933,7 +8934,10 @@ class UnionAnalyzer:
         )
 
     def _map_assignments_to_geo(
-        self, analysis: SentenceAnalysis, assignments: List[Dict]
+        self,
+        analysis: SentenceAnalysis,
+        assignments: List[Dict],
+        geo_capacities: Optional[Dict[str, float]] = None,
     ) -> List[Dict]:
         """
         Refactored version of _map_assignments_to_geo.
@@ -8971,39 +8975,119 @@ class UnionAnalyzer:
         else:
             return []
             
+        def _split_linked_value(
+            total_val: float, country_codes: List[str]
+        ) -> Dict[str, float]:
+            """
+            Split a linked assignment across multiple countries.
+            Prefer capacity-weighted splits when lookup totals are available.
+            """
+            if not country_codes:
+                return {}
+            if len(country_codes) == 1:
+                return {country_codes[0]: float(total_val)}
+
+            caps = geo_capacities or {}
+            weights = [max(0.0, float(caps.get(code, 0.0) or 0.0)) for code in country_codes]
+            total_weight = sum(weights)
+            if total_weight <= 0:
+                weights = [1.0] * len(country_codes)
+                total_weight = float(len(country_codes))
+
+            raw = [float(total_val) * (w / total_weight) for w in weights]
+            is_integer_total = abs(float(total_val) - round(float(total_val))) < 1e-9
+
+            if is_integer_total:
+                floor_vals = [int(v) for v in raw]
+                remainder = int(round(float(total_val))) - sum(floor_vals)
+                fractional_order = sorted(
+                    range(len(raw)),
+                    key=lambda i: (raw[i] - floor_vals[i]),
+                    reverse=True,
+                )
+                for i in fractional_order[: max(0, remainder)]:
+                    floor_vals[i] += 1
+                return {
+                    code: float(val) for code, val in zip(country_codes, floor_vals)
+                }
+
+            rounded = [round(v, 2) for v in raw]
+            drift = round(float(total_val) - sum(rounded), 2)
+            if abs(drift) > 0:
+                max_idx = max(range(len(rounded)), key=lambda i: rounded[i])
+                rounded[max_idx] = round(rounded[max_idx] + drift, 2)
+            return {code: val for code, val in zip(country_codes, rounded)}
+
         # NEW: Handle Linked Assignments First
         mapped_splits = []
         remaining_assignments = []
         used_geo_indices = set()
         
-        # Create a map of geo_group_id/obj_id to index in aligned_geos
-        geo_id_map = {}
+        # Create a map of geo_group_id/obj_id to indexes in aligned_geos.
+        # A list group id can legitimately map to multiple geographies.
+        geo_id_map: Dict[Any, List[int]] = {}
         for i, g in enumerate(aligned_geos):
             obj = g["obj"]
-            # Map both list_group_id and object id
             if obj.list_group_id:
-                geo_id_map[obj.list_group_id] = i
-            geo_id_map[id(obj)] = i
+                geo_id_map.setdefault(obj.list_group_id, []).append(i)
+            geo_id_map.setdefault(id(obj), []).append(i)
 
         for item in assignments:
             m = item["match"]
             link_id = m.get("linked_geo_group_id")
             
             if link_id and link_id in geo_id_map:
-                geo_idx = geo_id_map[link_id]
-                # Found a link. Keep all linked assignments (covered/not-covered/total)
-                # for the same geo; downstream grouping merges them into one split item.
-                g = aligned_geos[geo_idx]
-                obj = g["obj"]
-                note = f"Mapped to {obj.country} (Linked)"
-                mapped_splits.append({
-                    "val": item.get("override_val", item["match"]["val"]),
-                    "type": item["type"],
-                    "region": obj.region.value,
-                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-                    "note": note,
-                })
-                used_geo_indices.add(geo_idx)
+                geo_indices = geo_id_map[link_id]
+                linked_geos = [aligned_geos[idx] for idx in geo_indices]
+
+                # Prefer concrete country codes for linked list splits.
+                concrete = []
+                for g in linked_geos:
+                    obj = g["obj"]
+                    if (
+                        obj.geo_code
+                        and obj.geo_code not in REGION_CODES
+                        and obj.geo_code not in IGNORED_REGIONS
+                    ):
+                        concrete.append(obj)
+                split_targets = concrete or [g["obj"] for g in linked_geos]
+
+                # Deduplicate while preserving order
+                dedup_targets = []
+                seen_codes = set()
+                for obj in split_targets:
+                    if obj.geo_code in seen_codes:
+                        continue
+                    seen_codes.add(obj.geo_code)
+                    dedup_targets.append(obj)
+
+                raw_val = float(item.get("override_val", item["match"]["val"]))
+                target_codes = [obj.geo_code for obj in dedup_targets if obj.geo_code]
+                split_vals = _split_linked_value(raw_val, target_codes)
+
+                for obj in dedup_targets:
+                    if not obj.geo_code:
+                        continue
+                    note = f"Mapped to {obj.country} (Linked)"
+                    if len(dedup_targets) > 1:
+                        note += " | Split across linked geos"
+                    mapped_splits.append(
+                        {
+                            "val": split_vals.get(obj.geo_code, raw_val),
+                            "type": item["type"],
+                            "region": obj.region.value,
+                            "countries": [
+                                {
+                                    "name": obj.country,
+                                    "code": obj.geo_code,
+                                    "locations": [],
+                                }
+                            ],
+                            "note": note,
+                        }
+                    )
+
+                used_geo_indices.update(geo_indices)
                 continue
             
             remaining_assignments.append(item)
@@ -9839,7 +9923,7 @@ class UnionAnalyzer:
                 # Only split if we have multiple relevant counts and multiple explicit geos
                 if len(relevant_assignments) > 1:
                     splits = self._map_assignments_to_geo(
-                        analysis, relevant_assignments
+                        analysis, relevant_assignments, effective_totals
                     )
                     
                     # Group splits by geography to merge Total + Covered for same country

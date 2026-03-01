@@ -22,6 +22,7 @@ class SourceType(Enum):
     EXPLICIT = "EXPLICIT"
     CALCULATED = "CALCULATED"
     INFERRED = "INFERRED"
+    VIRTUAL_POOL = "VIRTUAL_POOL"
     WEIGHTED_DIVISION = "WEIGHTED_DIVISION"
     FALLBACK = "FALLBACK"
     INHERITED = "INHERITED"
@@ -180,10 +181,15 @@ def load_details_source():
         detail_map[_detail.value] = SourceType.INFERRED.value
 
     for _detail in (
+        CountSourceDetail.SPLIT_ALLOCATED_COVERED_COUNT,
+    ):
+        detail_map[_detail.value] = SourceType.WEIGHTED_DIVISION.value
+
+    for _detail in (
         TotalSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL,
         DenominatorSourceDetail.WEIGHTED_DIVISION_VIRTUAL_POOL,
     ):
-        detail_map[_detail.value] = SourceType.WEIGHTED_DIVISION.value
+        detail_map[_detail.value] = SourceType.VIRTUAL_POOL.value
 
     for _detail in (
         PercentageSourceDetail.FALLBACK_NEGATION_GUARD_ZERO,

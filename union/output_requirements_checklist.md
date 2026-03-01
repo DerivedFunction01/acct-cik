@@ -52,10 +52,17 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
       "entry_count": 0
     },
     "WEIGHTED_DIVISION": {
-      "employee_count_total": null, // totals allocated by weighted-division logic
-      "employee_count_covered": null, // covered counts resulting from weighted allocations
+      "employee_count_total": null, // weighted allocations derived from explicit/calculated upstream totals
+      "employee_count_covered": null, // covered counts produced by weighted split logic
       "employee_count_not_covered": null,
-      "coverage_percent_values": [], // usually empty; this bucket mostly carries count allocations
+      "coverage_percent_values": [], // percentages produced by weighted split logic
+      "entry_count": 0
+    },
+    "VIRTUAL_POOL": {
+      "employee_count_total": null, // synthetic virtual-pool denominator allocations
+      "employee_count_covered": null,
+      "employee_count_not_covered": null,
+      "coverage_percent_values": [],
       "entry_count": 0
     },
     "FALLBACK": {
@@ -109,7 +116,7 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 
 1. `countries[]` should include every country code present in resolved entries.
 2. `country_totals` uses resolved final values (same arithmetic basis as tracker entries).
-3. `method_breakdown` groups contributions by `*_source_type` (`EXPLICIT`, `CALCULATED`, `INFERRED`, `WEIGHTED_DIVISION`, `FALLBACK`, `INHERITED`).
+3. `method_breakdown` groups contributions by `*_source_type` (`EXPLICIT`, `CALCULATED`, `INFERRED`, `WEIGHTED_DIVISION`, `VIRTUAL_POOL`, `FALLBACK`, `INHERITED`).
 4. `coverage_percent_values` stores raw percent contributions by method; final `country_totals.coverage_percent` is computed from final covered/total where available.
 5. If percentage exists but counts are missing, keep percentage in its method bucket and keep missing count fields as `null`.
 6. `country_keywords` should come directly from tracker keyword tallies for that country code.
