@@ -119,7 +119,7 @@ TOTAL_MODIFIER_REGEX = build_regex(
         r"combined",
         add_restrictions(r"full", lookaheads=[r"time"], lookahead_sep=r"[- ]?"),
         r"whole",
-        r"employ(?:s|ed|ees?)?",
+        r"employ(?:s|ed|ing)?",
         r"equal(?:s|ed|ing)?",
     ]
 )

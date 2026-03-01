@@ -2441,13 +2441,38 @@ class ComplexCoverageAnalyzer:
                     return start, end
             return 0, len(self.analysis.text)
 
-        def get_nearest_type_in_segment(target_span):
+        def _is_total_anchor_for_count(count_match: Dict[str, Any], total_match: Dict[str, Any]) -> bool:
+            # Explicit total modifiers remain valid total anchors.
+            if total_match["type"] == MatchType.TOTAL_MODIFIER:
+                return True
+
+            # WORKER_TERM is only a weak denominator cue and should not turn
+            # typed/grouped counts (e.g. "6800 full-time employees") into totals.
+            term_val = str(total_match.get("val", "")).lower()
+            is_generic_worker_term = (
+                term_val in GENERIC_WORKER_TERMS
+                or term_val.rstrip("s") in GENERIC_WORKER_TERMS
+            )
+            if not is_generic_worker_term:
+                return False
+
+            c_gid = count_match.get("worker_group_id")
+            t_gid = total_match.get("worker_group_id")
+            if c_gid and t_gid and c_gid == t_gid:
+                return False
+            if c_gid:
+                return False
+
+            return True
+
+        def get_nearest_type_in_segment(target_match):
             nonlocal logic_notes
+            target_span = target_match["span"]
             seg_start, seg_end = get_segment_range(target_span)
             t_start, t_end = target_span
 
             # If this count is followed by "of whom", it is explicitly a TOTAL (denominator)
-            if is_followed_by_subset_indicator({"span": target_span}):
+            if is_followed_by_subset_indicator(target_match):
                 logic_notes.append("Subset Indicator -> Total")
                 return "total"
 
@@ -2489,6 +2514,8 @@ class ComplexCoverageAnalyzer:
             for n in search_negatives:
                 candidates.append(("not_covered", n))
             for t in search_totals:
+                if not _is_total_anchor_for_count(target_match, t):
+                    continue
                 candidates.append(("total", t))
 
             for c_type, m in candidates:
@@ -2520,7 +2547,7 @@ class ComplexCoverageAnalyzer:
                 seg_text = self.analysis.text[s_start:s_end].strip()
 
             # Get local type
-            ctype = get_nearest_type_in_segment(c["span"])
+            ctype = get_nearest_type_in_segment(c)
             count_assignments.append(
                 {"match": c, "type": ctype, "seg_idx": seg_idx, "seg_text": seg_text}
             )
@@ -2626,7 +2653,7 @@ class ComplexCoverageAnalyzer:
             if can_calculate_pct:
                 continue
 
-            ptype = get_nearest_type_in_segment(p["span"])
+            ptype = get_nearest_type_in_segment(p)
             adj_val, note = apply_qualitative_multipliers(
                 p["val"], p["span"], self.analysis.text, apply=True
             )
