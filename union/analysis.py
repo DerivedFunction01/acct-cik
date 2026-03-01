@@ -7468,11 +7468,11 @@ class Tracker:
 
         def empty_bucket() -> Dict[str, Any]:
             return {
-                "employee_count_total": None,
-                "employee_count_covered": None,
-                "employee_count_not_covered": None,
-                "coverage_percent_values": [],
-                "entry_count": 0,
+                "tot": None,
+                "cov": None,
+                "not_cov": None,
+                "pct_vals": [],
+                "n": 0,
             }
 
         def add_nullable(acc: Optional[float], value: Optional[float]) -> Optional[float]:
@@ -7695,32 +7695,32 @@ class Tracker:
                 bucket = aggregate_weighted_by_code.setdefault(
                     c,
                     {
-                        "employee_count_total": None,
-                        "employee_count_covered": None,
-                        "employee_count_not_covered": None,
-                        "coverage_percent_values": [],
-                        "entry_count": 0,
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct_vals": [],
+                        "n": 0,
                     },
                 )
                 c_total = alloc_total.get(c)
                 c_cov = alloc_covered.get(c)
                 c_not = alloc_not_covered.get(c)
-                bucket["employee_count_total"] = add_nullable(
-                    bucket["employee_count_total"], c_total
+                bucket["tot"] = add_nullable(
+                    bucket["tot"], c_total
                 )
-                bucket["employee_count_covered"] = add_nullable(
-                    bucket["employee_count_covered"], c_cov
+                bucket["cov"] = add_nullable(
+                    bucket["cov"], c_cov
                 )
-                bucket["employee_count_not_covered"] = add_nullable(
-                    bucket["employee_count_not_covered"], c_not
+                bucket["not_cov"] = add_nullable(
+                    bucket["not_cov"], c_not
                 )
                 if c_total is not None and c_cov is not None and c_total > 0:
-                    bucket["coverage_percent_values"].append(
+                    bucket["pct_vals"].append(
                         round((float(c_cov) / float(c_total)) * 100.0, 2)
                     )
                 elif e.percentage is not None:
-                    bucket["coverage_percent_values"].append(float(e.percentage))
-                bucket["entry_count"] += 1
+                    bucket["pct_vals"].append(float(e.percentage))
+                bucket["n"] += 1
 
         countries = []
         for code in sorted(country_codes):
@@ -7866,10 +7866,10 @@ class Tracker:
             method_breakdown = {k: empty_bucket() for k in method_keys}
             for e in country_entries + segment_entries:
                 field_sources = [
-                    ("employee_count_total", e.total_count, e.total_count_source_type),
-                    ("employee_count_covered", e.covered_count, e.covered_count_source_type),
-                    ("employee_count_not_covered", e.not_covered_count, e.not_covered_count_source_type),
-                    ("coverage_percent_values", e.percentage, e.percentage_source_type),
+                    ("tot", e.total_count, e.total_count_source_type),
+                    ("cov", e.covered_count, e.covered_count_source_type),
+                    ("not_cov", e.not_covered_count, e.not_covered_count_source_type),
+                    ("pct_vals", e.percentage, e.percentage_source_type),
                 ]
 
                 used_bucket_keys = set()
@@ -7878,15 +7878,15 @@ class Tracker:
                     if stype == SourceType.CALCULATED.value:
                         is_weighted_from_agg = False
                         if (
-                            field_name == "coverage_percent_values"
+                            field_name == "pct_vals"
                             and e.percentage_source
                             == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
                         ):
                             is_weighted_from_agg = True
                         elif (
                             field_name in (
-                                "employee_count_covered",
-                                "employee_count_not_covered",
+                                "cov",
+                                "not_cov",
                             )
                             and e.percentage_source
                             == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
@@ -7905,37 +7905,37 @@ class Tracker:
                         continue
                     bucket = method_breakdown[stype]
                     used_bucket_keys.add(stype)
-                    if field_name == "coverage_percent_values":
+                    if field_name == "pct_vals":
                         if val is not None:
-                            bucket["coverage_percent_values"].append(float(val))
+                            bucket["pct_vals"].append(float(val))
                     else:
                         bucket[field_name] = add_nullable(bucket[field_name], val)
                 for k in used_bucket_keys:
-                    method_breakdown[k]["entry_count"] += 1
+                    method_breakdown[k]["n"] += 1
 
             # Backfill weighted split method bucket from aggregate allocations
             # when this country/pseudo-country has no direct weighted entries.
             weighted_seed = aggregate_weighted_by_code.get(code)
             if weighted_seed:
                 weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
-                if weighted_bucket["entry_count"] == 0:
+                if weighted_bucket["n"] == 0:
                     for f in (
-                        "employee_count_total",
-                        "employee_count_covered",
-                        "employee_count_not_covered",
+                        "tot",
+                        "cov",
+                        "not_cov",
                     ):
                         weighted_bucket[f] = add_nullable(
                             weighted_bucket[f], weighted_seed.get(f)
                         )
-                    weighted_bucket["coverage_percent_values"].extend(
-                        weighted_seed.get("coverage_percent_values", [])
+                    weighted_bucket["pct_vals"].extend(
+                        weighted_seed.get("pct_vals", [])
                     )
-                    weighted_bucket["entry_count"] += int(
-                        weighted_seed.get("entry_count") or 0
+                    weighted_bucket["n"] += int(
+                        weighted_seed.get("n") or 0
                     )
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
-            explicit_pcts = explicit_bucket.get("coverage_percent_values", [])
+            explicit_pcts = explicit_bucket.get("pct_vals", [])
             reported_pct = None
             # Preserve "as stated" behavior: keep scalar only if a single explicit percentage exists.
             if len(explicit_pcts) == 1:
@@ -7955,16 +7955,16 @@ class Tracker:
                     "is_domestic": code == self.domestic_country_code,
                     "union_indicator": union_indicator,
                     "country_totals": {
-                        "employee_count_total": total_val,
-                        "employee_count_covered": covered_val,
-                        "employee_count_not_covered": not_covered_val,
-                        "coverage_percent": pct_val,
+                        "tot": total_val,
+                        "cov": covered_val,
+                        "not_cov": not_covered_val,
+                        "pct": pct_val,
                     },
                     "reported_totals": {
-                        "employee_count_total": explicit_bucket.get("employee_count_total"),
-                        "employee_count_covered": explicit_bucket.get("employee_count_covered"),
-                        "employee_count_not_covered": explicit_bucket.get("employee_count_not_covered"),
-                        "coverage_percent": reported_pct,
+                        "tot": explicit_bucket.get("tot"),
+                        "cov": explicit_bucket.get("cov"),
+                        "not_cov": explicit_bucket.get("not_cov"),
+                        "pct": reported_pct,
                     },
                     "method_breakdown": method_breakdown,
                     "country_keywords": self.country_keywords.get(code, {}),
@@ -8061,10 +8061,10 @@ class Tracker:
             children = {}
             for c in child_codes:
                 children[c] = {
-                    "employee_count_total": alloc_total.get(c),
-                    "employee_count_covered": alloc_covered.get(c),
-                    "employee_count_not_covered": alloc_not_covered.get(c),
-                    "allocation_weight_total": child_weights.get(c),
+                    "tot": alloc_total.get(c),
+                    "cov": alloc_covered.get(c),
+                    "not_cov": alloc_not_covered.get(c),
+                    "w_tot": child_weights.get(c),
                 }
 
             agg.append(
@@ -8072,10 +8072,10 @@ class Tracker:
                     "aggregate_key": aggregate_key,
                     "aggregate_scope": e.scope.value,
                     "sentence_index": e.sent_idx,
-                    "employee_count_total": e.total_count,
-                    "employee_count_covered": e.covered_count,
-                    "employee_count_not_covered": e.not_covered_count,
-                    "coverage_percent": e.percentage,
+                    "tot": e.total_count,
+                    "cov": e.covered_count,
+                    "not_cov": e.not_covered_count,
+                    "pct": e.percentage,
                     "source_type": SourceType.WEIGHTED_DIVISION.value,
                     "children": children,
                 }
