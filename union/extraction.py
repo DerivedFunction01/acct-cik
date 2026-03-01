@@ -312,6 +312,7 @@ class SentenceAnalysis:
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
+    sentence_union_keywords: List[str] = field(default_factory=list)
     works_councils: List[str] = field(default_factory=list)
     risk_terms: List[str] = field(default_factory=list)
     generic_risk_terms: List[str] = field(default_factory=list)
@@ -1021,6 +1022,16 @@ class UnionExtractor:
     def analyze_sentence(self, text: str) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
         working_text = text  # Mutable text for masking
+
+        def dedupe_preserve_order(values: List[str]) -> List[str]:
+            seen = set()
+            deduped = []
+            for v in values:
+                if v in seen:
+                    continue
+                seen.add(v)
+                deduped.append(v)
+            return deduped
 
         # Pre-compute temporal flags
         analysis.has_conditional = bool(CONDITIONAL_REGEX.search(text))
@@ -1842,6 +1853,9 @@ class UnionExtractor:
                     m["linked_geo_group_id"] = geo_gid
 
         # Determine relevancy
+        # Sentence-level keyword cache used by analysis/tracker logic.
+        analysis.sentence_union_keywords = dedupe_preserve_order(analysis.union_terms)
+
         # 1. Explicit Union/Labor/Coverage/Risk terms
         has_union_keywords = bool(
             analysis.union_terms

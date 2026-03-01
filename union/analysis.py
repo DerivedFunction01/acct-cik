@@ -7587,11 +7587,12 @@ class UnionAnalyzer:
         self.domestic_country_code = domestic_country_code
 
     def _get_annotated_keywords(self, analysis: SentenceAnalysis) -> Optional[List[str]]:
-        if not analysis.union_terms:
+        keywords = analysis.sentence_union_keywords or analysis.union_terms
+        if not keywords:
             return None
-        
+
         annotated = []
-        for term in analysis.union_terms:
+        for term in keywords:
             related = next((m for m in analysis.geo_matches if m.text == term and m.geo_code and m.geo_code.startswith("INT_")), None)
             if related:
                 annotated.append(f"{related.geo_code}::{term}")
