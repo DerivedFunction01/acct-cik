@@ -3560,6 +3560,8 @@ class Tracker:
     def _is_container_geo_key(self, key: Optional[str]) -> bool:
         if not key:
             return False
+        if isinstance(key, str) and key.startswith("SUB::"):
+            return False
         base = str(key).split("::")[0]
         return (
             base in IGNORED_REGIONS
@@ -3567,6 +3569,34 @@ class Tracker:
             or base in COMPOSITE_COUNTRIES
             or is_region(base)
         )
+
+    def _is_subtraction_segment_key(self, key: Optional[str]) -> bool:
+        return bool(isinstance(key, str) and key.startswith("SUB::"))
+
+    def _subtraction_region_name(self, key: Optional[str]) -> Optional[str]:
+        if not self._is_subtraction_segment_key(key):
+            return None
+        assert isinstance(key, str)
+        region_token = key[len("SUB::") :]
+        if not region_token:
+            return None
+        return _CODE_TO_REGION.get(region_token, region_token)
+
+    def _segment_anchor_code(self, key: Optional[str]) -> Optional[str]:
+        if not isinstance(key, str) or "::" not in key:
+            return None
+        if self._is_subtraction_segment_key(key):
+            region_name = self._subtraction_region_name(key)
+            if not region_name:
+                return None
+            return self._region_to_pseudo_country_code(region_name)
+        return key.split("::")[0]
+
+    def _segment_matches_country(self, seg_key: Optional[str], country_code: str) -> bool:
+        if not country_code:
+            return False
+        anchor = self._segment_anchor_code(seg_key)
+        return bool(anchor and anchor == country_code)
 
     def register_sentence_keywords(
         self, sentence_index: int, keywords: Optional[List[str]]
@@ -4587,21 +4617,20 @@ class Tracker:
 
         # Find implied countries from segments
         for s in segment_entries:
-            if s.key and "::" in s.key:
-                code = s.key.split("::")[0]
-                if code not in existing_codes:
-                    is_match = False
-                    if target_countries:
-                        if code in target_countries:
-                            is_match = True
-                    elif region_name:
-                        if _CODE_TO_REGION.get(code) == region_name:
-                            is_match = True
+            code = self._segment_anchor_code(s.key)
+            if code and code not in existing_codes:
+                is_match = False
+                if target_countries:
+                    if code in target_countries:
+                        is_match = True
+                elif region_name:
+                    if _CODE_TO_REGION.get(code) == region_name:
+                        is_match = True
 
-                    if is_match:
-                        dummy = Entry(scope=Scope.COUNTRY, key=code)
-                        c_entries.append(dummy)
-                        existing_codes.add(code)
+                if is_match:
+                    dummy = Entry(scope=Scope.COUNTRY, key=code)
+                    c_entries.append(dummy)
+                    existing_codes.add(code)
 
         for c in c_entries:
             c_cov = 0.0
@@ -4640,8 +4669,7 @@ class Tracker:
                     s
                     for s in self.entries
                     if s.scope == Scope.SEGMENT
-                    and s.key
-                    and s.key.startswith(f"{c.key}::")
+                    and self._segment_matches_country(s.key, str(c.key))
                 ]
                 if segs:
                     seg_cov = sum(s.covered_count for s in segs if s.covered_count)
@@ -4788,7 +4816,7 @@ class Tracker:
 
         for e in self.entries:
             key = str(e.key) if e.key is not None else ""
-            base = key.split("::")[0] if key else ""
+            base = self._segment_anchor_code(key) if e.scope == Scope.SEGMENT else (key.split("::")[0] if key else "")
 
             if not base:
                 continue
@@ -4825,7 +4853,10 @@ class Tracker:
         if is_international_agg:
             # International aggregates non-domestic geographies.
             for e in self.entries:
-                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if e.scope == Scope.SEGMENT:
+                    base = self._segment_anchor_code(e.key) or ""
+                else:
+                    base = str(e.key).split("::")[0] if e.key is not None else ""
                 if not base or base in IGNORED_REGIONS:
                     continue
                 if is_contained(
@@ -5049,7 +5080,7 @@ class Tracker:
             e
             for e in self.entries
             if (e.scope == Scope.COUNTRY and e.key == country_code)
-            or (e.scope == Scope.SEGMENT and e.key and e.key.startswith(country_code))
+            or (e.scope == Scope.SEGMENT and self._segment_matches_country(e.key, country_code))
         ]
 
         self._drop_redundant_entries(relevant_entries)
@@ -5239,7 +5270,10 @@ class Tracker:
             # International has children only when specific non-domestic entities
             # are present (countries/segments/regions/composites).
             for e in self.entries:
-                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if e.scope == Scope.SEGMENT:
+                    base = self._segment_anchor_code(e.key) or ""
+                else:
+                    base = str(e.key).split("::")[0] if e.key is not None else ""
                 if not base or base in IGNORED_REGIONS:
                     continue
                 if base in INT_SET:
@@ -5263,7 +5297,10 @@ class Tracker:
             if any(c in self.country_totals and self.country_totals[c] > 0 for c in constituents):
                 return True
             for e in self.entries:
-                base = str(e.key).split("::")[0] if e.key is not None else ""
+                if e.scope == Scope.SEGMENT:
+                    base = self._segment_anchor_code(e.key) or ""
+                else:
+                    base = str(e.key).split("::")[0] if e.key is not None else ""
                 if base in constituents and e.scope in (Scope.COUNTRY, Scope.SEGMENT):
                     return True
             return False
@@ -5278,7 +5315,10 @@ class Tracker:
         for e in self.entries:
             if e.scope not in (Scope.COUNTRY, Scope.SEGMENT):
                 continue
-            base = str(e.key).split("::")[0] if e.key is not None else ""
+            if e.scope == Scope.SEGMENT:
+                base = self._segment_anchor_code(e.key) or ""
+            else:
+                base = str(e.key).split("::")[0] if e.key is not None else ""
             if (
                 base
                 and base not in REGION_CODES
@@ -5333,6 +5373,119 @@ class Tracker:
                 self.resolution_log.append(
                     f"Promoted region total '{region_key}' ({moved_total}) to pseudo-country '{pseudo_code}'."
                 )
+
+    def _synthesize_subtraction_segments(self) -> None:
+        """
+        Builds synthetic residual segments for region-minus-country structures.
+        Example: Europe=1000 and Germany=200 -> SUB::Europe total=800.
+        """
+        region_entries = [
+            e
+            for e in self.entries
+            if e.scope == Scope.REGION
+            and isinstance(e.key, str)
+            and e.key not in IGNORED_REGIONS
+            and e.total_count is not None
+            and e.total_count > 0
+        ]
+        if not region_entries:
+            return
+
+        for parent in region_entries:
+            assert isinstance(parent.key, str)
+            region_name = _CODE_TO_REGION.get(parent.key, parent.key)
+            pseudo_code = self._region_to_pseudo_country_code(region_name)
+            if not pseudo_code:
+                continue
+
+            # Avoid duplicate residual generation for the same region.
+            if any(
+                e.scope == Scope.SEGMENT
+                and self._is_subtraction_segment_key(e.key)
+                and self._subtraction_region_name(e.key) == region_name
+                for e in self.entries
+            ):
+                continue
+
+            has_children, stats = self.get_child_stats(region_name)
+            if not has_children:
+                continue
+
+            parent_total = float(parent.total_count or 0.0)
+            child_total = float(stats.get("total", 0.0) or 0.0)
+            if child_total <= 0:
+                continue
+
+            residual_total = parent_total - child_total
+            if residual_total <= 0:
+                continue
+
+            parent_cov = (
+                float(parent.covered_count)
+                if parent.covered_count is not None
+                else (
+                    (float(parent.percentage) / 100.0) * parent_total
+                    if parent.percentage is not None and parent_total > 0
+                    else None
+                )
+            )
+            child_cov = float(stats.get("covered", 0.0) or 0.0)
+            residual_cov = None
+            if parent_cov is not None:
+                residual_cov = max(0.0, parent_cov - child_cov)
+
+            residual_not_cov = None
+            residual_pct = None
+            if residual_cov is not None:
+                residual_not_cov = max(0.0, residual_total - residual_cov)
+                if residual_total > 0:
+                    residual_pct = round((residual_cov / residual_total) * 100.0, 2)
+            elif parent.percentage is not None and residual_total > 0:
+                residual_pct = float(parent.percentage)
+                residual_cov = round((residual_pct / 100.0) * residual_total)
+                residual_not_cov = max(0.0, residual_total - residual_cov)
+
+            self.entries.append(
+                Entry(
+                    scope=Scope.SEGMENT,
+                    key=f"SUB::{region_name}",
+                    total_count=residual_total,
+                    covered_count=residual_cov,
+                    not_covered_count=residual_not_cov,
+                    percentage=residual_pct,
+                    is_explicit=False,
+                    is_union_record=parent.is_union_record,
+                    is_qualitative=parent.is_qualitative,
+                    qualitative_bounds=parent.qualitative_bounds,
+                    is_negated=parent.is_negated,
+                    sent_idx=parent.sent_idx,
+                    related_geo_codes=[pseudo_code],
+                    total_count_source=TotalSourceDetail.REMAINING_GAP_FILL.value,
+                    denominator_source=DenominatorSourceDetail.REMAINING_GAP_FILL.value,
+                    covered_count_source=(
+                        CountSourceDetail.REMAINING_GAP_FILL.value
+                        if residual_cov is not None
+                        else None
+                    ),
+                    not_covered_count_source=(
+                        CountSourceDetail.REMAINING_GAP_FILL.value
+                        if residual_not_cov is not None
+                        else None
+                    ),
+                    percentage_source=(
+                        PercentageSourceDetail.CALCULATED_FROM_COUNTS.value
+                        if residual_pct is not None and parent_cov is not None
+                        else (
+                            PercentageSourceDetail.CALCULATED_PERCENTAGE.value
+                            if residual_pct is not None
+                            else None
+                        )
+                    ),
+                )
+            )
+            self.resolution_log.append(
+                f"Created subtraction segment SUB::{region_name}: {residual_total} (parent {parent_total} - child {child_total})."
+            )
 
     def _route_domestic(self, target_country: Optional[str] = None):
         if target_country is None:
@@ -5800,13 +5953,11 @@ class Tracker:
             # Preserve explicit zero/negated country segments from being overridden by
             # inferred country-level percentages.
             if e.scope == Scope.COUNTRY and isinstance(e.key, str):
-                country_prefix = f"{e.key}::"
                 has_zero_segment = False
                 for s in self.entries:
                     if (
                         s.scope == Scope.SEGMENT
-                        and isinstance(s.key, str)
-                        and s.key.startswith(country_prefix)
+                        and self._segment_matches_country(s.key, e.key)
                         and s.sent_idx != -1
                     ):
                         has_zero = (
@@ -6144,6 +6295,9 @@ class Tracker:
             region_total = self.region_totals[region_name]
             self._resolve_single_region(region_name, region_total)
 
+        # 2.5 Build residual region segments (e.g. Europe without Germany).
+        self._synthesize_subtraction_segments()
+
         # 3. Resolve International Gap
         self._resolve_international_gap()
 
@@ -6196,7 +6350,7 @@ class Tracker:
 
                 # 1. Country Level
                 if e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
-                    country_code = e.key.split("::")[0]
+                    country_code = self._segment_anchor_code(str(e.key))
                     scope_key = country_code
                     scope_type = Scope.COUNTRY.value
                 elif e.scope == Scope.COUNTRY:
@@ -6244,7 +6398,7 @@ class Tracker:
                         if (
                             country_code
                             and isinstance(check_e.key, str)
-                            and check_e.key.startswith(f"{country_code}::")
+                            and self._segment_matches_country(check_e.key, country_code)
                         ):
                             in_scope = True
                         # If check_e is a country whose region is in scopes_to_check, include it
@@ -6730,16 +6884,16 @@ class Tracker:
             existing_codes = {e.key for e in c_entries}
             segment_entries = [e for e in self.entries if e.scope == Scope.SEGMENT]
             for s in segment_entries:
-                if s.key and "::" in s.key:
-                    code = s.key.split("::")[0]
-                    if (
-                        code not in existing_codes
-                        and _CODE_TO_REGION.get(code) == r_name
-                    ):
-                        # Create a dummy entry for iteration
-                        dummy = Entry(scope=Scope.COUNTRY, key=code)
-                        c_entries.append(dummy)
-                        existing_codes.add(code)
+                code = self._segment_anchor_code(s.key)
+                if (
+                    code
+                    and code not in existing_codes
+                    and _CODE_TO_REGION.get(code) == r_name
+                ):
+                    # Create a dummy entry for iteration
+                    dummy = Entry(scope=Scope.COUNTRY, key=code)
+                    c_entries.append(dummy)
+                    existing_codes.add(code)
 
             # Filter out entries that are contained in other present entries to avoid double counting
             entries_to_skip = set()
@@ -6773,8 +6927,7 @@ class Tracker:
                     s
                     for s in self.entries
                     if s.scope == Scope.SEGMENT
-                    and s.key
-                    and s.key.startswith(f"{c.key}::")
+                    and self._segment_matches_country(s.key, str(c.key))
                 ]
                 has_segment_counts = any(
                     (s.covered_count is not None) or (s.total_count is not None)
@@ -7349,7 +7502,9 @@ class Tracker:
                 and isinstance(e.key, str)
                 and "::" in e.key
             ):
-                c_code = e.key.split("::")[0]
+                c_code = self._segment_anchor_code(e.key)
+                if not c_code:
+                    continue
                 if (
                     (c_code not in REGION_CODES and c_code not in IGNORED_REGIONS)
                     or c_code in promoted_region_codes
@@ -7399,7 +7554,7 @@ class Tracker:
                 for e in self.entries:
                     if e.scope == Scope.COUNTRY and e.key == code:
                         country_entries.append(e)
-                    elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and e.key.startswith(f"{code}::"):
+                    elif e.scope == Scope.SEGMENT and self._segment_matches_country(e.key, code):
                         segment_entries.append(e)
 
             # Prefer country-scope resolved entry as final snapshot.
@@ -7426,7 +7581,7 @@ class Tracker:
                 segs = [
                     s
                     for s in segment_entries
-                    if s.key and s.key.startswith(f"{c.key}::")
+                    if self._segment_matches_country(s.key, str(c.key))
                 ]
                 has_segment_counts = any(
                     (s.covered_count is not None) or (s.total_count is not None)
