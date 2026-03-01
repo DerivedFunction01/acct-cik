@@ -32,7 +32,7 @@ class GeoCode(Enum):
     GLOBAL = "GLO"
     UNKNOWN = "UNK"
     NORTH_AMERICA = "NA"
-    EUROPE = "EU"
+    EUROPE = "EUR"
     ASIA_PACIFIC = "APAC"
     LATIN_AMERICA = "LATAM"
     MIDDLE_EAST_AFRICA = "MEA"
@@ -717,7 +717,7 @@ NORTH_AMERICA = {
 EUROPE = {
     Nation(
         "Europe",
-        ["europe", "eurozone", "eu", "european", "euro", "eur"],
+        ["europe(?:an)?"],
         Region.EUROPE,
         [],
         [],
@@ -726,9 +726,15 @@ EUROPE = {
     ),
     Nation(
         "European Union",
-        ["European U", "European Union"],
+        [
+            "european u",
+            "european union",
+            "eurozone",
+            "eur",
+            "euro",
+        ],
         Region.EUROPE,
-        code="EU_UNION",
+        code="EUR",
     ),
     Nation(
         "Nordics",
@@ -744,7 +750,7 @@ EUROPE = {
     ),
     Nation(
         "Iberia",
-        ["iberia", "iberian", "iberian peninsula"],
+        ["iberia", "iberian"],
         Region.EUROPE,
         code="IBERIA",
     ),
@@ -756,13 +762,13 @@ EUROPE = {
     ),
     Nation(
         "Eastern Europe",
-        ["eastern europe", "east europe", "cee", "central and eastern europe"],
+        ["east(?:ern)? europe(?:an)?", "cee", "central europe(?:an)?"],
         Region.EUROPE,
         code="EEUROPE",
     ),
     Nation(
         "Western Europe",
-        ["western europe", "west europe"],
+        ["west(?:ern)? europe(?:an)?"],
         Region.EUROPE,
         code="WEUROPE",
     ),
@@ -1495,13 +1501,13 @@ EUROPE = {
 ASIA_PACIFIC = {
     Nation(
         "Asia",
-        ["asia", "asian", "asia pacific", "apac", "asia-pacific"],
+        ["asia", "asian", "asia[- ]?pacific", "apac"],
         Region.ASIA_PACIFIC,
         code=GeoCode.ASIA_PACIFIC.value,
     ),
     Nation(
         "Oceania",
-        ["oceania", "oceanian"],
+        ["oceanian?"],
         Region.ASIA_PACIFIC,
         code="OCEANIA",
     ),
@@ -1513,13 +1519,13 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "South Asia",
-        ["south asia", "southern asia", "indian subcontinent"],
+        ["south(?:ern) asian?", "indian subcontinent"],
         Region.ASIA_PACIFIC,
         code="SASIA",
     ),
     Nation(
         "East Asia",
-        ["east asia", "eastern asia", "far east"],
+        ["east(?:ern) asian?"],
         Region.ASIA_PACIFIC,
         code="EASIA",
     ),
@@ -2267,7 +2273,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Sub-Saharan Africa",
-        ["sub-saharan africa", "sub-sahara"],
+        ["sub[- ]?saharan african?", "sub[- ]?saharan?"],
         Region.MIDDLE_EAST_AFRICA,
         code="SSA",
     ),
@@ -2300,7 +2306,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "East Africa",
-        ["East african?"],
+        ["East(?:ern)? african?"],
         Region.MIDDLE_EAST_AFRICA,
         code="EAFRICA",
     ),
@@ -3199,7 +3205,7 @@ COMPOSITE_REGION_MAP = {
         "PW",
     ],
     "IBERIA": ["PT", "ES"],
-    "EU_UNION": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"],
+    "EU": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [
     c
@@ -3931,8 +3937,8 @@ def is_contained(
     # Normalize item_key if it's a segment
     check_key = item_key.split("::")[0]
 
-    # Special case: Treat UK as distinct from EU_UNION to prevent removal of EU_UNION when UK is present
-    if container_key == "EU_UNION" and check_key == "GB":
+    # Special case: Treat UK as distinct from EU to prevent removal of EU when UK is present
+    if container_key == "EU" and check_key == "GB":
         return False
 
     # Check for Composite Countries (e.g. CIS containing RU)
@@ -4211,7 +4217,7 @@ def _build_region_weights_map(country_weights):
                 if nation.region.value in r_weights:
                     r_weights[nation.code] = r_weights[nation.region.value]
                     # Also update the country-level map for the region code itself
-                    # so "EU" gets the weight of Europe, not 0.005
+                    # so "EUR" gets the weight of Europe, not 0.005
                     _CODE_TO_WEIGHT[nation.code] = r_weights[nation.region.value]
 
     return r_weights
@@ -4353,13 +4359,13 @@ def weighted_division(
                     if key in REGION_VALUES:
                         if _CODE_TO_REGION.get(excl) == key:
                             is_in_region = True
-                    # 2. Key is Region Code (e.g. "EU", "CIS")
+                    # 2. Key is Region Code (e.g. "EUR", "CIS")
                     elif key in REGION_CODES:
                         if key in COMPOSITE_REGION_MAP:
                             if excl in COMPOSITE_REGION_MAP[key]:
                                 is_in_region = True
                         else:
-                            # Standard region code (e.g. "EU" -> "Europe")
+                            # Standard region code (e.g. "EUR" -> "Europe")
                             if _CODE_TO_REGION_CODE.get(excl) == key:
                                 is_in_region = True
 
@@ -4397,13 +4403,13 @@ def weighted_division(
 
         key_to_weight[key] = w
 
-    # Special handling for EU_UNION and UK (GB) coexistence
-    if "EU_UNION" in key_to_weight and "GB" in key_to_weight:
-        eu_w = key_to_weight["EU_UNION"]
+    # Special handling for EU and UK (GB) coexistence
+    if "EU" in key_to_weight and "GB" in key_to_weight:
+        eu_w = key_to_weight["EU"]
         gb_w = key_to_weight["GB"]
         if eu_w > gb_w:
-            key_to_weight["EU_UNION"] = eu_w - gb_w
-            note += "Excluded UK from EU_UNION weight. "
+            key_to_weight["EU"] = eu_w - gb_w
+            note += "Excluded UK from EU weight. "
 
     # 1.5 Handle Excluded Domestic Country (Ambiguity Penalty)
     # If domestic is excluded, and we only have 1 entity, don't give it 100% of the rest.
