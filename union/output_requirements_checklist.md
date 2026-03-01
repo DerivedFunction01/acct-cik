@@ -37,7 +37,6 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 ```jsonc
 {
   "country_code": "DE",
-  "country_name": "Germany",
   "is_domestic": false, // true only for domestic_country_code
   "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
   "country_totals": {

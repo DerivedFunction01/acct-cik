@@ -408,6 +408,9 @@ class MinimalTextCleaner:
 
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
+    parenthetical_duplicate_number_pattern = re.compile(
+        r"\b(?P<left>\d+(?:\.\d+)?)\s*\(\s*(?P<right>\d+(?:\.\d+)?)\s*\)"
+    )
     scale_map = {
         "dozen": 12,
         "hundred": 100,
@@ -803,6 +806,24 @@ class MinimalTextCleaner:
             return text
         return str(total_value)
 
+    def _collapse_parenthetical_duplicate_numbers(self, text: str) -> str:
+        """
+        Collapse duplicate numeric parentheticals after normalization:
+        e.g. "15 (15)" -> "15", "15.0 (15)" -> "15.0".
+        """
+
+        def repl(match: re.Match) -> str:
+            left = match.group("left")
+            right = match.group("right")
+            try:
+                if float(left) == float(right):
+                    return left
+            except ValueError:
+                return match.group(0)
+            return match.group(0)
+
+        return self.parenthetical_duplicate_number_pattern.sub(repl, text)
+
     def normalize_acronyms(self, text: str) -> str:
         """
         Normalizes acronyms (e.g. U.S. -> US) by removing dots,
@@ -928,6 +949,7 @@ class MinimalTextCleaner:
             )
             paragraph = self.comma_pattern.sub("", paragraph)
             paragraph = self.scale_pattern.sub(self._scale_replacer, paragraph)
+            paragraph = self._collapse_parenthetical_duplicate_numbers(paragraph)
 
             # Restore False Fractions
             for key, val in protected_map.items():
