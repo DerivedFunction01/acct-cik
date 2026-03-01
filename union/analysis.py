@@ -8511,9 +8511,25 @@ class Tracker:
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             explicit_pcts = explicit_bucket.get("pct_vals", [])
             reported_pct = None
-            # Preserve "as stated" behavior: keep scalar only if a single explicit percentage exists.
-            if len(explicit_pcts) == 1:
-                reported_pct = explicit_pcts[0]
+            if explicit_pcts:
+                vals = [float(p) for p in explicit_pcts if p is not None]
+                vals = [p for p in vals if 0.0 <= p <= 100.0]
+                if vals:
+                    if len(vals) == 1:
+                        reported_pct = vals[0]
+                    else:
+                        vals_sorted = sorted(vals, reverse=True)
+                        largest = vals_sorted[0]
+                        smaller_sum = sum(vals_sorted[1:])
+                        total_sum = sum(vals_sorted)
+                        if abs(largest - smaller_sum) <= 2.0:
+                            reported_pct = largest
+                        elif total_sum <= 100.0 + 1e-9:
+                            reported_pct = total_sum
+                        else:
+                            reported_pct = sum(vals) / len(vals)
+                    if reported_pct is not None:
+                        reported_pct = round(reported_pct, 2)
 
             union_indicator = 1 if (
                 (covered_val is not None and covered_val > 0)
