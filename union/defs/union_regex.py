@@ -321,6 +321,9 @@ class RISK_TERMS:
         r"strikes?",
         r"walkouts?",
         r"work\s+stoppages?",
+        r"efforts?\s+to\s+organize",
+        r"disputes?",
+        r"disagreements?"
     ]
 
 
