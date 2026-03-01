@@ -7946,12 +7946,12 @@ class Tracker:
                 or any(v > 0 for v in self.country_keywords.get(code, {}).values())
             ) else None
 
-            countries.append(
-                {
+            # Prune empty buckets to reduce verbosity
+            for k in method_keys:
+                if method_breakdown[k]["n"] == 0:
+                    del method_breakdown[k]
+            country = {
                     "country_code": code,
-                    "country_name": pseudo_region_by_code.get(
-                        code, pseudo_region_name_by_code.get(code)
-                    ),
                     "is_domestic": code == self.domestic_country_code,
                     "union_indicator": union_indicator,
                     "country_totals": {
@@ -7969,7 +7969,8 @@ class Tracker:
                     "method_breakdown": method_breakdown,
                     "country_keywords": self.country_keywords.get(code, {}),
                 }
-            )
+            
+            countries.append(country)
 
         # Drop redundant pseudo-countries when child countries are present.
         # Keep pseudo-countries if they represent subtraction residuals (SUB::Region).
