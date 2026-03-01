@@ -296,6 +296,11 @@ DIVERSITY_TERMS = [
 class LABOR_TERMS:
     SPECIFIC_PHRASES = UNION_PHRASES + [CORE.NONUNION.value]
 
+_OUTS = build_compound(
+    [r"walk", r"sick", r"lock"],
+    r"outs?",
+)
+
 class RISK_TERMS:
     PHRASES = [
         # Union disputes, campaigns, disagreements
@@ -310,8 +315,9 @@ class RISK_TERMS:
                 r"efforts?",
                 r"elections?",
                 r"strikes?",
-                r"walkouts?",
+                _OUTS,
                 r"work\s+stoppages?",
+                r"slowdowns",
             ],
         ),
         # Collective bargaining disputes
@@ -319,11 +325,12 @@ class RISK_TERMS:
     ]
     GENERIC_PHRASES = [
         r"strikes?",
-        r"walkouts?",
         r"work\s+stoppages?",
         r"efforts?\s+to\s+organize",
         r"disputes?",
-        r"disagreements?"
+        r"disagreements?",
+        r"slowdowns",
+        _OUTS,
     ]
 
 
