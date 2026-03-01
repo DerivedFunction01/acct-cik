@@ -219,6 +219,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
                 output.append(part)
     return output
 
+
 def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
     """
     Repairs broken text fragments by merging them with the previous paragraph
