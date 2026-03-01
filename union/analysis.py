@@ -7326,6 +7326,9 @@ class Tracker:
             Region.MIDDLE_EAST_AFRICA.value: "MEA",
             Region.INTERNATIONAL.value: "INT",
         }
+        pseudo_region_name_by_code = {
+            code: region_name for region_name, code in major_region_code_map.items()
+        }
         promoted_region_codes = set(major_region_code_map.values()) | set(
             COMPOSITE_REGION_MAP.keys()
         )
@@ -7374,9 +7377,10 @@ class Tracker:
         countries = []
         for code in sorted(country_codes):
             is_pseudo_region = code in pseudo_region_by_code
+            is_promoted_pseudo_region = code in promoted_region_codes
             if (
-                (code in REGION_CODES and not is_pseudo_region and code not in promoted_region_codes)
-                or code in IGNORED_REGIONS
+                (code in REGION_CODES and not is_pseudo_region and not is_promoted_pseudo_region)
+                or (code in IGNORED_REGIONS and not is_pseudo_region and not is_promoted_pseudo_region)
             ):
                 continue
 
@@ -7542,7 +7546,9 @@ class Tracker:
             countries.append(
                 {
                     "country_code": code,
-                    "country_name": pseudo_region_by_code.get(code),
+                    "country_name": pseudo_region_by_code.get(
+                        code, pseudo_region_name_by_code.get(code)
+                    ),
                     "is_domestic": code == self.domestic_country_code,
                     "country_totals": {
                         "employee_count_total": total_val,
