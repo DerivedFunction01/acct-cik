@@ -1,6 +1,6 @@
 # Output Requirements Checklist (Country Array + Provenance)
 
-Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit a separate output focused on country-level results.
+Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit a separate output focused on country-level results. The implementation of this provenance JSON will have simplified keys, while this document will have the full key names.
 
 ## 1) Top-Level JSON
 
@@ -10,6 +10,24 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
   "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
+  "summary": { // Quick summary to see exactly which countries are considered covered or not covered. We only mention explicitlh of what is provided in the text, so if a country is not mentioned at all, it should not be in either list (e.g., AU in the example below)
+    "covered": {
+      "NA": ["US", "CA"],
+      "EUR": ["DE", "FR", "IT", "CIS"], // CIS is a pseudo-country code representing covered countries in the Commonwealth of Independent States, if no specific country such as Russia is mentioned in text
+      "APAC": ["APAC"], // If APAC is a pseudo-country with no children
+      "MEA": [], // if no covered countries in MEA region
+      "LATAM": ["MX"] // Mexico is part of LATAM region and not part of NA region
+    }, 
+    "not_covered": {
+      "NA": [],
+      "EUR": ["GB"], // GB was not explicitly covered in text
+      "APAC": [],
+      "MEA": ["GCC"], // GCC is a pseudo-country code representing non-covered countries in the Gulf Cooperation Council, if no specific country such as Saudi Arabia is mentioned in text
+      "LATAM": ["BR"]
+    },
+    "domestic_is_covered": true, // boolean indicating whether domestic country is covered
+    "international_is_covered": true // boolean indicating whether any international employees are covered
+  },
   "notes": [] // optional run-level notes/warnings
 }
 ```

@@ -740,23 +740,23 @@ EUROPE = {
         "Nordics",
         ["nordics", "nordic", "scandinavia", "scandinavian"],
         Region.EUROPE,
-        code="NORDIC",
+        code="NORD",
     ),
     Nation(
         "Benelux",
         ["benelux"],
         Region.EUROPE,
-        code="BENELUX",
+        code="BNLX",
     ),
     Nation(
         "Iberia",
         ["iberia", "iberian"],
         Region.EUROPE,
-        code="IBERIA",
+        code="IBE",
     ),
     Nation(
         "DACH",
-        ["dach", "dach region"],
+        ["dach"],
         Region.EUROPE,
         code="DACH",
     ),
@@ -764,13 +764,13 @@ EUROPE = {
         "Eastern Europe",
         ["east(?:ern)? europe(?:an)?", "cee", "central europe(?:an)?"],
         Region.EUROPE,
-        code="EEUROPE",
+        code="CEE",
     ),
     Nation(
         "Western Europe",
         ["west(?:ern)? europe(?:an)?"],
         Region.EUROPE,
-        code="WEUROPE",
+        code="WEU",
     ),
     Nation(
         "United Kingdom",
@@ -1423,13 +1423,13 @@ EUROPE = {
         "Baltic States",
         ["baltic states", "baltics", "baltic region"],
         Region.EUROPE,
-        code="BALTIC",
+        code="BALT",
     ),
     Nation(
         "Balkans",
         ["balkans", "balkan", "balkan peninsula"],
         Region.EUROPE,
-        code="BALKAN",
+        code="BALK",
     ),
     Nation(
         "Belarus",
@@ -1509,7 +1509,7 @@ ASIA_PACIFIC = {
         "Oceania",
         ["oceanian?"],
         Region.ASIA_PACIFIC,
-        code="OCEANIA",
+        code="OCN",
     ),
     Nation(
         "Southeast Asia",
@@ -1989,19 +1989,19 @@ LATIN_AMERICA = {
         "South America",
         ["south america", "south american"],
         Region.LATIN_AMERICA,
-        code="SAMERICA",
+        code="SAM",
     ),
     Nation(
         "Central America",
         ["central america", "central american"],
         Region.LATIN_AMERICA,
-        code="CAMERICA",
+        code="CAM",
     ),
     Nation(
         "Caribbean",
         ["caribbean", "west indies"],
         Region.LATIN_AMERICA,
-        code="CARIBBEAN",
+        code="CARIB",
     ),
     Nation(
         "Mexico",
@@ -2284,37 +2284,37 @@ MIDDLE_EAST_AFRICA = {
             to_build_alternation(add_restrictions("african", lookaheads=[r"american"])),
         ],
         Region.MIDDLE_EAST_AFRICA,
-        code="AFRICA",
+        code="AFR",
     ),
     Nation(
         "North Africa",
         ["north(?:ern)? african?"],
         Region.MIDDLE_EAST_AFRICA,
-        code="NAFRICA",
+        code="NAFR",
     ),
     Nation(
         "Southern Africa",
         ["southern african?"],
         Region.MIDDLE_EAST_AFRICA,
-        code="SAFRICA",
+        code="SAFR",
     ),
     Nation(
         "West Africa",
         ["west(?:ern)? african?"],
         Region.MIDDLE_EAST_AFRICA,
-        code="WAFRICA",
+        code="WAFR",
     ),
     Nation(
         "East Africa",
         ["East(?:ern)? african?"],
         Region.MIDDLE_EAST_AFRICA,
-        code="EAFRICA",
+        code="EAFR",
     ),
     Nation(
         "Central Africa",
         ["Central african?"],
         Region.MIDDLE_EAST_AFRICA,
-        code="CAFRICA",
+        code="CAFR",
     ),
     Nation(
         "United Arab Emirates",
@@ -2755,7 +2755,7 @@ INTERNATIONAL = {
             "Transporte",
             "Sindicato",
         ],
-        code="INT_IBERIA",
+        code="INT_IBE",
     ),
     Nation(
         "Spanish (Generic)",
@@ -2982,7 +2982,7 @@ INT_LANGUAGE_MAP = {
     },
     "INT_PL": {"PL"},
     "INT_RU": {"RU", "UA", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD"},
-    "INT_NORDIC": {"SE", "NO", "DK", "FI", "IS"},
+    "INT_NORD": {"SE", "NO", "DK", "FI", "IS"},
 }
 
 UNK_SET = {
@@ -3038,10 +3038,10 @@ G20_CODES =  [
         "ES", # Guest member
 ]
 COMPOSITE_REGION_MAP = {
-    "BALTIC": ["EE", "LV", "LT"],
-    "BALKAN": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
+    "BALT": ["EE", "LV", "LT"],
+    "BALK": ["AL", "BA", "BG", "HR", "GR", "ME", "MK", "RO", "RS", "SI", "XK"],
     "CIS": ["RU", "BY", "KZ", "KG", "TJ", "UZ", "TM", "AZ", "AM", "MD", "UA"],
-    "AFRICA": [
+    "AFR": [
         "ZA",
         "NG",
         "EG",
@@ -3115,12 +3115,12 @@ COMPOSITE_REGION_MAP = {
         "BH",
         "TR",
     ],
-    "NAFRICA": ["EG", "DZ", "MA", "TN", "LY", "SD"],
-    "WAFRICA": ["BJ", "BF", "CV", "CI", "GM", "GH", "GN", "GW", "LR", "ML", "MR", "NE", "NG", "SN", "SL", "TG"],
-    "EAFRICA": ["BI", "KM", "DJ", "ER", "ET", "KE", "MG", "MW", "MZ", "RW", "SC", "SO", "SS", "UG", "TZ", "ZM", "ZW"],
-    "CAFRICA": ["AO", "CM", "CF", "TD", "CG", "CD", "GQ", "GA", "ST"],
-    "SAFRICA": ["BW", "LS", "ZA", "SZ"],
-    "SAMERICA": [
+    "NAFR": ["EG", "DZ", "MA", "TN", "LY", "SD"],
+    "WAFR": ["BJ", "BF", "CV", "CI", "GM", "GH", "GN", "GW", "LR", "ML", "MR", "NE", "NG", "SN", "SL", "TG"],
+    "EAFR": ["BI", "KM", "DJ", "ER", "ET", "KE", "MG", "MW", "MZ", "RW", "SC", "SO", "SS", "UG", "TZ", "ZM", "ZW"],
+    "CAFR": ["AO", "CM", "CF", "TD", "CG", "CD", "GQ", "GA", "ST"],
+    "SAFR": ["BW", "LS", "ZA", "SZ"],
+    "SAM": [
         "AR",
         "BO",
         "BR",
@@ -3134,8 +3134,8 @@ COMPOSITE_REGION_MAP = {
         "UY",
         "VE",
     ],
-    "CAMERICA": ["BZ", "CR", "SV", "GT", "HN", "NI", "PA"],
-    "CARIBBEAN": [
+    "CAM": ["BZ", "CR", "SV", "GT", "HN", "NI", "PA"],
+    "CARIB": [
         "AG",
         "AW",
         "BS",
@@ -3160,11 +3160,11 @@ COMPOSITE_REGION_MAP = {
         "TC",
         "VI",
     ],
-    "NORDIC": ["DK", "FI", "IS", "NO", "SE"],
-    "BENELUX": ["BE", "NL", "LU"],
+    "NORD": ["DK", "FI", "IS", "NO", "SE"],
+    "BNLX": ["BE", "NL", "LU"],
     "DACH": ["DE", "AT", "CH"],
     "USMCA": ["US", "CA", "MX"],
-    "EEUROPE": [
+    "CEE": [
         "PL",
         "CZ",
         "SK",
@@ -3187,8 +3187,8 @@ COMPOSITE_REGION_MAP = {
         "AL",
         "XK",
     ],
-    "WEUROPE": ["GB", "IE", "FR", "BE", "NL", "LU", "DE", "AT", "CH"],
-    "OCEANIA": [
+    "WEU": ["GB", "IE", "FR", "BE", "NL", "LU", "DE", "AT", "CH"],
+    "OCN": [
         "AU",
         "NZ",
         "FJ",
@@ -3204,31 +3204,31 @@ COMPOSITE_REGION_MAP = {
         "MH",
         "PW",
     ],
-    "IBERIA": ["PT", "ES"],
+    "IBE": ["PT", "ES"],
     "EU": ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "GB"],
 }
 COMPOSITE_REGION_MAP["SSA"] = [
     c
-    for c in COMPOSITE_REGION_MAP["AFRICA"]
-    if c not in COMPOSITE_REGION_MAP["NAFRICA"]
+    for c in COMPOSITE_REGION_MAP["AFR"]
+    if c not in COMPOSITE_REGION_MAP["NAFR"]
 ]
 
 # MEA is ME + AFRICA
 COMPOSITE_REGION_MAP[GeoCode.MIDDLE_EAST_AFRICA.value] = list(
-    set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFRICA"])
+    set(COMPOSITE_REGION_MAP["ME"] + COMPOSITE_REGION_MAP["AFR"])
 )
 
-# LATAMERICA is CAMERICA + SAMERICA + MX
-COMPOSITE_REGION_MAP["LATAMERICA"] = list(
-    set(COMPOSITE_REGION_MAP["CAMERICA"] + COMPOSITE_REGION_MAP["SAMERICA"] + ["MX"])
-)
+# # LATAM is CAM + SAM + MX
+# COMPOSITE_REGION_MAP["LATAM"] = list(
+#     set(COMPOSITE_REGION_MAP["CAM"] + COMPOSITE_REGION_MAP["SAM"] + ["MX"])
+# )
 
 ECONOMIC_CODES = ["G20", "USMCA"]
 # All keys that is not G20
 COMPOSITE_COUNTRIES = {key for key in COMPOSITE_REGION_MAP if key not in ECONOMIC_CODES}
 # Worker terms, Union terms, gap
 INT_UNION_MAP = {
-    "INT_IBERIA": (
+    "INT_IBE": (
         [
             "Metalúrgicos",
             "Siderúrgicos",
@@ -3546,7 +3546,7 @@ INT_UNION_MAP = {
         ],
         r"(?:\s+(?:i|v|dlya|&|[A-Z][\w-]*)){0,3}\s+",
     ),
-    "INT_NORDIC": (
+    "INT_NORD": (
         [
             "Arbeidere",
             "Arbetare",
@@ -3606,7 +3606,7 @@ def add_region_values():
 
 REGION_VALUES = add_region_values()
 
-COMPOSITE_REGION_MAP["G20"] =  list(G20_CODES + ["EEUROPE", "WEUROPE", "CIS", "DACH", "IBERIA", "EASIA", "SASIA"] + [x for x in list(REGION_CODES | REGION_VALUES) if x not in IGNORED_REGIONS])
+COMPOSITE_REGION_MAP["G20"] =  list(G20_CODES + ["CEE", "WEU", "CIS", "DACH", "IBE", "EASIA", "SASIA"] + [x for x in list(REGION_CODES | REGION_VALUES) if x not in IGNORED_REGIONS])
 
 REGION_CODES.update(set(COMPOSITE_REGION_MAP.keys()) - COMPOSITE_COUNTRIES)
 REGION_CODES.update(INT_LANGUAGE_MAP.keys())

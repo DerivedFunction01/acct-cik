@@ -209,7 +209,7 @@ def run_booster_tests():
         {
             "pop": 2000,
             "dom": "US",
-            "others": ["EEUROPE", "CN"],
+            "others": ["CEE", "CN"],
             "desc": "US/East EU/China",
         },
         {
@@ -239,7 +239,7 @@ def run_booster_tests():
         {
             "pop": 10000,
             "dom": "US",
-            "others": ["LATAM", "SASIA", "EEUROPE"],
+            "others": ["LATAM", "SASIA", "CEE"],
             "desc": "Dynamic",
         },
         {
@@ -293,7 +293,7 @@ def run_booster_tests():
         {
             "pop": 50000,
             "dom": "DE",
-            "others": ["EEUROPE"],
+            "others": ["CEE"],
             "desc": "Germany vs Eastern Europe",
         },
         {

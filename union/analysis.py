@@ -8081,11 +8081,46 @@ class Tracker:
                 }
             )
 
+        # Build Summary
+        summary = {
+            "cov": {
+                code: [] for code in REGION_NAME_MAP.values()
+            },
+            "not_cov": {
+                code: [] for code in REGION_NAME_MAP.values()
+            },
+            "dom_cov": False,
+            "int_cov": False
+        }
+
+        for c_obj in countries:
+            code = c_obj["country_code"]
+            is_covered = c_obj["union_indicator"] == 1
+
+            if is_covered:
+                if code == self.domestic_country_code:
+                    summary["dom_cov"] = True
+                else:
+                    summary["int_cov"] = True
+
+            r_name = _CODE_TO_REGION.get(code)
+            if r_name:
+                reg_key = REGION_NAME_MAP.get(r_name)
+                if reg_key:
+                    target_list = summary["cov"][reg_key] if is_covered else summary["not_cov"][reg_key]
+                    target_list.append(code)
+
+        # Sort lists
+        for k in summary["cov"]:
+            summary["cov"][k].sort()
+            summary["not_cov"][k].sort()
+
         return {
             "schema_version": "3.0",
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
             "agg": agg,
+            "summary": summary,
             "notes": [],
         }
 
