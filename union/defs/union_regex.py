@@ -94,7 +94,7 @@ INDUSTRY_PREFIX_TERMS = [
     r"Agricultur(?:e|al)",
     r"Iron",
     r"Dock",
-    r"Auto",
+    r"Auto(?:motive)?",
     r"Longshore",
 ]
 
@@ -107,6 +107,7 @@ WORKER_COMPOUND_PREFIX_TERMS = INDUSTRY_PREFIX_TERMS + [
     r"Plant",
     r"Warehouse",
     r"Postal",
+    r"Mine",
 ]
 
 WORKER_TERMS = [
