@@ -9,6 +9,7 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   "schema_version": "3.0", // output schema version
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
+  "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
   "notes": [] // optional run-level notes/warnings
 }
 ```
@@ -84,6 +85,41 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   "country_keywords": {
     "IG Metall": 1,
     "works council": 1
+  }
+}
+```
+
+## 2b) Top-Level `agg` Array (Parent Aggregate Provenance)
+
+```jsonc
+{
+  "aggregate_key": "EU", // aggregate parent context code (always code, never region name)
+  "aggregate_scope": "AGGREGATE",
+  "sentence_index": 0,
+  "employee_count_total": 1000.0, // original parent count
+  "employee_count_covered": 1000.0,
+  "employee_count_not_covered": 0.0,
+  "coverage_percent": 100.0,
+  "source_type": "WEIGHTED_DIVISION",
+  "children": {
+    "DE": {
+      "employee_count_total": 368.0, // allocated from parent using weighted division basis
+      "employee_count_covered": 368.0,
+      "employee_count_not_covered": 0.0,
+      "allocation_weight_total": 368.0 // basis used for weighting (country total)
+    },
+    "FR": {
+      "employee_count_total": 331.0,
+      "employee_count_covered": 331.0,
+      "employee_count_not_covered": 0.0,
+      "allocation_weight_total": 331.0
+    },
+    "IT": {
+      "employee_count_total": 301.0,
+      "employee_count_covered": 301.0,
+      "employee_count_not_covered": 0.0,
+      "allocation_weight_total": 301.0
+    }
   }
 }
 ```

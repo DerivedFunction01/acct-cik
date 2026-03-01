@@ -7460,7 +7460,7 @@ class Tracker:
     def build_country_provenance_report(self) -> Dict[str, Any]:
         """
         Builds a country-array report focused on final country totals plus
-        method/source-type breakdowns.
+        method/source-type breakdowns, plus top-level aggregate provenance.
         """
         method_keys = [
             SourceType.EXPLICIT.value,
@@ -7488,6 +7488,41 @@ class Tracker:
                 return float(value)
             return float(acc + value)
 
+        def alloc_map_by_weights(
+            total_val: Optional[float], weights: Dict[str, float]
+        ) -> Dict[str, Optional[float]]:
+            if total_val is None:
+                return {k: None for k in weights}
+            if not weights:
+                return {}
+
+            total_weight = sum(max(0.0, float(v)) for v in weights.values())
+            if total_weight <= 0:
+                n = len(weights)
+                if n == 0:
+                    return {}
+                equal = float(total_val) / n
+                return {k: equal for k in weights}
+
+            raw = {
+                k: float(total_val) * (max(0.0, float(w)) / total_weight)
+                for k, w in weights.items()
+            }
+            is_integer_total = abs(float(total_val) - round(float(total_val))) < 1e-9
+            if not is_integer_total:
+                return {k: round(v, 2) for k, v in raw.items()}
+
+            floor_vals = {k: int(v) for k, v in raw.items()}
+            remainder = int(round(float(total_val))) - sum(floor_vals.values())
+            ranked = sorted(
+                raw.keys(),
+                key=lambda k: (raw[k] - floor_vals[k]),
+                reverse=True,
+            )
+            for k in ranked[: max(0, remainder)]:
+                floor_vals[k] += 1
+            return {k: float(v) for k, v in floor_vals.items()}
+
         major_region_code_map = {
             Region.NORTH_AMERICA.value: "NA",
             Region.EUROPE.value: "EU",
@@ -7496,6 +7531,16 @@ class Tracker:
             Region.MIDDLE_EAST_AFRICA.value: "MEA",
             Region.INTERNATIONAL.value: "INT",
         }
+        region_name_to_code: Dict[str, str] = {
+            region_name: code for region_name, code in major_region_code_map.items()
+        }
+        # Add any additional region aliases/codes known by matcher tables.
+        for r_code in REGION_CODES:
+            if not is_region(r_code):
+                continue
+            r_name = _CODE_TO_REGION.get(r_code, r_code)
+            if isinstance(r_name, str):
+                region_name_to_code.setdefault(r_name, r_code)
         pseudo_region_name_by_code = {
             code: region_name for region_name, code in major_region_code_map.items()
         }
@@ -7680,7 +7725,6 @@ class Tracker:
                 pct_val = round((covered_val / total_val) * 100.0, 2)
 
             method_breakdown = {k: empty_bucket() for k in method_keys}
-
             for e in country_entries + segment_entries:
                 field_sources = [
                     ("employee_count_total", e.total_count, e.total_count_source_type),
@@ -7740,10 +7784,89 @@ class Tracker:
                 }
             )
 
+        agg = []
+        seen_agg = set()
+        for e in self.entries:
+            is_aggregate_parent = (
+                e.scope == Scope.AGGREGATE
+                or (e.scope == Scope.REGION and e.key in AGG_SET)
+            )
+            if not is_aggregate_parent or not e.related_geo_codes:
+                continue
+            agg_id = (e.key, e.sent_idx)
+            if agg_id in seen_agg:
+                continue
+            seen_agg.add(agg_id)
+
+            aggregate_key = e.key
+            if isinstance(aggregate_key, str):
+                if aggregate_key in AGG_SET:
+                    aggregate_key = "AGG"
+                elif aggregate_key in region_name_to_code:
+                    aggregate_key = region_name_to_code[aggregate_key]
+                elif is_region(aggregate_key):
+                    # Already code-like.
+                    aggregate_key = aggregate_key
+
+            def normalize_geo_code(raw: Any) -> Optional[str]:
+                if not isinstance(raw, str):
+                    return None
+                code = raw.strip()
+                if not code:
+                    return None
+                if code in IGNORED_REGIONS:
+                    return None
+                if code in region_name_to_code:
+                    return region_name_to_code[code]
+                if is_region(code):
+                    return code
+                if re.fullmatch(r"[A-Z0-9_]{2,12}", code):
+                    return code
+                return None
+
+            child_codes: List[str] = []
+            for raw_code in e.related_geo_codes:
+                normalized = normalize_geo_code(raw_code)
+                if normalized and normalized not in child_codes:
+                    child_codes.append(normalized)
+            if not child_codes:
+                continue
+
+            child_weights = {
+                c: float(self.country_totals.get(c, 0.0) or 0.0) for c in child_codes
+            }
+            alloc_total = alloc_map_by_weights(e.total_count, child_weights)
+            alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
+            alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
+
+            children = {}
+            for c in child_codes:
+                children[c] = {
+                    "employee_count_total": alloc_total.get(c),
+                    "employee_count_covered": alloc_covered.get(c),
+                    "employee_count_not_covered": alloc_not_covered.get(c),
+                    "allocation_weight_total": child_weights.get(c),
+                }
+
+            agg.append(
+                {
+                    "aggregate_key": aggregate_key,
+                    "aggregate_scope": e.scope.value,
+                    "sentence_index": e.sent_idx,
+                    "employee_count_total": e.total_count,
+                    "employee_count_covered": e.covered_count,
+                    "employee_count_not_covered": e.not_covered_count,
+                    "coverage_percent": e.percentage,
+                    "source_type": SourceType.WEIGHTED_DIVISION.value,
+                    "children": children,
+                }
+            )
+
         return {
             "schema_version": "3.0",
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
+            "agg": agg,
             "notes": [],
         }
 
