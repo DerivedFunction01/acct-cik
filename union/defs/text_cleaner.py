@@ -1384,6 +1384,17 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        # 12. Employee Groups (ERGs) - usually noise (e.g. "5 employee resource groups")
+        erg_terms = [
+            r"groups?",
+            r"councils?",
+        ]
+        
+        self.erg_regex = re.compile(
+            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,3}}{build_alternation(erg_terms)})\b",
+            re.IGNORECASE,
+        )
+
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
@@ -1420,6 +1431,7 @@ class ContextualNumberCleaner:
             paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
             paragraph = self.union_street_regex.sub(r" ", paragraph)
             paragraph = self.location_unit_regex.sub(r" \1 ", paragraph)
+            paragraph = self.erg_regex.sub(r" \1 ", paragraph)
             paragraph = clean_spaces_and_punctuation(paragraph)
             if paragraph:
                 texts.append(paragraph)
