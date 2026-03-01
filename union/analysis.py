@@ -1172,6 +1172,7 @@ class UnionExtraAnalyzer:
             "has_legal_requirement": has_legal_requirement,
             "has_boilerplate": has_boilerplate,
             "legal_requirement_keywords": analysis.legal_requirement_terms,
+            "works_councils": analysis.works_councils,
             "boilerplate_keywords": analysis.boilerplate_terms,
             "note": None,
             "is_union": analysis.is_union,
