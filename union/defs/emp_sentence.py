@@ -426,6 +426,12 @@ def _render_template(
         # (e.g., "covered by labor agreements, under labor agreements").
         if context_suffix and _is_redundant_suffix(metric_sentence, context_suffix):
             context_suffix = None
+
+        # Merge union_name_segment into metric_sentence to remove comma if simple sentence
+        if union_name_segment and not context_suffix and "." not in metric_sentence:
+            metric_sentence = f"{metric_sentence} {union_name_segment}"
+            union_name_segment = None
+
         segments = [metric_sentence]
         for segment in [context_suffix, union_name_segment, workforce_pct_segment]:
             if segment and segment not in segments:
