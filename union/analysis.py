@@ -1584,19 +1584,49 @@ class ComplexCoverageAnalyzer:
         Returns True if the count match is linked to union context directly
         or through its worker list chain.
         """
-        def _is_linked(span: Tuple[int, int]) -> bool:
-            dist_union = get_min_distance_to_matches(
-                span, self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
-            )
-            dist_neg = get_min_distance_to_matches(
-                span,
-                self.analysis._matches,
-                list(NEGATIVE_COVERAGE_MATCH_TYPES),
-                text=self.analysis.text,
-            )
-            return dist_union < 80 or dist_neg < 80
+        def _nearest_union_like(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+            m_start, m_end = m["span"]
+            nearest = None
+            best_dist = float("inf")
+            for cand in self.analysis._matches:
+                if cand["type"] not in UNION_MATCH_TYPES and cand["type"] not in NEGATIVE_COVERAGE_MATCH_TYPES:
+                    continue
+                c_start, c_end = cand["span"]
+                dist = 0
+                if c_end <= m_start:
+                    dist = m_start - c_end
+                elif m_end <= c_start:
+                    dist = c_start - m_end
+                else:
+                    dist = 0
+                if dist < best_dist:
+                    best_dist = dist
+                    nearest = cand
+            if nearest is None or best_dist >= 80:
+                return None
+            return nearest
 
-        if _is_linked(match["span"]):
+        def _has_intervening_numeric(m: Dict[str, Any], union_m: Dict[str, Any]) -> bool:
+            m_start, m_end = m["span"]
+            u_start, _ = union_m["span"]
+            if u_start < m_end:
+                return False
+            m_list_gid = m.get("worker_list_group_id")
+            for cand in self.analysis._matches:
+                if cand.get("type") not in (MatchType.WORKER_COUNT, MatchType.NUMBER):
+                    continue
+                if cand is m:
+                    continue
+                c_start, c_end = cand["span"]
+                if m_end <= c_start and c_end <= u_start:
+                    # Ignore same list-chain members when checking blockers.
+                    if m_list_gid is not None and cand.get("worker_list_group_id") == m_list_gid:
+                        continue
+                    return True
+            return False
+
+        nearest = _nearest_union_like(match)
+        if nearest and not _has_intervening_numeric(match, nearest):
             return True
 
         list_gid = match.get("worker_list_group_id")
@@ -1608,7 +1638,8 @@ class ComplexCoverageAnalyzer:
                 continue
             if m.get("type") not in (MatchType.WORKER_COUNT, MatchType.NUMBER):
                 continue
-            if _is_linked(m["span"]):
+            nearest = _nearest_union_like(m)
+            if nearest and not _has_intervening_numeric(m, nearest):
                 return True
         return False
 
