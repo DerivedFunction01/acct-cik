@@ -18,8 +18,12 @@ NULL_HEADER_REGEX = re.compile(r"^(?:-|—|n/?a|na)$", re.IGNORECASE)
 SPLIT_HINT_REGEX = re.compile(r"[|/;,]")
 CONTRACT_CONTEXT_REGEX = build_regex(
     [
-        build_compound([CORE.LABOR, CORE.UNION, CORE.BARGAIN], [r"agreements?", r"contracts?", r"arrangements?"]),
+        build_compound(
+            [CORE.LABOR, CORE.UNION, CORE.BARGAIN],
+            [r"agreements?", r"contracts?", r"arrangements?"],
+        ),
         r"collective\s+bargain(?:ing)?\s+agreements?",
+        build_compound([CORE.BARGAIN], [r"units?"], sep_prefix=r"[\s-]+"),
         r"cba(?:s)?",
     ]
 )
@@ -33,6 +37,8 @@ EMPLOYEE_SCOPE_REGEX = build_regex(
         r"headcount",
     ]
 )
+
+REPRESENT_SCOPE_REGEX = build_regex([r"represent(?:ed|ation)?", r"represented\s+by"], ignore_case=True)
 REGION_MATCHER = RegionMatcher()
 
 
@@ -338,6 +344,8 @@ def _render_template(
     
     metrics = _extract_metrics(header_ctx)
     hints = _extract_text_hints(label=label, header_ctx=header_ctx, value_ctx=value_ctx)
+    has_core_metric = any(metrics.get(k) for k in ["covered", "non_covered", "total", "pct", "bu"])
+    coverage_basis = _coverage_basis_phrase(metrics, header_ctx, hints)
     
     # Filter values: Remove text that is used as a union name
     union_names_set = set(hints.get("union_names", []) or [])
@@ -359,13 +367,42 @@ def _render_template(
         label,
         metrics,
         has_specific_union=bool(union_name_segment),
+        coverage_basis=coverage_basis,
     )
     if metric_sentence:
+        # Avoid mixing explicit covered-by-union phrasing with extra
+        # non-union hint suffixes unless the metric itself is non-union.
+        if context_suffix == "with non-union exposure" and (metrics.get("covered") or metrics.get("pct")):
+            context_suffix = None
+        # If coverage is already stated in the metric sentence, suppress
+        # redundant contract-context phrasing.
+        if context_suffix == "under labor contracts" and (metrics.get("covered") or metrics.get("pct")):
+            context_suffix = None
         segments = [metric_sentence]
         for segment in [context_suffix, union_name_segment]:
             if segment and segment not in segments:
                 segments.append(segment)
         return f"{head}{', '.join(segments)}."
+
+    # Drop contract/meta-only rows with no usable workforce metrics.
+    if not has_core_metric:
+        cats = {
+            i.get("category", "unknown")
+            for i in header_ctx.get("per_item", [])
+            if i.get("category")
+        }
+        if cats and cats.issubset(
+            {
+                "union_contract_counts",
+                "generic_contract_counts",
+                "date_meta",
+                "generic_meta",
+                "union_name",
+                "number",
+                "unknown",
+            }
+        ):
+            return None
 
     if header_ctx.get("has_only_meta_headers"):
         if context_suffix:
@@ -411,6 +448,8 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         "total": None,
         "pct": None,
         "bu": None,
+        "covered_header": None,
+        "pct_header": None,
     }
 
     for item in per_item:
@@ -425,6 +464,7 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
 
         if category in {"coverage", "unionized"} and is_numeric and not is_percent and not metrics["covered"]:
             metrics["covered"] = val
+            metrics["covered_header"] = item.get("header")
             continue
         if category in {"non_coverage", "nonunion"} and is_numeric and not is_percent and not metrics["non_covered"]:
             metrics["non_covered"] = val
@@ -439,6 +479,7 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         if is_percent and not metrics["pct"]:
             if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion"}:
                 metrics["pct"] = val
+                metrics["pct_header"] = item.get("header")
                 continue
 
     return metrics
@@ -448,14 +489,15 @@ def _render_metric_sentence(
     label: str,
     metrics: Dict[str, Optional[str]],
     has_specific_union: bool = False,
+    coverage_basis: str = "covered by unions",
 ) -> Optional[str]:
     covered = metrics.get("covered")
     non_covered = metrics.get("non_covered")
     total = metrics.get("total")
     pct = metrics.get("pct")
     bu = metrics.get("bu")
-    covered_phrase = "represented employees" if has_specific_union else "employees covered by unions"
-    pct_phrase = "represented" if has_specific_union else "covered by unions"
+    covered_phrase = "represented employees" if has_specific_union else f"employees {coverage_basis}"
+    pct_phrase = "represented" if has_specific_union else coverage_basis
 
     base = None
     if covered and total and pct:
@@ -486,6 +528,51 @@ def _render_metric_sentence(
     return base
 
 
+def _coverage_basis_phrase(
+    metrics: Dict[str, Optional[str]],
+    header_ctx: Dict[str, Any],
+    hints: Dict[str, Optional[str]],
+) -> str:
+    """
+    Choose coverage wording from the actual matched coverage headers first,
+    then fallback to broader table context.
+    """
+    for hdr_key in ("covered_header", "pct_header"):
+        header = (metrics.get(hdr_key) or "").strip()
+        basis = _coverage_basis_from_header(header)
+        if basis:
+            return basis
+
+    headers = [
+        (h.get("header") or "").strip()
+        for h in header_ctx.get("per_item", [])
+        if h.get("header")
+    ]
+    for header in headers:
+        basis = _coverage_basis_from_header(header)
+        if basis:
+            return basis
+
+    if hints.get("union_names"):
+        return "represented"
+    return "covered by unions"
+
+
+def _coverage_basis_from_header(header: str) -> Optional[str]:
+    if not header:
+        return None
+    contract_match = CONTRACT_CONTEXT_REGEX.search(header)
+    if contract_match:
+        phrase = SPACE_REGEX.sub(" ", contract_match.group(0)).strip().lower()
+        if phrase:
+            return f"covered by {phrase}"
+    if REPRESENT_SCOPE_REGEX.search(header):
+        return "represented"
+    if HEADER_PATTERNS["unionized"].search(header) or HEADER_PATTERNS["coverage"].search(header):
+        return "covered by unions"
+    return None
+
+
 def _minimal_union_context_suffix(header_ctx: Dict[str, Any], hints: Dict[str, Optional[str]]) -> Optional[str]:
     headers = [
         (h.get("header") or "").strip()
@@ -498,10 +585,6 @@ def _minimal_union_context_suffix(header_ctx: Dict[str, Any], hints: Dict[str, O
         return "under labor contracts"
     if hints.get("has_non_union"):
         return "with non-union exposure"
-    if hints.get("has_union_signal"):
-        return "with union representation context"
-    if any(c in categories for c in {"coverage", "non_coverage", "unionized", "nonunion", "bu"}):
-        return "within a union context"
     return None
 
 

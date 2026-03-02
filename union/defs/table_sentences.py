@@ -225,6 +225,27 @@ def _merge_cell(group: Dict[str, Any], cell: Dict[str, Any], context: Dict[str, 
     if cell["header"]:
         group["headers"].append(cell["header"])
 
+
+def _find_next_valid_cell(
+    row: List[str],
+    start_idx: int,
+    row_info: Dict[str, Any],
+    context: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    """
+    Returns the next valid parsed cell after start_idx, or None.
+    """
+    for nxt_idx in range(start_idx + 1, len(row)):
+        if nxt_idx == 0:
+            continue
+        nxt = _get_cell_info(nxt_idx, row[nxt_idx], context)
+        if not nxt.get("valid"):
+            continue
+        if row_info["row_year"] and not nxt.get("year"):
+            nxt["year"] = row_info["row_year"]
+        return nxt
+    return None
+
 def _cluster_cells(row: List[str], row_info: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, Any]]:
     groups = []
     current_group = {}
@@ -242,7 +263,21 @@ def _cluster_cells(row: List[str], row_info: Dict[str, Any], context: Dict[str, 
             
         # If cell has year and row has year, and they differ, cell year takes precedence (already set)
 
-        if _can_merge(current_group, cell):
+        can_merge = _can_merge(current_group, cell)
+
+        # Keep adjacent value columns together when the next valid cell is a percentage.
+        # This avoids splitting rows like [covered_count, total_count, coverage_pct]
+        # into two independent groups that later double-count semantics.
+        if not can_merge and current_group:
+            g_types = current_group.get("types", set())
+            group_is_value_only = bool(g_types) and all(t in {"value", "dollar"} for t in g_types)
+            cell_is_value = cell["type"] in {"value", "dollar"}
+            if group_is_value_only and cell_is_value:
+                next_cell = _find_next_valid_cell(row, c_idx, row_info, context)
+                if next_cell and next_cell.get("type") == "percentage":
+                    can_merge = True
+
+        if can_merge:
             _merge_cell(current_group, cell, context)
         else:
             if current_group:
