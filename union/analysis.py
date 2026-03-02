@@ -1579,6 +1579,39 @@ class ComplexCoverageAnalyzer:
         )
         return dist_non_cov < 50
 
+    def _is_union_linked_count(self, match: Dict[str, Any]) -> bool:
+        """
+        Returns True if the count match is linked to union context directly
+        or through its worker list chain.
+        """
+        def _is_linked(span: Tuple[int, int]) -> bool:
+            dist_union = get_min_distance_to_matches(
+                span, self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+            )
+            dist_neg = get_min_distance_to_matches(
+                span,
+                self.analysis._matches,
+                list(NEGATIVE_COVERAGE_MATCH_TYPES),
+                text=self.analysis.text,
+            )
+            return dist_union < 80 or dist_neg < 80
+
+        if _is_linked(match["span"]):
+            return True
+
+        list_gid = match.get("worker_list_group_id")
+        if list_gid is None:
+            return False
+
+        for m in self.analysis._matches:
+            if m.get("worker_list_group_id") != list_gid:
+                continue
+            if m.get("type") not in (MatchType.WORKER_COUNT, MatchType.NUMBER):
+                continue
+            if _is_linked(m["span"]):
+                return True
+        return False
+
     def _handle_ranges(self, counts: List[float] = []) -> bool:
         """
         Detects ranges like "20% to 25%" or "500 to 600 employees".
@@ -1873,15 +1906,17 @@ class ComplexCoverageAnalyzer:
                 part_match = counts[0] if counts[0]["val"] == part else counts[1]
                 total_match = counts[0] if counts[0]["val"] == total else counts[1]
 
+                # If this is a worker-list subset breakdown (e.g. "100 ... consisting of 20 pilots, ..."),
+                # defer to mixed coverage assignment so the full list chain can be handled together.
+                if (
+                    self.analysis.has_subset_indicator
+                    and part_match.get("worker_list_group_id") is not None
+                ):
+                    continue
+
                 # Guard: role/demographic subsets (e.g. "consisting of 20 pilots of 100 workers")
                 # should not be auto-interpreted as union coverage splits.
-                dist_union = get_min_distance_to_matches(
-                    part_match["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
-                )
-                dist_neg = get_min_distance_to_matches(
-                    part_match["span"], self.analysis._matches, list(NEGATIVE_COVERAGE_MATCH_TYPES), text=self.analysis.text
-                )
-                if dist_union >= 80 and dist_neg >= 80:
+                if not self._is_union_linked_count(part_match):
                     self.local_assignments.append({"match": total_match, "type": "total"})
                     consumed_indices.update(id(m) for m in group)
                     continue
@@ -2265,14 +2300,7 @@ class ComplexCoverageAnalyzer:
         part_match = m1 if m1["val"] == part else m2
 
         # Check if part is associated with union/coverage terms
-        dist_union = get_min_distance_to_matches(
-            part_match["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
-        )
-        dist_neg = get_min_distance_to_matches(
-            part_match["span"], self.analysis._matches, list(NEGATIVE_COVERAGE_MATCH_TYPES), text=self.analysis.text
-        )
-        
-        if dist_union >= 80 and dist_neg >= 80:
+        if not self._is_union_linked_count(part_match):
             # Just record total, ignore part as it's likely just a demographic/role subset
             total_match = m1 if m1["val"] == total else m2
             self.local_assignments.append({"match": total_match, "type": "total"})
@@ -2853,11 +2881,16 @@ class ComplexCoverageAnalyzer:
                 larger_parent_exists = any(
                     parent_val > c_val for parent_val in assignment_values
                 )
-                if larger_parent_exists:
+                chain_is_union_linked = self._is_union_linked_count(item["match"])
+                if larger_parent_exists and not chain_is_union_linked:
                     logic_notes.append(
                         f"Skipped subset {assignment_type} {c_val} (worker list chain near '{nearest_subset.get('val', '')}')"
                     )
                     return True
+                # If the worker list chain is union-linked (often by the last list member),
+                # keep list members and do not apply generic parent-value suppression.
+                if chain_is_union_linked:
+                    return False
 
             # Only suppress when a parent value of same assignment type is already present.
             if any(parent_val >= c_val for parent_val in assigned_parent_values):
@@ -2872,10 +2905,15 @@ class ComplexCoverageAnalyzer:
         assigned_not_covered_values: List[float] = []
         assigned_covered_items: List[Dict[str, Any]] = []
         skipped_subset_covered_values: List[float] = []
+        consumed_covered_list_groups: Set[Any] = set()
+        consumed_not_covered_list_groups: Set[Any] = set()
 
         for item in count_assignments:
             ctype = item["type"]
-            val = item.get("override_val", item["match"]["val"])
+            match_obj = item["match"]
+            list_gid = match_obj.get("worker_list_group_id")
+            list_sum = match_obj.get("worker_list_group_sum")
+            val = item.get("override_val", match_obj["val"])
             if ctype == "covered":
                 if _is_subset_child_of_assigned_parent(
                     item, assigned_covered_values, "covered"
@@ -2883,6 +2921,14 @@ class ComplexCoverageAnalyzer:
                     skipped_subset_covered_values.append(val)
                     excluded_match_ids.add(id(item["match"]))
                     continue
+
+                if list_gid is not None and list_sum is not None:
+                    if list_gid in consumed_covered_list_groups:
+                        excluded_match_ids.add(id(item["match"]))
+                        continue
+                    val = float(list_sum)
+                    consumed_covered_list_groups.add(list_gid)
+
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
                 assigned_covered_values.append(val)
@@ -2895,6 +2941,14 @@ class ComplexCoverageAnalyzer:
                 ):
                     excluded_match_ids.add(id(item["match"]))
                     continue
+
+                if list_gid is not None and list_sum is not None:
+                    if list_gid in consumed_not_covered_list_groups:
+                        excluded_match_ids.add(id(item["match"]))
+                        continue
+                    val = float(list_sum)
+                    consumed_not_covered_list_groups.add(list_gid)
+
                 current = self.data["employee_count_not_covered"] or 0
                 self.data["employee_count_not_covered"] = current + val
                 assigned_not_covered_values.append(val)

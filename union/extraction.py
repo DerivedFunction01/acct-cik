@@ -2175,6 +2175,19 @@ class UnionExtractor:
             if wg in worker_gid_to_list_gid:
                 n["worker_list_group_id"] = worker_gid_to_list_gid[wg]
 
+        # Store simple aggregate metadata for each worker list group.
+        list_groups: Dict[Any, List[Dict[str, Any]]] = {}
+        for m in numeric_matches_all:
+            lg = m.get("worker_list_group_id")
+            if lg is None:
+                continue
+            list_groups.setdefault(lg, []).append(m)
+
+        for lg, members in list_groups.items():
+            group_sum = sum(float(m.get("val", 0.0)) for m in members)
+            for m in members:
+                m["worker_list_group_sum"] = group_sum
+
         # Determine relevancy
         # Sentence-level keyword cache used by analysis/tracker logic.
         analysis.sentence_union_keywords = dedupe_preserve_order(analysis.union_terms)

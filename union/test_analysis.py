@@ -23,6 +23,7 @@ The workforce consists of 300 employees, with 100 that are under a union agreeme
 We employed 100 workers and 50 workers are unionized. 
 There are 200 workers, including 50 salaried employees, and 50 that are under collective bargaining.
 The company has 100 workers consisting of 20 pilots, 10 chefs, and 10 auto workers with 50 belonging to a local union. 
+The company has 100 workers consisting of 20 pilots, 10 chefs, and 10 auto workers belonging to a local union. 
 40 warehouse and 20 office workers are in a union. 
 25 of 80 staff belong to a bargaining unit.
 We have 90 employees, and 10 are in a union.
