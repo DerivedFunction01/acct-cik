@@ -199,6 +199,19 @@ def _scenario_union_count_with_total_workforce_pct() -> dict:
     return _build_table(headers, col_types, data, "Workforce Share by Group", 2024)
 
 
+def _scenario_union_with_total_workforce_pct() -> dict:
+    headers = {
+        2: "Union",
+        3: "Percent of Employees",
+    }
+    col_types = {2: "text", 3: "percentage"}
+    data = [
+        ["Pilots", "ALPA", "5%"],
+        ["Flight Attendants", "AFA", "7.5%"],
+    ]
+    return _build_table(headers, col_types, data, "Workforce Percent by Group", 2024)
+
+
 def _scenario_date_noise_only() -> dict:
     headers = {
         1: "Contract Expiration Date",
@@ -226,6 +239,7 @@ def run_test():
         ("Mixed No Total / No %", _scenario_mixed_no_total_no_percent()),
         ("Mixed Partial Missing", _scenario_mixed_partial_missing()),
         ("Union Count + Workforce %", _scenario_union_count_with_total_workforce_pct()),
+        ("Union + Workforce %", _scenario_union_with_total_workforce_pct()),
         ("Agreement Words", _scenario_bargaining_agreement_words()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]
