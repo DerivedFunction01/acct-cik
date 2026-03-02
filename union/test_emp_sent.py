@@ -83,6 +83,18 @@ def _scenario_bargaining_units_with_contract_words() -> dict:
     return _build_table(headers, col_types, data, "Labor Relations Data", 2023)
 
 
+def _scenario_bargaining_agreement_words() -> dict:
+    headers = {
+        1: "Collective Bargaining Agreements",
+    }
+    col_types = {1: "value"}
+    data = [
+        ["Air Operations", "10"],
+        ["Ground Operations", "2"],
+    ]
+    return _build_table(headers, col_types, data, "Labor Relations Data", 2023)
+
+
 def _scenario_union_name_column_fallback() -> dict:
     headers = {
         1: "Number of Employees",
@@ -119,6 +131,7 @@ def run_test():
         ("Non-union Mix", _scenario_non_union_mix()),
         ("BU + Contract Words", _scenario_bargaining_units_with_contract_words()),
         ("Union Name Fallback", _scenario_union_name_column_fallback()),
+        ("Agreement Words", _scenario_bargaining_agreement_words()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]
 

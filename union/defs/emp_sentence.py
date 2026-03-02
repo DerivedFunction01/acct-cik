@@ -41,6 +41,16 @@ EMPLOYEE_SCOPE_REGEX = build_regex(
 REPRESENT_SCOPE_REGEX = build_regex([r"represent(?:ed|ation)?", r"represented\s+by"], ignore_case=True)
 REGION_MATCHER = RegionMatcher()
 
+# Centralized fallback/hint phrases for easy tuning.
+PHRASE_MAP = {
+    "context_contract": "under labor contracts",
+    "context_non_union": "with non-union exposure",
+    "report_verb": "reported",
+    "union_by": "represented by",
+    "coverage_default": "covered by unions",
+    "coverage_represented": "represented",
+}
+
 
 """
 # Header Classification for Employment Tables
@@ -351,16 +361,13 @@ def _render_template(
     union_names_set = set(hints.get("union_names", []) or [])
     values = [v for v in raw_values if v not in union_names_set]
     
-    if not values:
-        return None
-
     head = f"In {year}, " if year else ""
 
     context_suffix = _minimal_union_context_suffix(header_ctx, hints)
     union_name_segment = _union_name_segment(hints)
 
     # If we have a specific union name segment, suppress the generic context suffix
-    if union_name_segment and context_suffix == "with union representation context":
+    if union_name_segment and context_suffix == PHRASE_MAP["context_contract"]:
         context_suffix = None
 
     metric_sentence = _render_metric_sentence(
@@ -372,11 +379,13 @@ def _render_template(
     if metric_sentence:
         # Avoid mixing explicit covered-by-union phrasing with extra
         # non-union hint suffixes unless the metric itself is non-union.
-        if context_suffix == "with non-union exposure" and (metrics.get("covered") or metrics.get("pct")):
+        if context_suffix == PHRASE_MAP["context_non_union"] and (metrics.get("covered") or metrics.get("pct")):
             context_suffix = None
         # If coverage is already stated in the metric sentence, suppress
         # redundant contract-context phrasing.
-        if context_suffix == "under labor contracts" and (metrics.get("covered") or metrics.get("pct")):
+        if context_suffix == PHRASE_MAP["context_contract"] and (
+            metrics.get("covered") or metrics.get("pct") or metrics.get("bu") or metrics.get("non_covered")
+        ):
             context_suffix = None
         segments = [metric_sentence]
         for segment in [context_suffix, union_name_segment]:
@@ -402,6 +411,12 @@ def _render_template(
                 "unknown",
             }
         ):
+            if context_suffix or union_name_segment:
+                tail = context_suffix or ""
+                if union_name_segment:
+                    tail = f"{tail}, {union_name_segment}".strip(", ")
+                if tail:
+                    return f"{head}{label} {PHRASE_MAP['report_verb']} {tail}."
             return None
 
     if header_ctx.get("has_only_meta_headers"):
@@ -409,7 +424,16 @@ def _render_template(
             tail = context_suffix
             if union_name_segment:
                 tail = f"{tail}, {union_name_segment}"
-            return f"{head}{label} reported {tail}."
+            return f"{head}{label} {PHRASE_MAP['report_verb']} {tail}."
+        return None
+
+    if not values:
+        if context_suffix or union_name_segment:
+            tail = context_suffix or ""
+            if union_name_segment:
+                tail = f"{tail}, {union_name_segment}".strip(", ")
+            if tail:
+                return f"{head}{label} {PHRASE_MAP['report_verb']} {tail}."
         return None
 
     headers = [
@@ -489,15 +513,15 @@ def _render_metric_sentence(
     label: str,
     metrics: Dict[str, Optional[str]],
     has_specific_union: bool = False,
-    coverage_basis: str = "covered by unions",
+    coverage_basis: str = PHRASE_MAP["coverage_default"],
 ) -> Optional[str]:
     covered = metrics.get("covered")
     non_covered = metrics.get("non_covered")
     total = metrics.get("total")
     pct = metrics.get("pct")
     bu = metrics.get("bu")
-    covered_phrase = "represented employees" if has_specific_union else f"employees {coverage_basis}"
-    pct_phrase = "represented" if has_specific_union else coverage_basis
+    covered_phrase = "employees" if has_specific_union else f"employees {coverage_basis}"
+    pct_phrase = "covered" if has_specific_union else coverage_basis
 
     base = None
     if covered and total and pct:
@@ -554,8 +578,8 @@ def _coverage_basis_phrase(
             return basis
 
     if hints.get("union_names"):
-        return "represented"
-    return "covered by unions"
+        return PHRASE_MAP["coverage_represented"]
+    return PHRASE_MAP["coverage_default"]
 
 
 def _coverage_basis_from_header(header: str) -> Optional[str]:
@@ -567,9 +591,9 @@ def _coverage_basis_from_header(header: str) -> Optional[str]:
         if phrase:
             return f"covered by {phrase}"
     if REPRESENT_SCOPE_REGEX.search(header):
-        return "represented"
+        return PHRASE_MAP["coverage_represented"]
     if HEADER_PATTERNS["unionized"].search(header) or HEADER_PATTERNS["coverage"].search(header):
-        return "covered by unions"
+        return PHRASE_MAP["coverage_default"]
     return None
 
 
@@ -582,9 +606,9 @@ def _minimal_union_context_suffix(header_ctx: Dict[str, Any], hints: Dict[str, O
     header_text = " | ".join(headers) if headers else ""
     categories = set(header_ctx.get("categories_present", []))
     if "union_contract_counts" in categories or CONTRACT_CONTEXT_REGEX.search(header_text):
-        return "under labor contracts"
+        return PHRASE_MAP["context_contract"]
     if hints.get("has_non_union"):
-        return "with non-union exposure"
+        return PHRASE_MAP["context_non_union"]
     return None
 
 
@@ -713,5 +737,5 @@ def _union_name_segment(hints: Dict[str, Optional[str]]) -> Optional[str]:
     if not names:
         return None
     if len(names) == 1:
-        return f"represented by {names[0]}"
-    return f"represented by {', '.join(names)}"
+        return f"{PHRASE_MAP['union_by']} {names[0]}"
+    return f"{PHRASE_MAP['union_by']} {', '.join(names)}"
