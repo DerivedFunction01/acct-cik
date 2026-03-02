@@ -1332,6 +1332,7 @@ class ContextualNumberCleaner:
             r"states",
             r"areas",
             r"units?",
+            r"companies",
         ]
 
         # Boundary strategy:
