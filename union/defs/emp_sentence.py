@@ -49,6 +49,7 @@ PHRASE_MAP = {
     "report_verb": "reported",
     "union_by": "represented by",
     "coverage_default": "covered by unions",
+    "coverage_neutral": "covered",
     "coverage_represented": "represented",
     "coverage_works": "covered by works councils",
     "context_works": "under works councils",
@@ -307,9 +308,11 @@ def _classify_header(header: str, item_type: Optional[str]) -> str:
 
     # Only promote contract/BU headers to coverage when they are explicitly scoped
     # to employees/workforce; otherwise keep them as metadata/count context.
-    if (has_union_contract or has_bu or has_works) and has_non_coverage and has_employee_scope:
+    if has_works and has_employee_scope:
+        return "works_council"
+    if (has_union_contract or has_bu) and has_non_coverage and has_employee_scope:
         return "non_coverage"
-    if (has_union_contract or has_bu or has_works) and has_coverage and has_employee_scope:
+    if (has_union_contract or has_bu) and has_coverage and has_employee_scope:
         return "coverage"
 
     for klass in HEADER_CLASS_ORDER:
@@ -483,6 +486,8 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         "total": None,
         "pct": None,
         "bu": None,
+        "works_covered": None,
+        "works_pct": None,
         "covered_header": None,
         "pct_header": None,
         "works_header": None,
@@ -522,24 +527,22 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         if category == "bu" and is_numeric and not is_percent and not metrics["bu"]:
             metrics["bu"] = val
             continue
-        if category == "works_council" and is_numeric and not is_percent and not metrics["covered"]:
-            metrics["covered"] = val
-            metrics["works_header"] = item.get("header")
-            metrics["coverage_counts"].append(val)
+        if category == "works_council" and is_numeric and not is_percent and not metrics["works_covered"]:
+            metrics["works_covered"] = val
             if item.get("header"):
-                metrics["coverage_headers"].append(item.get("header"))
-            continue
-        if category == "works_council" and is_numeric and not is_percent:
-            metrics["coverage_counts"].append(val)
-            if item.get("header"):
-                metrics["coverage_headers"].append(item.get("header"))
+                metrics["works_header"] = item.get("header")
             continue
 
         if is_percent and not metrics["pct"]:
-            if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion", "works_council"}:
+            if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion"}:
                 metrics["pct"] = val
                 metrics["pct_header"] = item.get("header")
                 continue
+        if is_percent and category == "works_council" and not metrics["works_pct"]:
+            metrics["works_pct"] = val
+            if item.get("header"):
+                metrics["works_header"] = item.get("header")
+            continue
 
     return metrics
 
@@ -567,6 +570,42 @@ def _format_int_like(value: float) -> str:
     return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
+def _derive_pct_from_counts(numerator: Optional[str], denominator: Optional[str]) -> Optional[str]:
+    num = _parse_number_token(numerator or "")
+    den = _parse_number_token(denominator or "")
+    if num is None or den is None or den == 0:
+        return None
+    pct = (num / den) * 100.0
+    # Keep compact output while stable for extractor.
+    out = f"{pct:.1f}".rstrip("0").rstrip(".")
+    return f"{out}%"
+
+
+def _derive_pct_from_mixed_components(
+    component_count: Optional[str],
+    other_component_count: Optional[str],
+    overall_pct: Optional[str],
+) -> Optional[str]:
+    """
+    Estimate component-specific percent when we only have:
+      - two component counts (e.g., labor-covered and works-covered)
+      - one overall coverage percent
+      - no explicit total.
+    Assumption: overall_pct applies to combined covered population.
+    """
+    comp = _parse_number_token(component_count or "")
+    other = _parse_number_token(other_component_count or "")
+    overall = _parse_number_token(overall_pct or "")
+    if comp is None or other is None or overall is None:
+        return None
+    combined = comp + other
+    if combined <= 0:
+        return None
+    est = overall * (comp / combined)
+    out = f"{est:.1f}".rstrip("0").rstrip(".")
+    return f"{out}%"
+
+
 def _render_metric_sentence(
     label: str,
     metrics: Dict[str, Optional[str]],
@@ -578,6 +617,36 @@ def _render_metric_sentence(
     total = metrics.get("total")
     pct = metrics.get("pct")
     bu = metrics.get("bu")
+    works_covered = metrics.get("works_covered")
+    works_pct = metrics.get("works_pct")
+
+    # Works-council dominant rows should be rendered as one coherent statement.
+    # This avoids "X% are covered; separately ... covered by works councils".
+    if works_covered and total and (works_pct or pct) and coverage_basis == PHRASE_MAP["coverage_neutral"]:
+        pct_val = works_pct or pct
+        return f"{label} had {works_covered} ({pct_val}) out of {total} employees covered by works councils"
+
+    # Keep labor/union coverage and works-council coverage separate when both exist.
+    # Do not blend them into one combined covered count sentence.
+    if covered and works_covered:
+        base = f"{label} had {covered} employees {coverage_basis}"
+        if total:
+            base = f"{base} out of {total} employees"
+        derived_union_pct = _derive_pct_from_counts(covered, total)
+        if not derived_union_pct and pct and not total:
+            derived_union_pct = _derive_pct_from_mixed_components(
+                covered,
+                works_covered,
+                pct,
+            )
+        if derived_union_pct:
+            base = f"{base} ({derived_union_pct})"
+        elif pct:
+            # Keep provided percentage only when we cannot derive a union/CBA-specific one.
+            base = f"{base}, with overall coverage of {pct}"
+        works_clause = f"{works_covered} employees were covered by works councils"
+        return f"{base}; separately, {works_clause}"
+
     coverage_counts = metrics.get("coverage_counts") or []
     if coverage_counts and len(coverage_counts) > 1:
         nums = [_parse_number_token(v) for v in coverage_counts]
@@ -610,9 +679,21 @@ def _render_metric_sentence(
         base = f"{label} had {bu} bargaining units"
 
     if not base:
+        if works_covered and works_pct:
+            return f"{label} had {works_covered} employees covered by works councils ({works_pct})"
+        if works_covered:
+            return f"{label} had {works_covered} employees covered by works councils"
+        if works_pct:
+            return f"{label} had {works_pct} employees covered by works councils"
         return None
     if bu and "bargaining units" not in base:
         base = f"{base}, across {bu} bargaining units"
+    if works_covered and works_pct:
+        base = f"{base}; separately, {works_covered} employees were covered by works councils ({works_pct})"
+    elif works_covered:
+        base = f"{base}; separately, {works_covered} employees were covered by works councils"
+    elif works_pct:
+        base = f"{base}; separately, {works_pct} were covered by works councils"
     return base
 
 
@@ -659,6 +740,9 @@ def _coverage_basis_phrase(
         if basis:
             return basis
 
+    categories = set(header_ctx.get("categories_present", []))
+    if "works_council" in categories:
+        return PHRASE_MAP["coverage_neutral"]
     if hints.get("union_names"):
         return PHRASE_MAP["coverage_represented"]
     return PHRASE_MAP["coverage_default"]
@@ -684,7 +768,7 @@ def _coverage_basis_from_header(header: str) -> Optional[str]:
                 # "covered"/"represented" because extraction relies on union context.
                 if any(tok in phrase for tok in ("union", "labor", "bargain", "cba")):
                     return phrase
-                return PHRASE_MAP["coverage_default"]
+                return PHRASE_MAP["coverage_neutral"]
             return f"covered by {phrase}"
     if REPRESENT_SCOPE_REGEX.search(header):
         return PHRASE_MAP["coverage_represented"]
