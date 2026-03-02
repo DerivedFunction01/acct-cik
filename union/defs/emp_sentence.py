@@ -477,7 +477,7 @@ def _render_template(
 
 def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
     per_item = header_ctx.get("per_item", [])
-    metrics: Dict[str, Optional[str]] = {
+    metrics: Dict[str, Optional[Any]] = {
         "covered": None,
         "non_covered": None,
         "total": None,
@@ -487,7 +487,10 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         "pct_header": None,
         "works_header": None,
     }
-
+    # assert arrays
+    metrics["coverage_counts"] = []
+    metrics["coverage_headers"] = []
+    
     for item in per_item:
         val = (item.get("val") or "").strip()
         category = item.get("category")
@@ -501,6 +504,14 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         if category in {"coverage", "unionized"} and is_numeric and not is_percent and not metrics["covered"]:
             metrics["covered"] = val
             metrics["covered_header"] = item.get("header")
+            metrics["coverage_counts"].append(val)
+            if item.get("header"):
+                metrics["coverage_headers"].append(item.get("header"))
+            continue
+        if category in {"coverage", "unionized"} and is_numeric and not is_percent:
+            metrics["coverage_counts"].append(val)
+            if item.get("header"):
+                metrics["coverage_headers"].append(item.get("header"))
             continue
         if category in {"non_coverage", "nonunion"} and is_numeric and not is_percent and not metrics["non_covered"]:
             metrics["non_covered"] = val
@@ -514,6 +525,14 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         if category == "works_council" and is_numeric and not is_percent and not metrics["covered"]:
             metrics["covered"] = val
             metrics["works_header"] = item.get("header")
+            metrics["coverage_counts"].append(val)
+            if item.get("header"):
+                metrics["coverage_headers"].append(item.get("header"))
+            continue
+        if category == "works_council" and is_numeric and not is_percent:
+            metrics["coverage_counts"].append(val)
+            if item.get("header"):
+                metrics["coverage_headers"].append(item.get("header"))
             continue
 
         if is_percent and not metrics["pct"]:
@@ -523,6 +542,29 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
                 continue
 
     return metrics
+
+
+def _parse_number_token(value: str) -> Optional[float]:
+    if not value:
+        return None
+    raw = value.strip()
+    negative = raw.startswith("(") and raw.endswith(")")
+    cleaned = re.sub(r"[^0-9.\-]", "", raw)
+    if not cleaned:
+        return None
+    try:
+        num = float(cleaned)
+    except ValueError:
+        return None
+    if negative:
+        num = -num
+    return num
+
+
+def _format_int_like(value: float) -> str:
+    if abs(value - round(value)) < 1e-9:
+        return f"{int(round(value)):,}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
 
 
 def _render_metric_sentence(
@@ -536,6 +578,12 @@ def _render_metric_sentence(
     total = metrics.get("total")
     pct = metrics.get("pct")
     bu = metrics.get("bu")
+    coverage_counts = metrics.get("coverage_counts") or []
+    if coverage_counts and len(coverage_counts) > 1:
+        nums = [_parse_number_token(v) for v in coverage_counts]
+        nums = [n for n in nums if n is not None]
+        if nums:
+            covered = _format_int_like(sum(nums))
     covered_phrase = "employees" if has_specific_union else f"employees {coverage_basis}"
     pct_phrase = "covered" if has_specific_union else coverage_basis
 
@@ -577,6 +625,24 @@ def _coverage_basis_phrase(
     Choose coverage wording from the actual matched coverage headers first,
     then fallback to broader table context.
     """
+    coverage_headers = metrics.get("coverage_headers") or []
+    if coverage_headers:
+        basis_parts: List[str] = []
+        seen_basis = set()
+        for hdr in coverage_headers:
+            basis = _coverage_basis_from_header((hdr or "").strip())
+            if not basis:
+                continue
+            key = basis.lower()
+            if key not in seen_basis:
+                basis_parts.append(basis)
+                seen_basis.add(key)
+        if len(basis_parts) > 1:
+            joined = " and ".join(basis_parts)
+            return joined
+        if len(basis_parts) == 1:
+            return basis_parts[0]
+
     for hdr_key in ("covered_header", "pct_header", "works_header"):
         header = (metrics.get(hdr_key) or "").strip()
         basis = _coverage_basis_from_header(header)
