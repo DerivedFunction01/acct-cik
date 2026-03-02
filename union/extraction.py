@@ -108,6 +108,16 @@ REMAIN_REGEX = build_regex(
 CONSIST_REGEX = build_regex([r"(?:consist|compris)(?:s|ed|es|ing)?"])
 OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?"])
 OR_REGEX = build_regex([r"or", r"\(", r"\)"])
+SPLIT_ADVERBS_REGEX = build_regex(
+    [
+        r"rough(?:ly)?",
+        r"exactly",
+        r"about",
+        r"approx(?:imate(?:ly)?|\.)?",
+        r"around",
+        r"est(?:imated?|\.?)",
+    ]
+)
 TOT_PCT_CNT_REGEX = build_regex([r"by", r"(?:we|a)re", r"ha(?:s|d|ve)"])
 TOTAL_MODIFIER_REGEX = build_regex(
     [
@@ -142,7 +152,7 @@ QUALITATIVE_MULTIPLIERS = [
 # Worker Count Pattern: Number + (optional gap) + Worker Term
 worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers?"])
 # Gap that avoids consuming numbers (words must start with non-digit)
-non_numeric_gap = r"(?:[^\W\d][\w-]*\s+){0,3}"
+non_numeric_gap = r"(?:[^\W\d][\w\.-]*\s+){0,3}"
 GAP = r"\s+(?:[\w-]+\s+){0,3}"
 WORKER_COUNT_REGEX = build_regex(
     [

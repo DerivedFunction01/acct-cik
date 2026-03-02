@@ -21,6 +21,7 @@ from extraction import (
     REMAIN_REGEX,
     EXCEPT_REGEX,
     SEGMENT_DELIMITER_REGEX,
+    SPLIT_ADVERBS_REGEX,
 )
 from defs.region_regex import (
     AGG_SET,
@@ -2217,8 +2218,14 @@ class ComplexCoverageAnalyzer:
         """
         # Check for explicit subset relationship
         is_subset = False
+        
+        # 1. Partitive: "20 of 100"
         if OF_REGEX.search(text_between) and not "," in text_between:
             is_subset = True
+        # 2. Subset Breakdown: "100 including 20" or "100 consisting of 20"
+        elif SUBSET_REGEX.search(text_between) or CONSIST_REGEX.search(text_between) or SPLIT_ADVERBS_REGEX.search(text_between):
+            is_subset = True
+        # 3. Introductory Total: "Of 100, 20..." or "For 100, 20..."
         elif check_local_regex(
             m1["span"], self.analysis.text, OF_REGEX, backward=25, forward=0
         ):
@@ -2233,6 +2240,22 @@ class ComplexCoverageAnalyzer:
 
         # Determine which match is the part for negation checking
         part_match = m1 if m1["val"] == part else m2
+
+        # Check if part is associated with union/coverage terms
+        dist_union = get_min_distance_to_matches(
+            part_match["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+        )
+        dist_neg = get_min_distance_to_matches(
+            part_match["span"], self.analysis._matches, list(NEGATIVE_COVERAGE_MATCH_TYPES), text=self.analysis.text
+        )
+        
+        if dist_union >= 80 and dist_neg >= 80:
+            # Just record total, ignore part as it's likely just a demographic/role subset
+            total_match = m1 if m1["val"] == total else m2
+            self.local_assignments.append({"match": total_match, "type": "total"})
+            self.data["note"] = (self.data["note"] or "") + f" | Local subset: {part} of {total} (subset not union-linked)"
+            return True
+
         is_negated = self._is_local_non_coverage_context(
             part_match["span"], backward=30, forward=30
         )
@@ -2504,7 +2527,6 @@ class ComplexCoverageAnalyzer:
                 candidates.append(("not_covered", n))
             for t in search_totals:
                 if not _is_total_anchor_for_count(target_match, t):
-                    print(target_match, t)
                     continue
                 candidates.append(("total", t))
 
