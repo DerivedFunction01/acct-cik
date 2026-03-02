@@ -1116,7 +1116,7 @@ class ContextualNumberCleaner:
             + [r"members?", r"represented", r"covered", r"based", r"affiliated"]
         )
         self.union_regex = re.compile(
-            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,2}}{union_prefixes}unions?)"
+            rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,1}}{union_prefixes}unions?)"
             rf"(?!(?:[\s-]+)(?:{union_adj_blockers}))"
             rf"(?=[,\.;\:\!\?]|\s|$)",
             re.IGNORECASE,
