@@ -1,10 +1,117 @@
 from typing import Any, Dict, List, Optional
 import re
+from regex_lib import build_compound, build_regex
+from union_regex import COVERAGE_REGEX, NON_COVERAGE_REGEX, CORE, NON_UNION_REGEX, WORKER_TERMS
 
-
-AMENDABLE_TOKEN_REGEX = re.compile(r"\bamendable\b", re.IGNORECASE)
-EMPLOYEE_HEADER_REGEX = re.compile(r"\bemployees?\b", re.IGNORECASE)
 SPACE_REGEX = re.compile(r"\s+")
+NULL_HEADER_REGEX = re.compile(r"^(?:-|—|n/?a|na)$", re.IGNORECASE)
+
+
+"""
+# Header Classification for Employment Tables
+
+## 1. Numbers to Keep (Primary Data)
+These are the core metrics we want to extract as quantitative data.
+- **Union/Employee Counts** Note that it works with  | Union name| Number of Employees|:
+    - "Employees", "Headcount", "Workforce", "Staff"
+    - "Full-time", "Part-time", "Multi-year (ie 2018 vs 2019 -> Ignore the previous year)". 
+    - Total vs Subset: 100 vs 200 total. This is much simplier if written as 100 of 200 to avoid having
+        complex parsing strategies for the analyzer.
+- **Bargaining Units**:
+    - "Number of Bargaining Units" (Keep this count as it proxies for organizational complexity)
+    -  Needs to be reordered so that the extraction.py sees it as XX bargaining units, rather than bargaining units is X.
+
+## 2. Numbers to Strip or Reorder (Contextual/Metadata)
+These numbers describe the structure but aren't the workforce counts themselves.
+- **Contract Counts**:
+    - "Number of Labor Contracts", "Number of CBAs", "Number of Unions"
+    - *Action*: Generally ignore the number value to avoid confusing it with employee counts, but preserve the header context (implies union presence).
+- **Dates/Years**:
+    - "Expiration Date", "Amendable", "effective", "start"
+    -  Drop this row, as the analyzer may see the wrong year, or the extractor will suppress "amendable"
+
+## 3. Percentages (Coverage Rates)
+- "% of Total", "% Unionized"
+    - One count, one percent needs to know that if it was a count is total vs subset.
+
+## 4. Text only cells:
+    - Refering to geography, worker type, or union name.
+    - If one data cell is a union, the rest of that column probably also is a union.
+
+# Header simplication or categorization.
+- Number of Employees -> Employees.
+
+# Figure out the categorization to write natural sentences.
+Ex. Employees = 500 -> We have 500 employees.
+"""
+
+# The table processor should have already set the year, we can probably have that dropped for multi-year data.
+HEADER_PATTERNS = {
+    "counts": build_regex(set(WORKER_TERMS + []) - {r"Teamsters?"}), # Or other rows that have numbers and not years.
+    "bu": build_regex(
+        [
+            build_compound([CORE.BARGAIN], [r"units?"], sep_prefix=r"[\s-]+"),
+        ]
+    ),
+    "union_contract_counts": build_regex(
+        [
+            build_compound(
+                [CORE.LABOR, CORE.UNION, CORE.BARGAIN],
+                [
+                    r"agreements?",
+                    r"contracts?",
+                    r"arrangements?",
+                ],
+            ),
+        ]
+    ),
+    "generic_contract_counts": build_regex(
+        [
+            r"agreements?",
+            r"contracts?",
+            r"arrangements?",
+        ]
+    ),
+    "coverage": COVERAGE_REGEX,  # Bypasses contract counts -> covered by labor agreements = emp total, # covered by bu = emp count
+    "non_coverage": NON_COVERAGE_REGEX, # Not covered
+    "unionized": build_regex([r"unionized"]), # Unionized
+    "nonunion": NON_UNION_REGEX, # Non-unionized
+    "number": build_regex([r"number\s+of"]), # So we know if contract counts is explicity number of if needed.
+    "percent": build_regex([r"%", r"percent(?:ages?|s)?"]) # The data cell should be in percents anyways.
+}
+
+DATE_META_REGEX = build_regex(
+    [
+        r"effective",
+        r"expiration",
+        r"expires?",
+        r"amendable",
+        r"start(?:ing)?\s+date",
+        r"end(?:ing)?\s+date",
+        r"ratification",
+        r"year(?:s)?\s+ended",
+        r"term",
+        r"duration",
+    ],
+)
+GENERIC_META_REGEX = build_regex(
+    [
+        r"notes?",
+        r"description",
+        r"comments?",
+        r"status",
+    ]
+)
+HEADER_CLASS_ORDER = [
+    "date_meta",
+    "union_contract_counts",
+    "generic_contract_counts",
+    "bu",
+    "non_coverage",
+    "coverage",
+    "counts",
+    "percent",
+]
 
 
 def render_employee_sentence(
@@ -52,6 +159,8 @@ def _resolve_year(
 def _digest_headers(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
     Parse/normalize headers and expose structured metadata for templates.
+    Input shape is aligned with table_sentences items:
+      {"val": "...", "type": "value|percentage|text|...", "header": "..."}
     """
     raw_headers = [i.get("header", "").strip() for i in items if i.get("header")]
     unique_headers: List[str] = []
@@ -62,11 +171,44 @@ def _digest_headers(items: List[Dict[str, Any]]) -> Dict[str, Any]:
             unique_headers.append(normalized)
             seen.add(normalized)
 
+    per_item: List[Dict[str, Any]] = []
+    class_counts: Dict[str, int] = {}
+    for i in items:
+        raw = i.get("header", "")
+        normalized = _normalize_header(raw)
+        category = _classify_header(normalized, i.get("type"))
+
+        if category:
+            class_counts[category] = class_counts.get(category, 0) + 1
+
+        per_item.append(
+            {
+                "header": normalized,
+                "category": category,
+                "type": i.get("type"),
+                "val": i.get("val", ""),
+            }
+        )
+
+    categories_present = sorted(class_counts.keys())
+    informative_categories = {
+        "counts",
+        "coverage",
+        "non_coverage",
+        "bu",
+        "percent",
+    }
+    dropped_categories = {"date_meta", "generic_meta"}
+
     return {
         "raw": raw_headers,
         "unique": unique_headers,
         "has_headers": bool(unique_headers),
-        # TODO: Add parsed dimensions (region, workforce type, unit, etc.).
+        "per_item": per_item,
+        "class_counts": class_counts,
+        "categories_present": categories_present,
+        "has_informative_headers": any(c in informative_categories for c in categories_present),
+        "has_only_meta_headers": bool(categories_present) and all(c in dropped_categories for c in categories_present),
         "dimensions": {},
     }
 
@@ -78,15 +220,33 @@ def _normalize_header(header: str) -> str:
     if not header:
         return ""
 
-    # Remove specific noisy token.
-    header = AMENDABLE_TOKEN_REGEX.sub(" ", header)
-
-    # Collapse long employee headers into a single stable label.
-    if EMPLOYEE_HEADER_REGEX.search(header):
-        return "employees"
-
     header = SPACE_REGEX.sub(" ", header).strip(" ,;:-")
     return header
+
+
+def _classify_header(header: str, item_type: Optional[str]) -> str:
+    """
+    Categorize one header for sentence rendering.
+    """
+    if not header or NULL_HEADER_REGEX.match(header):
+        return "unknown"
+
+    if DATE_META_REGEX.search(header):
+        return "date_meta"
+    if GENERIC_META_REGEX.search(header):
+        return "generic_meta"
+
+    for klass in HEADER_CLASS_ORDER:
+        pattern = HEADER_PATTERNS.get(klass)
+        if pattern and pattern.search(header):
+            return klass
+
+    # If column type is percentage and no explicit header class matched,
+    # keep a lightweight category so templates can still reason about it.
+    if item_type == "percentage":
+        return "percent"
+
+    return "unknown"
 
 
 def _digest_values(items: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -124,8 +284,24 @@ def _render_template(
 
     head = f"In {year}, " if year else ""
 
-    headers = header_ctx.get("unique", [])
-    if headers:
-        return f"{head}{label} ({', '.join(headers)}) was {' '.join(values)}."
+    if header_ctx.get("has_only_meta_headers"):
+        return None
+
+    headers = [
+        h["header"]
+        for h in header_ctx.get("per_item", [])
+        if h.get("header")
+        and h.get("category") not in {"date_meta", "generic_meta", "generic_contract_counts"}
+    ]
+    # Preserve order while de-duplicating
+    deduped_headers: List[str] = []
+    seen_headers = set()
+    for h in headers:
+        if h not in seen_headers:
+            deduped_headers.append(h)
+            seen_headers.add(h)
+
+    if deduped_headers:
+        return f"{head}{label} ({', '.join(deduped_headers)}) was {' '.join(values)}."
 
     return f"{head}{label} was {' '.join(values)}."
