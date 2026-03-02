@@ -631,7 +631,7 @@ def _render_metric_sentence(
     if covered and works_covered:
         base = f"{label} had {covered} employees {coverage_basis}"
         if total:
-            base = f"{base} out of {total} employees"
+            base = f"{label} had {covered} of {total} employees {coverage_basis}"
         derived_union_pct = _derive_pct_from_counts(covered, total)
         if not derived_union_pct and pct and not total:
             derived_union_pct = _derive_pct_from_mixed_components(
@@ -660,11 +660,11 @@ def _render_metric_sentence(
     if covered and total and pct:
         base = f"{label} had {covered} ({pct}) out of {total} {covered_phrase}"
     elif covered and total:
-        base = f"{label} had {covered} out of {total} {covered_phrase}"
+        base = f"{label} had {covered} of {total} {covered_phrase}"
     elif covered and pct:
         base = f"{label} had {covered} ({pct}) {covered_phrase}"
     elif total and pct:
-        base = f"{label} had {total} employees, of whom {pct} are {pct_phrase}"
+        base = f"{label} had {pct} of {total} employees {pct_phrase}"
     elif non_covered and total:
         base = f"{label} had {non_covered} non-union employees out of {total}"
     elif covered:
