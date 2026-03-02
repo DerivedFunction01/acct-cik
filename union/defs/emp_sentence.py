@@ -1,8 +1,8 @@
 from typing import Any, Dict, List, Optional
 from functools import lru_cache
 import re
-from regex_lib import build_compound, build_regex
-from union_regex import (
+from defs.regex_lib import build_compound, build_regex
+from defs.union_regex import (
     COVERAGE_REGEX,
     NON_COVERAGE_REGEX,
     CORE,
@@ -11,7 +11,7 @@ from union_regex import (
     UNION_REGEX,
     WORKER_TERMS,
 )
-from region_regex import RegionMatcher
+from defs.region_regex import RegionMatcher
 
 SPACE_REGEX = re.compile(r"\s+")
 NULL_HEADER_REGEX = re.compile(r"^(?:-|—|n/?a|na)$", re.IGNORECASE)
@@ -96,6 +96,7 @@ HEADER_PATTERNS = {
     "unionized": build_regex([r"unionized"]), # Unionized
     "nonunion": NON_UNION_REGEX, # Non-unionized
     "number": build_regex([r"number\s+of"]), # So we know if contract counts is explicity number of if needed.
+    "union_name": build_regex([r"^unions?(?:\s+\(.*\))?$", r"labor\s+organizations?"]),
     "percent": build_regex([r"%", r"percent(?:ages?|s)?"]) # The data cell should be in percents anyways.
 }
 
@@ -104,6 +105,7 @@ DATE_META_REGEX = build_regex(
         r"effective",
         r"expiration",
         r"expires?",
+        r"amendments?",
         r"amendable",
         r"start(?:ing)?\s+date",
         r"end(?:ing)?\s+date",
@@ -124,6 +126,7 @@ GENERIC_META_REGEX = build_regex(
 HEADER_CLASS_ORDER = [
     "date_meta",
     "union_contract_counts",
+    "union_name",
     "generic_contract_counts",
     "bu",
     "non_coverage",
@@ -330,7 +333,7 @@ def _render_template(
         h["header"]
         for h in header_ctx.get("per_item", [])
         if h.get("header")
-        and h.get("category") not in {"date_meta", "generic_meta", "generic_contract_counts"}
+        and h.get("category") not in {"date_meta", "generic_meta", "generic_contract_counts", "union_name"}
     ]
     # Preserve order while de-duplicating
     deduped_headers: List[str] = []
