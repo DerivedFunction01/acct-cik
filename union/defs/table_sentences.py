@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Callable
 import re
 from defs.table_processor import MAJOR_CURRENCIES, YEAR_REGEX
 
@@ -343,12 +343,25 @@ def _render_sentence(group: Dict[str, Any], row_info: Dict[str, Any], context: D
     
     return " ".join(parts) + "."
 
-def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:
+SentenceRenderer = Callable[[Dict[str, Any], Dict[str, Any], Dict[str, Any]], Optional[str]]
+
+
+def generate_primitive_sentences(
+    processed_table: Dict[str, Any],
+    renderer: Optional[SentenceRenderer] = None,
+) -> List[str]:
     """
     Generates primitive sentences from a processed table dictionary using heuristics.
+
+    Args:
+        processed_table: Output from table processing.
+        renderer: Optional custom sentence renderer with signature
+            (group, row_info, context) -> sentence or None.
+            Defaults to this module's `_render_sentence`.
     """
     context = _extract_context(processed_table)
     sentences = []
+    active_renderer = renderer or _render_sentence
     
     for r_idx, row in enumerate(context['data']):
         if not row: continue
@@ -359,7 +372,7 @@ def generate_primitive_sentences(processed_table: Dict[str, Any]) -> List[str]:
         groups = _cluster_cells(row, row_info, context)
         
         for group in groups:
-            sent = _render_sentence(group, row_info, context)
+            sent = active_renderer(group, row_info, context)
             if sent:
                 sentences.append(sent)
                 
