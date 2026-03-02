@@ -645,7 +645,7 @@ def _render_metric_sentence(
             # Keep provided percentage only when we cannot derive a union/CBA-specific one.
             base = f"{base}, with overall coverage of {pct}"
         works_clause = f"{works_covered} employees were covered by works councils"
-        return f"{base}; separately, {works_clause}"
+        return f"{base}. Separately, {works_clause}"
 
     coverage_counts = metrics.get("coverage_counts") or []
     if coverage_counts and len(coverage_counts) > 1:
