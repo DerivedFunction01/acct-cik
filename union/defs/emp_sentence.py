@@ -689,11 +689,11 @@ def _render_metric_sentence(
     if bu and "bargaining units" not in base:
         base = f"{base}, across {bu} bargaining units"
     if works_covered and works_pct:
-        base = f"{base}; separately, {works_covered} employees were covered by works councils ({works_pct})"
+        base = f"{base}. Separately, {works_covered} ({works_pct}) employees were covered by works councils"
     elif works_covered:
-        base = f"{base}; separately, {works_covered} employees were covered by works councils"
+        base = f"{base}. Separately, {works_covered} employees were covered by works councils"
     elif works_pct:
-        base = f"{base}; separately, {works_pct} were covered by works councils"
+        base = f"{base}. Separately, {works_pct} were covered by works councils"
     return base
 
 
