@@ -1448,12 +1448,6 @@ class ConcisenessCleaner:
     def __init__(self):
         self.removal_regex = build_regex(
             [
-                r"approx(?:imate(?:ly)?|\.)?",
-                r"around",
-                r"about",
-                r"exactly",
-                r"rough(?:ly)?",
-                r"est(?:imated?|\.?)",
                 r"herein",
                 r"thereof",
                 r"therein",
@@ -1479,7 +1473,6 @@ class ConcisenessCleaner:
                 r"particular(?:ly)?",
                 r"general(?:ly)?",
                 r"principally",
-                r"primarily",
             ]
         )
 
