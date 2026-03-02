@@ -414,7 +414,7 @@ def _render_metric_sentence(label: str, metrics: Dict[str, Optional[str]]) -> Op
     elif non_covered and total:
         base = f"{label} had {non_covered} non-union employees out of {total}"
     elif covered:
-        base = f"{label} had {covered} covered employees"
+        base = f"{label} had {covered} unionized employees"
     elif non_covered:
         base = f"{label} had {non_covered} non-union employees"
     elif total:
