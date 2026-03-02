@@ -22,6 +22,7 @@ from extraction import (
     EXCEPT_REGEX,
     SEGMENT_DELIMITER_REGEX,
     SPLIT_ADVERBS_REGEX,
+    STRICT_LIST_CONNECTOR,
 )
 from defs.region_regex import (
     AGG_SET,
@@ -1871,6 +1872,19 @@ class ComplexCoverageAnalyzer:
                 # Determine negation from part
                 part_match = counts[0] if counts[0]["val"] == part else counts[1]
                 total_match = counts[0] if counts[0]["val"] == total else counts[1]
+
+                # Guard: role/demographic subsets (e.g. "consisting of 20 pilots of 100 workers")
+                # should not be auto-interpreted as union coverage splits.
+                dist_union = get_min_distance_to_matches(
+                    part_match["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+                )
+                dist_neg = get_min_distance_to_matches(
+                    part_match["span"], self.analysis._matches, list(NEGATIVE_COVERAGE_MATCH_TYPES), text=self.analysis.text
+                )
+                if dist_union >= 80 and dist_neg >= 80:
+                    self.local_assignments.append({"match": total_match, "type": "total"})
+                    consumed_indices.update(id(m) for m in group)
+                    continue
                 
                 is_negated = self._is_local_non_coverage_context(
                     part_match["span"], backward=30, forward=30
@@ -2233,6 +2247,15 @@ class ComplexCoverageAnalyzer:
                 is_subset = True
         if not is_subset:
             return False
+
+        # Do not cross worker list-chain boundaries when the connector is not a
+        # strict list joiner. This keeps chained subsets bounded to the list.
+        m1_list_gid = m1.get("worker_list_group_id")
+        m2_list_gid = m2.get("worker_list_group_id")
+        if m1_list_gid != m2_list_gid:
+            one_side_is_list_member = (m1_list_gid is not None) or (m2_list_gid is not None)
+            if one_side_is_list_member and not STRICT_LIST_CONNECTOR.match(text_between):
+                return False
 
         c1, c2 = m1["val"], m2["val"]
         total = max(c1, c2)
@@ -2756,7 +2779,6 @@ class ComplexCoverageAnalyzer:
             if (
                 not self.analysis.has_subset_indicator
                 or not subset_matches
-                or not assigned_parent_values
             ):
                 return False
 
@@ -2773,6 +2795,8 @@ class ComplexCoverageAnalyzer:
                 return None
 
             count_parenthetical = _enclosing_parenthetical(c_span)
+
+            list_gid = item["match"].get("worker_list_group_id")
 
             # Require nearby preceding subset indicator with no hard delimiter in-between.
             nearest_subset = None
@@ -2796,10 +2820,33 @@ class ComplexCoverageAnalyzer:
                     nearest_dist = dist
                     nearest_subset = sm
 
+            if nearest_subset is None and list_gid is not None:
+                # Chain-aware fallback: if this count belongs to a worker list chain,
+                # allow a subset cue tied to the first list member (e.g. "consisting of
+                # 20 ..., 10 ..., and 10 ...") to apply to all members.
+                chain_starts = [
+                    ca["match"]["span"][0]
+                    for ca in count_assignments
+                    if ca["match"].get("worker_list_group_id") == list_gid
+                ]
+                if chain_starts:
+                    first_chain_start = min(chain_starts)
+                    for sm in subset_matches:
+                        _, s_end = sm["span"]
+                        if s_end > first_chain_start:
+                            continue
+                        dist = first_chain_start - s_end
+                        if dist > 120:
+                            continue
+                        between = self.analysis.text[s_end:first_chain_start]
+                        if re.search(r"[;:\.]", between):
+                            continue
+                        nearest_subset = sm
+                        break
+
             if nearest_subset is None:
                 return False
 
-            list_gid = item["match"].get("worker_list_group_id")
             if list_gid is not None:
                 # For chained worker lists in subset clauses (e.g. "including 20 pilots, 10 chefs ..."),
                 # treat all list members as subset children when a larger parent count exists.
