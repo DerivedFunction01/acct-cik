@@ -201,10 +201,10 @@ def _scenario_union_count_with_total_workforce_pct() -> dict:
 
 def _scenario_union_with_total_workforce_pct() -> dict:
     headers = {
-        2: "Union",
-        3: "Percent of Employees",
+        1: "Union",
+        2: "Percent of Employees",
     }
-    col_types = {2: "text", 3: "percentage"}
+    col_types = {1: "text", 2: "percentage"}
     data = [
         ["Pilots", "ALPA", "5%"],
         ["Flight Attendants", "AFA", "7.5%"],
