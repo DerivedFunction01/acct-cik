@@ -2793,6 +2793,8 @@ class ComplexCoverageAnalyzer:
 
         assigned_covered_values: List[float] = []
         assigned_not_covered_values: List[float] = []
+        assigned_covered_items: List[Dict[str, Any]] = []
+        skipped_subset_covered_values: List[float] = []
 
         for item in count_assignments:
             ctype = item["type"]
@@ -2801,11 +2803,13 @@ class ComplexCoverageAnalyzer:
                 if _is_subset_child_of_assigned_parent(
                     item, assigned_covered_values, "covered"
                 ):
+                    skipped_subset_covered_values.append(val)
                     excluded_match_ids.add(id(item["match"]))
                     continue
                 current = self.data["employee_count_covered"] or 0
                 self.data["employee_count_covered"] = current + val
                 assigned_covered_values.append(val)
+                assigned_covered_items.append(item)
                 excluded_match_ids.add(id(item["match"]))
                 logic_notes.append(f"Assigned {val} to covered")
             elif ctype == "not_covered":
@@ -2864,6 +2868,76 @@ class ComplexCoverageAnalyzer:
                             f"No fallback type found for rejected total {val}"
                         )
                 excluded_match_ids.add(id(item["match"]))
+
+        # Fallback for denominator-style openings where the largest introductory count
+        # was misclassified as covered (e.g. "Of 300 employees, 200 are unionized").
+        if (
+            self.data["employee_count_total"] is None
+            and not total_candidates
+            and self.data["employee_count_not_covered"] is None
+            and len(assigned_covered_items) >= 1
+            and (
+                len(assigned_covered_items) >= 2
+                or bool(skipped_subset_covered_values)
+            )
+        ):
+            covered_sorted = sorted(
+                assigned_covered_items, key=lambda x: x["match"]["span"][0]
+            )
+            first_item = covered_sorted[0]
+            first_val = first_item.get("override_val", first_item["match"]["val"])
+            max_val = max(
+                x.get("override_val", x["match"]["val"]) for x in covered_sorted
+            )
+            other_cov_sum = (
+                (self.data["employee_count_covered"] or 0.0) - first_val
+            )
+            if other_cov_sum <= 0 and skipped_subset_covered_values:
+                other_cov_sum = max(skipped_subset_covered_values)
+
+            first_span = first_item["match"]["span"]
+            pre_text = construct_window(first_span, self.analysis.text, backward=25)
+            first_end = first_span[1]
+            if len(covered_sorted) >= 2:
+                next_start = covered_sorted[1]["match"]["span"][0]
+                between = self.analysis.text[first_end:next_start]
+            else:
+                between = self.analysis.text[first_end : first_end + 80]
+
+            has_intro_denominator = bool(
+                re.search(r"\b(of|for|among|out\s+of)\b", pre_text, re.IGNORECASE)
+            )
+            has_subset_bridge = bool(
+                SUBSET_REGEX.search(between)
+                or re.search(r"\bwith\b", between, re.IGNORECASE)
+            )
+            worker_term_near = (
+                get_min_distance_to_matches(
+                    first_span,
+                    self.analysis._matches,
+                    [MatchType.WORKER_TERM],
+                    look_backward=True,
+                    look_forward=True,
+                    text=self.analysis.text,
+                )
+                < 30
+            )
+
+            if (
+                first_val == max_val
+                and other_cov_sum > 0
+                and worker_term_near
+                and (has_intro_denominator or has_subset_bridge)
+            ):
+                self.data["employee_count_total"] = first_val
+                self.data["employee_count_covered"] = max(0.0, other_cov_sum)
+                if self.data["employee_count_covered"] <= first_val:
+                    self.data["employee_count_not_covered"] = max(
+                        0.0, first_val - self.data["employee_count_covered"]
+                    )
+                logic_notes.append(
+                    f"Promoted introductory covered {first_val} to total and removed from covered"
+                )
 
         if total_candidates:
             # 0. Check for subset/overlap indicators in single-country context
