@@ -319,7 +319,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print()
 
-    for item in ITEM_1[0:1]:
+    for item in ITEM_1[0:]:
         # Clean the text
         cleaned_text = company_cleaner.clean(item, company_name)
         cleaned_text = cleaner.clean(cleaned_text, company_name)
