@@ -9,6 +9,7 @@ from defs.union_regex import (
     DYNAMIC_UNION_REGEX,
     NON_UNION_REGEX,
     UNION_REGEX,
+    WORKS_REGEX,
     WORKER_TERMS,
 )
 from defs.region_regex import RegionMatcher
@@ -49,6 +50,8 @@ PHRASE_MAP = {
     "union_by": "represented by",
     "coverage_default": "covered by unions",
     "coverage_represented": "represented",
+    "coverage_works": "covered by works councils",
+    "context_works": "under works councils",
 }
 
 
@@ -127,6 +130,7 @@ HEADER_PATTERNS = {
     "nonunion": NON_UNION_REGEX, # Non-unionized
     "number": build_regex([r"number\s+of"]), # So we know if contract counts is explicity number of if needed.
     "union_name": build_regex([r"^unions?(?:\s+\(.*\))?$", r"labor\s+organizations?"]),
+    "works_council": WORKS_REGEX,
     "percent": build_regex([r"%", r"percent(?:ages?|s)?"]) # The data cell should be in percents anyways.
 }
 
@@ -155,6 +159,7 @@ GENERIC_META_REGEX = build_regex(
 )
 HEADER_CLASS_ORDER = [
     "date_meta",
+    "works_council",
     "union_contract_counts",
     "union_name",
     "generic_contract_counts",
@@ -248,6 +253,7 @@ def _digest_headers(items: List[Dict[str, Any]]) -> Dict[str, Any]:
         "coverage",
         "non_coverage",
         "bu",
+        "works_council",
         "percent",
     }
     dropped_categories = {"date_meta", "generic_meta"}
@@ -293,6 +299,7 @@ def _classify_header(header: str, item_type: Optional[str]) -> str:
     # coverage (count/percent), not as a contract-count metadata column.
     has_union_contract = bool(HEADER_PATTERNS["union_contract_counts"].search(header))
     has_bu = bool(HEADER_PATTERNS["bu"].search(header))
+    has_works = bool(HEADER_PATTERNS["works_council"].search(header))
     has_coverage = bool(HEADER_PATTERNS["coverage"].search(header))
     has_non_coverage = bool(HEADER_PATTERNS["non_coverage"].search(header))
 
@@ -300,9 +307,9 @@ def _classify_header(header: str, item_type: Optional[str]) -> str:
 
     # Only promote contract/BU headers to coverage when they are explicitly scoped
     # to employees/workforce; otherwise keep them as metadata/count context.
-    if (has_union_contract or has_bu) and has_non_coverage and has_employee_scope:
+    if (has_union_contract or has_bu or has_works) and has_non_coverage and has_employee_scope:
         return "non_coverage"
-    if (has_union_contract or has_bu) and has_coverage and has_employee_scope:
+    if (has_union_contract or has_bu or has_works) and has_coverage and has_employee_scope:
         return "coverage"
 
     for klass in HEADER_CLASS_ORDER:
@@ -478,6 +485,7 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         "bu": None,
         "covered_header": None,
         "pct_header": None,
+        "works_header": None,
     }
 
     for item in per_item:
@@ -503,9 +511,13 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         if category == "bu" and is_numeric and not is_percent and not metrics["bu"]:
             metrics["bu"] = val
             continue
+        if category == "works_council" and is_numeric and not is_percent and not metrics["covered"]:
+            metrics["covered"] = val
+            metrics["works_header"] = item.get("header")
+            continue
 
         if is_percent and not metrics["pct"]:
-            if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion"}:
+            if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion", "works_council"}:
                 metrics["pct"] = val
                 metrics["pct_header"] = item.get("header")
                 continue
@@ -565,7 +577,7 @@ def _coverage_basis_phrase(
     Choose coverage wording from the actual matched coverage headers first,
     then fallback to broader table context.
     """
-    for hdr_key in ("covered_header", "pct_header"):
+    for hdr_key in ("covered_header", "pct_header", "works_header"):
         header = (metrics.get(hdr_key) or "").strip()
         basis = _coverage_basis_from_header(header)
         if basis:
@@ -589,6 +601,8 @@ def _coverage_basis_phrase(
 def _coverage_basis_from_header(header: str) -> Optional[str]:
     if not header:
         return None
+    if HEADER_PATTERNS["works_council"].search(header):
+        return PHRASE_MAP["coverage_works"]
     contract_match = CONTRACT_CONTEXT_REGEX.search(header)
     if contract_match:
         phrase = SPACE_REGEX.sub(" ", contract_match.group(0)).strip().lower()
@@ -621,6 +635,8 @@ def _minimal_union_context_suffix(header_ctx: Dict[str, Any], hints: Dict[str, O
     ]
     header_text = " | ".join(headers) if headers else ""
     categories = set(header_ctx.get("categories_present", []))
+    if "works_council" in categories:
+        return PHRASE_MAP["context_works"]
     if "union_contract_counts" in categories or CONTRACT_CONTEXT_REGEX.search(header_text):
         contract_phrase = _header_contract_phrase(headers)
         if contract_phrase:

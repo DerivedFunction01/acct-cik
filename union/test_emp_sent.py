@@ -110,6 +110,37 @@ def _scenario_union_name_column_fallback() -> dict:
     return _build_table(headers, col_types, data, "Union Representation", 2026)
 
 
+def _scenario_works_council_representation() -> dict:
+    headers = {
+        1: "Employees Covered by Works Councils",
+        2: "Total Employees",
+        3: "Percent Covered",
+    }
+    col_types = {1: "value", 2: "value", 3: "percentage"}
+    data = [
+        ["Germany", "2,200", "3,400", "64.7%"],
+        ["France", "1,500", "2,100", "71.4%"],
+    ]
+    return _build_table(headers, col_types, data, "Works Council Representation", 2024)
+
+
+def _scenario_mixed_covered_realistic() -> dict:
+    headers = {
+        1: "Employees Covered by Labor Agreements",
+        2: "Employees Covered by Works Councils",
+        3: "Total Employees",
+        4: "Percent Covered",
+        5: "Non-union Employees",
+    }
+    col_types = {1: "value", 2: "value", 3: "value", 4: "percentage", 5: "value"}
+    data = [
+        ["Germany Operations", "2,900", "1,100", "5,000", "80%", "1,000"],
+        ["France Operations", "1,700", "600", "3,000", "76.7%", "700"],
+        ["Italy Operations", "1,200", "300", "2,100", "71.4%", "600"],
+    ]
+    return _build_table(headers, col_types, data, "Mixed Coverage Snapshot", 2024)
+
+
 def _scenario_date_noise_only() -> dict:
     headers = {
         1: "Contract Expiration Date",
@@ -131,6 +162,8 @@ def run_test():
         ("Non-union Mix", _scenario_non_union_mix()),
         ("BU + Contract Words", _scenario_bargaining_units_with_contract_words()),
         ("Union Name Fallback", _scenario_union_name_column_fallback()),
+        ("Works Council Representation", _scenario_works_council_representation()),
+        ("Mixed Covered Realistic", _scenario_mixed_covered_realistic()),
         ("Agreement Words", _scenario_bargaining_agreement_words()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]
