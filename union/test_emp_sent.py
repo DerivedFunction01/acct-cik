@@ -185,6 +185,20 @@ def _scenario_mixed_partial_missing() -> dict:
     return _build_table(headers, col_types, data, "Mixed Coverage Partial Data", 2024)
 
 
+def _scenario_union_count_with_total_workforce_pct() -> dict:
+    headers = {
+        1: "Number of Employees",
+        2: "Union",
+        3: "Percent of Total Workforce",
+    }
+    col_types = {1: "value", 2: "text", 3: "percentage"}
+    data = [
+        ["Pilots", "10,000", "ALPA", "5%"],
+        ["Flight Attendants", "15,000", "AFA", "7.5%"],
+    ]
+    return _build_table(headers, col_types, data, "Workforce Share by Group", 2024)
+
+
 def _scenario_date_noise_only() -> dict:
     headers = {
         1: "Contract Expiration Date",
@@ -211,6 +225,7 @@ def run_test():
         ("Mixed No Total + Overall %", _scenario_mixed_no_total_with_overall_pct()),
         ("Mixed No Total / No %", _scenario_mixed_no_total_no_percent()),
         ("Mixed Partial Missing", _scenario_mixed_partial_missing()),
+        ("Union Count + Workforce %", _scenario_union_count_with_total_workforce_pct()),
         ("Agreement Words", _scenario_bargaining_agreement_words()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]

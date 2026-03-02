@@ -47,8 +47,8 @@ PHRASE_MAP = {
     "context_contract": "under labor contracts",
     "context_non_union": "with non-union exposure",
     "report_verb": "reported",
-    "union_by": "represented by",
-    "coverage_default": "covered by unions",
+    "represented": "represented by",
+    "coverage_union": "covered by unions",
     "coverage_neutral": "covered",
     "coverage_represented": "represented",
     "coverage_works": "covered by works councils",
@@ -488,9 +488,11 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
         "bu": None,
         "works_covered": None,
         "works_pct": None,
+        "workforce_pct": None,
         "covered_header": None,
         "pct_header": None,
         "works_header": None,
+        "workforce_pct_header": None,
     }
     # assert arrays
     metrics["coverage_counts"] = []
@@ -533,8 +535,25 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
                 metrics["works_header"] = item.get("header")
             continue
 
+        if is_percent:
+            header_text = (item.get("header") or "").strip()
+            is_workforce_percent_header = (
+                category == "percent"
+                and (EMPLOYEE_SCOPE_REGEX.search(header_text) or HEADER_PATTERNS["counts"].search(header_text))
+                and not HEADER_PATTERNS["coverage"].search(header_text)
+                and not HEADER_PATTERNS["non_coverage"].search(header_text)
+                and not HEADER_PATTERNS["works_council"].search(header_text)
+            )
+            if (
+                not metrics["workforce_pct"]
+                and is_workforce_percent_header
+            ):
+                metrics["workforce_pct"] = val
+                metrics["workforce_pct_header"] = header_text
+                continue
+
         if is_percent and not metrics["pct"]:
-            if category in {"coverage", "non_coverage", "percent", "unionized", "nonunion"}:
+            if category in {"coverage", "non_coverage", "unionized", "nonunion"}:
                 metrics["pct"] = val
                 metrics["pct_header"] = item.get("header")
                 continue
@@ -610,7 +629,7 @@ def _render_metric_sentence(
     label: str,
     metrics: Dict[str, Optional[str]],
     has_specific_union: bool = False,
-    coverage_basis: str = PHRASE_MAP["coverage_default"],
+    coverage_basis: str = PHRASE_MAP["coverage_union"],
 ) -> Optional[str]:
     covered = metrics.get("covered")
     non_covered = metrics.get("non_covered")
@@ -619,6 +638,7 @@ def _render_metric_sentence(
     bu = metrics.get("bu")
     works_covered = metrics.get("works_covered")
     works_pct = metrics.get("works_pct")
+    workforce_pct = metrics.get("workforce_pct")
 
     # Works-council dominant rows should be rendered as one coherent statement.
     # This avoids "X% are covered; separately ... covered by works councils".
@@ -645,6 +665,8 @@ def _render_metric_sentence(
             # Keep provided percentage only when we cannot derive a union/CBA-specific one.
             base = f"{base}, with overall coverage of {pct}"
         works_clause = f"{works_covered} employees were covered by works councils"
+        if workforce_pct and not pct:
+            base = f"{base}, which was {workforce_pct} of the total workforce"
         return f"{base}. Separately, {works_clause}"
 
     coverage_counts = metrics.get("coverage_counts") or []
@@ -688,6 +710,8 @@ def _render_metric_sentence(
         return None
     if bu and "bargaining units" not in base:
         base = f"{base}, across {bu} bargaining units"
+    if workforce_pct and not pct:
+        base = f"{base}, which was {workforce_pct} of the total workforce"
     if works_covered and works_pct:
         base = f"{base}. Separately, {works_covered} ({works_pct}) employees were covered by works councils"
     elif works_covered:
@@ -745,7 +769,7 @@ def _coverage_basis_phrase(
         return PHRASE_MAP["coverage_neutral"]
     if hints.get("union_names"):
         return PHRASE_MAP["coverage_represented"]
-    return PHRASE_MAP["coverage_default"]
+    return PHRASE_MAP["coverage_union"]
 
 
 def _coverage_basis_from_header(header: str) -> Optional[str]:
@@ -773,7 +797,7 @@ def _coverage_basis_from_header(header: str) -> Optional[str]:
     if REPRESENT_SCOPE_REGEX.search(header):
         return PHRASE_MAP["coverage_represented"]
     if HEADER_PATTERNS["unionized"].search(header) or HEADER_PATTERNS["coverage"].search(header):
-        return PHRASE_MAP["coverage_default"]
+        return PHRASE_MAP["coverage_union"]
     return None
 
 
@@ -963,5 +987,5 @@ def _union_name_segment(hints: Dict[str, Optional[str]]) -> Optional[str]:
     if not names:
         return None
     if len(names) == 1:
-        return f"{PHRASE_MAP['union_by']} {names[0]}"
-    return f"{PHRASE_MAP['union_by']} {', '.join(names)}"
+        return f"{PHRASE_MAP['represented']} {names[0]}"
+    return f"{PHRASE_MAP['represented']} {', '.join(names)}"
