@@ -23,6 +23,16 @@ CONTRACT_CONTEXT_REGEX = build_regex(
         r"cba(?:s)?",
     ]
 )
+EMPLOYEE_SCOPE_REGEX = build_regex(
+    [
+        r"employees?",
+        r"workers?",
+        r"workforce",
+        r"staff",
+        r"personnel",
+        r"headcount",
+    ]
+)
 REGION_MATCHER = RegionMatcher()
 
 
@@ -68,7 +78,7 @@ Ex. Employees = 500 -> We have 500 employees.
 HEADER_PATTERNS = {
     "counts": build_regex(
         list(set(WORKER_TERMS + []) - {r"Teamsters?"}) + [
-            r"Number\s+of\s+Employees?", r"Total\s+Employees?", r"Headcount"
+            r"Headcount"
         ]
     ), # Or other rows that have numbers and not years.
     "bu": build_regex(
@@ -262,6 +272,23 @@ def _classify_header(header: str, item_type: Optional[str]) -> str:
     if GENERIC_META_REGEX.search(header):
         return "generic_meta"
 
+    # Promote overlap headers to coverage when both concepts appear.
+    # Example: "Employees covered by labor agreements" should be treated as
+    # coverage (count/percent), not as a contract-count metadata column.
+    has_union_contract = bool(HEADER_PATTERNS["union_contract_counts"].search(header))
+    has_bu = bool(HEADER_PATTERNS["bu"].search(header))
+    has_coverage = bool(HEADER_PATTERNS["coverage"].search(header))
+    has_non_coverage = bool(HEADER_PATTERNS["non_coverage"].search(header))
+
+    has_employee_scope = bool(EMPLOYEE_SCOPE_REGEX.search(header))
+
+    # Only promote contract/BU headers to coverage when they are explicitly scoped
+    # to employees/workforce; otherwise keep them as metadata/count context.
+    if (has_union_contract or has_bu) and has_non_coverage and has_employee_scope:
+        return "non_coverage"
+    if (has_union_contract or has_bu) and has_coverage and has_employee_scope:
+        return "coverage"
+
     for klass in HEADER_CLASS_ORDER:
         pattern = HEADER_PATTERNS.get(klass)
         if pattern and pattern.search(header):
@@ -328,7 +355,11 @@ def _render_template(
     if union_name_segment and context_suffix == "with union representation context":
         context_suffix = None
 
-    metric_sentence = _render_metric_sentence(label, metrics)
+    metric_sentence = _render_metric_sentence(
+        label,
+        metrics,
+        has_specific_union=bool(union_name_segment),
+    )
     if metric_sentence:
         segments = [metric_sentence]
         for segment in [context_suffix, union_name_segment]:
@@ -413,36 +444,44 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
     return metrics
 
 
-def _render_metric_sentence(label: str, metrics: Dict[str, Optional[str]]) -> Optional[str]:
+def _render_metric_sentence(
+    label: str,
+    metrics: Dict[str, Optional[str]],
+    has_specific_union: bool = False,
+) -> Optional[str]:
     covered = metrics.get("covered")
     non_covered = metrics.get("non_covered")
     total = metrics.get("total")
     pct = metrics.get("pct")
     bu = metrics.get("bu")
+    covered_phrase = "represented employees" if has_specific_union else "employees covered by unions"
+    pct_phrase = "represented" if has_specific_union else "covered by unions"
 
     base = None
     if covered and total and pct:
-        base = f"{label} had {covered} ({pct}) out of {total} employees covered by unions"
+        base = f"{label} had {covered} ({pct}) out of {total} {covered_phrase}"
     elif covered and total:
-        base = f"{label} had {covered} out of {total} employees covered by unions"
+        base = f"{label} had {covered} out of {total} {covered_phrase}"
     elif covered and pct:
-        base = f"{label} had {covered} ({pct}) employees covered by unions"
+        base = f"{label} had {covered} ({pct}) {covered_phrase}"
     elif total and pct:
-        base = f"{label} had {total} employees, of whom {pct} are covered by unions"
+        base = f"{label} had {total} employees, of whom {pct} are {pct_phrase}"
     elif non_covered and total:
         base = f"{label} had {non_covered} non-union employees out of {total}"
     elif covered:
-        base = f"{label} had {covered} unionized employees"
+        base = f"{label} had {covered} {covered_phrase}"
     elif non_covered:
         base = f"{label} had {non_covered} non-union employees"
     elif total:
         base = f"{label} had {total} employees"
     elif pct:
-        base = f"{label} had {pct} employees covered by unions"
+        base = f"{label} had {pct} employees {pct_phrase}"
+    elif bu:
+        base = f"{label} had {bu} bargaining units"
 
     if not base:
         return None
-    if bu:
+    if bu and "bargaining units" not in base:
         base = f"{base}, across {bu} bargaining units"
     return base
 
