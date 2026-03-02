@@ -387,6 +387,31 @@ def _render_template(
         coverage_basis=coverage_basis,
     )
     if metric_sentence:
+        # Construct workforce_pct segment (moved from _render_metric_sentence to control order)
+        # Only add if it wasn't used as the primary base metric and not handled by mixed-coverage logic
+        workforce_pct_segment = None
+        has_primary_metric = any(metrics.get(k) for k in ["covered", "non_covered", "total", "pct", "bu"])
+        is_mixed_works_case = bool(metrics.get("covered") and metrics.get("works_covered"))
+        
+        if metrics.get("workforce_pct") and not metrics.get("pct") and has_primary_metric and not is_mixed_works_case:
+            workforce_pct_segment = f"which was {metrics['workforce_pct']} of the total workforce"
+
+        # Special handling for "Union + Workforce %" scenario (no count, just % and union name)
+        # Reorder to: "Label was represented by Union, which was X% of total workforce"
+        has_other_metrics = any(metrics.get(k) for k in ["covered", "non_covered", "total", "pct", "bu", "works_covered"])
+        if metrics.get("workforce_pct") and not has_other_metrics and union_name_segment:
+            base = f"{label} was {union_name_segment}"
+            pct_segment = f"which was {metrics['workforce_pct']} of the total workforce"
+            
+            if context_suffix and _is_redundant_suffix(base, context_suffix):
+                context_suffix = None
+            
+            segments = [base]
+            if context_suffix:
+                segments.append(context_suffix)
+            segments.append(pct_segment)
+            return f"{head}{', '.join(segments)}."
+
         # Avoid mixing explicit covered-by-union phrasing with extra
         # non-union hint suffixes unless the metric itself is non-union.
         if context_suffix == PHRASE_MAP["context_non_union"] and (metrics.get("covered") or metrics.get("pct")):
@@ -402,7 +427,7 @@ def _render_template(
         if context_suffix and _is_redundant_suffix(metric_sentence, context_suffix):
             context_suffix = None
         segments = [metric_sentence]
-        for segment in [context_suffix, union_name_segment]:
+        for segment in [context_suffix, union_name_segment, workforce_pct_segment]:
             if segment and segment not in segments:
                 segments.append(segment)
         return f"{head}{', '.join(segments)}."
@@ -710,8 +735,6 @@ def _render_metric_sentence(
         return None
     if bu and "bargaining units" not in base:
         base = f"{base}, across {bu} bargaining units"
-    if workforce_pct and not pct:
-        base = f"{base}, which was {workforce_pct} of the total workforce"
     if works_covered and works_pct:
         base = f"{base}. Separately, {works_covered} ({works_pct}) employees were covered by works councils"
     elif works_covered:
