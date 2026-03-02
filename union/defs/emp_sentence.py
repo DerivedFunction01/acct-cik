@@ -66,7 +66,11 @@ Ex. Employees = 500 -> We have 500 employees.
 
 # The table processor should have already set the year, we can probably have that dropped for multi-year data.
 HEADER_PATTERNS = {
-    "counts": build_regex(set(WORKER_TERMS + []) - {r"Teamsters?"}), # Or other rows that have numbers and not years.
+    "counts": build_regex(
+        list(set(WORKER_TERMS + []) - {r"Teamsters?"}) + [
+            r"Number\s+of\s+Employees?", r"Total\s+Employees?", r"Headcount"
+        ]
+    ), # Or other rows that have numbers and not years.
     "bu": build_regex(
         [
             build_compound([CORE.BARGAIN], [r"units?"], sep_prefix=r"[\s-]+"),
@@ -302,16 +306,27 @@ def _render_template(
     if not label:
         return None
 
-    values = value_ctx.get("non_date", []) or value_ctx.get("all", [])
+    # Get raw values
+    raw_values = value_ctx.get("non_date", []) or value_ctx.get("all", [])
+    
+    metrics = _extract_metrics(header_ctx)
+    hints = _extract_text_hints(label=label, header_ctx=header_ctx, value_ctx=value_ctx)
+    
+    # Filter values: Remove text that is used as a union name
+    union_names_set = set(hints.get("union_names", []) or [])
+    values = [v for v in raw_values if v not in union_names_set]
+    
     if not values:
         return None
 
     head = f"In {year}, " if year else ""
 
-    metrics = _extract_metrics(header_ctx)
-    hints = _extract_text_hints(label=label, header_ctx=header_ctx, value_ctx=value_ctx)
     context_suffix = _minimal_union_context_suffix(header_ctx, hints)
     union_name_segment = _union_name_segment(hints)
+
+    # If we have a specific union name segment, suppress the generic context suffix
+    if union_name_segment and context_suffix == "with union representation context":
+        context_suffix = None
 
     metric_sentence = _render_metric_sentence(label, metrics)
     if metric_sentence:
@@ -466,6 +481,14 @@ def _extract_text_hints(
         union_match = DYNAMIC_UNION_REGEX.search(compact_text)
         if union_match:
             union_names = [union_match.group(0).strip(" ,.;:-")]
+
+    # Fallback: Check if any text values are in a column explicitly labeled as 'union_name'
+    # This catches acronyms like "AFA", "PAFCA" that aren't in the regex dictionary but are under a "Union" header.
+    for item in header_ctx.get("per_item", []):
+        if item.get("category") == "union_name" and item.get("val"):
+            val = item["val"].strip()
+            if val and val not in union_names:
+                union_names.append(val)
 
     has_union_signal = bool(UNION_REGEX.search(compact_text) or CONTRACT_CONTEXT_REGEX.search(compact_text))
     has_non_union = bool(NON_UNION_REGEX.search(compact_text))
