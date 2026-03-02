@@ -168,7 +168,7 @@ WORKER_COUNT_REGEX = build_regex(
 sm_non_numeric_gap = r"(?:[^\W\d][\w\.-]*\s+){0,2}"
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
     [
-        rf"(\d+(?:\.\d+)?)\s+{sm_non_numeric_gap}(?:collective[-\s]+)?bargaining[-\s]+units?",
+        rf"(\d{{1,3}})\s+{sm_non_numeric_gap}(?:collective[-\s]+)?bargaining[-\s]+units?",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
