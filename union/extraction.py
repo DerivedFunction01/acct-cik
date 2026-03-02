@@ -107,6 +107,7 @@ REMAIN_REGEX = build_regex(
 
 CONSIST_REGEX = build_regex([r"(?:consist|compris)(?:s|ed|es|ing)?"])
 OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?"])
+OF_REGEX = build_regex([r"(?:out\s+)?of", r"from", r"for", r"with(?:in)?", r"among"])
 OR_REGEX = build_regex([r"or", r"\(", r"\)"])
 SPLIT_ADVERBS_REGEX = build_regex(
     [
@@ -2241,11 +2242,7 @@ class UnionExtractor:
         parts = SENTENCE_SPLIT_PATTERN2.split(text) if isinstance(text, str) else text
         final_parts = []
         for p in parts:
-            # Secondary split by semicolon to handle compound sentences like "Chile...; Colombia..."
-            sub_parts = p.split(";")
-            for sp in sub_parts:
-                if sp.strip():
-                    final_parts.append(sp.strip())
+            final_parts.append(p.strip())
         return final_parts
 
 
