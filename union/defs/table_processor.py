@@ -15,6 +15,7 @@ HTML_TAG_REGEX = re.compile(r"<[^>]+>")
 WHITESPACE_REGEX = re.compile(r"\s+")
 NUMERIC_PATTERN = re.compile(r"^-?\d+(?:\.\d+)?$")
 NUMERIC_WITH_SYMBOLS = re.compile(r"[$€£¥₹%\(\)\-,]")
+PERCENT_HEADER_REGEX = re.compile(r"\b(?:%|percent(?:age)?)\b", re.IGNORECASE)
 
 # safe patterns for years in tables
 YEAR_REGEX = build_regex([r"(?:\d{1,2}/)+(\d{2,4})", r"(19[8-9]\d|20\d{2})"])
@@ -382,7 +383,13 @@ class SimpleTableProcessor:
                             col_type = "dollar"
                             break
 
+            # Header hint override: if the header indicates percent, treat as percentage.
+            if self._is_percentage_header(header_text) and col_type in {"value", "mixed", None}:
+                col_type = "percentage"
+
             col_map[local_idx] = col_type
+
+        filtered_rows = self._normalize_percentage_columns(filtered_rows, col_map, col_headers)
 
         return filtered_rows, col_map, col_headers
 
@@ -770,6 +777,45 @@ class SimpleTableProcessor:
             return "dollar" if dollar_count > value_count else "value"
 
         return "mixed"
+
+    def _is_percentage_header(self, header_text: str) -> bool:
+        if not header_text:
+            return False
+        return bool(PERCENT_HEADER_REGEX.search(header_text))
+
+    def _normalize_percentage_columns(
+        self,
+        rows: List[List[str]],
+        col_map: Dict[int, Optional[str]],
+        col_headers: Dict[int, str],
+    ) -> List[List[str]]:
+        """
+        For columns explicitly labeled as percentage, ensure numeric values carry '%'.
+        """
+        percent_cols = {
+            idx
+            for idx, header in col_headers.items()
+            if self._is_percentage_header(header) or col_map.get(idx) == "percentage"
+        }
+        if not percent_cols:
+            return rows
+
+        normalized_rows: List[List[str]] = []
+        for row in rows:
+            new_row = list(row)
+            for idx in percent_cols:
+                if idx >= len(new_row):
+                    continue
+                cell = new_row[idx].strip()
+                if not cell or cell in {"-", "—", "N/A", "n/a"}:
+                    continue
+                if "%" in cell:
+                    continue
+                if self._is_numeric(cell):
+                    new_row[idx] = f"{cell}%"
+            normalized_rows.append(new_row)
+
+        return normalized_rows
 
     def get_data(self) -> List[List[str]]:
         """Return extracted table data"""
