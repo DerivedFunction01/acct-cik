@@ -166,9 +166,18 @@ WORKER_COUNT_REGEX = build_regex(
 )
 
 sm_non_numeric_gap = r"(?:[^\W\d][\w\.-]*\s+){0,2}"
+BARGAINING_UNIT_GAP_PREPOSITION_REGEX = re.compile(
+    r"\b(?:in|of|under|for|with|by|from|to|at|among|between|an|a|the)\b", re.IGNORECASE
+)
+
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
     [
-        rf"(\d{{1,3}})\s+{sm_non_numeric_gap}(?:collective[-\s]+)?bargaining[-\s]+units?",
+        rf"(\d{{1,3}})\s+({sm_non_numeric_gap})(?:collective[-\s]+)?bargaining[-\s]+units?",
+    ]
+)
+BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX = build_regex(
+    [
+        r"number\s+of\s+(?:collective[-\s]+)?bargaining[-\s]+units?\s+(?:is|are|was|were)\s+(\d{1,3})",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
@@ -1248,8 +1257,26 @@ class UnionExtractor:
         )
 
         # 3.1 Extract Bargaining Unit Counts
+        def extract_bargaining_unit_count(m: re.Match) -> float:
+            # Skip prepositional forms like "20 in a bargaining unit" (subset count),
+            # while retaining explicit unit counts such as "12 bargaining units".
+            gap = (m.group(2) or "").strip()
+            if gap and BARGAINING_UNIT_GAP_PREPOSITION_REGEX.search(gap):
+                raise ValueError
+
+            count = m.group(1)
+            if not count:
+                raise ValueError
+            return float(count)
+
         process_matches(
             BARGAINING_UNIT_COUNT_REGEX,
+            MatchType.BARGAINING_UNIT_COUNT,
+            extract_bargaining_unit_count,
+            lambda m, val: analysis.bargaining_unit_counts.append(val),
+        )
+        process_matches(
+            BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX,
             MatchType.BARGAINING_UNIT_COUNT,
             lambda m: float(m.group(1)),
             lambda m, val: analysis.bargaining_unit_counts.append(val),

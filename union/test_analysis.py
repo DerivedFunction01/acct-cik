@@ -15,6 +15,24 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 ITEM_1 = [
     """
+Of the 300 employees, 200 are unionized. 
+For the 500 workers, 50 are under a labor contract.
+The workforce consists of 300 employees, with 100 that are under a union agreement. 
+200 part-time and 100 full-time employees are unionized.
+100 of 200 are in a union. 
+We employed 100 workers and 50 workers are unionized. 
+There are 200 workers, including 50 salaried employees, and 50 that are under collective bargaining.
+The company has 100 workers with 50 belonging to a local union. 
+40 warehouse and 20 office workers are in a union. 
+25 of 80 staff belong to a bargaining unit.
+We have 90 employees, and 10 are in a union.
+The company has 140 workers with 20 belonging to a local union. 
+The firm has 90 employees with 10 under a union contract.
+Among 50 employees, labor contracts cover 20 of them.
+The firm has 150 staff; with 20 in a bargaining unit.
+
+""",
+    """
 In the air transportation industry, the primary competitive factors are operating costs, fuel efficiency, geographic coverage, aircraft range, aircraft reliability and capacity. The cost of airline operations is significantly impacted by the cost of flight crewmembers, which can vary among airlines depending on their collective bargaining agreements. Competitors in the air transportation industry include Amerijet International, Atlas Air, Kalitta Air, Northern Air Cargo, National Air Cargo Group, Air, and Western Global Airlines, Of these, Atlas Air, and National Air Cargo Group, (operating as National Airlines) also operate passenger aircraft as does Eastern Airlines, Cargo airlines also compete for cargo volumes with passenger airlines that have substantial belly cargo capacity. The table below summarizes the representation of our unionized employees at 2024.
 
 In 2024, for ABX, Labor Agreement Unit was International Brotherhood of Teamsters, Employee Type was Flight Crew, Contract Amendable Date was 2030, Percentage of the Company's Employees was 6.3%. 
@@ -298,7 +316,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print()
 
-    for item in ITEM_1[0:2]:
+    for item in ITEM_1[0:1]:
         # Clean the text
         cleaned_text = company_cleaner.clean(item, company_name)
         cleaned_text = cleaner.clean(cleaned_text, company_name)
