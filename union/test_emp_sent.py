@@ -141,6 +141,50 @@ def _scenario_mixed_covered_realistic() -> dict:
     return _build_table(headers, col_types, data, "Mixed Coverage Snapshot", 2024)
 
 
+def _scenario_mixed_no_total_with_overall_pct() -> dict:
+    headers = {
+        1: "Employees Covered by Labor Agreements",
+        2: "Employees Covered by Works Councils",
+        3: "Percent Covered",
+    }
+    col_types = {1: "value", 2: "value", 3: "percentage"}
+    data = [
+        ["Germany Ops (No Total)", "1,900", "600", "71.0%"],
+        ["France Ops (No Total)", "1,250", "450", "67.5%"],
+        ["Italy Ops (No Total)", "900", "300", "63.0%"],
+    ]
+    return _build_table(headers, col_types, data, "Mixed Coverage No Total", 2024)
+
+
+def _scenario_mixed_no_total_no_percent() -> dict:
+    headers = {
+        1: "Employees Covered by Labor Agreements",
+        2: "Employees Covered by Works Councils",
+    }
+    col_types = {1: "value", 2: "value"}
+    data = [
+        ["Germany Ops (Counts Only)", "2,100", "700"],
+        ["France Ops (Counts Only)", "1,400", "500"],
+    ]
+    return _build_table(headers, col_types, data, "Mixed Counts Without Percent", 2024)
+
+
+def _scenario_mixed_partial_missing() -> dict:
+    headers = {
+        1: "Employees Covered by Labor Agreements",
+        2: "Employees Covered by Works Councils",
+        3: "Total Employees",
+        4: "Percent Covered",
+    }
+    col_types = {1: "value", 2: "value", 3: "value", 4: "percentage"}
+    data = [
+        ["Germany Partial", "1,600", "500", "2,800", "75%"],
+        ["France Partial", "1,100", "", "2,000", "68%"],
+        ["Italy Partial", "", "350", "1,500", "59%"],
+    ]
+    return _build_table(headers, col_types, data, "Mixed Coverage Partial Data", 2024)
+
+
 def _scenario_date_noise_only() -> dict:
     headers = {
         1: "Contract Expiration Date",
@@ -164,6 +208,9 @@ def run_test():
         ("Union Name Fallback", _scenario_union_name_column_fallback()),
         ("Works Council Representation", _scenario_works_council_representation()),
         ("Mixed Covered Realistic", _scenario_mixed_covered_realistic()),
+        ("Mixed No Total + Overall %", _scenario_mixed_no_total_with_overall_pct()),
+        ("Mixed No Total / No %", _scenario_mixed_no_total_no_percent()),
+        ("Mixed Partial Missing", _scenario_mixed_partial_missing()),
         ("Agreement Words", _scenario_bargaining_agreement_words()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]
