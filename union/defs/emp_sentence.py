@@ -364,7 +364,7 @@ def _render_template(
     
     metrics = _extract_metrics(header_ctx)
     hints = _extract_text_hints(label=label, header_ctx=header_ctx, value_ctx=value_ctx)
-    has_core_metric = any(metrics.get(k) for k in ["covered", "non_covered", "total", "pct", "bu"])
+    has_core_metric = any(metrics.get(k) for k in ["covered", "non_covered", "total", "pct", "bu", "workforce_pct"])
     coverage_basis = _coverage_basis_phrase(metrics, header_ctx, hints)
     
     # Filter values: Remove text that is used as a union name
@@ -537,17 +537,15 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
 
         if is_percent:
             header_text = (item.get("header") or "").strip()
-            is_workforce_percent_header = (
-                category == "percent"
-                and (EMPLOYEE_SCOPE_REGEX.search(header_text) or HEADER_PATTERNS["counts"].search(header_text))
-                and not HEADER_PATTERNS["coverage"].search(header_text)
-                and not HEADER_PATTERNS["non_coverage"].search(header_text)
-                and not HEADER_PATTERNS["works_council"].search(header_text)
+            
+            is_coverage_related = (
+                HEADER_PATTERNS["coverage"].search(header_text)
+                or HEADER_PATTERNS["non_coverage"].search(header_text)
+                or HEADER_PATTERNS["works_council"].search(header_text)
+                or category in {"coverage", "non_coverage", "unionized", "nonunion", "works_council"}
             )
-            if (
-                not metrics["workforce_pct"]
-                and is_workforce_percent_header
-            ):
+
+            if category in {"percent", "counts"} and not is_coverage_related and not metrics["workforce_pct"]:
                 metrics["workforce_pct"] = val
                 metrics["workforce_pct_header"] = header_text
                 continue
@@ -699,6 +697,8 @@ def _render_metric_sentence(
         base = f"{label} had {pct} employees {pct_phrase}"
     elif bu:
         base = f"{label} had {bu} bargaining units"
+    elif workforce_pct:
+        base = f"{label} was {workforce_pct} of the total workforce"
 
     if not base:
         if works_covered and works_pct:
