@@ -404,13 +404,13 @@ def _render_metric_sentence(label: str, metrics: Dict[str, Optional[str]]) -> Op
 
     base = None
     if covered and total and pct:
-        base = f"{label} had {covered} covered employees out of {total} ({pct})"
+        base = f"{label} had {covered} ({pct}) out of {total} employees covered by unions"
     elif covered and total:
-        base = f"{label} had {covered} covered employees out of {total}"
+        base = f"{label} had {covered} out of {total} employees covered by unions"
     elif covered and pct:
-        base = f"{label} had {covered} covered employees ({pct})"
+        base = f"{label} had {covered} ({pct}) employees covered by unions"
     elif total and pct:
-        base = f"{label} had {total} employees, with {pct} covered"
+        base = f"{label} had {total} employees, of whom {pct} are covered by unions"
     elif non_covered and total:
         base = f"{label} had {non_covered} non-union employees out of {total}"
     elif covered:
@@ -420,7 +420,7 @@ def _render_metric_sentence(label: str, metrics: Dict[str, Optional[str]]) -> Op
     elif total:
         base = f"{label} had {total} employees"
     elif pct:
-        base = f"{label} had {pct} employee coverage"
+        base = f"{label} had {pct} employees covered by unions"
 
     if not base:
         return None
