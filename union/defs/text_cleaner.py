@@ -1139,9 +1139,9 @@ class ContextualNumberCleaner:
         # Matches: "increase of approx 10%" or "increase by 10% to 30%"
         self.change_post_regex = re.compile(
             rf"\b({change_pattern})"
-            rf"(?:\s+[\'\w-<>]+){{0,5}}\s+"  # allow N filler words
+            rf"(?:\s+[\'<>\w-]+){{0,5}}\s+"  # allow N filler words
             rf"((?:{percent_range}|{number_range}\b)\s+"
-            rf"(?:[\'\w-<>]+\s+){{0,4}})?"
+            rf"(?:[\'<>\w-]+\s+){{0,4}})?"
             rf"(?:{percent_range}|{number_range}\b)",
             re.IGNORECASE,
         )
@@ -1153,7 +1153,7 @@ class ContextualNumberCleaner:
         # Matches: "furloughed [approx] 20000"
         self.personnel_event_regex = re.compile(
             rf"\b({personnel_event_pattern})"
-            rf"(?:\s+[\'\w-<>]+){{0,8}}\s+"  # up to N filler words
+            rf"(?:\s+[\'<>\w-]+){{0,8}}\s+"  # up to N filler words
             rf"(?:{number_range}|{percent_range})\b",
             re.IGNORECASE,
         )
@@ -1332,7 +1332,7 @@ class ContextualNumberCleaner:
             r"states",
             r"areas",
             r"units?",
-            r"companies",
+            r"companies"
         ]
 
         # Boundary strategy:
