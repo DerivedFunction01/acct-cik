@@ -387,6 +387,10 @@ def _render_template(
             metrics.get("covered") or metrics.get("pct") or metrics.get("bu") or metrics.get("non_covered")
         ):
             context_suffix = None
+        # Drop suffix if its core phrase already appears in metric text
+        # (e.g., "covered by labor agreements, under labor agreements").
+        if context_suffix and _is_redundant_suffix(metric_sentence, context_suffix):
+            context_suffix = None
         segments = [metric_sentence]
         for segment in [context_suffix, union_name_segment]:
             if segment and segment not in segments:
@@ -590,6 +594,18 @@ def _coverage_basis_from_header(header: str) -> Optional[str]:
         phrase = SPACE_REGEX.sub(" ", contract_match.group(0)).strip().lower()
         if phrase:
             return f"covered by {phrase}"
+    coverage_match = HEADER_PATTERNS["coverage"].search(header)
+    if coverage_match:
+        phrase = SPACE_REGEX.sub(" ", coverage_match.group(0)).strip().lower()
+        if phrase:
+            # If the matched snippet already encodes "covered/represented", keep it.
+            if "cover" in phrase or "represent" in phrase:
+                # Keep specific union-bearing phrases, but avoid downgrading to bare
+                # "covered"/"represented" because extraction relies on union context.
+                if any(tok in phrase for tok in ("union", "labor", "bargain", "cba")):
+                    return phrase
+                return PHRASE_MAP["coverage_default"]
+            return f"covered by {phrase}"
     if REPRESENT_SCOPE_REGEX.search(header):
         return PHRASE_MAP["coverage_represented"]
     if HEADER_PATTERNS["unionized"].search(header) or HEADER_PATTERNS["coverage"].search(header):
@@ -606,9 +622,53 @@ def _minimal_union_context_suffix(header_ctx: Dict[str, Any], hints: Dict[str, O
     header_text = " | ".join(headers) if headers else ""
     categories = set(header_ctx.get("categories_present", []))
     if "union_contract_counts" in categories or CONTRACT_CONTEXT_REGEX.search(header_text):
+        contract_phrase = _header_contract_phrase(headers)
+        if contract_phrase:
+            return f"under {contract_phrase}"
         return PHRASE_MAP["context_contract"]
     if hints.get("has_non_union"):
+        non_union_header = _first_header_for_category(header_ctx, {"non_coverage", "nonunion"})
+        if non_union_header:
+            return f"with {non_union_header.lower()}"
         return PHRASE_MAP["context_non_union"]
+    return None
+
+
+def _is_redundant_suffix(metric_sentence: str, suffix: str) -> bool:
+    metric_l = metric_sentence.lower()
+    suffix_l = suffix.lower().strip()
+    if not suffix_l:
+        return True
+    if suffix_l in metric_l:
+        return True
+
+    for lead in ("under ", "with ", "in "):
+        if suffix_l.startswith(lead):
+            core = suffix_l[len(lead):].strip()
+            if core and core in metric_l:
+                return True
+    return False
+
+
+def _first_header_for_category(header_ctx: Dict[str, Any], categories: set[str]) -> Optional[str]:
+    for item in header_ctx.get("per_item", []):
+        category = item.get("category")
+        header = (item.get("header") or "").strip()
+        if category in categories and header:
+            return header
+    return None
+
+
+def _header_contract_phrase(headers: List[str]) -> Optional[str]:
+    for header in headers:
+        if not header:
+            continue
+        match = CONTRACT_CONTEXT_REGEX.search(header)
+        if not match:
+            continue
+        phrase = SPACE_REGEX.sub(" ", match.group(0)).strip().lower()
+        if phrase:
+            return phrase
     return None
 
 
