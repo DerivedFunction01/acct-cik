@@ -191,6 +191,33 @@ WORKER_TYPE_REGEX = build_regex(
         r"seasonal",
     ]
 )
+WORKER_CATEGORY_FILLER_TERMS = [
+    r"sales",
+    r"marketing",
+    r"administrative",
+    r"administration",
+    r"engineering",
+    r"technical",
+    r"operations?",
+    r"support",
+    r"finance",
+    r"legal",
+    r"hr",
+    r"human\s+resources",
+    r"corporate",
+    r"office",
+    r"production",
+    r"maintenance",
+    r"logistics",
+    r"research",
+    r"development",
+]
+_worker_category_filler_alt = build_alternation(WORKER_CATEGORY_FILLER_TERMS)
+WORKER_CATEGORY_LIST_ITEM_REGEX = re.compile(
+    rf"\b(\d+(?:\.\d+)?)\s+({_worker_category_filler_alt})\b"
+    rf"(?=\s*(?:,|;|\band\b|\bor\b|&|\.|$)|\s+(?:employees?|workers?|staff|personnel)\b)",
+    re.IGNORECASE,
+)
 DENOMINATOR_PREFIX = [r"(?:out\s+)?of"]
 DENOMINATOR_ADJECTIVES = [
     CORE.UNION,
@@ -1669,6 +1696,27 @@ class UnionExtractor:
             lambda m, val: analysis.numbers.append(val),
         )
 
+        # 13.5 Extract worker-category list items (e.g. "20 sales, 10 marketing")
+        # to preserve list-chain mapping even when "employees/workers" is shared.
+        existing_worker_term_spans = {
+            m["span"] for m in analysis._matches if m["type"] == MatchType.WORKER_TERM
+        }
+        for m in WORKER_CATEGORY_LIST_ITEM_REGEX.finditer(text):
+            term_val = m.group(2)
+            term_span = m.span(2)
+            if term_span in existing_worker_term_spans:
+                continue
+            analysis.worker_terms.append(term_val)
+            analysis._matches.append(
+                {
+                    "type": MatchType.WORKER_TERM,
+                    "val": term_val,
+                    "span": term_span,
+                    "text": term_val,
+                }
+            )
+            existing_worker_term_spans.add(term_span)
+
         # Post-processing: Filter noise numbers
         # Remove generic numbers that are likely footnotes or list markers not removed
         all_counts = analysis.worker_counts + analysis.numbers
@@ -2085,6 +2133,47 @@ class UnionExtractor:
 
         _link_worker_matches_to_numeric(worker_type_matches)
         _link_worker_matches_to_numeric(worker_term_matches)
+
+        # 26. Chain worker list matches (Strict List)
+        # Group worker counts that form a list (e.g. "20 pilots, 10 chefs, and 10 auto workers")
+        # so subset handling can treat the enumerated counts as one chain.
+        worker_count_matches_for_chain = sorted(
+            [
+                m
+                for m in analysis._matches
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                and m.get("worker_group_id") is not None
+            ],
+            key=lambda x: x["span"][0],
+        )
+        for i in range(len(worker_count_matches_for_chain) - 1):
+            curr_m = worker_count_matches_for_chain[i]
+            next_m = worker_count_matches_for_chain[i + 1]
+
+            start = curr_m["span"][1]
+            end = next_m["span"][0]
+            text_between = text[start:end]
+
+            if len(text_between) < 20 and STRICT_LIST_CONNECTOR.match(text_between):
+                gid = curr_m.get("worker_list_group_id") or id(curr_m)
+                curr_m["worker_list_group_id"] = gid
+                next_m["worker_list_group_id"] = gid
+
+        # Propagate worker list group id through worker_group_id links.
+        worker_gid_to_list_gid = {
+            m["worker_group_id"]: m["worker_list_group_id"]
+            for m in worker_count_matches_for_chain
+            if m.get("worker_list_group_id") is not None
+        }
+
+        for w in worker_term_matches:
+            wg = w.get("worker_group_id")
+            if wg in worker_gid_to_list_gid:
+                w["worker_list_group_id"] = worker_gid_to_list_gid[wg]
+        for n in numeric_matches_all:
+            wg = n.get("worker_group_id")
+            if wg in worker_gid_to_list_gid:
+                n["worker_list_group_id"] = worker_gid_to_list_gid[wg]
 
         # Determine relevancy
         # Sentence-level keyword cache used by analysis/tracker logic.

@@ -2614,15 +2614,32 @@ class ComplexCoverageAnalyzer:
                     if item.get("type") == "covered"
                     and item["match"].get("worker_group_id") is not None
                 }
-                if covered_group_ids:
+                covered_list_group_ids = {
+                    item["match"].get("worker_list_group_id")
+                    for item in count_assignments
+                    if item.get("type") == "covered"
+                    and item["match"].get("worker_list_group_id") is not None
+                }
+                if covered_group_ids or covered_list_group_ids:
                     for item in count_assignments:
                         if item.get("type") is not None:
                             continue
                         gid = item["match"].get("worker_group_id")
-                        # Restrict propagation to grouped worker-linked counts.
-                        if gid is None:
+                        list_gid = item["match"].get("worker_list_group_id")
+
+                        # Subset-list propagation: when subset indicators are present,
+                        # keep all worker list members together (geo-style chain behavior).
+                        if (
+                            self.analysis.has_subset_indicator
+                            and list_gid is not None
+                            and list_gid in covered_list_group_ids
+                        ):
+                            item["type"] = "covered"
                             continue
-                        item["type"] = "covered"
+
+                        # Generic propagation stays local to already-covered worker group ids.
+                        if gid is not None and gid in covered_group_ids:
+                            item["type"] = "covered"
                     logic_notes.append(
                         "Positive worker-type propagation -> covered for untyped grouped counts"
                     )
@@ -2781,6 +2798,19 @@ class ComplexCoverageAnalyzer:
 
             if nearest_subset is None:
                 return False
+
+            list_gid = item["match"].get("worker_list_group_id")
+            if list_gid is not None:
+                # For chained worker lists in subset clauses (e.g. "including 20 pilots, 10 chefs ..."),
+                # treat all list members as subset children when a larger parent count exists.
+                larger_parent_exists = any(
+                    parent_val > c_val for parent_val in assignment_values
+                )
+                if larger_parent_exists:
+                    logic_notes.append(
+                        f"Skipped subset {assignment_type} {c_val} (worker list chain near '{nearest_subset.get('val', '')}')"
+                    )
+                    return True
 
             # Only suppress when a parent value of same assignment type is already present.
             if any(parent_val >= c_val for parent_val in assigned_parent_values):
