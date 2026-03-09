@@ -9178,10 +9178,21 @@ class Tracker:
                     if reported_pct is not None:
                         reported_pct = round(reported_pct, 2)
 
-            union_indicator = 1 if (
-                (covered_val is not None and covered_val > 0)
-                or any(v > 0 for v in self.country_keywords.get(code, {}).values())
-            ) else None
+            # Coverage-only indicator:
+            # 1 => positive covered population
+            # 0 => explicit non-coverage with no covered population
+            # None => unknown/insufficient quantitative coverage signal
+            union_indicator: Optional[int]
+            if covered_val is not None and covered_val > 0:
+                union_indicator = 1
+            elif (
+                (covered_val is not None and covered_val == 0)
+                or (pct_val is not None and pct_val == 0)
+                or (not_covered_val is not None and not_covered_val > 0 and not covered_val)
+            ):
+                union_indicator = 0
+            else:
+                union_indicator = 1
 
             # Prune empty buckets to reduce verbosity
             for k in method_keys:
