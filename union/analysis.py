@@ -131,6 +131,11 @@ GENERIC_WORKER_TERMS = {
     "associates",
 }
 
+STRICT_EMPLOYMENT_ANCHOR_REGEX = re.compile(
+    r"\b(?:employ(?:ee|ees|ed|ment|ing)?|workforce|personnel|headcount|staff)\b",
+    re.IGNORECASE,
+)
+
 
 def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
     """Combines worker_counts and relevant numbers (heuristic filter)."""
@@ -9328,6 +9333,366 @@ class Tracker:
         }
 
 
+class GeoPopulationResolver:
+    """
+    Shared resolver for population-denominator updates by geography.
+    Extracted from UnionAnalyzer pass-1 census logic so additional analyzers
+    (e.g. employment distribution parsing) can reuse the same update path.
+    """
+
+    def __init__(self, analyzer: "UnionAnalyzer"):
+        self.analyzer = analyzer
+
+    def _is_strict_employment_distribution_sentence(
+        self, analysis: SentenceAnalysis, allow_without_anchor: bool = False
+    ) -> bool:
+        text = analysis.text or ""
+        if not STRICT_EMPLOYMENT_ANCHOR_REGEX.search(text) and not allow_without_anchor:
+            return False
+        if not analysis.percentages:
+            return False
+
+        # Strict exclusion: any union/coverage semantics disable this path.
+        has_union_semantics = bool(
+            analysis.is_union
+            or analysis.union_terms
+            or analysis.sentence_union_keywords
+            or analysis.coverage_terms
+            or analysis.negation_terms
+            or analysis.works_councils
+            or analysis.qualitative_terms
+            or analysis.qualitative_membership_terms
+            or analysis.relationship_terms
+            or analysis.relationship_quality_terms
+            or analysis.supplier_terms
+            or analysis.risk_terms
+            or analysis.generic_risk_terms
+            or analysis.legal_requirement_terms
+            or analysis.legal_process_terms
+            or analysis.boilerplate_terms
+        )
+        if has_union_semantics:
+            return False
+
+        # Strict exclusion: typed worker buckets and hard exclusion language.
+        if analysis.worker_types:
+            return False
+        if (
+            analysis.except_terms
+            or analysis.outside_terms
+        ):
+            return False
+
+        explicit_geo = [
+            g
+            for g in analysis.geo_matches
+            if g.source_type == GeoSource.EXPLICIT and g.geo_code
+        ]
+        return bool(explicit_geo)
+
+    def _align_explicit_geo_spans(
+        self, analysis: SentenceAnalysis
+    ) -> List[Tuple[Tuple[int, int], str]]:
+        geo_objs = [
+            g
+            for g in analysis.geo_matches
+            if g.source_type == GeoSource.EXPLICIT and g.geo_code
+        ]
+        raw_geos = [m for m in analysis._matches if m.get("type") == MatchType.GEO]
+        if not geo_objs or len(geo_objs) != len(raw_geos):
+            return []
+
+        aligned: List[Tuple[Tuple[int, int], str]] = []
+        for g_obj, raw in zip(geo_objs, raw_geos):
+            code = g_obj.geo_code
+            if not code:
+                continue
+            if code == GeoCode.DOMESTIC.value:
+                code = self.analyzer.domestic_country_code
+            aligned.append((raw["span"], code))
+        return aligned
+
+    def _map_percentages_to_geo_codes(
+        self, analysis: SentenceAnalysis
+    ) -> Dict[str, float]:
+        aligned_geos = self._align_explicit_geo_spans(analysis)
+        if not aligned_geos:
+            return {}
+
+        pct_matches = [m for m in analysis._matches if m.get("type") == MatchType.PERCENT]
+        if not pct_matches:
+            return {}
+
+        pct_to_geo: Dict[str, float] = {}
+        for pct_m in pct_matches:
+            p_span = pct_m["span"]
+            p_mid = get_midpoint(p_span)
+
+            best_code = None
+            best_dist = float("inf")
+            for g_span, code in aligned_geos:
+                g_mid = get_midpoint(g_span)
+                dist = abs(p_mid - g_mid)
+                if dist > 120:
+                    continue
+                lo = min(p_span[1], g_span[1])
+                hi = max(p_span[0], g_span[0])
+                if hi > lo:
+                    between = analysis.text[lo:hi]
+                    if SEGMENT_DELIMITER_REGEX.search(between):
+                        continue
+                if dist < best_dist:
+                    best_dist = dist
+                    best_code = code
+
+            if best_code is None:
+                continue
+            pct_val = float(pct_m.get("val", 0.0) or 0.0)
+            if pct_val <= 0:
+                continue
+            pct_to_geo[best_code] = pct_to_geo.get(best_code, 0.0) + pct_val
+
+        total_pct = sum(pct_to_geo.values())
+        if total_pct > 100.0 + 2.0:
+            return {}
+        return pct_to_geo
+
+    def _apply_strict_employment_distribution(
+        self,
+        analysis: SentenceAnalysis,
+        tracker: Tracker,
+        total_population: float,
+        allow_without_anchor: bool = False,
+    ) -> bool:
+        if total_population <= 0:
+            return False
+        if not self._is_strict_employment_distribution_sentence(
+            analysis, allow_without_anchor=allow_without_anchor
+        ):
+            return False
+
+        pct_to_geo = self._map_percentages_to_geo_codes(analysis)
+        if not pct_to_geo:
+            return False
+
+        assigned_counts: Dict[str, float] = {}
+        for code, pct in pct_to_geo.items():
+            count = round((pct / 100.0) * total_population)
+            if count <= 0:
+                continue
+            assigned_counts[code] = assigned_counts.get(code, 0.0) + float(count)
+            r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+            specific_ctx = {
+                "region": r_name,
+                "countries": [{"code": code, "name": code}],
+            }
+            tracker.update(count, specific_ctx)
+
+        # Handle "remaining/balance" distribution:
+        # e.g. "90% domestic, with the balance in China"
+        if analysis.has_remaining_other:
+            all_codes_in_sentence: List[str] = []
+            for _, code in self._align_explicit_geo_spans(analysis):
+                if code not in all_codes_in_sentence:
+                    all_codes_in_sentence.append(code)
+
+            residual_codes = [c for c in all_codes_in_sentence if c not in assigned_counts]
+            assigned_sum = sum(assigned_counts.values())
+            residual_count = max(0.0, float(total_population) - float(assigned_sum))
+
+            if residual_count > 0 and residual_codes:
+                if len(residual_codes) == 1:
+                    code = residual_codes[0]
+                    r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+                    specific_ctx = {
+                        "region": r_name,
+                        "countries": [{"code": code, "name": code}],
+                    }
+                    tracker.update(round(residual_count), specific_ctx)
+                else:
+                    entities = [{"key": code} for code in residual_codes]
+                    alloc, _ = weighted_division(
+                        residual_count,
+                        entities,
+                        use_labor_weights=False,
+                        domestic_country=self.analyzer.domestic_country_code,
+                    )
+                    for code, count in alloc.items():
+                        if count <= 0:
+                            continue
+                        r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+                        specific_ctx = {
+                            "region": r_name,
+                            "countries": [{"code": code, "name": code}],
+                        }
+                        tracker.update(float(count), specific_ctx)
+
+        return bool(assigned_counts)
+
+    def populate_tracker(
+        self,
+        sentences: List[str],
+        tracker: Tracker,
+        reporting_year: Optional[int] = None,
+        initial_geo_context: Optional[Dict] = None,
+    ) -> None:
+        last_geo_context = initial_geo_context
+        last_geo_sentence_idx = -1
+        last_strict_total: Optional[float] = None
+        last_strict_total_idx: int = -10_000
+
+        for idx, s in enumerate(sentences):
+            analysis = self.analyzer.extractor.analyze_sentence(s)
+
+            # Skip historical counts
+            is_historical = False
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years):
+                    is_historical = True
+            if (is_historical or analysis.has_historical) and not analysis.has_current:
+                continue
+
+            tracker.register_sentence_keywords(
+                idx,
+                self.analyzer._get_annotated_keywords(analysis),
+                is_table_generated=self.analyzer._is_table_generated_sentence(s),
+            )
+
+            # Determine context (reusing logic to ensure consistency with Pass 2)
+            geo_context = self.analyzer._determine_geo_context(
+                analysis, last_geo_context, idx, last_geo_sentence_idx
+            )
+
+            if geo_context["specificity"] in (
+                Specificity.EXPLICIT.value,
+                Specificity.INFERRED_UNION.value,
+                Specificity.EXPLICIT_INFERRED.value,
+                Specificity.INFERRED_LANG.value,
+            ):
+                last_geo_context = geo_context
+                last_geo_sentence_idx = idx
+            tracker.register_mentions(geo_context)
+
+            if analysis.suppress_coverage_counts:
+                continue
+
+            # Try to resolve specific counts to geography (e.g. "200 in China")
+            mapped_counts, _, _ = self.analyzer._resolve_counts_to_geography(analysis)
+            if mapped_counts:
+                for code, val in mapped_counts.items():
+                    r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
+                    specific_ctx = {
+                        "region": r_name,
+                        "countries": [{"code": code, "name": code}],
+                    }
+                    tracker.update(val, specific_ctx)
+
+            # Try to resolve counts to unions
+            union_counts, _, _ = self.analyzer._resolve_counts_to_unions(analysis)
+            if union_counts:
+                for union_name, val in union_counts.items():
+                    info = self.analyzer.matcher.get_union(union_name)
+                    if not info:
+                        continue
+                    region, country, code = info
+
+                    # Refine generic union code using context
+                    if code:
+                        ctx_countries = geo_context.get("countries", [])
+                        refined_code, refined_name = refine_generic_code(
+                            code, ctx_countries
+                        )
+                        if refined_code != code:
+                            code = refined_code
+                            country = refined_name or country
+
+                    r_val = region.value
+                    if code != info[2]:
+                        r_name = _CODE_TO_REGION.get(code)
+                        if r_name:
+                            r_val = r_name
+
+                    specific_ctx = {
+                        "region": r_val,
+                        "countries": [{"code": code, "name": country}],
+                    }
+                    tracker.update(val, specific_ctx)
+
+            effective_counts = get_effective_counts(analysis)
+            allow_implicit_from_prior = (
+                last_strict_total is not None and idx == last_strict_total_idx + 1
+            )
+            has_strict_pct_dist = self._is_strict_employment_distribution_sentence(
+                analysis, allow_without_anchor=allow_implicit_from_prior
+            )
+            if not effective_counts:
+                if has_strict_pct_dist and last_strict_total is not None and idx == last_strict_total_idx + 1:
+                    self._apply_strict_employment_distribution(
+                        analysis=analysis,
+                        tracker=tracker,
+                        total_population=last_strict_total,
+                        allow_without_anchor=True,
+                    )
+                continue
+
+            max_count = max(effective_counts)
+            range_avg = self.analyzer._detect_count_range(analysis, effective_counts)
+            summation = self.analyzer._detect_summation(analysis, effective_counts)
+
+            # Temporal Alignment (2 Years, 2 Counts)
+            # "In 2009 we had 100, in 2010 we had 110"
+            matched_temporal_count = None
+            if (
+                len(analysis.years) == len(effective_counts)
+                and len(effective_counts) >= 2
+            ):
+                y_matches = sorted(
+                    [m for m in analysis._matches if m["type"] == MatchType.YEAR],
+                    key=lambda x: x["span"][0],
+                )
+                c_matches = sorted(
+                    [
+                        m
+                        for m in analysis._matches
+                        if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                        and m["val"] in effective_counts
+                    ],
+                    key=lambda x: x["span"][0],
+                )
+
+                if len(y_matches) == len(c_matches):
+                    target_y = reporting_year if reporting_year else max(analysis.years)
+                    for y_m, c_m in zip(y_matches, c_matches):
+                        if not (target_y - 1 <= y_m["val"] <= target_y + 1):
+                            continue
+                        if y_m["val"] == target_y:
+                            matched_temporal_count = c_m["val"]
+                            break
+
+            if matched_temporal_count is not None:
+                final_count = matched_temporal_count
+            elif range_avg:
+                final_count = range_avg
+            elif summation:
+                final_count = summation
+            else:
+                final_count = max_count
+
+            tracker.update(final_count, geo_context)
+
+            if STRICT_EMPLOYMENT_ANCHOR_REGEX.search(analysis.text or ""):
+                last_strict_total = float(final_count)
+                last_strict_total_idx = idx
+
+            if has_strict_pct_dist:
+                self._apply_strict_employment_distribution(
+                    analysis=analysis,
+                    tracker=tracker,
+                    total_population=float(final_count),
+                    allow_without_anchor=False,
+                )
+
+
 class UnionAnalyzer:
     def __init__(self, domestic_country_code: str = "US"):
         self.extractor = UnionExtractor()
@@ -9337,6 +9702,7 @@ class UnionAnalyzer:
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
         self.domestic_country_code = domestic_country_code
+        self.geo_population_resolver = GeoPopulationResolver(self)
 
     def _get_annotated_keywords(self, analysis: SentenceAnalysis) -> Optional[List[str]]:
         keywords = analysis.sentence_union_keywords or analysis.union_terms
@@ -9734,151 +10100,12 @@ class UnionAnalyzer:
         Pass 1: Scans text specifically to find population totals (denominators)
         and populate the Tracker.
         """
-        last_geo_context = initial_geo_context
-        last_geo_sentence_idx = -1
-
-        for idx, s in enumerate(sentences):
-            analysis = self.extractor.analyze_sentence(s)
-
-            # Skip historical counts
-            is_historical = False
-            if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
-                    is_historical = True
-            if (is_historical or analysis.has_historical) and not analysis.has_current:
-                continue
-
-            tracker.register_sentence_keywords(
-                idx,
-                self._get_annotated_keywords(analysis),
-                is_table_generated=self._is_table_generated_sentence(s),
-            )
-
-            # Determine context (reusing logic to ensure consistency with Pass 2)
-            geo_context = self._determine_geo_context(
-                analysis, last_geo_context, idx, last_geo_sentence_idx
-            )
-
-            if geo_context["specificity"] in (
-                Specificity.EXPLICIT.value,
-                Specificity.INFERRED_UNION.value,
-                Specificity.EXPLICIT_INFERRED.value,
-                Specificity.INFERRED_LANG.value,
-            ):
-                last_geo_context = geo_context
-                last_geo_sentence_idx = idx
-            tracker.register_mentions(geo_context)
-
-            if analysis.suppress_coverage_counts:
-                continue
-
-            # Try to resolve specific counts to geography (e.g. "200 in China")
-            mapped_counts, _, _ = self._resolve_counts_to_geography(analysis)
-            if mapped_counts:
-                for code, val in mapped_counts.items():
-                    r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
-                    specific_ctx = {
-                        "region": r_name,
-                        "countries": [{"code": code, "name": code}],
-                    }
-                    tracker.update(val, specific_ctx)
-
-            # Try to resolve counts to unions
-            union_counts, _, _ = self._resolve_counts_to_unions(analysis)
-            if union_counts:
-                for union_name, val in union_counts.items():
-                    info = self.matcher.get_union(union_name)
-                    if info:
-                        region, country, code = info
-
-                        # Refine generic union code using context
-                        if code:
-                            ctx_countries = geo_context.get("countries", [])
-                            refined_code, refined_name = refine_generic_code(
-                                code, ctx_countries
-                            )
-                            if refined_code != code:
-                                code = refined_code
-                                country = refined_name or country
-
-                        r_val = region.value
-                        if code != info[2]:
-                            r_name = _CODE_TO_REGION.get(code)
-                            if r_name:
-                                r_val = r_name
-
-                        specific_ctx = {
-                            "region": r_val,
-                            "countries": [{"code": code, "name": country}],
-                        }
-                        tracker.update(val, specific_ctx)
-
-            effective_counts = get_effective_counts(analysis)
-            if effective_counts:
-                # Determine if this count is an explicit total
-                max_count = max(effective_counts)
-                count_match = next(
-                    (
-                        m
-                        for m in analysis._matches
-                        if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
-                        and m["val"] == max_count
-                    ),
-                    None,
-                )
-                span = count_match["span"] if count_match else None
-
-                range_avg = self._detect_count_range(analysis, effective_counts)
-                summation = self._detect_summation(analysis, effective_counts)
-
-                # 1. Temporal Alignment (2 Years, 2 Counts)
-                # "In 2009 we had 100, in 2010 we had 110"
-                matched_temporal_count = None
-                if (
-                    len(analysis.years) == len(effective_counts)
-                    and len(effective_counts) >= 2
-                ):
-                    # Get matches to sort by position
-                    y_matches = sorted(
-                        [m for m in analysis._matches if m["type"] == MatchType.YEAR],
-                        key=lambda x: x["span"][0],
-                    )
-                    c_matches = sorted(
-                        [
-                            m
-                            for m in analysis._matches
-                            if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
-                            and m["val"] in effective_counts
-                        ],
-                        key=lambda x: x["span"][0],
-                    )
-
-                    if len(y_matches) == len(c_matches):
-                        # Determine target year
-                        target_y = (
-                            reporting_year if reporting_year else max(analysis.years)
-                        )
-
-                        for y_m, c_m in zip(y_matches, c_matches):
-                            # Check is Valid: The year must be related or within bounds!
-                            if not (target_y - 1 <= y_m["val"] <= target_y + 1):
-                                continue
-                            if y_m["val"] == target_y:
-                                matched_temporal_count = c_m["val"]
-                                break
-
-                if matched_temporal_count is not None:
-                    final_count = matched_temporal_count
-                elif range_avg:
-                    final_count = range_avg
-                elif summation:
-                    final_count = summation
-                else:
-                    final_count = max_count
-
-                census_geo_context = geo_context
-
-                tracker.update(final_count, census_geo_context)
+        self.geo_population_resolver.populate_tracker(
+            sentences=sentences,
+            tracker=tracker,
+            reporting_year=reporting_year,
+            initial_geo_context=initial_geo_context,
+        )
 
     def _prepare_counts(
         self,
