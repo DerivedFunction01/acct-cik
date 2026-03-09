@@ -4146,6 +4146,203 @@ class Tracker:
         anchor = self._segment_anchor_code(seg_key)
         return bool(anchor and anchor == country_code)
 
+    def _scope_bucket_for_denominator(
+        self, entry: Entry
+    ) -> Optional[Tuple[str, str]]:
+        """
+        Normalize an entry to a denominator-dedup bucket:
+        - Segments roll up to their anchor country
+        - Countries keep their ISO key
+        - Regions use canonical region names
+        - Global aliases collapse to GLOBAL
+        """
+        if entry.total_count is None or entry.total_count <= 0:
+            return None
+
+        if entry.scope == Scope.SEGMENT:
+            anchor = self._segment_anchor_code(entry.key)
+            if not anchor or self._is_container_geo_key(anchor):
+                return None
+            return (Scope.COUNTRY.value, anchor)
+
+        if entry.scope == Scope.COUNTRY:
+            key = str(entry.key) if entry.key is not None else ""
+            if not key or self._is_container_geo_key(key):
+                return None
+            return (Scope.COUNTRY.value, key)
+
+        if entry.scope == Scope.REGION:
+            key = str(entry.key) if entry.key is not None else ""
+            if not key:
+                return None
+            if key in GLOBAL_SET or key in INT_SET:
+                return (Scope.GLOBAL.value, Scope.GLOBAL.value)
+            return (Scope.REGION.value, _CODE_TO_REGION.get(key, key))
+
+        if entry.scope == Scope.GLOBAL:
+            return (Scope.GLOBAL.value, Scope.GLOBAL.value)
+
+        key = str(entry.key) if entry.key is not None else ""
+        if key in GLOBAL_SET or key in INT_SET:
+            return (Scope.GLOBAL.value, Scope.GLOBAL.value)
+        return None
+
+    def _expected_total_for_bucket(self, bucket: Tuple[str, str]) -> float:
+        scope_type, scope_key = bucket
+        if scope_type == Scope.COUNTRY.value:
+            return float(self.country_totals.get(scope_key, 0.0) or 0.0)
+        if scope_type == Scope.REGION.value:
+            canonical = _CODE_TO_REGION.get(scope_key, scope_key)
+            return float(
+                self.region_totals.get(scope_key, 0.0)
+                or self.region_totals.get(canonical, 0.0)
+                or 0.0
+            )
+        if scope_type == Scope.GLOBAL.value:
+            return float(self.global_total or 0.0)
+        return 0.0
+
+    def _pick_denominator_keeper(
+        self, candidates: List[Entry], bucket: Tuple[str, str]
+    ) -> Entry:
+        scope_type, scope_key = bucket
+
+        def _is_scope_anchor(e: Entry) -> int:
+            if scope_type == Scope.COUNTRY.value:
+                return int(e.scope == Scope.COUNTRY and str(e.key) == scope_key)
+            if scope_type == Scope.REGION.value:
+                key = _CODE_TO_REGION.get(str(e.key), str(e.key))
+                return int(e.scope == Scope.REGION and key == scope_key)
+            if scope_type == Scope.GLOBAL.value:
+                key = str(e.key) if e.key is not None else ""
+                return int(e.scope == Scope.GLOBAL or key in GLOBAL_SET or key in INT_SET)
+            return 0
+
+        def _source_priority(e: Entry) -> int:
+            src_type = e.total_count_source_type or SourceType.UNKNOWN.value
+            if src_type == SourceType.EXPLICIT.value:
+                return 4
+            if src_type == SourceType.INHERITED.value:
+                return 3
+            if src_type == SourceType.CALCULATED.value:
+                return 2
+            if src_type == SourceType.INFERRED.value:
+                return 1
+            return 0
+
+        def _score(e: Entry) -> Tuple[int, int, int, int, int, int]:
+            return (
+                _is_scope_anchor(e),
+                _source_priority(e),
+                int(e.is_explicit),
+                int(e.covered_count is not None or e.not_covered_count is not None),
+                int(e.percentage is not None),
+                -abs(e.sent_idx) if e.sent_idx >= 0 else -10_000,
+            )
+
+        return max(candidates, key=_score)
+
+    def _clear_duplicate_denominator(
+        self,
+        duplicate: Entry,
+        keeper: Entry,
+        bucket: Tuple[str, str],
+        basis_total: float,
+    ) -> None:
+        old_total = duplicate.total_count
+        duplicate.total_count = None
+        duplicate.total_count_source = None
+        duplicate.total_count_source_type = SourceType.UNKNOWN.value
+        duplicate.denominator_source = None
+        duplicate.denominator_source_type = SourceType.UNKNOWN.value
+        self._add_source_note(
+            duplicate,
+            f"Removed duplicate denominator {old_total} in {bucket[0]}:{bucket[1]} (kept {keeper.key} total ~{basis_total}).",
+        )
+        self.resolution_log.append(
+            f"Deduped denominator for {duplicate.key}: removed {old_total} in {bucket[0]}:{bucket[1]} (keeper={keeper.key}, basis~{basis_total})."
+        )
+
+    def _dedupe_redundant_scope_denominators(self) -> None:
+        """
+        De-duplicates repeated denominators within the same resolved scope.
+        This prevents repeated references to the same population from inflating
+        downstream summed totals.
+        """
+        buckets: Dict[Tuple[str, str], List[Entry]] = {}
+        for e in self.entries:
+            if e.is_parent_breakdown:
+                continue
+            bucket = self._scope_bucket_for_denominator(e)
+            if not bucket:
+                continue
+            buckets.setdefault(bucket, []).append(e)
+
+        for bucket, entries in buckets.items():
+            if len(entries) < 2:
+                continue
+
+            expected_total = self._expected_total_for_bucket(bucket)
+            tol = self._get_tolerance(entries, base_threshold=0.08)
+
+            if expected_total > 0:
+                expected_matches = [
+                    e
+                    for e in entries
+                    if e.total_count is not None
+                    and self._matches_census(e.total_count, expected_total, threshold=tol)
+                ]
+                if len(expected_matches) > 1:
+                    keeper = self._pick_denominator_keeper(expected_matches, bucket)
+                    for dup in expected_matches:
+                        if dup is keeper:
+                            continue
+                        self._clear_duplicate_denominator(
+                            duplicate=dup,
+                            keeper=keeper,
+                            bucket=bucket,
+                            basis_total=expected_total,
+                        )
+
+            active = [e for e in entries if e.total_count is not None and e.total_count > 0]
+            if len(active) < 2:
+                continue
+
+            active.sort(key=lambda x: x.total_count or 0.0, reverse=True)
+            seen: Set[int] = set()
+            cluster_tol = self._get_tolerance(active, base_threshold=0.06)
+
+            for i, base in enumerate(active):
+                if id(base) in seen or base.total_count is None:
+                    continue
+                cluster = [base]
+                seen.add(id(base))
+
+                for j in range(i + 1, len(active)):
+                    other = active[j]
+                    if id(other) in seen or other.total_count is None:
+                        continue
+                    if self._matches_census(
+                        base.total_count, other.total_count, threshold=cluster_tol
+                    ):
+                        cluster.append(other)
+                        seen.add(id(other))
+
+                if len(cluster) <= 1:
+                    continue
+
+                keeper = self._pick_denominator_keeper(cluster, bucket)
+                basis = keeper.total_count if keeper.total_count is not None else (base.total_count or 0.0)
+                for dup in cluster:
+                    if dup is keeper:
+                        continue
+                    self._clear_duplicate_denominator(
+                        duplicate=dup,
+                        keeper=keeper,
+                        bucket=bucket,
+                        basis_total=basis,
+                    )
+
     def register_sentence_keywords(
         self,
         sentence_index: int,
@@ -6987,6 +7184,9 @@ class Tracker:
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
         self._apply_fallback_denominators()
+        # 6. Final denominator dedup to prevent same-scope denominator inflation
+        # from repeated references to the same population.
+        self._dedupe_redundant_scope_denominators()
 
     def _apply_fallback_denominators(self):
         """
