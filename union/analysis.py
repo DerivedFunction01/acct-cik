@@ -9215,33 +9215,53 @@ class Tracker:
                 union_indicator = 1
 
             # Prune empty buckets to reduce verbosity
+            def _bucket_has_signal(bucket: Dict[str, Any]) -> bool:
+                return bool(
+                    bucket.get("tot") is not None
+                    or bucket.get("cov") is not None
+                    or bucket.get("not_cov") is not None
+                    or (bucket.get("pct_vals") or [])
+                )
+
             for k in method_keys:
-                if method_breakdown[k]["n"] == 0:
+                bucket = method_breakdown.get(k)
+                if not bucket:
+                    continue
+                if bucket.get("n", 0) == 0 or not _bucket_has_signal(bucket):
                     del method_breakdown[k]
+
+            country_keywords = self.country_keywords.get(code, {})
+            country_table_keywords = sorted(
+                list(self.country_table_keywords.get(code, set()))
+            )
+            reported_totals = {
+                "tot": explicit_bucket.get("tot"),
+                "cov": explicit_bucket.get("cov"),
+                "not_cov": explicit_bucket.get("not_cov"),
+                "pct": reported_pct,
+            }
+
             country = {
                     "country_code": code,
                     "is_domestic": code == self.domestic_country_code,
                     "union_indicator": union_indicator,
-                    "language_fallback_country": code in self.language_fallback_countries,
                     "country_totals": {
                         "tot": total_val,
                         "cov": covered_val,
                         "not_cov": not_covered_val,
                         "pct": pct_val,
                     },
-                    "reported_totals": {
-                        "tot": explicit_bucket.get("tot"),
-                        "cov": explicit_bucket.get("cov"),
-                        "not_cov": explicit_bucket.get("not_cov"),
-                        "pct": reported_pct,
-                    },
-                    "country_keywords": self.country_keywords.get(code, {}),
-                    "country_table_keywords": sorted(
-                        list(self.country_table_keywords.get(code, set()))
-                    ),
                 }
+            if code in self.language_fallback_countries:
+                country["language_fallback_country"] = True
+            if any(v is not None for v in reported_totals.values()):
+                country["reported_totals"] = reported_totals
+            if country_keywords:
+                country["country_keywords"] = country_keywords
+            if country_table_keywords:
+                country["country_table_keywords"] = country_table_keywords
             # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
-            if union_indicator != 0:
+            if union_indicator != 0 and method_breakdown:
                 country["method_breakdown"] = method_breakdown
             
             countries.append(country)
