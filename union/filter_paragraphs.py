@@ -23,6 +23,7 @@ from defs.table_processor import TABLE_TOK, process_table
 from defs.table_sentences import generate_primitive_sentences
 from defs.regex_lib import SENTENCE_SPLIT_PATTERN, build_regex
 from extraction import UnionExtractor
+from defs.emp_sentence import render_employee_sentence
 
 # =============================================================================
 # CONFIGURATION
@@ -350,7 +351,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
             if part.strip().lower().startswith("<table"):
                 try:
                     processed = process_table(part.strip())
-                    sentences = generate_primitive_sentences(processed)
+                    sentences = generate_primitive_sentences(
+                        processed, renderer=render_employee_sentence
+                    )
                     for sentence in sentences:
                         sentence = strip_html_tags(sentence)
                         if sentence.strip():
@@ -373,7 +376,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     filtered = []
     extracted_percents = []
-    
+
     prev_census_block = None
     prev_census_raw = None
 
