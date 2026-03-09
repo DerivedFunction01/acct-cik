@@ -714,6 +714,11 @@ CHANGE_TERMS = [
     r"offset(?:s|ted|ting)?",
     # Higher / Lower (comparatives)
     r"higher",
+    r"fewer",
+    r"greater",
+    r"lesser",
+    r"less",
+    r"more",
     r"lower",
     # Change (generic)
     r"chang(?:es?|ed|ing)",
