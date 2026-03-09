@@ -657,6 +657,8 @@ NORTH_AMERICA = {
             "BLET",
             "Brotherhood of Locomotive Engineers and Trainmen",
             "SMART",
+            "UTU",
+            "SMWIA",
             "Sheet Metal, Air, Rail and Transportation Workers",
             "BMWED",
             "Brotherhood of Maintenance of Way Employes",
