@@ -4354,6 +4354,9 @@ def weighted_division(
     """
     if not entities:
         return {}, ""
+    if val <= 0:
+        # Nothing to distribute; avoid running weighting/cluster math.
+        return {e["key"]: 0.0 for e in entities if e.get("key") is not None}, ""
 
     # 0. Pre-allocate min headcount
     original_val = val

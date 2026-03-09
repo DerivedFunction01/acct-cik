@@ -3983,6 +3983,8 @@ class Tracker:
         self._limiter_countries: Set = {"CN", "VN"}
         self.is_using_virtual: bool = False
         self.domestic_is_negated: bool = False
+        # Countries created via INT_* fallback mapping without explicit mention.
+        self.language_fallback_countries: Set[str] = set()
 
     @staticmethod
     def _source_type_from_detail(source: Optional[str]) -> str:
@@ -6613,6 +6615,13 @@ class Tracker:
             if prefix in mapping:
                 new_code = mapping[prefix]
                 if new_code != prefix:
+                    if (
+                        prefix.startswith(GeoCode.INT_LANG.value)
+                        and isinstance(new_code, str)
+                        and len(new_code) == 2
+                        and new_code not in self.mentioned_countries
+                    ):
+                        self.language_fallback_countries.add(new_code)
                     new_key = new_code + suffix
                     self.resolution_log.append(f"Resolved {e.key} to {new_key}")
                     e.key = new_key
@@ -9213,6 +9222,7 @@ class Tracker:
                     "country_code": code,
                     "is_domestic": code == self.domestic_country_code,
                     "union_indicator": union_indicator,
+                    "language_fallback_country": code in self.language_fallback_countries,
                     "country_totals": {
                         "tot": total_val,
                         "cov": covered_val,
