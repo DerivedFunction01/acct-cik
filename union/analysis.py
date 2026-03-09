@@ -80,20 +80,32 @@ from defs.table_processor import TABLE_TOK
 
 
 def refine_generic_code(
-    code: str, candidates: List[Dict[str, Any]]
+    code: str,
+    candidates: List[Dict[str, Any]],
+    domestic_country_code: Optional[str] = None,
 ) -> Tuple[str, Optional[str]]:
     """
-    Refines a generic code (INT, GLO, INT_*) based on a list of candidate countries.
+    Refines a generic/container code (INT/GLO/INT_* or region containers like NA)
+    based on candidate countries, with optional domestic fallback.
     Returns (refined_code, refined_name). If no refinement, returns (code, None).
     """
     if not code:
         return code, None
 
-    allowed = None
+    allowed: Optional[Set[str]] = None
+    is_container_scope = False
     if code.startswith(GeoCode.INT_LANG.value) and code in INT_LANGUAGE_MAP:
-        allowed = INT_LANGUAGE_MAP[code]
+        allowed = set(INT_LANGUAGE_MAP[code])
+        is_container_scope = True
     elif code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
         allowed = None  # Any specific country is allowed
+        is_container_scope = True
+    elif (
+        code in REGION_CODES
+        or code in COMPOSITE_COUNTRIES
+        or is_region(code)
+    ):
+        is_container_scope = True
     else:
         return code, None
 
@@ -106,13 +118,46 @@ def refine_generic_code(
         if c_code and c_code not in IGNORED_REGIONS:
             if c_code in seen_codes:
                 continue
-            # If allowed is set, code must be in it. If allowed is None (INT/GLO), any specific code works.
-            if allowed is None or c_code in allowed:
+            # If allowed is set, code must be in it.
+            # If allowed is None:
+            # - INT/GLO accept any specific code
+            # - container regions/composites accept contained countries only
+            contained_ok = True
+            if allowed is None and is_container_scope and code not in (
+                GeoCode.INTERNATIONAL.value,
+                GeoCode.GLOBAL.value,
+            ):
+                contained_ok = is_contained(
+                    container_key=code,
+                    item_key=c_code,
+                    domestic_country_code=domestic_country_code or "US",
+                )
+
+            if (allowed is None and contained_ok) or (allowed is not None and c_code in allowed):
                 matches.append(cand)
                 seen_codes.add(c_code)
 
     if len(matches) > 0:
         return matches[0]["code"], matches[0].get("name")
+
+    # Domestic fallback for generic/container union codes.
+    if domestic_country_code and is_container_scope:
+        can_use_domestic = True
+        if allowed is not None and domestic_country_code not in allowed:
+            can_use_domestic = False
+        if (
+            allowed is None
+            and code not in (GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value)
+            and not is_contained(
+                container_key=code,
+                item_key=domestic_country_code,
+                domestic_country_code=domestic_country_code,
+            )
+        ):
+            can_use_domestic = False
+
+        if can_use_domestic:
+            return domestic_country_code, domestic_country_code
 
     return code, None
 
@@ -3491,7 +3536,7 @@ def determine_geo_context(
                 if last_context:
                     last_countries = last_context.get("countries", [])
                     refined_code, refined_name = refine_generic_code(
-                        m.geo_code, last_countries
+                        m.geo_code, last_countries, domestic_country_code
                     )
                     if refined_code != m.geo_code:
                         # Inherit specific country details
@@ -3589,6 +3634,12 @@ def determine_geo_context(
                 for um in union_matches:
                     if um.geo_code == check_code:
                         specifics.append(um.text)
+                    elif um.geo_code and is_contained(
+                        container_key=um.geo_code,
+                        item_key=check_code,
+                        domestic_country_code=domestic_country_code,
+                    ):
+                        specifics.append(um.text)
                     elif um.geo_code and um.geo_code in INT_LANGUAGE_MAP:
                         if check_code in INT_LANGUAGE_MAP[um.geo_code]:
                             specifics.append(um.text)
@@ -3628,6 +3679,26 @@ def determine_geo_context(
         if specific_unions:
             # Use the first specific union found
             m = specific_unions[0]
+
+            # Refine generic/container union code (e.g. NA) using previous context
+            # and domestic fallback for simple single-country filers.
+            if m.geo_code:
+                ctx_candidates = (last_context or {}).get("countries", [])
+                refined_code, refined_name = refine_generic_code(
+                    m.geo_code,
+                    ctx_candidates,
+                    domestic_country_code,
+                )
+                if refined_code != m.geo_code:
+                    m.geo_code = refined_code
+                    m.country = refined_name or m.country
+                    refined_region_name = _CODE_TO_REGION.get(
+                        refined_code, Region.UNKNOWN.value
+                    )
+                    m.region = next(
+                        (r for r in Region if r.value == refined_region_name),
+                        Region.UNKNOWN,
+                    )
 
             # If union is generic (INT/GLO), check if we should inherit specific context instead
             if m.geo_code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value] and last_context:
@@ -3671,7 +3742,7 @@ def determine_geo_context(
             # Try to resolve against last_context if available
             if last_context and last_context.get("countries") and m.geo_code:
                 refined_code, refined_name = refine_generic_code(
-                    m.geo_code, last_context["countries"]
+                    m.geo_code, last_context["countries"], domestic_country_code
                 )
                 if refined_code != m.geo_code:
                     region_name = _CODE_TO_REGION.get(
@@ -4577,21 +4648,36 @@ class Tracker:
                 if union_info:
                     _, _, u_code = union_info
 
-                    # Case 1: Union is specific to a country (e.g. DE)
-                    # Apply strict match only for ISO country-like keys.
-                    if (
-                        u_code
-                        and u_code not in INT_LANGUAGE_MAP
-                        and u_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
-                    ):
-                        if len(code) == 2 and code != u_code:
-                            continue
-
-                    # Case 2: Union is language-specific (e.g. INT_ES)
-                    elif u_code in INT_LANGUAGE_MAP:
+                    # Case 1: Union is specific to a concrete country (e.g. DE).
+                    # Apply strict mismatch filtering only for country-scoped codes,
+                    # not for container scopes such as NA/EU/composites.
+                    if u_code in INT_LANGUAGE_MAP:
+                        # Case 2: Union is language-specific (e.g. INT_ES)
                         allowed_countries = INT_LANGUAGE_MAP[u_code]
                         if len(code) == 2 and code not in allowed_countries:
                             continue
+                    elif u_code:
+                        is_concrete_country_union = (
+                            len(u_code) == 2
+                            and u_code not in DOMESTIC_SET
+                            and u_code not in INT_SET
+                            and u_code not in GLOBAL_SET
+                            and not self._is_container_geo_key(u_code)
+                        )
+                        if is_concrete_country_union:
+                            if len(code) == 2 and code != u_code:
+                                continue
+                        else:
+                            # Container union code (e.g. NA): allow contained
+                            # countries and block unrelated concrete countries.
+                            if len(code) == 2 and (
+                                not is_contained(
+                                    container_key=u_code,
+                                    item_key=code,
+                                    domestic_country_code=self.domestic_country_code,
+                                )
+                            ):
+                                continue
 
                 if is_table_generated:
                     # For generated table rows, dedupe repeated keywords before
@@ -9600,7 +9686,7 @@ class GeoPopulationResolver:
                     if code:
                         ctx_countries = geo_context.get("countries", [])
                         refined_code, refined_name = refine_generic_code(
-                            code, ctx_countries
+                            code, ctx_countries, self.analyzer.domestic_country_code
                         )
                         if refined_code != code:
                             code = refined_code
@@ -11594,7 +11680,7 @@ class UnionAnalyzer:
                                 if code:
                                     ctx_countries = geo_context.get("countries", [])
                                     refined_code, _ = refine_generic_code(
-                                        code, ctx_countries
+                                        code, ctx_countries, self.domestic_country_code
                                     )
                                     if refined_code != code:
                                         code = refined_code
