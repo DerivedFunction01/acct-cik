@@ -414,8 +414,8 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
             if prev_census_block:
                 filtered.append(prev_census_block)
                 if prev_census_raw:
-                    # Extract raw percents from the original block
-                    for sent in SENTENCE_SPLIT_PATTERN.split(prev_census_raw):
+                    # Extract raw percents
+                    for sent in SENTENCE_SPLIT_PATTERN.split(prev_census_block):
                         if UNION_REGEX.search(sent):
                             for m in RAW_PERCENT_REGEX.findall(sent):
                                 try:
@@ -426,8 +426,8 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
                 prev_census_raw = None
 
             filtered.append(cleaned_block)
-            # Extract raw percents from the original block (before number normalization)
-            for sent in SENTENCE_SPLIT_PATTERN.split(block):
+            # Extract raw percents from the block
+            for sent in SENTENCE_SPLIT_PATTERN.split(cleaned_block):
                 if UNION_REGEX.search(sent):
                     for m in RAW_PERCENT_REGEX.findall(sent):
                         try:
