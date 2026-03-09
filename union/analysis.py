@@ -9181,7 +9181,6 @@ class Tracker:
             # Coverage-only indicator:
             # 1 => positive covered population
             # 0 => explicit non-coverage with no covered population
-            # None => unknown/insufficient quantitative coverage signal
             union_indicator: Optional[int]
             if covered_val is not None and covered_val > 0:
                 union_indicator = 1
