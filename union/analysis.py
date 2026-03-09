@@ -3753,6 +3753,7 @@ def determine_geo_context(
                         "countries": [{"code": refined_code, "name": refined_name}],
                         "specificity": Specificity.INFERRED_LANG.value,
                         "union_name_indicator": m.text,
+                        "union_name_code": m.geo_code,
                         "note": f"Resolved language term '{m.text}' to {refined_name} from context",
                     }
 
@@ -3761,6 +3762,7 @@ def determine_geo_context(
                 "countries": [],  # No specific country known
                 "specificity": Specificity.INFERRED_LANG.value,
                 "union_name_indicator": m.text,
+                "union_name_code": m.geo_code,
                 "note": f"Inferred from language term '{m.text}' ({m.geo_code})",
             }
 
@@ -4812,11 +4814,21 @@ class Tracker:
             return
 
         if union_name:
-            country_code = countries[0]["code"]
-            if country_code == GeoCode.DOMESTIC.value:
-                country_code = self.domestic_country_code
-            scope = Scope.SEGMENT
-            key = f"{country_code}::{union_name}"
+            if countries and countries[0].get("code"):
+                country_code = countries[0]["code"]
+                if country_code == GeoCode.DOMESTIC.value:
+                    country_code = self.domestic_country_code
+                scope = Scope.SEGMENT
+                key = f"{country_code}::{union_name}"
+            else:
+                # Language-only inferred unions (INT_*) may not resolve to a
+                # concrete country yet; preserve code-tagged context safely.
+                union_name_code = geo_context.get("union_name_code")
+                if isinstance(union_name_code, str) and union_name_code.startswith(
+                    GeoCode.INT_LANG.value
+                ):
+                    scope = Scope.SEGMENT
+                    key = f"{union_name_code}::{union_name}"
 
         related_codes = [c["code"] for c in countries if c.get("code")]
         if "regions" in geo_context:
