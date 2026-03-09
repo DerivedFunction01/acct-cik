@@ -34,6 +34,7 @@ from defs.union_regex import (
     FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
     INDUSTRY_TITLE_PREFIX_REGEX,
+    INDUSTRY_PREFIX_TERMS,
     DIVERSITY_TERMS,
     WORKS_REGEX,
     COVERAGE_VERBS
@@ -165,14 +166,21 @@ WORKER_COUNT_REGEX = build_regex(
     ]
 )
 
-sm_non_numeric_gap = r"(?:[^\W\d][\w\.-]*\s+){0,2}"
 BARGAINING_UNIT_GAP_PREPOSITION_REGEX = re.compile(
     r"\b(?:in|of|under|for|with|by|from|to|at|among|between|an|a|the)\b", re.IGNORECASE
 )
 
+BARGAINING_UNIT_WORKER_BASE_PATTERN = build_alternation(WORKER_TERMS)
+BARGAINING_UNIT_WORKER_PREFIX_PATTERN = build_alternation(INDUSTRY_PREFIX_TERMS)
+BARGAINING_UNIT_WORKER_PHRASE_PATTERN = (
+    rf"(?:(?:{BARGAINING_UNIT_WORKER_PREFIX_PATTERN})\s+)?"
+    rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN})(?:['’]s?)?"
+)
+
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
     [
-        rf"(\d{{1,3}})\s+({sm_non_numeric_gap})(?:collective[-\s]+)?bargaining[-\s]+units?",
+        rf"(\d{{1,3}})\s+((?:{BARGAINING_UNIT_WORKER_PHRASE_PATTERN}\s+)?)"
+        rf"(?:collective[-\s]+)?bargaining[-\s]+unit(?:s|\(s\))?",
     ]
 )
 BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX = build_regex(
