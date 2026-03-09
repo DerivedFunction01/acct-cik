@@ -507,7 +507,7 @@ def _render_template(
     for segment in [context_suffix, union_name_segment]:
         if segment and segment not in base:
             base = f"{base}, {segment}"
-    return f"{head}{base}."
+    return f"{head}{base}. {TABLE_TOK}"
 
 
 def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
@@ -748,7 +748,7 @@ def _render_metric_sentence(
         base = f"{base}. Separately, {works_covered} employees were covered by works councils"
     elif works_pct:
         base = f"{base}. Separately, {works_pct} were covered by works councils"
-    return f"{TABLE_TOK} {base}"
+    return base
 
 
 def _coverage_basis_phrase(
