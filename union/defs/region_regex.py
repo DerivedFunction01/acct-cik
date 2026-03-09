@@ -2732,7 +2732,7 @@ MIDDLE_EAST_AFRICA = {
 INTERNATIONAL = {
     Nation(
         "International",
-        ["international", "foreign", "overseas", "internationally"],
+        ["international", "foreign", "overseas", "internationally", "other countries", "other regions"],
         Region.INTERNATIONAL,
         [],
         [r"CGT"],
