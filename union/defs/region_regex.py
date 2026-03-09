@@ -608,6 +608,7 @@ NORTH_AMERICA = {
             "UFCW",
             "United Food and Commercial Workers",
             "USW",
+            "USWA",
             "United Steelworkers",
             "IAM",
             "International Association of Machinists",
