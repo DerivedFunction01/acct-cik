@@ -694,7 +694,7 @@ def _render_metric_sentence(
             # Keep provided percentage only when we cannot derive a union/CBA-specific one.
             base = f"{base}, with overall coverage of {pct}"
         works_clause = f"{works_covered} employees were covered by works councils"
-        if workforce_pct and not pct:
+        if workforce_pct and not pct and not covered:
             base = f"{base}, which was {workforce_pct} of the total workforce"
         return f"{base}. Separately, {works_clause}"
 
