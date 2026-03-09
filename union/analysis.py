@@ -1490,6 +1490,9 @@ class ComplexCoverageAnalyzer:
 
     # Uses a different subset regex made for percentage cases
     subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those|them)\b", re.IGNORECASE)
+    subgroup_breakdown_regex = re.compile(
+        r"\b(?:represented|covered|affiliated)\s+by\b", re.IGNORECASE
+    )
 
     def __init__(
         self,
@@ -2389,6 +2392,27 @@ class ComplexCoverageAnalyzer:
         pre = construct_window(span, self.analysis.text, backward=80, forward=0)
         return bool(self.subset_regex.search(pre))
 
+    def _is_subgroup_composition_percent(self, pct_match: Dict[str, Any]) -> bool:
+        """
+        True when a percentage appears to describe composition inside an already
+        scoped union subgroup (e.g., "Of those represented, 95% ... represented by X").
+        """
+        has_specific_union_targets = any(
+            m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
+            for m in self.analysis._matches
+        )
+        if not has_specific_union_targets:
+            return False
+
+        p_start, p_end = pct_match["span"]
+        pre = self.analysis.text[max(0, p_start - 140) : p_start]
+        post = self.analysis.text[p_end : min(len(self.analysis.text), p_end + 100)]
+        around = pre + " " + post
+
+        has_subset_scope = bool(self.subset_regex.search(pre))
+        has_breakdown_link = bool(self.subgroup_breakdown_regex.search(around))
+        return has_subset_scope and has_breakdown_link
+
     def _resolve_mixed_coverage(
         self, counts: List[float] = [], excluded_match_ids: Set[int] = set()
     ):
@@ -2417,6 +2441,23 @@ class ComplexCoverageAnalyzer:
             for m in self.analysis._matches
             if m["type"] == MatchType.PERCENT and id(m) not in excluded_match_ids
         ]
+
+        # Guardrail: percentages in subgroup composition clauses should not be
+        # interpreted as top-level workforce coverage.
+        subgroup_composition_pct_ids = {
+            id(p) for p in percents if self._is_subgroup_composition_percent(p)
+        }
+        if subgroup_composition_pct_ids and len(percents) > 1:
+            first_composition_start = min(
+                p["span"][0] for p in percents if id(p) in subgroup_composition_pct_ids
+            )
+            has_breakdown_context = bool(
+                self.subgroup_breakdown_regex.search(self.analysis.text)
+            )
+            if has_breakdown_context:
+                for p in percents:
+                    if p["span"][0] >= first_composition_start:
+                        subgroup_composition_pct_ids.add(id(p))
 
         positives = [
             m
@@ -2803,6 +2844,9 @@ class ComplexCoverageAnalyzer:
 
         for p in percents:
             if can_calculate_pct:
+                continue
+            if id(p) in subgroup_composition_pct_ids:
+                excluded_match_ids.add(id(p))
                 continue
 
             ptype = get_nearest_type_in_segment(p)
