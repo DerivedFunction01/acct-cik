@@ -76,6 +76,7 @@ from defs.union_regex import (
     RELATIONSHIP_NEGATIVE_TERMS,
     UNION_REGEX,
 )
+from defs.table_processor import TABLE_TOK
 
 
 def refine_generic_code(
@@ -3894,8 +3895,10 @@ class Tracker:
         self.domestic_country_code = domestic_country_code
         self.total_union_keywords: int = 0
         self.global_sentence_keywords: Set[Tuple[int, str]] = set()
+        self.global_table_keywords: Set[str] = set()
         self.country_sentence_keywords: Dict[str, Set[Tuple[int, str]]] = {}
         self.country_keywords: Dict[str, Dict[str, int]] = {}
+        self.country_table_keywords: Dict[str, Set[str]] = {}
         self._boosted_rate_cache: Dict[
             Tuple[float, Optional[str]], Tuple[float, float]
         ] = {}
@@ -4144,12 +4147,24 @@ class Tracker:
         return bool(anchor and anchor == country_code)
 
     def register_sentence_keywords(
-        self, sentence_index: int, keywords: Optional[List[str]]
+        self,
+        sentence_index: int,
+        keywords: Optional[List[str]],
+        is_table_generated: bool = False,
     ) -> None:
         if sentence_index < 0 or not keywords:
             return
-        for kw in keywords:
-            self.global_sentence_keywords.add((sentence_index, kw))
+        if is_table_generated:
+            for kw in keywords:
+                if not kw:
+                    continue
+                self.global_table_keywords.add(kw)
+                # Collapse table keyword impact by keyword (not by row/sentence),
+                # because generated table lines can repeat the same union terms.
+                self.global_sentence_keywords.add((-1, kw))
+        else:
+            for kw in keywords:
+                self.global_sentence_keywords.add((sentence_index, kw))
         self.total_union_keywords = len(self.global_sentence_keywords)
 
     def register_mentions(self, geo_context: Dict[str, Any]):
@@ -4279,6 +4294,7 @@ class Tracker:
         exception_limit_percent: Optional[float] = None,
         is_exception_remainder: bool = False,
         coverage_type: Optional[str] = None,
+        is_table_generated: bool = False,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -4292,7 +4308,9 @@ class Tracker:
             self.domestic_is_negated = True
 
         # Safe fallback in case pass-1 registration did not occur.
-        self.register_sentence_keywords(sentence_index, keywords)
+        self.register_sentence_keywords(
+            sentence_index, keywords, is_table_generated=is_table_generated
+        )
 
         countries = geo_context.get("countries", [])
         keyword_target_codes: List[str] = []
@@ -4344,6 +4362,8 @@ class Tracker:
                 self.country_keywords[code] = {}
             if code not in self.country_sentence_keywords:
                 self.country_sentence_keywords[code] = set()
+            if code not in self.country_table_keywords:
+                self.country_table_keywords[code] = set()
 
             for kw in keywords:
                 # Check if keyword implies a specific geography to avoid cross-contamination
@@ -4371,8 +4391,17 @@ class Tracker:
                         if len(code) == 2 and code not in allowed_countries:
                             continue
 
+                if is_table_generated:
+                    # For generated table rows, dedupe repeated keywords before
+                    # assigning country/global keyword weight.
+                    if kw in self.country_table_keywords[code]:
+                        continue
+                    self.country_table_keywords[code].add(kw)
+                    self.country_sentence_keywords[code].add((-1, kw))
+                else:
+                    self.country_sentence_keywords[code].add((sentence_index, kw))
+
                 self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
-                self.country_sentence_keywords[code].add((sentence_index, kw))
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -7659,6 +7688,12 @@ class Tracker:
             "global_total_count": 0.0,
             "measured_population_coverage": None,
             "country_keywords": self.country_keywords,
+            "country_table_keywords": {
+                code: sorted(list(terms))
+                for code, terms in self.country_table_keywords.items()
+                if terms
+            },
+            "global_table_keywords": sorted(list(self.global_table_keywords)),
             "domestic_country_code": self.domestic_country_code,
             "domestic_geo_explicitly_mentioned": (
                 self.domestic_country_code in self.mentioned_countries
@@ -8879,6 +8914,9 @@ class Tracker:
                     },
                     "method_breakdown": method_breakdown,
                     "country_keywords": self.country_keywords.get(code, {}),
+                    "country_table_keywords": sorted(
+                        list(self.country_table_keywords.get(code, set()))
+                    ),
                 }
             
             countries.append(country)
@@ -9113,6 +9151,10 @@ class UnionAnalyzer:
             else:
                 annotated.append(term)
         return annotated
+
+    @staticmethod
+    def _is_table_generated_sentence(text: str) -> bool:
+        return bool(text and TABLE_TOK in text)
 
     def _detect_count_range(
         self, analysis: SentenceAnalysis, counts: List[float]
@@ -9460,6 +9502,7 @@ class UnionAnalyzer:
                     exception_limit_percent=cov.get("exception_limit_percent"),
                     is_exception_remainder=cov.get("is_exception_remainder", False),
                     coverage_type=cov.get("type"),
+                    is_table_generated=item.get("is_table_generated", False),
                 )
 
             # Resolve missing coverage data using collected totals
@@ -9506,7 +9549,9 @@ class UnionAnalyzer:
                 continue
 
             tracker.register_sentence_keywords(
-                idx, self._get_annotated_keywords(analysis)
+                idx,
+                self._get_annotated_keywords(analysis),
+                is_table_generated=self._is_table_generated_sentence(s),
             )
 
             # Determine context (reusing logic to ensure consistency with Pass 2)
@@ -11445,6 +11490,7 @@ class UnionAnalyzer:
                             split_item = {
                                 "sentence": sent,
                                 "keyword_matched": self._get_annotated_keywords(analysis),
+                                "is_table_generated": self._is_table_generated_sentence(sent),
                                 "geographic_context": new_geo_context,
                                 "coverage_data": new_cov_data,
                                 "lookup_totals": effective_totals.copy(),
@@ -11463,6 +11509,7 @@ class UnionAnalyzer:
                 item = {
                     "sentence": sent,
                     "keyword_matched": self._get_annotated_keywords(analysis),
+                    "is_table_generated": self._is_table_generated_sentence(sent),
                     "geographic_context": geo_context,
                     "coverage_data": coverage_data,
                     "lookup_totals": effective_totals.copy(),
