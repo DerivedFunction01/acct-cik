@@ -9235,12 +9235,14 @@ class Tracker:
                         "not_cov": explicit_bucket.get("not_cov"),
                         "pct": reported_pct,
                     },
-                    "method_breakdown": method_breakdown,
                     "country_keywords": self.country_keywords.get(code, {}),
                     "country_table_keywords": sorted(
                         list(self.country_table_keywords.get(code, set()))
                     ),
                 }
+            # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
+            if union_indicator != 0:
+                country["method_breakdown"] = method_breakdown
             
             countries.append(country)
 

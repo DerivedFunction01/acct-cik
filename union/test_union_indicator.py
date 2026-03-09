@@ -16,3 +16,4 @@ def test_union_indicator_is_zero_for_explicit_non_coverage():
 
     assert us is not None
     assert us.get("union_indicator") == 0
+    assert "method_breakdown" not in us
