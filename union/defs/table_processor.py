@@ -19,7 +19,7 @@ PERCENT_HEADER_REGEX = re.compile(r"\b(?:%|percent(?:age)?)\b", re.IGNORECASE)
 
 # safe patterns for years in tables
 YEAR_REGEX = build_regex([r"(?:\d{1,2}/)+(\d{2,4})", r"(19[8-9]\d|20\d{2})"])
-TABLE_TOK = "_TABLE_"
+TABLE_TOK = "TABLE_"
 # Header detection
 LAST_HEADER_PATTERN = build_regex([
     "notional",

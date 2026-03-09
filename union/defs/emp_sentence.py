@@ -13,6 +13,7 @@ from defs.union_regex import (
     WORKER_TERMS,
 )
 from defs.region_regex import RegionMatcher
+from defs.table_processor import TABLE_TOK
 
 SPACE_REGEX = re.compile(r"\s+")
 NULL_HEADER_REGEX = re.compile(r"^(?:-|—|n/?a|na)$", re.IGNORECASE)
@@ -747,7 +748,7 @@ def _render_metric_sentence(
         base = f"{base}. Separately, {works_covered} employees were covered by works councils"
     elif works_pct:
         base = f"{base}. Separately, {works_pct} were covered by works councils"
-    return base
+    return f"{TABLE_TOK} {base}"
 
 
 def _coverage_basis_phrase(
