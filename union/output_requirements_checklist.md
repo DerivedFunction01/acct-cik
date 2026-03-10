@@ -243,11 +243,7 @@ Lean report: summary plus the list of entities (countries/regions).
 
 ```jsonc
 {
-  "summary": {
-    "total_bargaining_units": 14.0,
-    "entry_count": 2,
-    "entity_count": 2
-  },
+  "total_bargaining_units": 14.0,
   "entities": ["GB", "US"]
 }
 ```
