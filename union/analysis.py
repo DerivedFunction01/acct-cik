@@ -7524,13 +7524,15 @@ class Tracker:
                     f"Restored total for '{key_str}': {region_sum} (Sum of {', '.join(constituents)})"
                 )
 
-    def resolve_coverage(self):
+    def resolve_coverage(
+        self, use_virtual_pool: bool = False, apply_dummy_percentages: bool = False
+    ):
         """
         Fills in missing info for countries and regions.
         """
         # 0. Inject Virtual Pool if empty (for Union Name only cases)
         # Must be done before resolving countries/regions so they have totals to work with
-        if self.global_total == 0:
+        if use_virtual_pool and self.global_total == 0:
             self._inject_virtual_global_pool()
 
         # 0. Resolve Domestic
@@ -7538,7 +7540,8 @@ class Tracker:
         # 0.5 Resolve INT codes
         self._resolve_int_codes()
         # 0.1 Apply dummy percentages for union records with no data
-        self._apply_dummy_union_percentage()
+        if apply_dummy_percentages:
+            self._apply_dummy_union_percentage()
         # 0.5 Resolve Aggregates (Propagate down)
         self._resolve_aggregates()
         # 0.6 Promote region-only records to pseudo-country entities when
@@ -7565,13 +7568,14 @@ class Tracker:
         self._resolve_international_gap()
 
         # 4. Apply dummy percentages (Final fallback for backfilled totals)
-        self._apply_dummy_union_percentage()
+        if apply_dummy_percentages:
+            self._apply_dummy_union_percentage()
 
         # 4.5 Calculate missing covered counts (for entries with Total + Pct but no Covered)
         self._calculate_missing_covered_counts()
 
         # 4.8 Inject Virtual Pool if still empty (for Union Name only cases)
-        if self.global_total == 0:
+        if use_virtual_pool and self.global_total == 0:
             self._inject_virtual_global_pool()
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
@@ -10580,7 +10584,9 @@ class UnionAnalyzer:
                 )
 
             # Resolve missing coverage data using collected totals
-            tracker.resolve_coverage()
+            tracker.resolve_coverage(
+                use_virtual_pool=False, apply_dummy_percentages=False
+            )
 
             summary = self.compute_weighted_coverage(
                 results, tracker, all_region_totals
