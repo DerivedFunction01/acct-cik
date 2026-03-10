@@ -6,7 +6,6 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 
 ```jsonc
 {
-  "schema_version": "3.0", // output schema version
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
   "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
@@ -37,7 +36,6 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 ```jsonc
 {
   "country_code": "DE",
-  "is_domestic": false, // true only for domestic_country_code
   "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
   "country_totals": {
     "employee_count_total": 3100.0, // final resolved total for this country (all methods combined)

@@ -9690,7 +9690,6 @@ class Tracker:
 
             country = {
                 "country_code": code,
-                "is_domestic": code == self.domestic_country_code,
                 "union_indicator": union_indicator,
                 "country_totals": {
                     "tot": total_val,
@@ -9860,7 +9859,6 @@ class Tracker:
             summary["not_cov"][k].sort()
 
         return {
-            "schema_version": "3.0",
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
             "agg": agg,
