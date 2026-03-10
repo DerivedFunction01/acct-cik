@@ -1,6 +1,6 @@
 # Output Requirements Checklist (Country Array + Provenance)
 
-Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit a separate output focused on country-level results. The implementation of this provenance JSON will have simplified keys, while this document will have the full key names.
+Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit a separate output focused on country-level results. The implementation of this provenance JSON will have simplified keys, while this document will have the full key names. Outputs omit empty keys to keep payloads compact.
 
 ## 1) Top-Level JSON
 
@@ -10,7 +10,7 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
   "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
-  "summary": { // Quick summary to see exactly which countries are considered covered or not covered. We only mention explicitlh of what is provided in the text, so if a country is not mentioned at all, it should not be in either list (e.g., AU in the example below)
+  "summary": { // Quick summary to see exactly which countries are considered covered or not covered. We only mention explicitly what is provided in the text, so if a country is not mentioned at all, it should not be in either list (e.g., AU in the example below)
     "covered": {
       "NA": ["US", "CA"],
       "EUR": ["DE", "FR", "IT", "CIS"], // CIS is a pseudo-country code representing covered countries in the Commonwealth of Independent States, if no specific country such as Russia is mentioned in text
@@ -43,8 +43,13 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
     "employee_count_total": 3100.0, // final resolved total for this country (all methods combined)
     "employee_count_covered": 1224.0, // final resolved covered count (all methods combined)
     "employee_count_not_covered": 1876.0, // final resolved non-covered count
-    "coverage_percent": 39.48, // final country % (prefer covered/total when available)
-    
+    "coverage_percent": 39.48 // final country % (prefer covered/total when available)
+  },
+  "reported_totals": { // explicit only
+    "employee_count_total": 3100.0, // final resolved total for this country (explicit only)
+    "employee_count_covered": 1224.0, // final resolved covered count (explicit methods combined)
+    "employee_count_not_covered": 1876.0, // final resolved non-covered count
+    "coverage_percent": 39.48 // final country % (prefer covered/total when available)
   },
 
   "method_breakdown": {
@@ -105,6 +110,49 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
   }
 }
 ```
+
+## 2c) Risk Summary (Compact + Conditional)
+
+```jsonc
+{
+  "total_items": 3,
+  "by_type": {
+    "UNION_RISK": 2
+  },
+  "by_signal_type": {
+    "RISK_EVENT": 1
+  },
+  "by_temporal_scope": {
+    "CURRENT": 3
+  },
+  "by_activity_class": {
+    "ACTUAL": 1,
+    "POTENTIAL": 2
+  },
+  "relationship_status": {
+    "GOOD": 1
+  },
+  "risk_terms": {
+    "risk": 1
+  },
+  "labor_terms": {
+    "union": 2
+  },
+  "relationship_terms": {
+    "relationship": 1
+  },
+  "global_keywords": ["union", "risk", "relationship"],
+  "coverage_totals": {
+    "employee_count_covered": 1200.0,
+    "employee_count_not_covered": 800.0,
+    "employee_count_total": 2000.0
+  }
+}
+```
+
+Notes:
+- Keys are omitted if they are empty/zero to keep payload compact.
+- `by_activity_class` and `coverage_totals` appear only when Item 1A risk items include `activity_class` and `coverage_data` with signal.
 
 ## 2b) Top-Level `agg` Array (Parent Aggregate Provenance)
 
@@ -175,6 +223,8 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 6. `country_keywords` should come directly from tracker keyword tallies for that country code.
 7. Mixed provenance is valid: percent can be `EXPLICIT` while counts for that same record are `FALLBACK`.
 8. Default for missing numeric fields is `null` (never `0` unless the value is explicitly/derived as zero).
+9. Optional keys are omitted when empty (`language_fallback_country`, `reported_totals`, `country_keywords`, `country_table_keywords`, `method_breakdown`).
+10. `risk_summary` omits empty sections and zero-count fields; `coverage_totals` appears only if Item 1A actual risk items include coverage data.
 
 ## 4) Inheritance Clarification
 

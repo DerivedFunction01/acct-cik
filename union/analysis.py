@@ -1204,6 +1204,30 @@ class UnionExtraAnalyzer:
         else:
             risk_signal_type = "OTHER_CONTEXT"
 
+        activity_class = "ACTUAL"
+        if item1a_mode:
+            has_quant_signal = bool(
+                analysis.percentages
+                or analysis.worker_counts
+                or analysis.bargaining_unit_counts
+            )
+            has_union_activity = bool(
+                analysis.union_terms
+                or analysis.negation_terms
+            )
+            has_strong_actual = (
+                has_quant_signal
+                and (has_union_activity and not has_boilerplate and not has_legal_requirement)
+            )
+            if (
+                not has_strong_actual
+                or is_historical
+                or is_future
+                or is_conditional
+                or risk_negated
+            ):
+                activity_class = "POTENTIAL"
+
         return {
             "type": (
                 RiskType.UNION_RISK.value
@@ -1211,6 +1235,7 @@ class UnionExtraAnalyzer:
                 else RiskType.LABOR_RISK.value
             ),
             "risk_signal_type": risk_signal_type,
+            "activity_class": activity_class,
             "sentence": sentence,
             "labor_keywords": labor_keywords,
             "risk_keywords": risk_keywords,
@@ -1241,6 +1266,7 @@ class RiskDigest:
         by_type: Dict[str, int] = {}
         by_signal_type: Dict[str, int] = {}
         by_temporal_scope: Dict[str, int] = {}
+        by_activity_class: Dict[str, int] = {}
         relationship_status_counts: Dict[str, int] = {}
         risk_term_counts: Dict[str, int] = {}
         works_councils: Dict[str, int] = {}
@@ -1254,6 +1280,12 @@ class RiskDigest:
         negated_count = 0
         risk_negated_count = 0
         conditional_count = 0
+        coverage_totals = {
+            "employee_count_covered": 0.0,
+            "employee_count_not_covered": 0.0,
+            "employee_count_total": 0.0,
+        }
+        coverage_has_signal = False
 
         def _register_keyword(term: str) -> None:
             if not term or term in global_keywords_seen:
@@ -1272,6 +1304,11 @@ class RiskDigest:
             t_scope = item.get("temporal_scope")
             if t_scope:
                 by_temporal_scope[t_scope] = by_temporal_scope.get(t_scope, 0) + 1
+            activity_class = item.get("activity_class")
+            if activity_class:
+                by_activity_class[activity_class] = (
+                    by_activity_class.get(activity_class, 0) + 1
+                )
 
             rel_status = item.get("relationship_status")
             if rel_status:
@@ -1315,11 +1352,26 @@ class RiskDigest:
             if item.get("risk_negated"):
                 risk_negated_count += 1
 
-        return {
+            coverage = item.get("coverage_data") or {}
+            if coverage:
+                for key in (
+                    "employee_count_covered",
+                    "employee_count_not_covered",
+                    "employee_count_total",
+                ):
+                    val = coverage.get(key)
+                    if val is not None:
+                        coverage_totals[key] += float(val)
+                        coverage_has_signal = True
+                if coverage.get("percentage") is not None:
+                    coverage_has_signal = True
+
+        out = {
             "total_items": len(risk_items),
             "by_type": by_type,
             "by_signal_type": by_signal_type,
             "by_temporal_scope": by_temporal_scope,
+            "by_activity_class": by_activity_class,
             "relationship_status": relationship_status_counts,
             "negated_items": negated_count,
             "risk_negated_items": risk_negated_count,
@@ -1332,6 +1384,39 @@ class RiskDigest:
             "boilerplate_terms": boilerplate_term_counts,
             "global_keywords": global_keywords,
         }
+        if coverage_has_signal:
+            out["coverage_totals"] = {
+                k: (v if v > 0 else None) for k, v in coverage_totals.items()
+            }
+            if out["coverage_totals"].get("employee_count_covered") is None and out["coverage_totals"].get("employee_count_not_covered") is None and out["coverage_totals"].get("employee_count_total") is None:
+                out.pop("coverage_totals", None)
+
+        # Drop empty sections for compactness.
+        compact = {"total_items": out.get("total_items", 0)}
+        for key in (
+            "by_type",
+            "by_signal_type",
+            "by_temporal_scope",
+            "by_activity_class",
+            "relationship_status",
+            "risk_terms",
+            "labor_terms",
+            "relationship_terms",
+            "third_party_terms",
+            "legal_requirement_terms",
+            "boilerplate_terms",
+        ):
+            if out.get(key):
+                compact[key] = out[key]
+        for key in ("negated_items", "risk_negated_items", "conditional_items"):
+            if out.get(key):
+                compact[key] = out[key]
+        if out.get("global_keywords"):
+            compact["global_keywords"] = out["global_keywords"]
+        if out.get("coverage_totals"):
+            compact["coverage_totals"] = out["coverage_totals"]
+
+        return compact
 
 
 EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
@@ -12253,6 +12338,24 @@ class UnionAnalyzer:
                 )
                 if result:
                     result["sentence_index"] = idx
+                    if result.get("activity_class") == "ACTUAL":
+                        coverage_data = self._determine_coverage_data(
+                            analysis,
+                            inherited_total_count=None,
+                            reporting_year=reporting_year,
+                            is_historical=is_historical,
+                        )
+                        has_signal = any(
+                            coverage_data.get(k) is not None
+                            for k in (
+                                "percentage",
+                                "employee_count_covered",
+                                "employee_count_not_covered",
+                                "employee_count_total",
+                            )
+                        )
+                        if has_signal:
+                            result["coverage_data"] = coverage_data
                     results.append(result)
         return results
 
