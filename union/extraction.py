@@ -71,6 +71,7 @@ CURRENT_REGEX = build_regex(
 HISTORICAL_REGEX = build_regex(
     [
         r"historical(?:ly)?",
+        r"formerly",
         r"previously",
         r"prior\s+to",
         r"(?:last|prior|past|previous|preceding)\s+(?:fiscal\s+|reporting\s+)?(?:years?|periods?)",
