@@ -10775,10 +10775,16 @@ class UnionAnalyzer:
             )
             bargaining_report = tracker.build_bargaining_provenance_report()
 
+        risk_summary = (
+            self.risk_digest.summarize(risk_items) if risk_items else {}
+        )
+        if item_type == "item1a":
+            country_report = {}
+
         return {
             "items": results,
             "risk_items": risk_items,
-            "risk_summary": self.risk_digest.summarize(risk_items),
+            "risk_summary": risk_summary,
             "summary": summary,
             "country_report": country_report,
             "bargaining_report": bargaining_report,
