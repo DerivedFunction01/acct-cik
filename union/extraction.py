@@ -28,6 +28,7 @@ from defs.union_regex import (
     SUPPLIER_REGEX,
     COVERAGE_REGEX,
     BOILERPLATE_REGEX,
+    CONTRACT_CLAUSE_REGEX,
     LEGAL_REQUIREMENT_REGEX,
     LEGAL_PROCESS_REGEX,
     PERSONNEL_EVENT_REGEX,
@@ -383,6 +384,7 @@ class MatchType(Enum):
     LEGAL_REQUIREMENT = "LEGAL_REQUIREMENT"
     BOILERPLATE = "BOILERPLATE"
     LEGAL_PROCESS = "LEGAL_PROCESS"
+    CONTRACT_CLAUSE = "CONTRACT_CLAUSE"
 
 
 @dataclass
@@ -432,6 +434,7 @@ class SentenceAnalysis:
     legal_requirement_terms: List[str] = field(default_factory=list)
     boilerplate_terms: List[str] = field(default_factory=list)
     legal_process_terms: List[str] = field(default_factory=list)
+    contract_clause_terms: List[str] = field(default_factory=list)
 
     # Temporal / Conditional flags
     has_conditional: bool = False
@@ -1798,6 +1801,13 @@ class UnionExtractor:
             MatchType.LEGAL_PROCESS,
             lambda m: m.group(0),
             lambda m, val: analysis.legal_process_terms.append(val),
+        )
+        # 17f. Extract contract clause mechanics (expiry/renewal/amendable)
+        process_matches(
+            CONTRACT_CLAUSE_REGEX,
+            MatchType.CONTRACT_CLAUSE,
+            lambda m: m.group(0),
+            lambda m, val: analysis.contract_clause_terms.append(val),
         )
 
         working_text = text

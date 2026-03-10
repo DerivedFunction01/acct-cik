@@ -154,6 +154,30 @@ Notes:
 - Keys are omitted if they are empty/zero to keep payload compact.
 - `by_activity_class` and `coverage_totals` appear only when Item 1A risk items include `activity_class` and `coverage_data` with signal.
 
+## 2d) Suppressed Counts (Per-Country)
+
+Suppressed clause numerics are attached to each country as `suppressed_counts`.
+These are explicit numbers from legal requirement, legal process, boilerplate, or
+contract clause mechanics sentences. They are not used in coverage math and are
+intended as a last-resort quantitative signal.
+
+```jsonc
+{
+  "country_code": "GB",
+  "suppressed_counts": [
+    {
+      "sentence_index": 12,
+      "percentages": [52.0],
+      "worker_counts": [],
+      "bargaining_unit_counts": [],
+      "numbers": [],
+      "suppress_types": ["CONTRACT_CLAUSE"],
+      "temporal_scope": "CURRENT"
+    }
+  ]
+}
+```
+
 ## 2b) Top-Level `agg` Array (Parent Aggregate Provenance)
 
 ```jsonc

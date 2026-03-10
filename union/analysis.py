@@ -67,6 +67,7 @@ from defs.output_enums import (
     RiskType,
     RiskSignalType,
     RiskActivityClass,
+    SuppressedCountType,
     RelationshipStatus,
 )
 
@@ -8998,7 +8999,10 @@ class Tracker:
 
         return metrics
 
-    def build_country_provenance_report(self) -> Dict[str, Any]:
+    def build_country_provenance_report(
+        self,
+        suppressed_clause_items: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, Any]:
         """
         Builds a country-array report focused on final country totals plus
         method/source-type breakdowns, plus top-level aggregate provenance.
@@ -9144,8 +9148,50 @@ class Tracker:
         pseudo_region_by_code: Dict[str, str] = {}
         aggregate_weighted_by_code: Dict[str, Dict[str, Any]] = {}
 
-        explicit_country_codes: set[str] = set(self.country_totals.keys()) | set(
-            self.country_keywords.keys()
+        suppressed_by_code: Dict[str, List[Dict[str, Any]]] = {}
+        if suppressed_clause_items:
+            for item in suppressed_clause_items:
+                geo = item.get("geographic_context", {})
+                target_codes: List[str] = []
+                for c in geo.get("countries", []) or []:
+                    code = c.get("code")
+                    if not code:
+                        continue
+                    if code == GeoCode.DOMESTIC.value:
+                        code = self.domestic_country_code
+                    target_codes.append(code)
+                if not target_codes:
+                    region_key = geo.get("region")
+                    if region_key in DOMESTIC_SET:
+                        target_codes.append(self.domestic_country_code)
+                    elif region_key in INT_SET:
+                        target_codes.append(GeoCode.INTERNATIONAL.value)
+                    elif isinstance(region_key, str):
+                        pseudo = self._region_to_pseudo_country_code(region_key)
+                        if pseudo:
+                            target_codes.append(pseudo)
+                    if geo.get("domestic_negated") and not target_codes:
+                        target_codes.append(GeoCode.INTERNATIONAL.value)
+
+                if not target_codes:
+                    continue
+
+                item_payload = {
+                    "sentence_index": item.get("sentence_index"),
+                    "percentages": item.get("percentages"),
+                    "worker_counts": item.get("worker_counts"),
+                    "bargaining_unit_counts": item.get("bargaining_unit_counts"),
+                    "numbers": item.get("numbers"),
+                    "suppress_types": item.get("suppress_types"),
+                    "temporal_scope": item.get("temporal_scope"),
+                }
+                for code in target_codes:
+                    suppressed_by_code.setdefault(code, []).append(item_payload)
+
+        explicit_country_codes: set[str] = (
+            set(self.country_totals.keys())
+            | set(self.country_keywords.keys())
+            | set(suppressed_by_code.keys())
         )
         for e in self.entries:
             if e.scope == Scope.COUNTRY and isinstance(e.key, str):
@@ -9604,6 +9650,9 @@ class Tracker:
                 country["country_keywords"] = country_keywords
             if country_table_keywords:
                 country["country_table_keywords"] = country_table_keywords
+            suppressed_items = suppressed_by_code.get(code)
+            if suppressed_items:
+                country["suppressed_counts"] = suppressed_items
             # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
             if union_indicator != 0 and method_breakdown:
                 country["method_breakdown"] = method_breakdown
@@ -10298,6 +10347,110 @@ class UnionAnalyzer:
 
         return None
 
+    def _build_clause_report(
+        self,
+        sentences: List[str],
+        reporting_year: Optional[int] = None,
+        allowed_sentence_indices: Optional[Set[int]] = None,
+        only_suppressed: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """
+        Builds a separate report for legal/process/contract clause numerics.
+        Intended as a last-resort quantitative signal, independent of coverage.
+        """
+        items: List[Dict[str, Any]] = []
+        last_geo_context = None
+        last_geo_sentence_idx = -1
+
+        for idx, sent in enumerate(sentences):
+            if (
+                allowed_sentence_indices is not None
+                and idx not in allowed_sentence_indices
+            ):
+                continue
+            analysis = self.extractor.analyze_sentence(sent)
+
+            is_historical = False
+            if reporting_year and analysis.years:
+                if all(y < reporting_year for y in analysis.years):
+                    is_historical = True
+            if (is_historical or analysis.has_historical) and not analysis.has_current:
+                continue
+
+            has_clause_terms = bool(
+                analysis.legal_requirement_terms
+                or analysis.legal_process_terms
+                or analysis.boilerplate_terms
+                or analysis.contract_clause_terms
+            )
+            if not has_clause_terms:
+                continue
+            if only_suppressed and not analysis.suppress_coverage_counts:
+                continue
+
+            has_quant = bool(
+                analysis.percentages
+                or analysis.worker_counts
+                or analysis.bargaining_unit_counts
+                or analysis.numbers
+            )
+            if not has_quant:
+                continue
+
+            geo_context = self._determine_geo_context(
+                analysis, last_geo_context, idx, last_geo_sentence_idx
+            )
+            is_strong_geo = geo_context["specificity"] in (
+                Specificity.EXPLICIT.value,
+                Specificity.INFERRED_UNION.value,
+                Specificity.EXPLICIT_INFERRED.value,
+                Specificity.INFERRED_LANG.value,
+            )
+            effective_counts = get_effective_counts(analysis)
+            has_counts = bool(effective_counts)
+            if is_strong_geo or has_counts:
+                last_geo_context = geo_context
+                last_geo_sentence_idx = idx
+
+            items.append(
+                {
+                    "sentence_index": idx,
+                    "percentages": analysis.percentages,
+                    "worker_counts": analysis.worker_counts,
+                    "bargaining_unit_counts": analysis.bargaining_unit_counts,
+                    "numbers": analysis.numbers,
+                    "geographic_context": geo_context,
+                    "suppress_types": [
+                        t
+                        for t, present in (
+                            (
+                                SuppressedCountType.LEGAL_REQUIREMENT.value,
+                                bool(analysis.legal_requirement_terms),
+                            ),
+                            (
+                                SuppressedCountType.LEGAL_PROCESS.value,
+                                bool(analysis.legal_process_terms),
+                            ),
+                            (
+                                SuppressedCountType.BOILERPLATE.value,
+                                bool(analysis.boilerplate_terms),
+                            ),
+                            (
+                                SuppressedCountType.CONTRACT_CLAUSE.value,
+                                bool(analysis.contract_clause_terms),
+                            ),
+                        )
+                        if present
+                    ],
+                    "temporal_scope": (
+                        TemporalScope.HISTORICAL.value
+                        if is_historical
+                        else TemporalScope.CURRENT.value
+                    ),
+                }
+            )
+        return items
+
     def _determine_geo_context(
         self, analysis: SentenceAnalysis, last_context, current_idx, last_idx
     ) -> Dict[str, Any]:
@@ -10475,6 +10628,10 @@ class UnionAnalyzer:
             tracker.resolve()
             # tracker.resolve_coverage() # Will be called after population
 
+            suppressed_clause_items = self._build_clause_report(
+                all_sentences, reporting_year=reporting_year, only_suppressed=True
+            )
+
             # 3. Pass 2: Coverage Analysis (Process Paragraphs)
             results = []
             last_geo_context = None
@@ -10591,7 +10748,9 @@ class UnionAnalyzer:
             summary = self.compute_weighted_coverage(
                 results, tracker, all_region_totals
             )
-            country_report = tracker.build_country_provenance_report()
+            country_report = tracker.build_country_provenance_report(
+                suppressed_clause_items=suppressed_clause_items
+            )
             bargaining_report = tracker.build_bargaining_provenance_report()
 
         return {

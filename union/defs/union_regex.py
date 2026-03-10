@@ -479,6 +479,21 @@ RELATIONSHIP_QUALITY_REGEX = build_regex(
 BOILERPLATE_TERMS = ["monitor", "committed", "constructive", "engagement", r"expect(?:ed|ing|s|ations?)?", r"relations?", "closely", "publically", r"disclos(?:ed?|es|ing)", r"disclosures?", r"believe(?:s|d)?", r"oppos(?:es?|ed|ing)"]
 BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 
+CONTRACT_CLAUSE_TERMS = [
+    r"expir(?:e|es|ing|ation|y)",
+    r"amend(?:able|ed|ing|ment|ments)?",
+    r"renegotiat(?:e|ed|ing|ions?)",
+    r"renew(?:al|als|ed|ing)?",
+    r"extend(?:ed|ing|s|sion)?",
+    r"ratif(?:y|ied|ication)",
+    r"reop(?:en|ener|ened|ening|ens?)",
+    r"effective\s+(?:date|through|until|as\s+of)",
+    r"term\s+expir(?:e|es|ing|ation|y)",
+    r"contract\s+term",
+    r"agreement\s+term",
+]
+CONTRACT_CLAUSE_REGEX = build_regex(CONTRACT_CLAUSE_TERMS)
+
 LEGAL_PROCESS_TERMS = [
     r"national\s+labou?r\s+relations?\s+board",
     r"NLRB",
