@@ -82,6 +82,14 @@ from defs.union_regex import (
 from defs.table_processor import TABLE_TOK
 
 
+def _normalize_domestic_country_code(code: Optional[str]) -> str:
+    if not code:
+        return "US"
+    if code in INT_SET:
+        return GeoCode.DOMESTIC.value
+    return code
+
+
 def refine_generic_code(
     code: str,
     candidates: List[Dict[str, Any]],
@@ -4288,7 +4296,9 @@ class Tracker:
         self._seen_bargaining_records: Set[Tuple[int, str, float]] = set()
         # Start empty; only populate from actual detected context.
         self.mentioned_countries: set[str] = set()
-        self.domestic_country_code = domestic_country_code
+        self.domestic_country_code = _normalize_domestic_country_code(
+            domestic_country_code
+        )
         self.total_union_keywords: int = 0
         self.global_sentence_keywords: Set[Tuple[int, str]] = set()
         self.global_table_keywords: Set[str] = set()
@@ -10330,8 +10340,13 @@ class UnionAnalyzer:
         self.risk_digest = RiskDigest()
         self.complex_analyzer_cls = ComplexCoverageAnalyzer
         self.matcher = self.extractor.matcher  # Access shared matcher
-        self.domestic_country_code = domestic_country_code
+        self.domestic_country_code = _normalize_domestic_country_code(
+            domestic_country_code
+        )
         self.geo_population_resolver = GeoPopulationResolver(self)
+
+    def set_domestic_country_code(self, code: Optional[str]) -> None:
+        self.domestic_country_code = _normalize_domestic_country_code(code)
 
     def _get_annotated_keywords(
         self, analysis: SentenceAnalysis

@@ -53,7 +53,7 @@ def process_row(row: Tuple) -> Optional[Tuple]:
     assert ANALYZER is not None
 
     # Set domestic country for this filing
-    ANALYZER.domestic_country_code = home_country if home_country else "US"
+    ANALYZER.set_domestic_country_code(home_country or "US")
     
     # Process Item 1
     item1_analysis = {}
