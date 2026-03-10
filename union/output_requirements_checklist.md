@@ -182,7 +182,6 @@ suppression type is resolved by priority when multiple types overlap:
 {
   "aggregate_key": "EU", // aggregate parent context code (always code, never region name)
   "aggregate_scope": "AGGREGATE",
-  "sentence_index": 0,
   "employee_count_total": 1000.0, // original parent count
   "employee_count_covered": 1000.0,
   "employee_count_not_covered": 0.0,

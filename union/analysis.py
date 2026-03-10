@@ -9814,7 +9814,6 @@ class Tracker:
                 {
                     "aggregate_key": aggregate_key,
                     "aggregate_scope": e.scope.value,
-                    "sentence_index": e.sent_idx,
                     "tot": e.total_count,
                     "cov": e.covered_count,
                     "not_cov": e.not_covered_count,
