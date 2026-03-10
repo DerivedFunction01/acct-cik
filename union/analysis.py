@@ -3658,6 +3658,79 @@ def determine_geo_context(
         m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
     ]
 
+    # If domestic is unresolved, infer it when "domestic" is adjacent to a single
+    # explicit country in the same sentence (no other ambiguity).
+    unknown_domestic_codes = (
+        INT_SET | UNK_SET | {"XX", "HOME_UNKNOWN"}
+    )
+    if domestic_country_code in unknown_domestic_codes and explicit_matches:
+        domestic_explicit = [
+            m for m in explicit_matches if m.geo_code in DOMESTIC_SET
+        ]
+        specific_explicit = [
+            m
+            for m in explicit_matches
+            if m.geo_code
+            and m.geo_code not in DOMESTIC_SET
+            and m.geo_code not in INT_SET
+            and m.geo_code not in GLOBAL_SET
+            and m.geo_code not in AGG_SET
+            and m.geo_code not in UNK_SET
+            and m.geo_code not in REGION_CODES
+        ]
+
+        inferred_domestic = None
+        if domestic_explicit and len(specific_explicit) == 1:
+            candidate = specific_explicit[0]
+            ambiguous = any(
+                m.geo_code not in DOMESTIC_SET
+                and m.geo_code != candidate.geo_code
+                and m.geo_code not in REGION_CODES
+                for m in explicit_matches
+                if m.geo_code
+            )
+            if not ambiguous:
+                # Check proximity between "domestic" and explicit country span.
+                geo_spans = [
+                    (m.get("geo_obj"), m.get("span"))
+                    for m in analysis._matches
+                    if "geo_obj" in m and "span" in m
+                ]
+                dom_spans = [
+                    span for obj, span in geo_spans if obj in domestic_explicit
+                ]
+                cand_spans = [
+                    span for obj, span in geo_spans if obj == candidate
+                ]
+                is_adjacent = False
+                if dom_spans and cand_spans:
+                    for d_span in dom_spans:
+                        if d_span:
+                            min_dist = get_min_distance_to_matches(
+                                target_span=d_span,
+                                matches=[
+                                    {"type": MatchType.GEO, "span": c_span}
+                                    for c_span in cand_spans
+                                ],
+                                match_types=[MatchType.GEO],
+                                text=analysis.text,
+                            )
+                            if min_dist <= 40:
+                                is_adjacent = True
+                                break
+                else:
+                    # If spans are missing, fall back to sentence-level inference.
+                    is_adjacent = True
+
+                if is_adjacent:
+                    inferred_domestic = candidate
+
+        if inferred_domestic:
+            for m in domestic_explicit:
+                m.geo_code = inferred_domestic.geo_code
+                m.country = inferred_domestic.country
+                m.region = inferred_domestic.region
+
     # Check if we have any VALID explicit matches (not excluded, or excluded but remapped to INT)
     has_valid_explicit = False
     for m in explicit_matches:
