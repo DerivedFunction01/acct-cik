@@ -128,9 +128,11 @@ class RiskSignalType(Enum):
     BOILERPLATE = "BOILERPLATE"
     RELATIONSHIP_CONTEXT = "RELATIONSHIP_CONTEXT"
     OTHER_CONTEXT = "OTHER_CONTEXT"
+
+class RiskActivityClass(Enum):
     ACTUAL = "ACTUAL"
-    UNKNOWN = "UNKNOWN"
     POTENTIAL = "POTENTIAL"
+    UNKNOWN = "UNKNOWN"
 
 class RelationshipStatus(Enum):
     POSITIVE = "POSITIVE"

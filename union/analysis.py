@@ -66,6 +66,7 @@ from defs.output_enums import (
     TemporalScope,
     RiskType,
     RiskSignalType,
+    RiskActivityClass,
     RelationshipStatus,
 )
 
@@ -1238,7 +1239,7 @@ class UnionExtraAnalyzer:
         else:
             risk_signal_type = RiskSignalType.OTHER_CONTEXT.value
 
-        activity_class = RiskSignalType.ACTUAL.value
+        activity_class = RiskActivityClass.ACTUAL.value
         if item1a_mode:
             has_quant_signal = bool(
                 analysis.percentages
@@ -1250,7 +1251,7 @@ class UnionExtraAnalyzer:
             if not has_strong_actual and (
                 is_historical or is_future or is_conditional or risk_negated
             ):
-                activity_class = RiskSignalType.POTENTIAL.value
+                activity_class = RiskActivityClass.POTENTIAL.value
 
         return {
             "type": (
@@ -12773,13 +12774,14 @@ class UnionAnalyzer:
                 )
                 if result:
                     result["sentence_index"] = idx
-                    if result.get("activity_class") == RiskSignalType.ACTUAL.value:
+                    if result.get("activity_class") == RiskActivityClass.ACTUAL.value:
                         coverage_data = self._determine_coverage_data(
                             analysis,
                             inherited_total_count=None,
                             reporting_year=reporting_year,
                             is_historical=is_historical,
                         )
+                        coverage_data.pop("_count_assignments", None)
                         has_signal = any(
                             coverage_data.get(k) is not None
                             for k in (
