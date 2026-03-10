@@ -4024,7 +4024,28 @@ def determine_relationship_status(analysis: SentenceAnalysis) -> Optional[str]:
     """
     Determines the status of labor relationships (Positive, Negative, Neutral).
     """
-    if not (analysis.relationship_terms and analysis.relationship_quality_terms):
+    if not analysis.relationship_terms:
+        return None
+
+    if not analysis.relationship_quality_terms:
+        # Fallback: infer quality from relationship phrase when quality term was masked.
+        rel_text = " ".join(analysis.relationship_terms).lower()
+        for term in RELATIONSHIP_QUALITY_TERMS:
+            if term in rel_text:
+                analysis.relationship_quality_terms.append(term)
+                break
+        if not analysis.relationship_quality_terms:
+            for term in RELATIONSHIP_NEGATIVE_TERMS:
+                if term in rel_text:
+                    analysis.relationship_quality_terms.append(term)
+                    break
+        if not analysis.relationship_quality_terms:
+            for term in RELATIONSHIP_NEUTRAL_TERMS:
+                if term in rel_text:
+                    analysis.relationship_quality_terms.append(term)
+                    break
+
+    if not analysis.relationship_quality_terms:
         return None
 
     # Find the quality term closest to the relationship term
