@@ -9148,8 +9148,23 @@ class Tracker:
         pseudo_region_by_code: Dict[str, str] = {}
         aggregate_weighted_by_code: Dict[str, Dict[str, Any]] = {}
 
-        suppressed_by_code: Dict[str, List[Dict[str, Any]]] = {}
+        suppressed_by_code: Dict[str, Dict[str, Dict[str, Any]]] = {}
         if suppressed_clause_items:
+            suppress_priority = [
+                SuppressedCountType.CONTRACT_CLAUSE.value,
+                SuppressedCountType.LEGAL_PROCESS.value,
+                SuppressedCountType.LEGAL_REQUIREMENT.value,
+                SuppressedCountType.BOILERPLATE.value,
+            ]
+
+            def _pick_suppress_type(types: Optional[List[str]]) -> Optional[str]:
+                if not types:
+                    return None
+                for t in suppress_priority:
+                    if t in types:
+                        return t
+                return types[0]
+
             for item in suppressed_clause_items:
                 geo = item.get("geographic_context", {})
                 target_codes: List[str] = []
@@ -9176,17 +9191,40 @@ class Tracker:
                 if not target_codes:
                     continue
 
-                item_payload = {
-                    "sentence_index": item.get("sentence_index"),
-                    "percentages": item.get("percentages"),
-                    "worker_counts": item.get("worker_counts"),
-                    "bargaining_unit_counts": item.get("bargaining_unit_counts"),
-                    "numbers": item.get("numbers"),
-                    "suppress_types": item.get("suppress_types"),
-                    "temporal_scope": item.get("temporal_scope"),
-                }
+                suppress_type = _pick_suppress_type(item.get("suppress_types"))
+                if not suppress_type:
+                    continue
+
+                pct_vals = [float(p) for p in (item.get("percentages") or [])]
+                counts = item.get("worker_counts") or item.get("numbers") or []
+                count_total = sum(float(c) for c in counts) if counts else 0.0
+                count_n = len(counts)
+                bu_counts = item.get("bargaining_unit_counts") or []
+                bu_total = sum(float(b) for b in bu_counts) if bu_counts else 0.0
+                has_values = bool(count_total or pct_vals or bu_total)
+                if not has_values:
+                    continue
+
                 for code in target_codes:
-                    suppressed_by_code.setdefault(code, []).append(item_payload)
+                    by_type = suppressed_by_code.setdefault(code, {})
+                    bucket = by_type.setdefault(
+                        suppress_type,
+                        {
+                            "count_total": 0.0,
+                            "count_n": 0,
+                            "pct_vals": [],
+                            "bu_total": 0.0,
+                            "n": 0,
+                        },
+                    )
+                    if count_total:
+                        bucket["count_total"] += count_total
+                    bucket["count_n"] += count_n
+                    if pct_vals:
+                        bucket["pct_vals"].extend(pct_vals)
+                    if bu_total:
+                        bucket["bu_total"] += bu_total
+                    bucket["n"] += 1
 
         explicit_country_codes: set[str] = (
             set(self.country_totals.keys())
