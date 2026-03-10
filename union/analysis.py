@@ -65,6 +65,7 @@ from defs.output_enums import (
     NegationType,
     TemporalScope,
     RiskType,
+    RiskSignalType,
     RelationshipStatus,
 )
 
@@ -100,11 +101,7 @@ def refine_generic_code(
     elif code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
         allowed = None  # Any specific country is allowed
         is_container_scope = True
-    elif (
-        code in REGION_CODES
-        or code in COMPOSITE_COUNTRIES
-        or is_region(code)
-    ):
+    elif code in REGION_CODES or code in COMPOSITE_COUNTRIES or is_region(code):
         is_container_scope = True
     else:
         return code, None
@@ -123,9 +120,14 @@ def refine_generic_code(
             # - INT/GLO accept any specific code
             # - container regions/composites accept contained countries only
             contained_ok = True
-            if allowed is None and is_container_scope and code not in (
-                GeoCode.INTERNATIONAL.value,
-                GeoCode.GLOBAL.value,
+            if (
+                allowed is None
+                and is_container_scope
+                and code
+                not in (
+                    GeoCode.INTERNATIONAL.value,
+                    GeoCode.GLOBAL.value,
+                )
             ):
                 contained_ok = is_contained(
                     container_key=code,
@@ -133,7 +135,9 @@ def refine_generic_code(
                     domestic_country_code=domestic_country_code or "US",
                 )
 
-            if (allowed is None and contained_ok) or (allowed is not None and c_code in allowed):
+            if (allowed is None and contained_ok) or (
+                allowed is not None and c_code in allowed
+            ):
                 matches.append(cand)
                 seen_codes.add(c_code)
 
@@ -206,9 +210,11 @@ def has_status_negation_matches(matches: List[Dict[str, Any]]) -> bool:
     """True when extracted matches include explicit non-coverage/non-union status."""
     return any(m.get("type") in NEGATIVE_COVERAGE_MATCH_TYPES for m in matches)
 
+
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
+
 
 def get_text_segments(text: str) -> List[Tuple[int, int, str]]:
     delimiters = list(SEGMENT_DELIMITER_REGEX.finditer(text))
@@ -237,6 +243,7 @@ def get_text_segments(text: str) -> List[Tuple[int, int, str]]:
 def get_midpoint(span: Tuple[int, int]) -> float:
     return (span[0] + span[1]) / 2
 
+
 def get_min_distance_to_matches(
     target_span: Tuple[int, int],
     matches: List[Dict[str, Any]],
@@ -248,7 +255,9 @@ def get_min_distance_to_matches(
     t_start, t_end = target_span
     min_dist = float("inf")
 
-    def has_hard_delimiter_between(a_start: int, a_end: int, b_start: int, b_end: int) -> bool:
+    def has_hard_delimiter_between(
+        a_start: int, a_end: int, b_start: int, b_end: int
+    ) -> bool:
         if text is None:
             return False
         lo = min(a_end, b_end)
@@ -280,6 +289,7 @@ def get_min_distance_to_matches(
             if dist is not None and dist < min_dist:
                 min_dist = dist
     return min_dist
+
 
 def construct_window(
     match_span: Tuple[int, int],
@@ -392,7 +402,12 @@ def apply_coverage_logic(
         notes.append(msg)
 
 
-def should_infer_complement(percentage: float, is_qualitative: bool, is_negated: Any, has_exceptions: bool = False) -> bool:
+def should_infer_complement(
+    percentage: float,
+    is_qualitative: bool,
+    is_negated: Any,
+    has_exceptions: bool = False,
+) -> bool:
     """
     Determines if we should infer the complement count (e.g. Covered from Not Covered)
     based on the percentage value and type.
@@ -427,7 +442,7 @@ def split_ambiguous_entry(item: Dict[str, Any]) -> List[Dict[str, Any]]:
     2. Unknown Remainder (Eligible for dummy rates)
     """
     cov = item.get("coverage_data", {})
-    
+
     # Criteria for splitting
     # 1. Must have a total to calculate the split
     total = cov.get("employee_count_total")
@@ -442,12 +457,12 @@ def split_ambiguous_entry(item: Dict[str, Any]) -> List[Dict[str, Any]]:
     pct = cov.get("percentage")
     if pct is None:
         return [item]
-        
+
     # If it has exceptions, we ALWAYS split to leave room for the exception
     # If no exceptions, only split if ambiguous (10% < pct < 90%)
     has_exceptions = cov.get("has_exceptions", False)
     is_ambiguous = 10.0 < pct < 90.0
-    
+
     if not (has_exceptions or is_ambiguous):
         return [item]
 
@@ -459,30 +474,34 @@ def split_ambiguous_entry(item: Dict[str, Any]) -> List[Dict[str, Any]]:
     item_a = item.copy()
     # Deep copy coverage data to avoid reference issues
     item_a["coverage_data"] = cov.copy()
-    item_a["coverage_data"].update({
-        "employee_count_total": subset_count, # Scope reduced to this group
-        "employee_count_not_covered": subset_count,
-        "employee_count_covered": 0,
-        "percentage": 0.0,
-        "note": (cov.get("note") or "") + " | Split Part A: Known non-union"
-    })
+    item_a["coverage_data"].update(
+        {
+            "employee_count_total": subset_count,  # Scope reduced to this group
+            "employee_count_not_covered": subset_count,
+            "employee_count_covered": 0,
+            "percentage": 0.0,
+            "note": (cov.get("note") or "") + " | Split Part A: Known non-union",
+        }
+    )
 
     # Item B: Unknown Remainder
     item_b = item.copy()
     item_b["coverage_data"] = cov.copy()
-    item_b["coverage_data"].update({
-        "employee_count_total": remainder_count,
-        "employee_count_not_covered": None,
-        "employee_count_covered": None,
-        "percentage": None,
-        "negated": False, # Reset negation so it's treated as a fresh unknown record
-        "negation_type": None,
-        "is_dummy_percent": False, # Eligible for new dummy rate
-        "note": (cov.get("note") or "") + " | Split Part B: Unknown remainder",
-        "is_exception_remainder": has_exceptions,
-    })
+    item_b["coverage_data"].update(
+        {
+            "employee_count_total": remainder_count,
+            "employee_count_not_covered": None,
+            "employee_count_covered": None,
+            "percentage": None,
+            "negated": False,  # Reset negation so it's treated as a fresh unknown record
+            "negation_type": None,
+            "is_dummy_percent": False,  # Eligible for new dummy rate
+            "note": (cov.get("note") or "") + " | Split Part B: Unknown remainder",
+            "is_exception_remainder": has_exceptions,
+        }
+    )
     # Ensure it's marked as a union record so Tracker picks it up
-    item_b["is_union"] = True 
+    item_b["is_union"] = True
 
     return [item_a, item_b]
 
@@ -495,6 +514,7 @@ class SimpleCoverageAnalyzer:
     - No conflicting Union vs Non-Union terms (mixed signals)
     - No Ratios
     """
+
     def _handle_qualitative_exception(
         self,
         analysis: SentenceAnalysis,
@@ -564,7 +584,7 @@ class SimpleCoverageAnalyzer:
             data["ambiguity_multiplier"] = amb_mult
 
         data["type"] = CoverageType.QUALITATIVE.value
-        
+
         val_str = f"{pct}%" if pct is not None else f"(Ambiguous x{amb_mult})"
 
         if has_status_negation:
@@ -668,10 +688,16 @@ class SimpleCoverageAnalyzer:
         # 3. Proximity to Union Term (Heuristic)
         else:
             dist_pct = get_min_distance_to_matches(
-                pct_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
+                pct_match["span"],
+                analysis._matches,
+                UNION_MATCH_TYPES,
+                text=analysis.text,
             )
             dist_count = get_min_distance_to_matches(
-                count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
+                count_match["span"],
+                analysis._matches,
+                UNION_MATCH_TYPES,
+                text=analysis.text,
             )
             # If union term is closer to Percentage -> Percentage describes coverage -> Count is Total
             if dist_pct < dist_count:
@@ -777,24 +803,24 @@ class SimpleCoverageAnalyzer:
     #             # Exception Logic: Status of Part is opposite of Total
     #             # 1. Determine status of Total (Main Clause)
     #             total_match = m1 if m1["val"] == total else m2
-                
+
     #             # Check proximity to Union terms (Positive)
     #             dist_union = get_min_distance_to_matches(
     #                 total_match["span"], analysis._matches, UNION_MATCH_TYPES
     #             )
-                
+
     #             # Check proximity to Non-Union terms (Negative)
     #             dist_non_union = get_min_distance_to_matches(
     #                 total_match["span"], analysis._matches, [MatchType.NON_UNION, MatchType.NON_COVERAGE]
     #             )
 
     #             # Default: If Total is near Union -> Part is Not Covered (Negated)
-    #             part_is_negated = True 
+    #             part_is_negated = True
 
     #             if dist_non_union < dist_union and dist_non_union < 100:
     #                 # Total is Non-Union -> Part is Covered
     #                 part_is_negated = False
-                
+
     #             apply_coverage_logic(
     #                 data,
     #                 total=total,
@@ -884,7 +910,10 @@ class SimpleCoverageAnalyzer:
             is_associated = False
             if count_match:
                 dist = get_min_distance_to_matches(
-                    count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
+                    count_match["span"],
+                    analysis._matches,
+                    UNION_MATCH_TYPES,
+                    text=analysis.text,
                 )
                 if dist < 100:
                     is_associated = True
@@ -900,13 +929,18 @@ class SimpleCoverageAnalyzer:
                     text=analysis.text,
                 )
                 dist_pos = get_min_distance_to_matches(
-                    count_match["span"], analysis._matches, UNION_MATCH_TYPES, text=analysis.text
+                    count_match["span"],
+                    analysis._matches,
+                    UNION_MATCH_TYPES,
+                    text=analysis.text,
                 )
 
                 is_exception_covered = None
 
                 if dist_neg < 50 and dist_neg < dist_pos:
-                    is_exception_covered = False  # Locally negated ("Except 500 non-union")
+                    is_exception_covered = (
+                        False  # Locally negated ("Except 500 non-union")
+                    )
                 elif dist_pos < 50:
                     is_exception_covered = True  # Locally union ("Except 500 union")
                 else:
@@ -1194,39 +1228,29 @@ class UnionExtraAnalyzer:
         risk_keywords = analysis.risk_terms + analysis.generic_risk_terms
 
         if has_explicit_risk or (has_generic_risk and has_labor_anchor):
-            risk_signal_type = "RISK_EVENT"
+            risk_signal_type = RiskSignalType.RISK_EVENT.value
         elif has_legal_requirement:
-            risk_signal_type = "LEGAL_REQUIREMENT"
+            risk_signal_type = RiskSignalType.LEGAL_REQUIREMENT.value
         elif has_boilerplate:
-            risk_signal_type = "BOILERPLATE"
+            risk_signal_type = RiskSignalType.BOILERPLATE.value
         elif has_relationship:
-            risk_signal_type = "RELATIONSHIP_CONTEXT"
+            risk_signal_type = RiskSignalType.RELATIONSHIP_CONTEXT.value
         else:
-            risk_signal_type = "OTHER_CONTEXT"
+            risk_signal_type = RiskSignalType.OTHER_CONTEXT.value
 
-        activity_class = "ACTUAL"
+        activity_class = RiskSignalType.ACTUAL.value
         if item1a_mode:
             has_quant_signal = bool(
                 analysis.percentages
                 or analysis.worker_counts
                 or analysis.bargaining_unit_counts
             )
-            has_union_activity = bool(
-                analysis.union_terms
-                or analysis.negation_terms
-            )
-            has_strong_actual = (
-                has_quant_signal
-                and (has_union_activity and not has_boilerplate and not has_legal_requirement)
-            )
-            if (
-                not has_strong_actual
-                or is_historical
-                or is_future
-                or is_conditional
-                or risk_negated
+            has_union_activity = bool(analysis.union_terms or analysis.negation_terms)
+            has_strong_actual = has_quant_signal and has_union_activity
+            if not has_strong_actual and (
+                is_historical or is_future or is_conditional or risk_negated
             ):
-                activity_class = "POTENTIAL"
+                activity_class = RiskSignalType.POTENTIAL.value
 
         return {
             "type": (
@@ -1333,16 +1357,14 @@ class RiskDigest:
             for t in item.get("works_councils", []) or []:
                 works_councils[t] = works_councils.get(t, 0) + 1
                 _register_keyword(t)
-            
+
             for t in item.get("legal_requirement_keywords", []) or []:
                 legal_requirement_term_counts[t] = (
                     legal_requirement_term_counts.get(t, 0) + 1
                 )
                 _register_keyword(t)
             for t in item.get("boilerplate_keywords", []) or []:
-                boilerplate_term_counts[t] = (
-                    boilerplate_term_counts.get(t, 0) + 1
-                )
+                boilerplate_term_counts[t] = boilerplate_term_counts.get(t, 0) + 1
                 _register_keyword(t)
 
             if item.get("conditional"):
@@ -1388,7 +1410,11 @@ class RiskDigest:
             out["coverage_totals"] = {
                 k: (v if v > 0 else None) for k, v in coverage_totals.items()
             }
-            if out["coverage_totals"].get("employee_count_covered") is None and out["coverage_totals"].get("employee_count_not_covered") is None and out["coverage_totals"].get("employee_count_total") is None:
+            if (
+                out["coverage_totals"].get("employee_count_covered") is None
+                and out["coverage_totals"].get("employee_count_not_covered") is None
+                and out["coverage_totals"].get("employee_count_total") is None
+            ):
                 out.pop("coverage_totals", None)
 
         # Drop empty sections for compactness.
@@ -1446,18 +1472,18 @@ def load_external_counts():
     try:
         df = pd.read_csv(path)
         df.columns = [c.lower() for c in df.columns]
-        
-        if {'cik', 'year', 'emp'}.issubset(df.columns):
-            df = df[['cik', 'year', 'emp']].dropna()
-            df['cik'] = pd.to_numeric(df['cik'], errors='coerce')
-            df['year'] = pd.to_numeric(df['year'], errors='coerce')
-            df['emp'] = pd.to_numeric(df['emp'], errors='coerce')
-            
+
+        if {"cik", "year", "emp"}.issubset(df.columns):
+            df = df[["cik", "year", "emp"]].dropna()
+            df["cik"] = pd.to_numeric(df["cik"], errors="coerce")
+            df["year"] = pd.to_numeric(df["year"], errors="coerce")
+            df["emp"] = pd.to_numeric(df["emp"], errors="coerce")
+
             df = df.dropna()
-            df['cik'] = df['cik'].astype(int)
-            df['year'] = df['year'].astype(int)
-            
-            EXTERNAL_COUNTS.update(df.set_index(['cik', 'year'])['emp'].to_dict()) # type: ignore
+            df["cik"] = df["cik"].astype(int)
+            df["year"] = df["year"].astype(int)
+
+            EXTERNAL_COUNTS.update(df.set_index(["cik", "year"])["emp"].to_dict())  # type: ignore
     except Exception:
         pass
 
@@ -1527,7 +1553,8 @@ def interpret_qualitative_match(
         qual_matches = [
             m
             for m in analysis._matches
-            if m["type"] in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
+            if m["type"]
+            in (MatchType.QUALITATIVE_TERM, MatchType.QUALITATIVE_MEMBERSHIP)
         ]
 
     best_pct = None
@@ -1564,7 +1591,10 @@ def interpret_qualitative_match(
 
         if term.ambiguity_multiplier is not None:
             # Prioritize the lowest multiplier found (e.g. "few" 0.2 over "some" 1.0)
-            if res["ambiguity_multiplier"] is None or term.ambiguity_multiplier < res["ambiguity_multiplier"]:
+            if (
+                res["ambiguity_multiplier"] is None
+                or term.ambiguity_multiplier < res["ambiguity_multiplier"]
+            ):
                 res["ambiguity_multiplier"] = term.ambiguity_multiplier
 
     if best_pct is None and res["ambiguity_multiplier"] is None:
@@ -1625,7 +1655,9 @@ class ComplexCoverageAnalyzer:
     """
 
     # Uses a different subset regex made for percentage cases
-    subset_regex = re.compile(r"\bof\s+(?:whom|which|these|those|them)\b", re.IGNORECASE)
+    subset_regex = re.compile(
+        r"\bof\s+(?:whom|which|these|those|them)\b", re.IGNORECASE
+    )
     subgroup_breakdown_regex = re.compile(
         r"\b(?:represented|covered|affiliated)\s+by\b", re.IGNORECASE
     )
@@ -1705,7 +1737,9 @@ class ComplexCoverageAnalyzer:
         Detect local non-coverage context using both lexical negation and
         extracted NON_UNION/NON_COVERAGE match types.
         """
-        if check_local_negation(span, self.analysis.text, backward=backward, forward=forward):
+        if check_local_negation(
+            span, self.analysis.text, backward=backward, forward=forward
+        ):
             return True
 
         dist_non_cov = get_min_distance_to_matches(
@@ -1723,12 +1757,16 @@ class ComplexCoverageAnalyzer:
         Returns True if the count match is linked to union context directly
         or through its worker list chain.
         """
+
         def _nearest_union_like(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             m_start, m_end = m["span"]
             nearest = None
             best_dist = float("inf")
             for cand in self.analysis._matches:
-                if cand["type"] not in UNION_MATCH_TYPES and cand["type"] not in NEGATIVE_COVERAGE_MATCH_TYPES:
+                if (
+                    cand["type"] not in UNION_MATCH_TYPES
+                    and cand["type"] not in NEGATIVE_COVERAGE_MATCH_TYPES
+                ):
                     continue
                 c_start, c_end = cand["span"]
                 dist = 0
@@ -1745,7 +1783,9 @@ class ComplexCoverageAnalyzer:
                 return None
             return nearest
 
-        def _has_intervening_numeric(m: Dict[str, Any], union_m: Dict[str, Any]) -> bool:
+        def _has_intervening_numeric(
+            m: Dict[str, Any], union_m: Dict[str, Any]
+        ) -> bool:
             m_start, m_end = m["span"]
             u_start, _ = union_m["span"]
             if u_start < m_end:
@@ -1759,7 +1799,10 @@ class ComplexCoverageAnalyzer:
                 c_start, c_end = cand["span"]
                 if m_end <= c_start and c_end <= u_start:
                     # Ignore same list-chain members when checking blockers.
-                    if m_list_gid is not None and cand.get("worker_list_group_id") == m_list_gid:
+                    if (
+                        m_list_gid is not None
+                        and cand.get("worker_list_group_id") == m_list_gid
+                    ):
                         continue
                     return True
             return False
@@ -1799,7 +1842,10 @@ class ComplexCoverageAnalyzer:
                 ):
                     # Validate association
                     dist = get_min_distance_to_matches(
-                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+                        matches[0]["span"],
+                        self.analysis._matches,
+                        UNION_MATCH_TYPES,
+                        text=self.analysis.text,
                     )
                     if dist > 100:
                         return False
@@ -1832,7 +1878,10 @@ class ComplexCoverageAnalyzer:
 
                     # Validate association
                     dist = get_min_distance_to_matches(
-                        matches[0]["span"], self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+                        matches[0]["span"],
+                        self.analysis._matches,
+                        UNION_MATCH_TYPES,
+                        text=self.analysis.text,
                     )
                     is_associated = dist < 100
 
@@ -1966,9 +2015,17 @@ class ComplexCoverageAnalyzer:
             assert chosen_subset is not None
             assert note_fmt is not None
 
-            if single_geo_context and baseline_total > 0 and chosen_total < baseline_total:
+            if (
+                single_geo_context
+                and baseline_total > 0
+                and chosen_total < baseline_total
+            ):
                 self.data["note"] = (
-                    (self.data.get("note") or "" + " | " if self.data.get("note") else "")
+                    (
+                        self.data.get("note") or "" + " | "
+                        if self.data.get("note")
+                        else ""
+                    )
                     + f"Ignored ratio population {chosen_total} (smaller than known {baseline_total}) in single-geo context"
                 )
                 return False
@@ -2008,7 +2065,10 @@ class ComplexCoverageAnalyzer:
                     if OF_REGEX.search(text_between) and len(text_between.strip()) < 30:
                         # Validate association
                         dist = get_min_distance_to_matches(
-                            span1, self.analysis._matches, UNION_MATCH_TYPES, text=self.analysis.text
+                            span1,
+                            self.analysis._matches,
+                            UNION_MATCH_TYPES,
+                            text=self.analysis.text,
                         )
                         if dist > 100:
                             continue
@@ -2029,7 +2089,7 @@ class ComplexCoverageAnalyzer:
         Uses numeric_group_id populated in extraction.py.
         """
         consumed_indices = set()
-        
+
         # Group matches by numeric_group_id
         groups = {}
         for m in self.analysis._matches:
@@ -2038,22 +2098,26 @@ class ComplexCoverageAnalyzer:
                 if gid not in groups:
                     groups[gid] = []
                 groups[gid].append(m)
-        
+
         # Helper to propagate link id
         def make_virtual_match(val, span, source_match):
             vm = {"val": val, "span": span}
             if source_match.get("linked_geo_group_id"):
                 vm["linked_geo_group_id"] = source_match["linked_geo_group_id"]
             return vm
-        
+
         for gid, group in groups.items():
             # Sort by position
             group.sort(key=lambda x: x["span"][0])
-            
+
             # Check composition
-            counts = [m for m in group if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)]
+            counts = [
+                m
+                for m in group
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+            ]
             percents = [m for m in group if m["type"] == MatchType.PERCENT]
-            
+
             # Find linked geo if any
             linked_geo_code = None
             linked_gid = group[0].get("linked_geo_group_id")
@@ -2063,15 +2127,15 @@ class ComplexCoverageAnalyzer:
                         if gm.geo_code:
                             linked_geo_code = gm.geo_code
                             break
-            
+
             geo_note = f" [{linked_geo_code}]" if linked_geo_code else ""
-            
+
             # Case 1: Count of Count (200 of 300)
             if len(counts) == 2 and not percents:
                 c1, c2 = counts[0]["val"], counts[1]["val"]
                 total = max(c1, c2)
                 part = min(c1, c2)
-                
+
                 # Determine negation from part
                 part_match = counts[0] if counts[0]["val"] == part else counts[1]
                 total_match = counts[0] if counts[0]["val"] == total else counts[1]
@@ -2087,44 +2151,62 @@ class ComplexCoverageAnalyzer:
                 # Guard: role/demographic subsets (e.g. "consisting of 20 pilots of 100 workers")
                 # should not be auto-interpreted as union coverage splits.
                 if not self._is_union_linked_count(part_match):
-                    self.local_assignments.append({"match": total_match, "type": "total"})
+                    self.local_assignments.append(
+                        {"match": total_match, "type": "total"}
+                    )
                     consumed_indices.update(id(m) for m in group)
                     continue
-                
+
                 is_negated = self._is_local_non_coverage_context(
                     part_match["span"], backward=30, forward=30
                 )
-                
+
                 # Queue assignments
                 self.local_assignments.append({"match": total_match, "type": "total"})
-                
+
                 if is_negated:
-                    self.local_assignments.append({"match": part_match, "type": "not_covered"})
-                    self.local_assignments.append({
-                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
-                        "type": "covered"
-                    })
+                    self.local_assignments.append(
+                        {"match": part_match, "type": "not_covered"}
+                    )
+                    self.local_assignments.append(
+                        {
+                            "match": make_virtual_match(
+                                max(0, total - part), total_match["span"], total_match
+                            ),
+                            "type": "covered",
+                        }
+                    )
                 else:
-                    self.local_assignments.append({"match": part_match, "type": "covered"})
-                    self.local_assignments.append({
-                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
-                        "type": "not_covered"
-                    })
-                
+                    self.local_assignments.append(
+                        {"match": part_match, "type": "covered"}
+                    )
+                    self.local_assignments.append(
+                        {
+                            "match": make_virtual_match(
+                                max(0, total - part), total_match["span"], total_match
+                            ),
+                            "type": "not_covered",
+                        }
+                    )
+
                 consumed_indices.update(id(m) for m in group)
-                self.data["note"] = (self.data["note"] or "") + f" | Grouped subset: {part} of {total}{geo_note}"
+                self.data["note"] = (
+                    self.data["note"] or ""
+                ) + f" | Grouped subset: {part} of {total}{geo_note}"
 
             # Case 2: Percent of Count (10% of 500)
             elif len(counts) == 1 and len(percents) == 1:
                 count_match = counts[0]
                 pct_match = percents[0]
-                
+
                 # Use _resolve_local_pair logic but for this specific group
                 # We can reuse the logic by calling it directly or replicating it.
                 # Replicating simplified version here for clarity and to ensure group usage.
-                
+
                 # Check for hard delimiters within the group (unlikely if grouped by extraction, but safe to check)
-                text_between = self.analysis.text[min(m["span"][1] for m in group) : max(m["span"][0] for m in group)]
+                text_between = self.analysis.text[
+                    min(m["span"][1] for m in group) : max(m["span"][0] for m in group)
+                ]
                 if ";" in text_between:
                     continue
 
@@ -2134,14 +2216,16 @@ class ComplexCoverageAnalyzer:
 
         return consumed_indices
 
-    def _resolve_local_patterns(self, excluded_ids: Optional[Set[int]] = None) -> Set[int]:
+    def _resolve_local_patterns(
+        self, excluded_ids: Optional[Set[int]] = None
+    ) -> Set[int]:
         """
         Scans for local arithmetic patterns (e.g. Total * Pct = Part) using a sliding window.
         Returns a set of match IDs that were consumed.
         """
         if not hasattr(self, "local_assignments"):
             self.local_assignments = []
-            
+
         consumed_indices = set(excluded_ids) if excluded_ids else set()
 
         # Gather all relevant matches sorted by position
@@ -2278,7 +2362,7 @@ class ComplexCoverageAnalyzer:
         is_negated = self._is_local_non_coverage_context(
             pct_match["span"], backward=30, forward=30
         )
-            
+
         # Helper to propagate link id
         def make_virtual_match(val, span, source_match):
             vm = {"val": val, "span": span}
@@ -2300,14 +2384,18 @@ class ComplexCoverageAnalyzer:
                 self.local_assignments.append({"match": count_match, "type": "total"})
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(not_covered_val, base_span, count_match),
+                        "match": make_virtual_match(
+                            not_covered_val, base_span, count_match
+                        ),
                         "type": "not_covered",
                     }
                 )
                 if not is_subset_clause:
                     self.local_assignments.append(
                         {
-                            "match": make_virtual_match(covered_val, base_span, count_match),
+                            "match": make_virtual_match(
+                                covered_val, base_span, count_match
+                            ),
                             "type": "covered",
                         }
                     )
@@ -2317,14 +2405,18 @@ class ComplexCoverageAnalyzer:
                 self.local_assignments.append({"match": count_match, "type": "total"})
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(covered_val, base_span, count_match),
+                        "match": make_virtual_match(
+                            covered_val, base_span, count_match
+                        ),
                         "type": "covered",
                     }
                 )
                 if not is_subset_clause:
                     self.local_assignments.append(
                         {
-                            "match": make_virtual_match(not_covered_val, base_span, count_match),
+                            "match": make_virtual_match(
+                                not_covered_val, base_span, count_match
+                            ),
                             "type": "not_covered",
                         }
                     )
@@ -2349,7 +2441,9 @@ class ComplexCoverageAnalyzer:
 
             self.local_assignments.append(
                 {
-                    "match": make_virtual_match(total_val, count_match["span"], count_match),
+                    "match": make_virtual_match(
+                        total_val, count_match["span"], count_match
+                    ),
                     "type": "total",
                 }
             )
@@ -2367,7 +2461,7 @@ class ComplexCoverageAnalyzer:
         total_val = total_match["val"]
         part_val = part_match["val"]
         pct_val = pct_match["val"]
-        
+
         def make_virtual_match(val, span, source_match):
             vm = {"val": val, "span": span}
             if source_match.get("linked_geo_group_id"):
@@ -2380,9 +2474,8 @@ class ComplexCoverageAnalyzer:
                 return source_match
 
             # Backfill from strongest nearby context in this arithmetic trio.
-            link_id = (
-                total_match.get("linked_geo_group_id")
-                or pct_match.get("linked_geo_group_id")
+            link_id = total_match.get("linked_geo_group_id") or pct_match.get(
+                "linked_geo_group_id"
             )
             if not link_id:
                 return source_match
@@ -2408,7 +2501,9 @@ class ComplexCoverageAnalyzer:
             if not is_subset_clause:
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(rem_val, total_match["span"], total_match),
+                        "match": make_virtual_match(
+                            rem_val, total_match["span"], total_match
+                        ),
                         "type": "covered",
                     }
                 )
@@ -2421,7 +2516,9 @@ class ComplexCoverageAnalyzer:
             if not is_subset_clause:
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(rem_val, total_match["span"], total_match),
+                        "match": make_virtual_match(
+                            rem_val, total_match["span"], total_match
+                        ),
                         "type": "not_covered",
                     }
                 )
@@ -2437,12 +2534,16 @@ class ComplexCoverageAnalyzer:
         """
         # Check for explicit subset relationship
         is_subset = False
-        
+
         # 1. Partitive: "20 of 100"
         if OF_REGEX.search(text_between) and not "," in text_between:
             is_subset = True
         # 2. Subset Breakdown: "100 including 20" or "100 consisting of 20"
-        elif SUBSET_REGEX.search(text_between) or CONSIST_REGEX.search(text_between) or SPLIT_ADVERBS_REGEX.search(text_between):
+        elif (
+            SUBSET_REGEX.search(text_between)
+            or CONSIST_REGEX.search(text_between)
+            or SPLIT_ADVERBS_REGEX.search(text_between)
+        ):
             is_subset = True
         # 3. Introductory Total: "Of 100, 20..." or "For 100, 20..."
         elif check_local_regex(
@@ -2458,8 +2559,12 @@ class ComplexCoverageAnalyzer:
         m1_list_gid = m1.get("worker_list_group_id")
         m2_list_gid = m2.get("worker_list_group_id")
         if m1_list_gid != m2_list_gid:
-            one_side_is_list_member = (m1_list_gid is not None) or (m2_list_gid is not None)
-            if one_side_is_list_member and not STRICT_LIST_CONNECTOR.match(text_between):
+            one_side_is_list_member = (m1_list_gid is not None) or (
+                m2_list_gid is not None
+            )
+            if one_side_is_list_member and not STRICT_LIST_CONNECTOR.match(
+                text_between
+            ):
                 return False
 
         c1, c2 = m1["val"], m2["val"]
@@ -2474,13 +2579,15 @@ class ComplexCoverageAnalyzer:
             # Just record total, ignore part as it's likely just a demographic/role subset
             total_match = m1 if m1["val"] == total else m2
             self.local_assignments.append({"match": total_match, "type": "total"})
-            self.data["note"] = (self.data["note"] or "") + f" | Local subset: {part} of {total} (subset not union-linked)"
+            self.data["note"] = (
+                self.data["note"] or ""
+            ) + f" | Local subset: {part} of {total} (subset not union-linked)"
             return True
 
         is_negated = self._is_local_non_coverage_context(
             part_match["span"], backward=30, forward=30
         )
-        
+
         def make_virtual_match(val, span, source_match):
             vm = {"val": val, "span": span}
             if source_match.get("linked_geo_group_id"):
@@ -2501,7 +2608,9 @@ class ComplexCoverageAnalyzer:
             if not is_subset_clause:
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
+                        "match": make_virtual_match(
+                            max(0, total - part), total_match["span"], total_match
+                        ),
                         "type": "covered",
                     }
                 )
@@ -2510,7 +2619,9 @@ class ComplexCoverageAnalyzer:
             if not is_subset_clause:
                 self.local_assignments.append(
                     {
-                        "match": make_virtual_match(max(0, total - part), total_match["span"], total_match),
+                        "match": make_virtual_match(
+                            max(0, total - part), total_match["span"], total_match
+                        ),
                         "type": "not_covered",
                     }
                 )
@@ -2609,8 +2720,7 @@ class ComplexCoverageAnalyzer:
         negatives = [
             m
             for m in self.analysis._matches
-            if m["type"]
-            in NEGATIVE_COVERAGE_MATCH_TYPES
+            if m["type"] in NEGATIVE_COVERAGE_MATCH_TYPES
         ]
         totals = [
             m
@@ -2712,7 +2822,9 @@ class ComplexCoverageAnalyzer:
                     return start, end
             return 0, len(self.analysis.text)
 
-        def _is_total_anchor_for_count(count_match: Dict[str, Any], total_match: Dict[str, Any]) -> bool:
+        def _is_total_anchor_for_count(
+            count_match: Dict[str, Any], total_match: Dict[str, Any]
+        ) -> bool:
             # Explicit total modifiers remain valid total anchors.
             if total_match["type"] == MatchType.TOTAL_MODIFIER:
                 return True
@@ -3006,28 +3118,33 @@ class ComplexCoverageAnalyzer:
 
         total_candidates = []
         # Guardrail: a "total" should be strictly larger than the rest of local numeric assignments.
-        assignment_values = [item.get("override_val", item["match"]["val"]) for item in count_assignments]
+        assignment_values = [
+            item.get("override_val", item["match"]["val"]) for item in count_assignments
+        ]
 
         subset_matches = [
             m for m in self.analysis._matches if m.get("type") == MatchType.SUBSET
         ]
 
         def _is_subset_child_of_assigned_parent(
-            item: Dict[str, Any], assigned_parent_values: List[float], assignment_type: str
+            item: Dict[str, Any],
+            assigned_parent_values: List[float],
+            assignment_type: str,
         ) -> bool:
-            if (
-                not self.analysis.has_subset_indicator
-                or not subset_matches
-            ):
+            if not self.analysis.has_subset_indicator or not subset_matches:
                 return False
 
             c_start, _ = item["match"]["span"]
             c_val = item.get("override_val", item["match"]["val"])
             c_span = item["match"]["span"]
 
-            parenthetical_spans = list(getattr(self.analysis, "parenthetical_spans", []) or [])
+            parenthetical_spans = list(
+                getattr(self.analysis, "parenthetical_spans", []) or []
+            )
 
-            def _enclosing_parenthetical(span: Tuple[int, int]) -> Optional[Tuple[int, int]]:
+            def _enclosing_parenthetical(
+                span: Tuple[int, int],
+            ) -> Optional[Tuple[int, int]]:
                 for p_start, p_end in parenthetical_spans:
                     if p_start <= span[0] and span[1] <= p_end:
                         return (p_start, p_end)
@@ -3219,8 +3336,7 @@ class ComplexCoverageAnalyzer:
             and self.data["employee_count_not_covered"] is None
             and len(assigned_covered_items) >= 1
             and (
-                len(assigned_covered_items) >= 2
-                or bool(skipped_subset_covered_values)
+                len(assigned_covered_items) >= 2 or bool(skipped_subset_covered_values)
             )
         ):
             covered_sorted = sorted(
@@ -3231,9 +3347,7 @@ class ComplexCoverageAnalyzer:
             max_val = max(
                 x.get("override_val", x["match"]["val"]) for x in covered_sorted
             )
-            other_cov_sum = (
-                (self.data["employee_count_covered"] or 0.0) - first_val
-            )
+            other_cov_sum = (self.data["employee_count_covered"] or 0.0) - first_val
             if other_cov_sum <= 0 and skipped_subset_covered_values:
                 other_cov_sum = max(skipped_subset_covered_values)
 
@@ -3574,7 +3688,8 @@ def determine_geo_context(
             if (
                 m.geo_code
                 and not m.geo_code.startswith(GeoCode.INT_LANG.value)
-                and m.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
+                and m.geo_code
+                not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
             ):
                 strong_codes.add(m.geo_code)
         has_other_specific_codes = bool(
@@ -3713,8 +3828,12 @@ def determine_geo_context(
         if union_matches and countries:
             for c in countries:
                 c_code = c["code"]
-                check_code = domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
-                
+                check_code = (
+                    domestic_country_code
+                    if c_code == GeoCode.DOMESTIC.value
+                    else c_code
+                )
+
                 specifics = []
                 for um in union_matches:
                     if um.geo_code == check_code:
@@ -3786,13 +3905,15 @@ def determine_geo_context(
                     )
 
             # If union is generic (INT/GLO), check if we should inherit specific context instead
-            if m.geo_code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value] and last_context:
+            if (
+                m.geo_code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
+                and last_context
+            ):
                 last_region = last_context.get("region")
                 last_countries = last_context.get("countries", [])
 
                 is_specific_prev = last_region not in IGNORED_REGIONS or (
-                    last_countries
-                    and last_countries[0]["code"] not in IGNORED_REGIONS
+                    last_countries and last_countries[0]["code"] not in IGNORED_REGIONS
                 )
 
                 if is_specific_prev:
@@ -3874,12 +3995,18 @@ def determine_geo_context(
         ctx.pop("explicit_countries", None)
 
         # Apply exclusions from current sentence to inherited context
-        excluded_codes = {m.geo_code for m in explicit_matches if m.is_excluded and m.geo_code}
+        excluded_codes = {
+            m.geo_code for m in explicit_matches if m.is_excluded and m.geo_code
+        }
         if excluded_codes:
             if "countries" in ctx:
-                ctx["countries"] = [c for c in ctx["countries"] if c["code"] not in excluded_codes]
+                ctx["countries"] = [
+                    c for c in ctx["countries"] if c["code"] not in excluded_codes
+                ]
             if "regions" in ctx:
-                ctx["regions"] = [r for r in ctx["regions"] if r["code"] not in excluded_codes]
+                ctx["regions"] = [
+                    r for r in ctx["regions"] if r["code"] not in excluded_codes
+                ]
 
         return ctx
 
@@ -4020,11 +4147,19 @@ class Entry:
 
     # Hash
     def __hash__(self):
-        key = "--".join([
-            str(self.sent_idx), self.key or "", self.scope.value, str(self.is_union_record), 
-            str(self.is_qualitative), str(self.covered_count), str(self.total_count), str(self.not_covered_count),
-            str(self.percentage)
-        ])
+        key = "--".join(
+            [
+                str(self.sent_idx),
+                self.key or "",
+                self.scope.value,
+                str(self.is_union_record),
+                str(self.is_qualitative),
+                str(self.covered_count),
+                str(self.total_count),
+                str(self.not_covered_count),
+                str(self.percentage),
+            ]
+        )
         return hash(key)
 
 
@@ -4035,7 +4170,9 @@ class BargainingEntry:
     scope: Scope
     sent_idx: int
     related_geo_codes: List[str] = field(default_factory=list)
-    bargaining_unit_count_source: str = CountSourceDetail.EXPLICIT_BARGAINING_UNIT_COUNT.value
+    bargaining_unit_count_source: str = (
+        CountSourceDetail.EXPLICIT_BARGAINING_UNIT_COUNT.value
+    )
     bargaining_unit_count_source_type: str = SourceType.EXPLICIT.value
 
 
@@ -4082,9 +4219,7 @@ class Tracker:
             if field_name.endswith("_source"):
                 type_field = f"{field_name}_type"
                 if hasattr(entry, type_field):
-                    setattr(
-                        entry, type_field, Tracker._source_type_from_detail(source)
-                    )
+                    setattr(entry, type_field, Tracker._source_type_from_detail(source))
 
     @staticmethod
     def _add_source_note(entry: Entry, note: Optional[str]):
@@ -4099,7 +4234,9 @@ class Tracker:
         Derive count provenance from percentage provenance.
         """
         if denominator_is_fallback:
-            return CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value
+            return (
+                CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_FALLBACK_DENOMINATOR.value
+            )
 
         p_src_type = entry.percentage_source_type
         if p_src_type is None and entry.percentage_source:
@@ -4305,15 +4442,15 @@ class Tracker:
             return self._region_to_pseudo_country_code(region_name)
         return key.split("::")[0]
 
-    def _segment_matches_country(self, seg_key: Optional[str], country_code: str) -> bool:
+    def _segment_matches_country(
+        self, seg_key: Optional[str], country_code: str
+    ) -> bool:
         if not country_code:
             return False
         anchor = self._segment_anchor_code(seg_key)
         return bool(anchor and anchor == country_code)
 
-    def _scope_bucket_for_denominator(
-        self, entry: Entry
-    ) -> Optional[Tuple[str, str]]:
+    def _scope_bucket_for_denominator(self, entry: Entry) -> Optional[Tuple[str, str]]:
         """
         Normalize an entry to a denominator-dedup bucket:
         - Segments roll up to their anchor country
@@ -4380,7 +4517,9 @@ class Tracker:
                 return int(e.scope == Scope.REGION and key == scope_key)
             if scope_type == Scope.GLOBAL.value:
                 key = str(e.key) if e.key is not None else ""
-                return int(e.scope == Scope.GLOBAL or key in GLOBAL_SET or key in INT_SET)
+                return int(
+                    e.scope == Scope.GLOBAL or key in GLOBAL_SET or key in INT_SET
+                )
             return 0
 
         def _source_priority(e: Entry) -> int:
@@ -4455,7 +4594,9 @@ class Tracker:
                     e
                     for e in entries
                     if e.total_count is not None
-                    and self._matches_census(e.total_count, expected_total, threshold=tol)
+                    and self._matches_census(
+                        e.total_count, expected_total, threshold=tol
+                    )
                 ]
                 if len(expected_matches) > 1:
                     keeper = self._pick_denominator_keeper(expected_matches, bucket)
@@ -4469,7 +4610,9 @@ class Tracker:
                             basis_total=expected_total,
                         )
 
-            active = [e for e in entries if e.total_count is not None and e.total_count > 0]
+            active = [
+                e for e in entries if e.total_count is not None and e.total_count > 0
+            ]
             if len(active) < 2:
                 continue
 
@@ -4497,7 +4640,11 @@ class Tracker:
                     continue
 
                 keeper = self._pick_denominator_keeper(cluster, bucket)
-                basis = keeper.total_count if keeper.total_count is not None else (base.total_count or 0.0)
+                basis = (
+                    keeper.total_count
+                    if keeper.total_count is not None
+                    else (base.total_count or 0.0)
+                )
                 for dup in cluster:
                     if dup is keeper:
                         continue
@@ -4620,7 +4767,7 @@ class Tracker:
                             r_total,
                             [{"key": code}],
                             domestic_country=self.domestic_country_code,
-                            excluded_keys={code}
+                            excluded_keys={code},
                         )
                         allocated = dist.get(code, 0.0)
                         if allocated > c_total:
@@ -4778,7 +4925,9 @@ class Tracker:
                 else:
                     self.country_sentence_keywords[code].add((sentence_index, kw))
 
-                self.country_keywords[code][kw] = self.country_keywords[code].get(kw, 0) + 1
+                self.country_keywords[code][kw] = (
+                    self.country_keywords[code].get(kw, 0) + 1
+                )
 
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
@@ -4846,8 +4995,12 @@ class Tracker:
             )
             for c in countries:
                 c_code = c["code"]
-                real_code = self.domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
-                
+                real_code = (
+                    self.domestic_country_code
+                    if c_code == GeoCode.DOMESTIC.value
+                    else c_code
+                )
+
                 u_names = union_names_map.get(c_code)
                 if u_names:
                     key_suffix = " | ".join(u_names)
@@ -4856,7 +5009,7 @@ class Tracker:
                 else:
                     key = f"{real_code}::Segment_{len(self.entries)}"
                     scope = Scope.SEGMENT
-                
+
                 # For split entries, we only propagate percentage if it applies to the group.
                 # Counts are set to None to avoid double-counting the aggregate total,
                 # unless we implement weighted division here (which is handled elsewhere).
@@ -4933,7 +5086,9 @@ class Tracker:
         # Example: "immaterial" -> inferred 1% then derived counts from a total.
         if covered_count is not None:
             if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
-                covered_source = CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+                covered_source = (
+                    CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+                )
             else:
                 covered_source = CountSourceDetail.EXPLICIT_COVERED_COUNT.value
         else:
@@ -4941,7 +5096,9 @@ class Tracker:
 
         if not_covered_count is not None:
             if coverage_type == CoverageType.QUALITATIVE.value or is_qualitative:
-                not_covered_source = CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+                not_covered_source = (
+                    CountSourceDetail.INFERRED_FROM_INFERRED_PERCENTAGE.value
+                )
             else:
                 not_covered_source = CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value
         else:
@@ -5020,11 +5177,7 @@ class Tracker:
         elif region in UNK_SET:
             if len(countries) == 1:
                 c_code = countries[0].get("code")
-                key = (
-                    self.domestic_country_code
-                    if c_code in DOMESTIC_SET
-                    else c_code
-                )
+                key = self.domestic_country_code if c_code in DOMESTIC_SET else c_code
                 scope = Scope.COUNTRY
             elif len(countries) > 1:
                 key = Scope.GLOBAL.value
@@ -5062,7 +5215,7 @@ class Tracker:
                 code = self.domestic_country_code
             if code not in normalized_related_codes:
                 normalized_related_codes.append(code)
-        
+
         assert isinstance(key, str)
         dedupe_key = (sentence_index, key, float(bargaining_unit_count))
         if dedupe_key in self._seen_bargaining_records:
@@ -5118,6 +5271,7 @@ class Tracker:
         """
         Generic overlap resolution for a list of entries.
         """
+
         def detect_breakdown(attr: str, flag_attr: str):
             # Only consider entries with a known value for the attribute
             candidates = [e for e in entries if getattr(e, attr) is not None]
@@ -5155,7 +5309,9 @@ class Tracker:
                         [parent] + group, base_threshold=0.05
                     )
 
-                    if self._matches_census(parent_val, current_sum, threshold=tolerance):
+                    if self._matches_census(
+                        parent_val, current_sum, threshold=tolerance
+                    ):
                         setattr(parent, flag_attr, True)
                         self.resolution_log.append(
                             f"Breakdown Detected {name} ({attr}): {parent_val} (sent {parent.sent_idx}) matches sum of {len(group)} items."
@@ -5619,14 +5775,17 @@ class Tracker:
                                             (pct / 100.0) * t.total_count
                                         )
                                         denom_is_fallback = (
-                                            t.total_count_source_type == SourceType.FALLBACK.value
-                                            or t.denominator_source_type == SourceType.FALLBACK.value
+                                            t.total_count_source_type
+                                            == SourceType.FALLBACK.value
+                                            or t.denominator_source_type
+                                            == SourceType.FALLBACK.value
                                         )
                                         self._mark_source(
                                             t,
                                             "covered_count_source",
                                             self._derive_count_source_from_percentage(
-                                                t, denominator_is_fallback=denom_is_fallback
+                                                t,
+                                                denominator_is_fallback=denom_is_fallback,
                                             ),
                                         )
                                         if t.denominator_source is None:
@@ -5759,7 +5918,10 @@ class Tracker:
             "not_covered": agg_not_covered,
             "total": agg_total,
         }
-    def _is_contained(self, container_key: Optional[str] = None, item_key: Optional[str] = None):
+
+    def _is_contained(
+        self, container_key: Optional[str] = None, item_key: Optional[str] = None
+    ):
         return is_contained(container_key, item_key, self.domestic_country_code)
 
     def _resolve_geographic_gaps(
@@ -5872,7 +6034,11 @@ class Tracker:
 
         for e in self.entries:
             key = str(e.key) if e.key is not None else ""
-            base = self._segment_anchor_code(key) if e.scope == Scope.SEGMENT else (key.split("::")[0] if key else "")
+            base = (
+                self._segment_anchor_code(key)
+                if e.scope == Scope.SEGMENT
+                else (key.split("::")[0] if key else "")
+            )
 
             if not base:
                 continue
@@ -5903,7 +6069,9 @@ class Tracker:
                     continue
 
                 # Canonical region fallback (for plain region names like Europe).
-                if _CODE_TO_REGION.get(base) == container and not self._is_container_geo_key(base):
+                if _CODE_TO_REGION.get(
+                    base
+                ) == container and not self._is_container_geo_key(base):
                     add_entry(e)
 
         if is_international_agg:
@@ -5968,9 +6136,17 @@ class Tracker:
         # If Domestic Country belongs to this region, inject it
         if self.domestic_country_code:
             dom_region = _CODE_TO_REGION.get(self.domestic_country_code)
-            if dom_region and dom_region == region_name and self.domestic_country_code not in existing_keys:
+            if (
+                dom_region
+                and dom_region == region_name
+                and self.domestic_country_code not in existing_keys
+            ):
                 self.entries.append(
-                    Entry(scope=Scope.COUNTRY, key=self.domestic_country_code, is_explicit=False)
+                    Entry(
+                        scope=Scope.COUNTRY,
+                        key=self.domestic_country_code,
+                        is_explicit=False,
+                    )
                 )
                 self.resolution_log.append(
                     f"Injected placeholder for domestic {self.domestic_country_code} in {region_name}"
@@ -6136,7 +6312,10 @@ class Tracker:
             e
             for e in self.entries
             if (e.scope == Scope.COUNTRY and e.key == country_code)
-            or (e.scope == Scope.SEGMENT and self._segment_matches_country(e.key, country_code))
+            or (
+                e.scope == Scope.SEGMENT
+                and self._segment_matches_country(e.key, country_code)
+            )
         ]
 
         self._drop_redundant_entries(relevant_entries)
@@ -6342,7 +6521,10 @@ class Tracker:
         # Composite container: use its explicit constituents.
         if region_key in COMPOSITE_REGION_MAP:
             constituents = set(get_composite_constituents(region_key))
-            if any(c in self.country_totals and self.country_totals[c] > 0 for c in constituents):
+            if any(
+                c in self.country_totals and self.country_totals[c] > 0
+                for c in constituents
+            ):
                 return True
             for e in self.entries:
                 if e.scope == Scope.SEGMENT:
@@ -6554,15 +6736,13 @@ class Tracker:
             if c and (len(c) == 2 or c == target_country)
         }
         other_countries = valid_countries - {target_country}
-        
+
         has_union_records = any(e.is_union_record for e in self.entries)
         has_non_domestic_mentions = any(
             c and len(c) == 2 and c != target_country for c in self.mentioned_countries
         )
         implicit_domestic_union_context = (
-            not valid_countries
-            and has_union_records
-            and not has_non_domestic_mentions
+            not valid_countries and has_union_records and not has_non_domestic_mentions
         )
         single_country_context = (
             len(valid_countries) == 1 and target_country in valid_countries
@@ -6584,9 +6764,7 @@ class Tracker:
             if e.key in DOMESTIC_SET:
                 e.key = target_country
                 e.scope = Scope.COUNTRY
-                self.resolution_log.append(
-                    f"Resolved 'Domestic' to '{target_country}'"
-                )
+                self.resolution_log.append(f"Resolved 'Domestic' to '{target_country}'")
             elif e.key in UNK_SET:
                 # Unknown scope defaults to domestic only in single-country context.
                 # Otherwise route it to Global.
@@ -6821,7 +6999,9 @@ class Tracker:
             ):
                 continue
 
-            base_key = str(c_entry.key).split("::")[0] if c_entry.key is not None else ""
+            base_key = (
+                str(c_entry.key).split("::")[0] if c_entry.key is not None else ""
+            )
             if not base_key:
                 continue
 
@@ -6899,7 +7079,11 @@ class Tracker:
                         f"Skipped dummy for {e.key}: concrete count data exists for country {scoped_country}."
                     )
                     continue
-                if e.scope == Scope.REGION and scoped_region and scoped_region in concrete_region_keys:
+                if (
+                    e.scope == Scope.REGION
+                    and scoped_region
+                    and scoped_region in concrete_region_keys
+                ):
                     self.resolution_log.append(
                         f"Skipped dummy for {e.key}: concrete count data exists in region {scoped_region}."
                     )
@@ -6968,7 +7152,8 @@ class Tracker:
                                 PercentageSourceDetail.DUMMY_INFERRED_REGION_WEIGHTED.value,
                             )
                             self._add_source_note(
-                                e, "Inferred from weighted sum of boosted constituent rates."
+                                e,
+                                "Inferred from weighted sum of boosted constituent rates.",
                             )
                             self.resolution_log.append(
                                 f"Applied inferred rate {e.percentage}% to {e.key} (Aggregated from boosted constituents)"
@@ -7029,9 +7214,7 @@ class Tracker:
                         and s.sent_idx != -1
                     ):
                         has_zero = (
-                            s.is_negated
-                            or s.percentage == 0
-                            or s.covered_count == 0
+                            s.is_negated or s.percentage == 0 or s.covered_count == 0
                         )
                         if has_zero:
                             has_zero_segment = True
@@ -7079,7 +7262,9 @@ class Tracker:
         has_breakdown = (
             any(v > 0 for v in self.region_totals.values())
             or any(v > 0 for v in self.country_totals.values())
-            or any(e.total_count is not None and e.total_count > 0 for e in self.entries)
+            or any(
+                e.total_count is not None and e.total_count > 0 for e in self.entries
+            )
         )
 
         if has_breakdown:
@@ -7091,7 +7276,7 @@ class Tracker:
         if self.global_total <= 0 and not has_unions:
             return
 
-        calculate_virtual = (self.global_total <= 0)
+        calculate_virtual = self.global_total <= 0
         if calculate_virtual:
             self.is_using_virtual = True
 
@@ -7169,12 +7354,16 @@ class Tracker:
                             # Collision found. Prefer canonical name.
                             if r != r_canonical and other == r_canonical:
                                 to_remove.add(r)
-                                self.resolution_log.append(f"Virtual Pool: Removed alias '{r}' in favor of canonical '{other}'.")
+                                self.resolution_log.append(
+                                    f"Virtual Pool: Removed alias '{r}' in favor of canonical '{other}'."
+                                )
                                 break
                             elif r != r_canonical and other != r_canonical:
-                                if r > other: 
+                                if r > other:
                                     to_remove.add(r)
-                                    self.resolution_log.append(f"Virtual Pool: Removed alias '{r}' in favor of '{other}'.")
+                                    self.resolution_log.append(
+                                        f"Virtual Pool: Removed alias '{r}' in favor of '{other}'."
+                                    )
                                     break
 
                 if r in to_remove:
@@ -7186,7 +7375,10 @@ class Tracker:
                         if other == r or other in to_remove:
                             continue
 
-                        if not is_region(other) and entity_regions.get(other) == r_canonical:
+                        if (
+                            not is_region(other)
+                            and entity_regions.get(other) == r_canonical
+                        ):
                             to_remove.add(r)
                             self.resolution_log.append(
                                 f"Virtual Pool: Removed generic '{r}' in favor of specific countries."
@@ -7241,7 +7433,9 @@ class Tracker:
             log_msg += f" Details: {', '.join(log_details)}"
             self.resolution_log.append(log_msg)
         else:
-            self.resolution_log.append(f"Using existing Global Total ({self.global_total}) for virtual distribution.")
+            self.resolution_log.append(
+                f"Using existing Global Total ({self.global_total}) for virtual distribution."
+            )
 
         # Distribute to populate country/region totals for fallback
         # This distributes self.global_total (whether calculated or external)
@@ -7591,9 +7785,10 @@ class Tracker:
 
                             # Subtract known siblings to avoid using exhausted pool
                             siblings_sum = sum(
-                                c_total 
-                                for c_code, c_total in self.country_totals.items() 
-                                if c_code != scope_key and _CODE_TO_REGION.get(c_code) == r_name
+                                c_total
+                                for c_code, c_total in self.country_totals.items()
+                                if c_code != scope_key
+                                and _CODE_TO_REGION.get(c_code) == r_name
                             )
                             base_pop = max(0.0, base_pop - siblings_sum)
 
@@ -7691,7 +7886,11 @@ class Tracker:
                         if has_c_scope:
                             consumed_pop += c_total
                         else:
-                            consumed_pop += sum(e.total_count for e in entries if e.total_count is not None)
+                            consumed_pop += sum(
+                                e.total_count
+                                for e in entries
+                                if e.total_count is not None
+                            )
 
                 elif scope_type == Scope.GLOBAL.value:
                     region_entries = {}
@@ -7733,7 +7932,11 @@ class Tracker:
                                 c_code = None
                                 if e.scope == Scope.COUNTRY:
                                     c_code = e.key
-                                elif e.scope == Scope.SEGMENT and e.key and "::" in str(e.key):
+                                elif (
+                                    e.scope == Scope.SEGMENT
+                                    and e.key
+                                    and "::" in str(e.key)
+                                ):
                                     c_code = e.key.split("::")[0]
 
                                 if c_code:
@@ -7745,7 +7948,10 @@ class Tracker:
                                 c_total = 0.0
                                 has_c_scope = False
                                 for e in c_list:
-                                    if e.scope == Scope.COUNTRY and e.total_count is not None:
+                                    if (
+                                        e.scope == Scope.COUNTRY
+                                        and e.total_count is not None
+                                    ):
                                         if e.total_count > c_total:
                                             c_total = e.total_count
                                         has_c_scope = True
@@ -7753,7 +7959,11 @@ class Tracker:
                                 if has_c_scope:
                                     consumed_pop += c_total
                                 else:
-                                    consumed_pop += sum(e.total_count for e in c_list if e.total_count is not None)
+                                    consumed_pop += sum(
+                                        e.total_count
+                                        for e in c_list
+                                        if e.total_count is not None
+                                    )
 
                 # Determine available population
                 available_pop = estimated_pop - consumed_pop
@@ -7794,20 +8004,38 @@ class Tracker:
                 for e in group:
                     assert isinstance(e, Entry)
                     e.total_count = small_denom
-                    e.covered_count = round(((e.percentage or 0)/ 100.0) * small_denom)
+                    e.covered_count = round(((e.percentage or 0) / 100.0) * small_denom)
                     if scope_type == Scope.COUNTRY.value:
-                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                        denom_source = (
+                            TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                        )
                     elif scope_type == Scope.REGION.value:
-                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                        denom_source = (
+                            TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                        )
                     else:
-                        denom_source = TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        denom_source = (
+                            TotalSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        )
                     self._mark_source(e, "total_count_source", denom_source)
-                    if denom_source == TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value:
-                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
-                    elif denom_source == TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value:
-                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                    if (
+                        denom_source
+                        == TotalSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                    ):
+                        den_detail = (
+                            DenominatorSourceDetail.FALLBACK_DENOMINATOR_COUNTRY.value
+                        )
+                    elif (
+                        denom_source
+                        == TotalSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                    ):
+                        den_detail = (
+                            DenominatorSourceDetail.FALLBACK_DENOMINATOR_REGION.value
+                        )
                     else:
-                        den_detail = DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        den_detail = (
+                            DenominatorSourceDetail.FALLBACK_DENOMINATOR_GLOBAL.value
+                        )
                     self._mark_source(e, "denominator_source", den_detail)
                     self._mark_source(
                         e,
@@ -7832,9 +8060,13 @@ class Tracker:
 
                     details = []
                     if abs(total_allocated - base_pop) > 1.0:
-                        details.append(f"Scaled from {base_pop} {geo_name} [{pool_source}] by weight {target_weight:.4f}/{source_weight:.4f}")
+                        details.append(
+                            f"Scaled from {base_pop} {geo_name} [{pool_source}] by weight {target_weight:.4f}/{source_weight:.4f}"
+                        )
                     else:
-                        details.append(f"Base {base_pop} from {geo_name} [{pool_source}]")
+                        details.append(
+                            f"Base {base_pop} from {geo_name} [{pool_source}]"
+                        )
 
                     if consumed_pop > 0:
                         details.append(f"Consumed {consumed_pop}")
@@ -7844,7 +8076,9 @@ class Tracker:
 
                     self.resolution_log.append(log_msg)
             elif prevent_global_fallback:
-                self.resolution_log.append(f"Skipped fallback for {scope_key}: {pool_source}")
+                self.resolution_log.append(
+                    f"Skipped fallback for {scope_key}: {pool_source}"
+                )
 
         # Explicit percentage-only entries:
         # apply combined explicit pct once to the scope's remaining fallback pool
@@ -7875,7 +8109,8 @@ class Tracker:
                             siblings_sum = sum(
                                 float(c_total or 0.0)
                                 for c_code, c_total in self.country_totals.items()
-                                if c_code != scope_key and _CODE_TO_REGION.get(c_code) == r_name
+                                if c_code != scope_key
+                                and _CODE_TO_REGION.get(c_code) == r_name
                             )
                             rem = max(0.0, region_total - siblings_sum)
                             base_pop = rem if rem > 0 else region_total
@@ -7886,7 +8121,9 @@ class Tracker:
                     pool_source = "Global Fallback"
             elif scope_type == Scope.REGION.value:
                 base_pop = float(self.region_totals.get(scope_key, 0.0) or 0.0)
-                pool_source = f"Region ({scope_key})" if base_pop > 0 else "Global Fallback"
+                pool_source = (
+                    f"Region ({scope_key})" if base_pop > 0 else "Global Fallback"
+                )
                 if base_pop <= 0:
                     base_pop = float(self.global_total or 0.0)
             else:
@@ -7922,8 +8159,12 @@ class Tracker:
             denom = max(1.0, round(remaining_pop))
             covered = round((combined_pct / 100.0) * denom)
 
-            agg_scope = Scope.COUNTRY if scope_type == Scope.COUNTRY.value else (
-                Scope.REGION if scope_type == Scope.REGION.value else Scope.GLOBAL
+            agg_scope = (
+                Scope.COUNTRY
+                if scope_type == Scope.COUNTRY.value
+                else (
+                    Scope.REGION if scope_type == Scope.REGION.value else Scope.GLOBAL
+                )
             )
             agg_key = str(scope_key) if scope_key is not None else Scope.GLOBAL.value
 
@@ -8007,9 +8248,9 @@ class Tracker:
                 if _CODE_TO_REGION.get(c_code) == region_name
             )
             if c_sum > r_total * 1.05:
-                    self.resolution_log.append(
-                        f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})"
-                    )
+                self.resolution_log.append(
+                    f"Contradiction (Hierarchy): Sum of countries in {region_name} ({c_sum}) exceeds region total ({r_total})"
+                )
 
     def _dedupe_country_entries(self, entries: List[Entry]) -> List[Entry]:
         """
@@ -8192,7 +8433,9 @@ class Tracker:
                         e2key = e2.key.split("::")[0]
                         e1key = e1.key.split("::")[0]
                         # Do not double count composites
-                        if e2key in COMPOSITE_COUNTRIES and e1key in set(get_composite_constituents(e2key)):
+                        if e2key in COMPOSITE_COUNTRIES and e1key in set(
+                            get_composite_constituents(e2key)
+                        ):
                             entries_to_skip.add(e2)
                         # Remove the region if composite is present
                         if e1key in COMPOSITE_COUNTRIES and e2key in REGION_CODES:
@@ -8202,7 +8445,9 @@ class Tracker:
                         break
             for c in c_entries:
                 if c in entries_to_skip:
-                    log(f"        ⊘ Skipping {c.key} (Contained in {next(e.key for e in c_entries if self._is_contained(e.key, c.key))})")
+                    log(
+                        f"        ⊘ Skipping {c.key} (Contained in {next(e.key for e in c_entries if self._is_contained(e.key, c.key))})"
+                    )
                     continue
 
                 log(f"        Processing country: {c.key}")
@@ -8257,9 +8502,7 @@ class Tracker:
                     log(f"            Found {len(segs)} segments")
                     if segs:
                         seg_cov = sum(
-                            s.covered_count
-                            for s in segs
-                            if s.covered_count is not None
+                            s.covered_count for s in segs if s.covered_count is not None
                         )
                         seg_tot = (
                             c.total_count
@@ -8392,7 +8635,9 @@ class Tracker:
             if not has_data and region_pure_pcts:
                 combined_pct, combine_mode = combine_pure_percentages(region_pure_pcts)
                 if combined_pct is not None:
-                    metrics["derived_regional_coverage"][r_name] = round(combined_pct, 2)
+                    metrics["derived_regional_coverage"][r_name] = round(
+                        combined_pct, 2
+                    )
                     if combine_mode == "largest_matches_sum_smaller":
                         log(
                             f"    ✓ Derived region {r_name} percentage using largest roll-up percent: {combined_pct:.2f}% (largest≈sum(smaller))"
@@ -8772,7 +9017,9 @@ class Tracker:
                 "n": 0,
             }
 
-        def add_nullable(acc: Optional[float], value: Optional[float]) -> Optional[float]:
+        def add_nullable(
+            acc: Optional[float], value: Optional[float]
+        ) -> Optional[float]:
             if value is None:
                 return acc
             if acc is None:
@@ -8898,22 +9145,16 @@ class Tracker:
         for e in self.entries:
             if e.scope == Scope.COUNTRY and isinstance(e.key, str):
                 if (
-                    (e.key not in REGION_CODES and e.key not in IGNORED_REGIONS)
-                    or e.key in promoted_region_codes
-                ):
+                    e.key not in REGION_CODES and e.key not in IGNORED_REGIONS
+                ) or e.key in promoted_region_codes:
                     explicit_country_codes.add(e.key)
-            elif (
-                e.scope == Scope.SEGMENT
-                and isinstance(e.key, str)
-                and "::" in e.key
-            ):
+            elif e.scope == Scope.SEGMENT and isinstance(e.key, str) and "::" in e.key:
                 c_code = self._segment_anchor_code(e.key)
                 if not c_code:
                     continue
                 if (
-                    (c_code not in REGION_CODES and c_code not in IGNORED_REGIONS)
-                    or c_code in promoted_region_codes
-                ):
+                    c_code not in REGION_CODES and c_code not in IGNORED_REGIONS
+                ) or c_code in promoted_region_codes:
                     explicit_country_codes.add(c_code)
 
         def has_region_children(region_name: str) -> bool:
@@ -8952,9 +9193,8 @@ class Tracker:
         # Precompute weighted allocations from aggregate parents for country-level
         # method breakdown seeding/reclassification.
         for e in self.entries:
-            is_aggregate_parent = (
-                e.scope == Scope.AGGREGATE
-                or (e.scope == Scope.REGION and e.key in AGG_SET)
+            is_aggregate_parent = e.scope == Scope.AGGREGATE or (
+                e.scope == Scope.REGION and e.key in AGG_SET
             )
             if not is_aggregate_parent or not e.related_geo_codes:
                 continue
@@ -9002,15 +9242,9 @@ class Tracker:
                 c_total = alloc_total.get(c)
                 c_cov = alloc_covered.get(c)
                 c_not = alloc_not_covered.get(c)
-                bucket["tot"] = add_nullable(
-                    bucket["tot"], c_total
-                )
-                bucket["cov"] = add_nullable(
-                    bucket["cov"], c_cov
-                )
-                bucket["not_cov"] = add_nullable(
-                    bucket["not_cov"], c_not
-                )
+                bucket["tot"] = add_nullable(bucket["tot"], c_total)
+                bucket["cov"] = add_nullable(bucket["cov"], c_cov)
+                bucket["not_cov"] = add_nullable(bucket["not_cov"], c_not)
                 if c_total is not None and c_cov is not None and c_total > 0:
                     bucket["pct_vals"].append(
                         round((float(c_cov) / float(c_total)) * 100.0, 2)
@@ -9024,8 +9258,13 @@ class Tracker:
             is_pseudo_region = code in pseudo_region_by_code
             is_promoted_pseudo_region = code in promoted_region_codes
             if (
-                (code in REGION_CODES and not is_pseudo_region and not is_promoted_pseudo_region)
-                or (code in IGNORED_REGIONS and not is_pseudo_region and not is_promoted_pseudo_region)
+                code in REGION_CODES
+                and not is_pseudo_region
+                and not is_promoted_pseudo_region
+            ) or (
+                code in IGNORED_REGIONS
+                and not is_pseudo_region
+                and not is_promoted_pseudo_region
             ):
                 continue
 
@@ -9144,21 +9383,34 @@ class Tracker:
 
                 if covered_val is None and segment_entries:
                     seg_cov = sum(
-                        s.covered_count for s in segment_entries if s.covered_count is not None
+                        s.covered_count
+                        for s in segment_entries
+                        if s.covered_count is not None
                     )
                     covered_val = float(seg_cov) if seg_cov > 0 else None
                 if not_covered_val is None and segment_entries:
                     seg_not = sum(
-                        s.not_covered_count for s in segment_entries if s.not_covered_count is not None
+                        s.not_covered_count
+                        for s in segment_entries
+                        if s.not_covered_count is not None
                     )
                     not_covered_val = float(seg_not) if seg_not > 0 else None
 
-            if not_covered_val is None and total_val is not None and covered_val is not None:
+            if (
+                not_covered_val is None
+                and total_val is not None
+                and covered_val is not None
+            ):
                 residual = float(total_val) - float(covered_val)
                 if residual >= 0:
                     not_covered_val = residual
 
-            if pct_val is None and total_val and covered_val is not None and total_val > 0:
+            if (
+                pct_val is None
+                and total_val
+                and covered_val is not None
+                and total_val > 0
+            ):
                 pct_val = round((covered_val / total_val) * 100.0, 2)
 
             method_breakdown = {k: empty_bucket() for k in method_keys}
@@ -9182,7 +9434,8 @@ class Tracker:
                         ):
                             is_weighted_from_agg = True
                         elif (
-                            field_name in (
+                            field_name
+                            in (
                                 "cov",
                                 "not_cov",
                             )
@@ -9203,8 +9456,10 @@ class Tracker:
                             # when their denominator provenance is fallback-based.
                             if field_name in ("cov", "not_cov"):
                                 fallback_denom = (
-                                    e.total_count_source_type == SourceType.FALLBACK.value
-                                    or e.denominator_source_type == SourceType.FALLBACK.value
+                                    e.total_count_source_type
+                                    == SourceType.FALLBACK.value
+                                    or e.denominator_source_type
+                                    == SourceType.FALLBACK.value
                                 )
                                 if fallback_denom:
                                     stype = SourceType.FALLBACK.value
@@ -9215,15 +9470,12 @@ class Tracker:
                         SourceType.FALLBACK.value,
                         SourceType.CALCULATED.value,
                     ):
-                        denom_linked = (
-                            e.total_count_source_type in (
-                                SourceType.VIRTUAL_POOL.value,
-                                SourceType.FALLBACK.value,
-                            )
-                            or e.denominator_source_type in (
-                                SourceType.VIRTUAL_POOL.value,
-                                SourceType.FALLBACK.value,
-                            )
+                        denom_linked = e.total_count_source_type in (
+                            SourceType.VIRTUAL_POOL.value,
+                            SourceType.FALLBACK.value,
+                        ) or e.denominator_source_type in (
+                            SourceType.VIRTUAL_POOL.value,
+                            SourceType.FALLBACK.value,
                         )
                         if denom_linked:
                             stype = SourceType.VIRTUAL_POOL.value
@@ -9257,9 +9509,7 @@ class Tracker:
                     weighted_bucket["pct_vals"].extend(
                         weighted_seed.get("pct_vals", [])
                     )
-                    weighted_bucket["n"] += int(
-                        weighted_seed.get("n") or 0
-                    )
+                    weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             explicit_pcts = explicit_bucket.get("pct_vals", [])
@@ -9293,7 +9543,11 @@ class Tracker:
             elif (
                 (covered_val is not None and covered_val == 0)
                 or (pct_val is not None and pct_val == 0)
-                or (not_covered_val is not None and not_covered_val > 0 and not covered_val)
+                or (
+                    not_covered_val is not None
+                    and not_covered_val > 0
+                    and not covered_val
+                )
             ):
                 union_indicator = 0
             else:
@@ -9327,16 +9581,16 @@ class Tracker:
             }
 
             country = {
-                    "country_code": code,
-                    "is_domestic": code == self.domestic_country_code,
-                    "union_indicator": union_indicator,
-                    "country_totals": {
-                        "tot": total_val,
-                        "cov": covered_val,
-                        "not_cov": not_covered_val,
-                        "pct": pct_val,
-                    },
-                }
+                "country_code": code,
+                "is_domestic": code == self.domestic_country_code,
+                "union_indicator": union_indicator,
+                "country_totals": {
+                    "tot": total_val,
+                    "cov": covered_val,
+                    "not_cov": not_covered_val,
+                    "pct": pct_val,
+                },
+            }
             if code in self.language_fallback_countries:
                 country["language_fallback_country"] = True
             if any(v is not None for v in reported_totals.values()):
@@ -9348,7 +9602,7 @@ class Tracker:
             # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
             if union_indicator != 0 and method_breakdown:
                 country["method_breakdown"] = method_breakdown
-            
+
             countries.append(country)
 
         # Drop redundant pseudo-countries when child countries are present.
@@ -9393,9 +9647,8 @@ class Tracker:
         agg = []
         seen_agg = set()
         for e in self.entries:
-            is_aggregate_parent = (
-                e.scope == Scope.AGGREGATE
-                or (e.scope == Scope.REGION and e.key in AGG_SET)
+            is_aggregate_parent = e.scope == Scope.AGGREGATE or (
+                e.scope == Scope.REGION and e.key in AGG_SET
             )
             if not is_aggregate_parent or not e.related_geo_codes:
                 continue
@@ -9463,14 +9716,10 @@ class Tracker:
 
         # Build Summary
         summary = {
-            "cov": {
-                code: [] for code in REGION_NAME_MAP.values()
-            },
-            "not_cov": {
-                code: [] for code in REGION_NAME_MAP.values()
-            },
+            "cov": {code: [] for code in REGION_NAME_MAP.values()},
+            "not_cov": {code: [] for code in REGION_NAME_MAP.values()},
             "dom_cov": False,
-            "int_cov": False
+            "int_cov": False,
         }
 
         for c_obj in countries:
@@ -9487,7 +9736,11 @@ class Tracker:
             if r_name:
                 reg_key = REGION_NAME_MAP.get(r_name)
                 if reg_key:
-                    target_list = summary["cov"][reg_key] if is_covered else summary["not_cov"][reg_key]
+                    target_list = (
+                        summary["cov"][reg_key]
+                        if is_covered
+                        else summary["not_cov"][reg_key]
+                    )
                     target_list.append(code)
 
         # Sort lists
@@ -9602,10 +9855,7 @@ class GeoPopulationResolver:
         # Strict exclusion: typed worker buckets and hard exclusion language.
         if analysis.worker_types:
             return False
-        if (
-            analysis.except_terms
-            or analysis.outside_terms
-        ):
+        if analysis.except_terms or analysis.outside_terms:
             return False
 
         explicit_geo = [
@@ -9644,7 +9894,9 @@ class GeoPopulationResolver:
         if not aligned_geos:
             return {}
 
-        pct_matches = [m for m in analysis._matches if m.get("type") == MatchType.PERCENT]
+        pct_matches = [
+            m for m in analysis._matches if m.get("type") == MatchType.PERCENT
+        ]
         if not pct_matches:
             return {}
 
@@ -9721,7 +9973,9 @@ class GeoPopulationResolver:
                 if code not in all_codes_in_sentence:
                     all_codes_in_sentence.append(code)
 
-            residual_codes = [c for c in all_codes_in_sentence if c not in assigned_counts]
+            residual_codes = [
+                c for c in all_codes_in_sentence if c not in assigned_counts
+            ]
             assigned_sum = sum(assigned_counts.values())
             residual_count = max(0.0, float(total_population) - float(assigned_sum))
 
@@ -9851,7 +10105,11 @@ class GeoPopulationResolver:
                 analysis, allow_without_anchor=allow_implicit_from_prior
             )
             if not effective_counts:
-                if has_strict_pct_dist and last_strict_total is not None and idx == last_strict_total_idx + 1:
+                if (
+                    has_strict_pct_dist
+                    and last_strict_total is not None
+                    and idx == last_strict_total_idx + 1
+                ):
                     self._apply_strict_employment_distribution(
                         analysis=analysis,
                         tracker=tracker,
@@ -9929,14 +10187,25 @@ class UnionAnalyzer:
         self.domestic_country_code = domestic_country_code
         self.geo_population_resolver = GeoPopulationResolver(self)
 
-    def _get_annotated_keywords(self, analysis: SentenceAnalysis) -> Optional[List[str]]:
+    def _get_annotated_keywords(
+        self, analysis: SentenceAnalysis
+    ) -> Optional[List[str]]:
         keywords = analysis.sentence_union_keywords or analysis.union_terms
         if not keywords:
             return None
 
         annotated = []
         for term in keywords:
-            related = next((m for m in analysis.geo_matches if m.text == term and m.geo_code and m.geo_code.startswith(GeoCode.INT_LANG.value)), None)
+            related = next(
+                (
+                    m
+                    for m in analysis.geo_matches
+                    if m.text == term
+                    and m.geo_code
+                    and m.geo_code.startswith(GeoCode.INT_LANG.value)
+                ),
+                None,
+            )
             if related:
                 annotated.append(f"{related.geo_code}::{term}")
             else:
@@ -10030,7 +10299,9 @@ class UnionAnalyzer:
         """
         Local wrapper for geographic context determination.
         """
-        return determine_geo_context(analysis, last_context, current_idx, last_idx, self.domestic_country_code)
+        return determine_geo_context(
+            analysis, last_context, current_idx, last_idx, self.domestic_country_code
+        )
 
     def _create_exception_items(
         self,
@@ -10095,7 +10366,10 @@ class UnionAnalyzer:
 
         for m in unique_excluded:
             # Skip if remapped to INT (e.g. "Outside US") - that's handled as main context
-            if m.geo_code == GeoCode.INTERNATIONAL.value and m.country == "International":
+            if (
+                m.geo_code == GeoCode.INTERNATIONAL.value
+                and m.country == "International"
+            ):
                 continue
 
             geo_ctx = {
@@ -10181,13 +10455,15 @@ class UnionAnalyzer:
 
             # 2. Pass 1: Census (Populate Tracker with Totals)
             tracker = Tracker(domestic_country_code=self.domestic_country_code)
-            
+
             # Inject external global total if available
             if cik and reporting_year:
                 ext_total = get_external_global_count(cik, reporting_year)
                 if ext_total:
                     tracker.global_total = ext_total
-                    tracker.resolution_log.append(f"Loaded external global total: {ext_total}")
+                    tracker.resolution_log.append(
+                        f"Loaded external global total: {ext_total}"
+                    )
 
             all_sentences = self.extractor.split_sentences(text)
             self._populate_tracker(all_sentences, tracker, reporting_year)
@@ -10208,17 +10484,21 @@ class UnionAnalyzer:
                 p_sentences = self.extractor.split_sentences(p_text)
 
                 # Analyze block with context from previous paragraph
-                block_results, block_risk_items, local_totals, last_geo_context, last_geo_sentence_idx = (
-                    self._analyze_block(
-                        p_sentences,
-                        reporting_year=reporting_year,
-                        global_max_workers=tracker.global_total,
-                        initial_geo_context=last_geo_context,
-                        initial_geo_sentence_idx=last_geo_sentence_idx,
-                        previous_totals=prev_paragraph_totals,
-                        start_index=global_sentence_index,
-                        cik=cik,
-                    )
+                (
+                    block_results,
+                    block_risk_items,
+                    local_totals,
+                    last_geo_context,
+                    last_geo_sentence_idx,
+                ) = self._analyze_block(
+                    p_sentences,
+                    reporting_year=reporting_year,
+                    global_max_workers=tracker.global_total,
+                    initial_geo_context=last_geo_context,
+                    initial_geo_sentence_idx=last_geo_sentence_idx,
+                    previous_totals=prev_paragraph_totals,
+                    start_index=global_sentence_index,
+                    cik=cik,
                 )
 
                 global_sentence_index += len(p_sentences)
@@ -10232,7 +10512,9 @@ class UnionAnalyzer:
                 risk_items.extend(block_risk_items)
 
                 # Handle Excluded Geographies (Implicit Coverage)
-                for idx, analysis in enumerate([self.extractor.analyze_sentence(s) for s in p_sentences]):
+                for idx, analysis in enumerate(
+                    [self.extractor.analyze_sentence(s) for s in p_sentences]
+                ):
                     # We need to match the analysis to the result item to get coverage_data
                     # This is handled inside _analyze_block now to keep context aligned
                     pass
@@ -10505,11 +10787,18 @@ class UnionAnalyzer:
 
         return parts, sentence_total, proximity_map
 
-    def _is_contained(self, container_key: str, item_key: str, excluded_keys: Optional[Set[str]] = None) -> bool:
+    def _is_contained(
+        self,
+        container_key: str,
+        item_key: str,
+        excluded_keys: Optional[Set[str]] = None,
+    ) -> bool:
         """
         Checks if item_key is geographically contained within container_key.
         """
-        return is_contained(container_key, item_key, self.domestic_country_code, excluded_keys)
+        return is_contained(
+            container_key, item_key, self.domestic_country_code, excluded_keys
+        )
 
     def _remove_container_regions(
         self, entities: List[Dict[str, Any]], excluded_keys: Optional[Set[str]] = None
@@ -10540,7 +10829,10 @@ class UnionAnalyzer:
         return filtered if filtered else entities
 
     def _preprocess_redundant_containers(
-        self, entities: List[Dict[str, Any]], sentence_total: Optional[float], excluded_keys: Optional[Set[str]] = None
+        self,
+        entities: List[Dict[str, Any]],
+        sentence_total: Optional[float],
+        excluded_keys: Optional[Set[str]] = None,
     ) -> Tuple[List[Dict[str, Any]], str]:
         """
         If no total was detected, and we have a region entity that contains all other
@@ -10597,7 +10889,11 @@ class UnionAnalyzer:
                 entity_key = entities[0]["key"]
                 mapped_counts[entity_key] = sentence_total
                 # Return early to ignore subset parts for Census
-                return mapped_counts, sentence_total, ["Inferred Total for Single Entity"]
+                return (
+                    mapped_counts,
+                    sentence_total,
+                    ["Inferred Total for Single Entity"],
+                )
             else:
                 mapped_counts[total_key] = sentence_total
 
@@ -10649,9 +10945,17 @@ class UnionAnalyzer:
                         if children:
                             # Filter out containers (e.g. CIS) if constituents (e.g. RU) are present
                             # This handles "Europe: CIS (Russia)" -> Distribute to Russia, ignore CIS container
-                            valid_children = [c for c in self._remove_container_regions(children, local_excluded_keys) 
-                                            if not (local_excluded_keys and c["key"] in local_excluded_keys)]
-                            
+                            valid_children = [
+                                c
+                                for c in self._remove_container_regions(
+                                    children, local_excluded_keys
+                                )
+                                if not (
+                                    local_excluded_keys
+                                    and c["key"] in local_excluded_keys
+                                )
+                            ]
+
                             if not valid_children and children:
                                 # Fallback: If all children were excluded but we have a count, map to them (e.g. "except Germany (1000)")
                                 valid_children = children
@@ -10697,7 +11001,10 @@ class UnionAnalyzer:
                             else:
                                 text_between = analysis.text[start:end]
                                 clean_text = re.sub(r"\s+", " ", text_between).strip()
-                                is_sep = bool(LIST_REGEX.search(clean_text)) or not clean_text
+                                is_sep = (
+                                    bool(LIST_REGEX.search(clean_text))
+                                    or not clean_text
+                                )
                                 if is_sep:
                                     is_connected = True
 
@@ -10714,9 +11021,17 @@ class UnionAnalyzer:
                     filtered_note = ""
                     cluster_notes = []
                     for c, group in zip(s_counts, groups):
-                        valid_group = self._remove_container_regions(group, local_excluded_keys)
-                        valid_group = [e for e in valid_group if not (local_excluded_keys and e["key"] in local_excluded_keys)]
-                        
+                        valid_group = self._remove_container_regions(
+                            group, local_excluded_keys
+                        )
+                        valid_group = [
+                            e
+                            for e in valid_group
+                            if not (
+                                local_excluded_keys and e["key"] in local_excluded_keys
+                            )
+                        ]
+
                         if not valid_group and group:
                             # Fallback: If all were excluded but we have a count, map to them
                             valid_group = group
@@ -10746,9 +11061,15 @@ class UnionAnalyzer:
         ) -> Optional[Tuple[Dict[str, float], str]]:
             if allow_naive_split and len(curr_parts) == 1 and len(curr_entities) > 1:
                 count_val = curr_parts[0]["val"]
-                valid_entities = self._remove_container_regions(curr_entities, local_excluded_keys)
-                valid_entities = [e for e in valid_entities if not (local_excluded_keys and e["key"] in local_excluded_keys)]
-                
+                valid_entities = self._remove_container_regions(
+                    curr_entities, local_excluded_keys
+                )
+                valid_entities = [
+                    e
+                    for e in valid_entities
+                    if not (local_excluded_keys and e["key"] in local_excluded_keys)
+                ]
+
                 if not valid_entities and curr_entities:
                     # Fallback: If all were excluded but we have a count, map to them
                     valid_entities = curr_entities
@@ -10770,12 +11091,16 @@ class UnionAnalyzer:
                 return local_map, final_note
             return None
 
-        def resolve_subset(curr_parts, curr_entities, local_excluded_keys) -> Tuple[Dict[str, float], str]:
+        def resolve_subset(
+            curr_parts, curr_entities, local_excluded_keys
+        ) -> Tuple[Dict[str, float], str]:
             res = try_exact_parallel(curr_parts, curr_entities)
             if res:
                 return res
 
-            res = try_hierarchical_grouping(curr_parts, curr_entities, local_excluded_keys)
+            res = try_hierarchical_grouping(
+                curr_parts, curr_entities, local_excluded_keys
+            )
             if res:
                 return res
 
@@ -10917,7 +11242,8 @@ class UnionAnalyzer:
                 if (
                     obj.geo_code
                     and not obj.geo_code.startswith(GeoCode.INT_LANG.value)
-                    and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
+                    and obj.geo_code
+                    not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj
 
@@ -10926,7 +11252,14 @@ class UnionAnalyzer:
 
                 # Refine exclusion: If exclusion is a delimiter starting a segment with counts, treat as valid
                 if is_effectively_excluded and obj.exclusion_group_id:
-                    excl_match = next((m for m in analysis._matches if id(m) == obj.exclusion_group_id), None)
+                    excl_match = next(
+                        (
+                            m
+                            for m in analysis._matches
+                            if id(m) == obj.exclusion_group_id
+                        ),
+                        None,
+                    )
                     if excl_match:
                         e_start, e_end = excl_match["span"]
                         is_delimiter = False
@@ -10934,12 +11267,14 @@ class UnionAnalyzer:
                             if max(e_start, d_start) < min(e_end, d_end):
                                 is_delimiter = True
                                 break
-                        
+
                         if is_delimiter:
                             g_start = raw["span"][0]
                             for s_start, s_end, _ in segments:
                                 if s_start <= g_start < s_end:
-                                    if range_has_count(s_start, s_end) and not range_has_remaining(s_start, s_end):
+                                    if range_has_count(
+                                        s_start, s_end
+                                    ) and not range_has_remaining(s_start, s_end):
                                         is_effectively_excluded = False
                                     break
 
@@ -10950,9 +11285,12 @@ class UnionAnalyzer:
                         # Targeted Patch: If exclusion is very close to "remaining", it modifies the remaining set
                         # e.g. "excluding Japan, the remaining..."
                         min_dist = get_min_distance_to_matches(
-                            raw["span"], analysis._matches, [MatchType.REMAINING_OTHER], text=analysis.text
+                            raw["span"],
+                            analysis._matches,
+                            [MatchType.REMAINING_OTHER],
+                            text=analysis.text,
                         )
-                        
+
                         if min_dist < 40:
                             should_exclude = True
 
@@ -10976,11 +11314,21 @@ class UnionAnalyzer:
                 if obj.geo_code in REGION_CODES and obj.geo_code not in DOMESTIC_SET:
                     key = obj.region.value
                 geo_entries.append(
-                    {"key": key, "span": raw["span"], "region_enum": obj.region, "list_group_id": obj.list_group_id}
+                    {
+                        "key": key,
+                        "span": raw["span"],
+                        "region_enum": obj.region,
+                        "list_group_id": obj.list_group_id,
+                    }
                 )
 
         return self._resolve_counts_generic(
-            analysis, geo_entries, total_key=GeoCode.GLOBAL.value, allow_naive_split=True, excluded_keys=excluded_codes, capacities=capacities
+            analysis,
+            geo_entries,
+            total_key=GeoCode.GLOBAL.value,
+            allow_naive_split=True,
+            excluded_keys=excluded_codes,
+            capacities=capacities,
         )
 
     def _map_assignments_to_geo(
@@ -11006,7 +11354,8 @@ class UnionAnalyzer:
                 if (
                     obj.geo_code
                     and not obj.geo_code.startswith(GeoCode.INT_LANG.value)
-                    and obj.geo_code not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
+                    and obj.geo_code
+                    not in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]
                 ):
                     strong_codes[obj.geo_code] = obj
 
@@ -11024,7 +11373,7 @@ class UnionAnalyzer:
                 aligned_geos.append({"obj": obj, "span": raw["span"]})
         else:
             return []
-            
+
         def _split_linked_value(
             total_val: float, country_codes: List[str]
         ) -> Dict[str, float]:
@@ -11038,7 +11387,9 @@ class UnionAnalyzer:
                 return {country_codes[0]: float(total_val)}
 
             caps = geo_capacities or {}
-            weights = [max(0.0, float(caps.get(code, 0.0) or 0.0)) for code in country_codes]
+            weights = [
+                max(0.0, float(caps.get(code, 0.0) or 0.0)) for code in country_codes
+            ]
             total_weight = sum(weights)
             if total_weight <= 0:
                 weights = [1.0] * len(country_codes)
@@ -11072,7 +11423,7 @@ class UnionAnalyzer:
         mapped_splits = []
         remaining_assignments = []
         used_geo_indices = set()
-        
+
         # Create a map of geo_group_id/obj_id to indexes in aligned_geos.
         # A list group id can legitimately map to multiple geographies.
         geo_id_map: Dict[Any, List[int]] = {}
@@ -11085,7 +11436,7 @@ class UnionAnalyzer:
         for item in assignments:
             m = item["match"]
             link_id = m.get("linked_geo_group_id")
-            
+
             if link_id and link_id in geo_id_map:
                 geo_indices = geo_id_map[link_id]
                 linked_geos = [aligned_geos[idx] for idx in geo_indices]
@@ -11139,37 +11490,50 @@ class UnionAnalyzer:
 
                 used_geo_indices.update(geo_indices)
                 continue
-            
+
             remaining_assignments.append(item)
 
         # If we have mapped splits, check if we can return them
         if mapped_splits:
             # Allow return if remaining assignments are only totals (likely global/aggregate totals)
             # or if we have no remaining assignments
-            if not remaining_assignments or all(a["type"] == "total" for a in remaining_assignments):
+            if not remaining_assignments or all(
+                a["type"] == "total" for a in remaining_assignments
+            ):
                 return mapped_splits
 
         # Filter aligned_geos for fallback logic
-        remaining_geos = [g for i, g in enumerate(aligned_geos) if i not in used_geo_indices]
+        remaining_geos = [
+            g for i, g in enumerate(aligned_geos) if i not in used_geo_indices
+        ]
 
         # 1. Respectively Logic (Explicit OR Implicit if counts == geos)
         # If we have equal number of remaining assignments and locations, assume 1-to-1 mapping in order
-        if len(remaining_assignments) == len(remaining_geos) and len(remaining_assignments) > 0:
+        if (
+            len(remaining_assignments) == len(remaining_geos)
+            and len(remaining_assignments) > 0
+        ):
             # Sort both by position
-            s_assign = sorted(remaining_assignments, key=lambda x: x["match"]["span"][0])
+            s_assign = sorted(
+                remaining_assignments, key=lambda x: x["match"]["span"][0]
+            )
             s_geos = sorted(remaining_geos, key=lambda x: x["span"][0])
-            
+
             for item, g in zip(s_assign, s_geos):
                 obj = g["obj"]
 
                 note = f"Mapped to {obj.country}"
-                mapped_splits.append({
-                    "val": item.get("override_val", item["match"]["val"]),
-                    "type": item["type"],
-                    "region": obj.region.value,
-                    "countries": [{"name": obj.country, "code": obj.geo_code, "locations": []}],
-                    "note": note,
-                })
+                mapped_splits.append(
+                    {
+                        "val": item.get("override_val", item["match"]["val"]),
+                        "type": item["type"],
+                        "region": obj.region.value,
+                        "countries": [
+                            {"name": obj.country, "code": obj.geo_code, "locations": []}
+                        ],
+                        "note": note,
+                    }
+                )
             return mapped_splits
 
         # If linked mapping produced usable splits but the fallback mapping couldn't
@@ -11367,7 +11731,10 @@ class UnionAnalyzer:
 
                 # 1. Data Collision Check
                 # Do not merge if both items have data for the same field
-                if c_data["percentage"] is not None and n_data["percentage"] is not None:
+                if (
+                    c_data["percentage"] is not None
+                    and n_data["percentage"] is not None
+                ):
                     should_merge = False
                 if (
                     c_data["employee_count_covered"] is not None
@@ -11443,7 +11810,9 @@ class UnionAnalyzer:
                     c_data["employee_count_covered"] = n_data["employee_count_covered"]
 
                 # Use potential total from current sentence if available (local count priority)
-                if not c_data["employee_count_total"] and current.get("potential_total"):
+                if not c_data["employee_count_total"] and current.get(
+                    "potential_total"
+                ):
                     c_data["employee_count_total"] = current["potential_total"]
                     c_data["note"] = (
                         c_data.get("note") or ""
@@ -11478,7 +11847,9 @@ class UnionAnalyzer:
 
                         if c_data.get("has_exceptions") and pct >= 99.0:
                             pct = 95.0
-                            c_data["note"] = (c_data.get("note") or "") + " | Downgraded 100%->95% (exception)"
+                            c_data["note"] = (
+                                c_data.get("note") or ""
+                            ) + " | Downgraded 100%->95% (exception)"
 
                         if is_negated:
                             if neg_type == NegationType.ZERO_COVERAGE.value:
@@ -11496,7 +11867,9 @@ class UnionAnalyzer:
                                 c_data["employee_count_covered"] = subset
                             if not_covered is None:
                                 c_data["employee_count_not_covered"] = total - subset
-                        c_data["note"] = (c_data.get("note") or "") + " | Derived counts from merged %"
+                        c_data["note"] = (
+                            c_data.get("note") or ""
+                        ) + " | Derived counts from merged %"
 
                     # Case 2: Have Part + Pct -> Calculate Total (Denominator)
                     elif not total and pct > 0:
@@ -11507,21 +11880,29 @@ class UnionAnalyzer:
                             and not_covered is not None
                         ):
                             derived_total = round(not_covered / (pct / 100.0))
-                            c_data["employee_count_covered"] = derived_total - not_covered
+                            c_data["employee_count_covered"] = (
+                                derived_total - not_covered
+                            )
                         elif not is_negated and covered is not None:
                             derived_total = round(covered / (pct / 100.0))
-                            c_data["employee_count_not_covered"] = derived_total - covered
+                            c_data["employee_count_not_covered"] = (
+                                derived_total - covered
+                            )
 
                         if derived_total is not None:
                             c_data["employee_count_total"] = derived_total
-                            c_data["note"] = (c_data.get("note") or "") + " | Derived total from merged %"
+                            c_data["note"] = (
+                                c_data.get("note") or ""
+                            ) + " | Derived total from merged %"
 
                     # Case 3: Refinement (Assumed 100% -> Actual %)
                     elif total and pct > 0 and pct < 100:
                         if covered == total:
                             derived_total = round(covered / (pct / 100.0))
                             c_data["employee_count_total"] = derived_total
-                            c_data["employee_count_not_covered"] = derived_total - covered
+                            c_data["employee_count_not_covered"] = (
+                                derived_total - covered
+                            )
                             c_data["note"] = (
                                 (c_data.get("note") or "")
                                 + f" | Refined Total from {total} to {derived_total} using {pct}%"
@@ -11530,15 +11911,21 @@ class UnionAnalyzer:
                             if is_negated:
                                 derived_total = round(not_covered / (pct / 100.0))
                                 c_data["employee_count_total"] = derived_total
-                                c_data["employee_count_covered"] = derived_total - not_covered
+                                c_data["employee_count_covered"] = (
+                                    derived_total - not_covered
+                                )
                                 c_data["note"] = (
                                     (c_data.get("note") or "")
                                     + f" | Refined Total from {total} to {derived_total} using {pct}% (negated)"
                                 )
                             else:
-                                derived_total = round(not_covered / ((100 - pct) / 100.0))
+                                derived_total = round(
+                                    not_covered / ((100 - pct) / 100.0)
+                                )
                                 c_data["employee_count_total"] = derived_total
-                                c_data["employee_count_covered"] = derived_total - not_covered
+                                c_data["employee_count_covered"] = (
+                                    derived_total - not_covered
+                                )
                                 c_data["note"] = (
                                     (c_data.get("note") or "")
                                     + f" | Refined Total from {total} to {derived_total} using {pct}% (remainder)"
@@ -11601,7 +11988,9 @@ class UnionAnalyzer:
             merged_results.append(current)
         return merged_results
 
-    def _apply_splitting_logic(self, results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _apply_splitting_logic(
+        self, results: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """
         Applies split_ambiguous_entry to all items in the list.
         """
@@ -11621,7 +12010,13 @@ class UnionAnalyzer:
         previous_totals: Optional[Dict[str, float]] = None,
         start_index: int = 0,
         cik: Optional[int] = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, float], Optional[Dict], int]:
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Dict[str, float],
+        Optional[Dict],
+        int,
+    ]:
         """
         Analyzes a block of sentences (paragraph) for Item 1.
         Returns results, totals found in THIS block, and the final geo context.
@@ -11663,7 +12058,9 @@ class UnionAnalyzer:
         def _normalize_country_code(code: Optional[str]) -> Optional[str]:
             if not code:
                 return None
-            return self.domestic_country_code if code == GeoCode.DOMESTIC.value else code
+            return (
+                self.domestic_country_code if code == GeoCode.DOMESTIC.value else code
+            )
 
         def _worker_lookup_keys(ctx: Dict[str, Any]) -> List[str]:
             keys: List[str] = []
@@ -11677,7 +12074,7 @@ class UnionAnalyzer:
             if region_name and region_name not in UNK_SET:
                 keys.append(f"R:{region_name}")
 
-            for r in (ctx.get("regions", []) or []):
+            for r in ctx.get("regions", []) or []:
                 r_code = r.get("code")
                 r_name = r.get("name")
                 if r_code:
@@ -11852,7 +12249,9 @@ class UnionAnalyzer:
                             if len(fallback_countries) == 1:
                                 c_code = fallback_countries[0].get("code")
                                 region_key = (
-                                    self.domestic_country_code if c_code == GeoCode.DOMESTIC.value else c_code
+                                    self.domestic_country_code
+                                    if c_code == GeoCode.DOMESTIC.value
+                                    else c_code
                                 )
                             else:
                                 region_key = Scope.GLOBAL.value
@@ -11920,7 +12319,9 @@ class UnionAnalyzer:
 
             # Capture explicit bargaining unit counts (summed per user instruction)
             if analysis.bargaining_unit_counts:
-                coverage_data["bargaining_unit_count"] = sum(analysis.bargaining_unit_counts)
+                coverage_data["bargaining_unit_count"] = sum(
+                    analysis.bargaining_unit_counts
+                )
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
@@ -11934,7 +12335,9 @@ class UnionAnalyzer:
                 for lk in lookup_keys:
                     bucket = worker_type_lookup.setdefault(lk, {})
                     for t_name, t_count in type_map.items():
-                        bucket[t_name.lower()] = max(bucket.get(t_name.lower(), 0.0), t_count)
+                        bucket[t_name.lower()] = max(
+                            bucket.get(t_name.lower(), 0.0), t_count
+                        )
                     worker_type_total_lookup[lk] = max(
                         worker_type_total_lookup.get(lk, 0.0), type_total
                     )
@@ -11949,7 +12352,9 @@ class UnionAnalyzer:
                 )
             )
             if not has_quantitative_data and analysis.is_union:
-                targets: set[str] = set(t.lower() for t in (analysis.worker_types or []))
+                targets: set[str] = set(
+                    t.lower() for t in (analysis.worker_types or [])
+                )
                 for w in analysis.worker_terms or []:
                     w_low = w.lower()
                     if (
@@ -11964,7 +12369,9 @@ class UnionAnalyzer:
                     lookup_total = 0.0
                     for lk in lookup_keys:
                         bucket = worker_type_lookup.get(lk, {})
-                        lookup_total = max(lookup_total, worker_type_total_lookup.get(lk, 0.0))
+                        lookup_total = max(
+                            lookup_total, worker_type_total_lookup.get(lk, 0.0)
+                        )
                         for target in targets:
                             if target in bucket:
                                 matched_by_type[target] = max(
@@ -12001,9 +12408,10 @@ class UnionAnalyzer:
 
                         note = f"Inferred coverage for {matched_count} (worker type lookup)"
                         coverage_data["note"] = (
-                            (((coverage_data.get("note") or "") + " | ") if coverage_data.get("note") else "")
-                            + note
-                        )
+                            ((coverage_data.get("note") or "") + " | ")
+                            if coverage_data.get("note")
+                            else ""
+                        ) + note
 
             # 8. Construct Result (Handle Splits)
             split_items = []
@@ -12012,7 +12420,9 @@ class UnionAnalyzer:
 
             if assignments:
                 relevant_assignments = [
-                    a for a in assignments if a["type"] in ("covered", "not_covered", "total")
+                    a
+                    for a in assignments
+                    if a["type"] in ("covered", "not_covered", "total")
                 ]
 
                 # Only split if we have multiple relevant counts and multiple explicit geos
@@ -12020,7 +12430,7 @@ class UnionAnalyzer:
                     splits = self._map_assignments_to_geo(
                         analysis, relevant_assignments, effective_totals
                     )
-                    
+
                     # Group splits by geography to merge Total + Covered for same country
                     grouped_splits = {}
                     for s in splits:
@@ -12035,7 +12445,7 @@ class UnionAnalyzer:
                             # Merge group items into one coverage data
                             # Use the first item for context, then merge values
                             s = group[0]
-                            
+
                             new_geo_context = {
                                 "region": s["region"],
                                 "countries": s["countries"],
@@ -12068,30 +12478,38 @@ class UnionAnalyzer:
                             for item in group:
                                 if item.get("note"):
                                     notes.append(item["note"])
-                                    
+
                                 if item["type"] == "covered":
                                     new_cov_data["employee_count_covered"] = item["val"]
                                 elif item["type"] == "not_covered":
-                                    new_cov_data["employee_count_not_covered"] = item["val"]
+                                    new_cov_data["employee_count_not_covered"] = item[
+                                        "val"
+                                    ]
                                     new_cov_data["negated"] = True
-                                    new_cov_data["negation_type"] = NegationType.NOT_COVERED.value
+                                    new_cov_data["negation_type"] = (
+                                        NegationType.NOT_COVERED.value
+                                    )
                                 elif item["type"] == "total":
                                     new_cov_data["employee_count_total"] = item["val"]
 
                             if notes:
                                 dedup_notes = list(dict.fromkeys(notes))
                                 extra_notes = [
-                                    n for n in dedup_notes if n and n not in new_cov_data["note"]
+                                    n
+                                    for n in dedup_notes
+                                    if n and n not in new_cov_data["note"]
                                 ]
                                 if extra_notes:
-                                    new_cov_data["note"] += " | " + "; ".join(extra_notes)
+                                    new_cov_data["note"] += " | " + "; ".join(
+                                        extra_notes
+                                    )
 
                             # Try to find total from lookup if not present
                             if new_cov_data["employee_count_total"] is None:
                                 c_total = effective_totals.get(c_code)
                                 max_part = max(
-                                    new_cov_data["employee_count_covered"] or 0, 
-                                    new_cov_data["employee_count_not_covered"] or 0
+                                    new_cov_data["employee_count_covered"] or 0,
+                                    new_cov_data["employee_count_not_covered"] or 0,
                                 )
                                 if c_total and c_total >= max_part:
                                     new_cov_data["employee_count_total"] = c_total
@@ -12119,19 +12537,32 @@ class UnionAnalyzer:
                             elif cov_val is not None:
                                 new_cov_data["negated"] = False
                                 new_cov_data["negation_type"] = None
-                            
+
                             # Calculate percentage if possible
-                            if new_cov_data["employee_count_total"] and new_cov_data["employee_count_total"] > 0:
+                            if (
+                                new_cov_data["employee_count_total"]
+                                and new_cov_data["employee_count_total"] > 0
+                            ):
                                 if new_cov_data["employee_count_covered"] is not None:
                                     new_cov_data["percentage"] = round(
-                                        (new_cov_data["employee_count_covered"] / new_cov_data["employee_count_total"]) * 100, 2
+                                        (
+                                            new_cov_data["employee_count_covered"]
+                                            / new_cov_data["employee_count_total"]
+                                        )
+                                        * 100,
+                                        2,
                                     )
-                                elif new_cov_data["employee_count_not_covered"] is not None:
+                                elif (
+                                    new_cov_data["employee_count_not_covered"]
+                                    is not None
+                                ):
                                     new_cov_data["percentage"] = round(
                                         (
                                             (
                                                 new_cov_data["employee_count_total"]
-                                                - new_cov_data["employee_count_not_covered"]
+                                                - new_cov_data[
+                                                    "employee_count_not_covered"
+                                                ]
                                             )
                                             / new_cov_data["employee_count_total"]
                                         )
@@ -12141,8 +12572,12 @@ class UnionAnalyzer:
 
                             split_item = {
                                 "sentence": sent,
-                                "keyword_matched": self._get_annotated_keywords(analysis),
-                                "is_table_generated": self._is_table_generated_sentence(sent),
+                                "keyword_matched": self._get_annotated_keywords(
+                                    analysis
+                                ),
+                                "is_table_generated": self._is_table_generated_sentence(
+                                    sent
+                                ),
                                 "geographic_context": new_geo_context,
                                 "coverage_data": new_cov_data,
                                 "lookup_totals": effective_totals.copy(),
@@ -12186,7 +12621,7 @@ class UnionAnalyzer:
             #     results.extend(exception_items)
 
         merged_results = self._merge_continuation_items(results)
-        
+
         # Apply splitting logic for ambiguous qualitative negations
         merged_results = self._apply_splitting_logic(merged_results)
 
@@ -12338,7 +12773,7 @@ class UnionAnalyzer:
                 )
                 if result:
                     result["sentence_index"] = idx
-                    if result.get("activity_class") == "ACTUAL":
+                    if result.get("activity_class") == RiskSignalType.ACTUAL.value:
                         coverage_data = self._determine_coverage_data(
                             analysis,
                             inherited_total_count=None,
