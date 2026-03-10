@@ -182,7 +182,7 @@ class MinimalTextCleaner:
 
     # Bullet and Dashed Patterns
     bullet_pattern = re.compile(
-        r"(?:(?<=^)|(?<=\s))"  # Start of line OR whitespace
+        r"(?:(?<=^)|(?<=\n))"  # Start of paragraph or line
         r"(?:"
         r"\(\d{1,2}\)|"
         r"-\d{3}-|"
@@ -197,6 +197,18 @@ class MinimalTextCleaner:
         r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
         r")"
         r"(?=[\s\(])",  # Followed by whitespace
+        re.IGNORECASE,
+    )
+    sentence_bullet_pattern = re.compile(
+        r"(?<=[.!?])\s+"
+        r"(?:"
+        r"\(\d{1,2}\)|"
+        r"\d{1,2}(?:\.|\)|\:)|"
+        r"\([ivxlcdm]+\)|[ivxlcdm]+\.|"
+        r"\([a-z]\)|(?<!\.[a-z])[a-z]\.|"
+        r"\([A-Z]\)|(?<!\.[A-Z])[A-Z]\."
+        r")"
+        r"(?=\s)",
         re.IGNORECASE,
     )
 
@@ -882,9 +894,6 @@ class MinimalTextCleaner:
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
-            # 1. Whitespace
-            paragraph = clean_spaces_and_punctuation(paragraph)
-
             # Normalize Unicode quotes to ASCII straight quotes
             paragraph = normalize_unicode(paragraph)
 
@@ -930,11 +939,15 @@ class MinimalTextCleaner:
             # 4. General Suffix Removal
             paragraph = self.text_suffix_pattern.sub("", paragraph)
 
-            # NEW: Remove bullets and Cleanup references
+            # NEW: Remove bullets and Cleanup references (before whitespace collapse)
             paragraph = self.exhibit_pattern.sub(" ", paragraph)
             paragraph = self.page_pattern.sub(" ", paragraph)
             paragraph = self.bullet_pattern.sub(" ", paragraph)
+            paragraph = self.sentence_bullet_pattern.sub(" ", paragraph)
             paragraph = self.page_number_pattern.sub(" ", paragraph)
+
+            # 1. Whitespace
+            paragraph = clean_spaces_and_punctuation(paragraph)
 
             # Remove years from laws
             paragraph = self.law_year_regex.sub(lambda m: m.group(1) or m.group(2), paragraph)
