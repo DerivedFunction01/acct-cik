@@ -40,6 +40,7 @@ from defs.union_regex import (
     WORKS_REGEX,
     COVERAGE_VERBS
 )
+from defs.table_processor import TABLE_TOK
 from defs.region_regex import (
     Region,
     RegionMatcher,
@@ -227,6 +228,10 @@ WORKER_CATEGORY_LIST_ITEM_REGEX = re.compile(
     rf"\b(\d+(?:\.\d+)?)\s+({_worker_category_filler_alt})\b"
     rf"(?=\s*(?:,|;|\band\b|\bor\b|&|\.|$)|\s+(?:employees?|workers?|staff|personnel)\b)",
     re.IGNORECASE,
+)
+
+REPRESENTED_BY_ACRONYM_REGEX = re.compile(
+    r"\brepresented\s+by\s+([A-Z][A-Z0-9&/-]{1,10})\b"
 )
 DENOMINATOR_PREFIX = [r"(?:out\s+)?of"]
 DENOMINATOR_ADJECTIVES = [
@@ -1618,6 +1623,16 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.union_terms.append(val),
         )
+
+        # 7.1 Extract union acronyms in "represented by XYZ" phrasing.
+        # This is a fallback for table-derived or abbreviated union names.
+        if TABLE_TOK in text and "work council" not in text.lower():
+            process_matches(
+                REPRESENTED_BY_ACRONYM_REGEX,
+                MatchType.UNION_NAME,
+                lambda m: m.group(1),
+                lambda m, val: analysis.union_terms.append(val),
+            )
 
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regexes:

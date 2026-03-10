@@ -374,6 +374,10 @@ def is_relevant_paragraph(text: str, allow_risk: bool = False) -> bool:
     Checks if the paragraph contains relevant union/risk keywords.
     Uses global regexes initialized in worker.
     """
+    # Always keep table-derived sentences
+    if TABLE_TOK in text:
+        return True
+
     # 1. Generic Union Terms (Case-Insensitive)
     if UNION_REGEX.search(text):
         return True

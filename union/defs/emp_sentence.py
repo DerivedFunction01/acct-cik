@@ -196,12 +196,17 @@ def render_employee_sentence(
     value_ctx = _digest_values(items)
 
     # TODO: Replace with richer employment-specific templates.
-    return _render_template(
+    sentence = _render_template(
         label=row_info.get("label", ""),
         year=year,
         header_ctx=header_ctx,
         value_ctx=value_ctx,
     )
+    if not sentence:
+        return None
+    if TABLE_TOK not in sentence:
+        return f"{sentence} {TABLE_TOK}"
+    return sentence
 
 
 def _resolve_year(
