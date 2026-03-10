@@ -12318,12 +12318,6 @@ class UnionAnalyzer:
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
 
-            # Capture explicit bargaining unit counts (summed per user instruction)
-            if analysis.bargaining_unit_counts:
-                coverage_data["bargaining_unit_count"] = sum(
-                    analysis.bargaining_unit_counts
-                )
-
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
 
@@ -12646,8 +12640,15 @@ class UnionAnalyzer:
         """
         data = {}
 
+        # Capture explicit bargaining unit counts (summed per user instruction)
+        if analysis.bargaining_unit_counts:
+            data["bargaining_unit_count"] = sum(analysis.bargaining_unit_counts)
+
         if analysis.has_union_denominator:
-            return self.extra_analyzer.analyze_denominator(analysis)
+            denom_data = self.extra_analyzer.analyze_denominator(analysis)
+            if "bargaining_unit_count" in data:
+                denom_data["bargaining_unit_count"] = data["bargaining_unit_count"]
+            return denom_data
         elif is_simple_scenario(analysis):
             data = self.simple_analyzer.analyze(analysis)
         else:
