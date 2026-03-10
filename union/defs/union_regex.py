@@ -482,6 +482,7 @@ BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 LEGAL_PROCESS_TERMS = [
     r"national\s+labou?r\s+relations?\s+board",
     r"NLRB",
+    r"congress",
     r"national\s+mediation\s+board",
     r"\bNMB\b",
     r"presidential\s+emergency\s+board",
