@@ -51,6 +51,26 @@ MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])"
 CENSUS_YEAR_REGEX = re.compile(r"<\d{4}>")
 CENSUS_TERM_REGEX = re.compile(r"\bemploy(?:ees?|ed|s|ment|ing)?\b", re.IGNORECASE)
 CENSUS_NUMBER_REGEX = re.compile(r"(?<!<)\b\d+\b(?!\.\d)(?!>)")
+FIRST_PARAGRAPH_SPLIT_MIN_LEN = 1800
+FIRST_PARAGRAPH_WINDOW = 2
+OFF_TOPIC_SECTION_TERMS = [
+    r"environmental",
+    r"legal\s+proceedings?",
+    r"litigation",
+    r"regulatory",
+    r"intellectual",
+    r"tax(?:es)?",
+    r"insurance",
+    r"cyber\s*security",
+    r"privacy",
+    r"401k",
+    r"401\s*\(k\)",
+    r"pension",
+    r"(?:post[-\s]?)?retirements?",
+    r"lease(?:d)?\s+properties",
+    r"product\s+(?:developments?|segments?|markets?)",
+]
+OFF_TOPIC_SECTION_REGEX = build_regex(OFF_TOPIC_SECTION_TERMS)
 
 # =============================================================================
 # REGEX COMPILATION
@@ -221,6 +241,63 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
     return output
 
 
+def reduce_first_long_paragraph(
+    paragraphs: List[str], allow_risk: bool = False
+) -> List[str]:
+    if not paragraphs:
+        return paragraphs
+
+    first = paragraphs[0]
+    if not first or len(first) < FIRST_PARAGRAPH_SPLIT_MIN_LEN:
+        return paragraphs
+
+    sentences = [
+        s.strip() for s in SENTENCE_SPLIT_PATTERN.split(first) if s.strip()
+    ]
+    if len(sentences) < 6:
+        return paragraphs
+
+    relevant_indices: Set[int] = set()
+    off_topic_idx: Optional[int] = None
+    for idx, sent in enumerate(sentences):
+        is_relevant = is_relevant_paragraph(
+            sent, allow_risk=allow_risk
+        ) or has_census_context(sent)
+        if is_relevant:
+            relevant_indices.add(idx)
+        if off_topic_idx is None and OFF_TOPIC_SECTION_REGEX.search(sent) and not is_relevant:
+            off_topic_idx = idx
+
+    if not relevant_indices:
+        return paragraphs
+
+    keep: Set[int] = set()
+    for idx in relevant_indices:
+        start = max(0, idx - FIRST_PARAGRAPH_WINDOW)
+        end = min(len(sentences), idx + FIRST_PARAGRAPH_WINDOW + 1)
+        for j in range(start, end):
+            if off_topic_idx is not None and j > off_topic_idx and j not in relevant_indices:
+                continue
+            keep.add(j)
+
+    chunks: List[str] = []
+    current: List[str] = []
+    for idx, sent in enumerate(sentences):
+        if idx in keep:
+            current.append(sent)
+        else:
+            if current:
+                chunks.append(" ".join(current))
+                current = []
+    if current:
+        chunks.append(" ".join(current))
+
+    if not chunks:
+        return paragraphs
+
+    return chunks + paragraphs[1:]
+
+
 def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
     """
     Repairs broken text fragments by merging them with the previous paragraph
@@ -373,6 +450,9 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
 
     # Repair broken fragments (e.g. split sentences)
     raw_blocks = repair_broken_fragments(raw_blocks)
+
+    # Reduce first mega paragraph to relevant slices (union/risk/census anchors)
+    raw_blocks = reduce_first_long_paragraph(raw_blocks, allow_risk=allow_risk)
 
     filtered = []
     extracted_percents = []
