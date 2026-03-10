@@ -9210,20 +9210,18 @@ class Tracker:
                     bucket = by_type.setdefault(
                         suppress_type,
                         {
-                            "count_total": 0.0,
-                            "count_n": 0,
+                            "tot": 0.0,
                             "pct_vals": [],
-                            "bu_total": 0.0,
+                            "bu": 0.0,
                             "n": 0,
                         },
                     )
                     if count_total:
-                        bucket["count_total"] += count_total
-                    bucket["count_n"] += count_n
+                        bucket["tot"] += count_total
                     if pct_vals:
                         bucket["pct_vals"].extend(pct_vals)
                     if bu_total:
-                        bucket["bu_total"] += bu_total
+                        bucket["bu"] += bu_total
                     bucket["n"] += 1
 
         explicit_country_codes: set[str] = (
@@ -9850,56 +9848,21 @@ class Tracker:
         }
 
     def build_bargaining_provenance_report(self) -> Dict[str, Any]:
-        by_scope: Dict[Tuple[str, str], Dict[str, Any]] = {}
-        entries_out: List[Dict[str, Any]] = []
+        entities: set[str] = set()
+        total_units = 0.0
+        total_entries = 0
 
         for e in self.bargaining_entries:
-            entries_out.append(
-                {
-                    "sentence_index": e.sent_idx,
-                    "scope": e.scope.value,
-                    "key": e.key,
-                    "related_geo_codes": e.related_geo_codes,
-                    "bargaining_unit_count": e.bargaining_unit_count,
-                    "bargaining_unit_count_source": e.bargaining_unit_count_source,
-                    "bargaining_unit_count_source_type": e.bargaining_unit_count_source_type,
-                }
-            )
+            if e.key:
+                entities.add(str(e.key))
+            total_units += float(e.bargaining_unit_count or 0.0)
+            total_entries += 1
 
-            map_key = (e.scope.value, e.key)
-            bucket = by_scope.get(map_key)
-            if bucket is None:
-                bucket = {
-                    "scope": e.scope.value,
-                    "key": e.key,
-                    "related_geo_codes": list(e.related_geo_codes),
-                    "bargaining_unit_count_total": 0.0,
-                    "entry_count": 0,
-                }
-                by_scope[map_key] = bucket
-            bucket["bargaining_unit_count_total"] += e.bargaining_unit_count
-            bucket["entry_count"] += 1
-            for code in e.related_geo_codes:
-                if code not in bucket["related_geo_codes"]:
-                    bucket["related_geo_codes"].append(code)
-
-        scope_totals = sorted(
-            by_scope.values(),
-            key=lambda x: (x["scope"], x["key"]),
-        )
-        entries_out.sort(key=lambda x: (x["sentence_index"], x["scope"], x["key"]))
+        entities_out = sorted(list(entities))
 
         return {
-            "schema_version": "1.0",
-            "entries": entries_out,
-            "totals_by_scope": scope_totals,
-            "summary": {
-                "total_bargaining_units": sum(
-                    e["bargaining_unit_count"] for e in entries_out
-                ),
-                "entry_count": len(entries_out),
-                "scope_count": len(scope_totals),
-            },
+            "tot": total_units,
+            "entities": entities_out,
         }
 
 

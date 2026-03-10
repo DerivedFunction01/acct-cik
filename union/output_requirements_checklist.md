@@ -159,22 +159,22 @@ Notes:
 Suppressed clause numerics are attached to each country as `suppressed_counts`.
 These are explicit numbers from legal requirement, legal process, boilerplate, or
 contract clause mechanics sentences. They are not used in coverage math and are
-intended as a last-resort quantitative signal.
+intended as a last-resort quantitative signal. Counts are aggregated, and the
+suppression type is resolved by priority when multiple types overlap:
+`CONTRACT_CLAUSE` > `LEGAL_PROCESS` > `LEGAL_REQUIREMENT` > `BOILERPLATE`.
 
 ```jsonc
 {
   "country_code": "GB",
-  "suppressed_counts": [
-    {
-      "sentence_index": 12,
-      "percentages": [52.0],
-      "worker_counts": [],
-      "bargaining_unit_counts": [],
-      "numbers": [],
-      "suppress_types": ["CONTRACT_CLAUSE"],
-      "temporal_scope": "CURRENT"
+  "suppressed_counts": {
+    "CONTRACT_CLAUSE": {
+      "count_total": 0.0, // sum of worker_counts (fallback to numbers)
+      "count_n": 0, // number of count values aggregated
+      "pct_vals": [52.0], // collected percentage values
+      "bu_total": 0.0, // sum of bargaining unit counts
+      "n": 1 // number of suppressed items contributing
     }
-  ]
+  }
 }
 ```
 
@@ -234,6 +234,21 @@ intended as a last-resort quantitative signal.
       "entry_count": 1
     }
   }
+}
+```
+
+## 2e) Bargaining Report (Bargaining Unit Counts)
+
+Lean report: summary plus the list of entities (countries/regions).
+
+```jsonc
+{
+  "summary": {
+    "total_bargaining_units": 14.0,
+    "entry_count": 2,
+    "entity_count": 2
+  },
+  "entities": ["GB", "US"]
 }
 ```
 
