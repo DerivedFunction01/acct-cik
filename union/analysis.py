@@ -3661,7 +3661,7 @@ def determine_geo_context(
     # If domestic is unresolved, infer it when "domestic" is adjacent to a single
     # explicit country in the same sentence (no other ambiguity).
     unknown_domestic_codes = (
-        INT_SET | UNK_SET | {"XX", "HOME_UNKNOWN"}
+        INT_SET | UNK_SET
     )
     if domestic_country_code in unknown_domestic_codes and explicit_matches:
         domestic_explicit = [
