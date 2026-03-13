@@ -157,36 +157,6 @@ def copy_metadata_tables():
         src_conn.close()
         tgt_conn.close()
 
-    # Fallback to SQL attach/copy if pandas is unavailable
-    conn = sqlite3.connect(TARGET_DB, timeout=30.0)
-    c = conn.cursor()
-    try:
-        c.execute("ATTACH DATABASE ? AS src", (SOURCE_DB,))
-
-        c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='report_data'")
-        if c.fetchone():
-            c.execute("DROP TABLE IF EXISTS report_data")
-            c.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_report_accession ON report_data(accession)")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_report_url ON report_data(url)")
-
-        c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
-        if c.fetchone():
-            c.execute("DROP TABLE IF EXISTS names")
-            c.execute("CREATE TABLE names AS SELECT * FROM src.names")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_names_cik ON names(cik)")
-
-        conn.commit()
-        logging.info("Metadata tables copied successfully (SQL fallback).")
-    except sqlite3.Error as e:
-        logging.error(f"Error copying metadata: {e}")
-    finally:
-        try:
-            c.execute("DETACH DATABASE src")
-        except sqlite3.Error:
-            pass
-        conn.close()
-
 def get_processed_accessions(target_db: str) -> set:
     """Get all accessions already processed in target DB."""
     if not Path(target_db).exists():
