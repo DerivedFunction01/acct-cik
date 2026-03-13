@@ -1488,7 +1488,7 @@ EUROPE = {
         code="GE",
     ),
     Nation(
-        "CIS",
+        "Commonwealth of Independent States",
         ["cis", "commonwealth of independent states", "ussr", "soviet union", "soviet"],
         Region.EUROPE,
         code="CIS",
