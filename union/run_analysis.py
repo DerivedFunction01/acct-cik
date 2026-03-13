@@ -79,9 +79,10 @@ def process_row(row: Tuple) -> Optional[Tuple]:
     # Process Item 1A
     item1a_analysis = {}
     
-    # For really old filings, Item 1A doesn't exist. So we use the Item 1.
+    # For really old filings, Item 1A doesn't exist. Do not reuse Item 1.
+    # We'll emit a minimal analysis instead.
     if not item1a_json:
-        item1a_json = item1_json
+        item1a_json = None
 
     if item1a_json:
         try:
