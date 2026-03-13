@@ -29,16 +29,20 @@ def _safe_json_loads(raw: Optional[str]) -> Dict[str, Any]:
         return {}
 
 
-def _extract_reports(analysis_obj: Dict[str, Any]) -> Tuple[Optional[str], Optional[str]]:
+def _extract_reports(
+    analysis_obj: Dict[str, Any]
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     if not analysis_obj:
-        return None, None
+        return None, None, None
     country_report = analysis_obj.get("country_report")
     risk_summary = analysis_obj.get("risk_summary")
-    if country_report is None and risk_summary is None:
-        return None, None
+    bargaining_report = analysis_obj.get("bargaining_report")
+    if country_report is None and risk_summary is None and bargaining_report is None:
+        return None, None, None
     return (
         json.dumps(country_report) if country_report is not None else None,
         json.dumps(risk_summary) if risk_summary is not None else None,
+        json.dumps(bargaining_report) if bargaining_report is not None else None,
     )
 
 
@@ -53,7 +57,9 @@ def _init_target(conn: sqlite3.Connection) -> None:
             item1_country_report TEXT,
             item1a_country_report TEXT,
             item1_risk_summary TEXT,
-            item1a_risk_summary TEXT
+            item1a_risk_summary TEXT,
+            item1_bargaining_report TEXT,
+            item1a_bargaining_report TEXT
         )
         """
     )
@@ -134,11 +140,22 @@ def export_reports(
                 item1_obj = _safe_json_loads(item1_raw)
                 item1a_obj = _safe_json_loads(item1a_raw)
 
-                item1_country, item1_risk = _extract_reports(item1_obj)
-                item1a_country, item1a_risk = _extract_reports(item1a_obj)
+                item1_country, item1_risk, item1_bargaining = _extract_reports(
+                    item1_obj
+                )
+                item1a_country, item1a_risk, item1a_bargaining = _extract_reports(
+                    item1a_obj
+                )
 
                 if not include_empty and not any(
-                    [item1_country, item1a_country, item1_risk, item1a_risk]
+                    [
+                        item1_country,
+                        item1a_country,
+                        item1_risk,
+                        item1a_risk,
+                        item1_bargaining,
+                        item1a_bargaining,
+                    ]
                 ):
                     continue
 
@@ -150,6 +167,8 @@ def export_reports(
                         item1a_country,
                         item1_risk,
                         item1a_risk,
+                        item1_bargaining,
+                        item1a_bargaining,
                     )
                 )
 
@@ -158,8 +177,9 @@ def export_reports(
                     f"""
                     INSERT OR REPLACE INTO {TARGET_TABLE}
                     (accession, period_of_report, item1_country_report, item1a_country_report,
-                     item1_risk_summary, item1a_risk_summary)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                     item1_risk_summary, item1a_risk_summary,
+                     item1_bargaining_report, item1a_bargaining_report)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     out_rows,
                 )

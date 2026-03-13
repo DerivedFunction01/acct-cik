@@ -54,7 +54,9 @@ def export_parquet(source_db: str, output_path: str) -> None:
                 p.item1_country_report,
                 p.item1a_country_report,
                 p.item1_risk_summary,
-                p.item1a_risk_summary
+                p.item1a_risk_summary,
+                p.item1_bargaining_report,
+                p.item1a_bargaining_report
             FROM {SOURCE_TABLE} p
             LEFT JOIN report_data r ON p.accession = r.accession
         """
@@ -73,6 +75,8 @@ def export_parquet(source_db: str, output_path: str) -> None:
 
         item1_risk = _safe_json_loads(row.get("item1_risk_summary"))
         item1a_risk = _safe_json_loads(row.get("item1a_risk_summary"))
+        item1_barg = _safe_json_loads(row.get("item1_bargaining_report"))
+        item1a_barg = _safe_json_loads(row.get("item1a_bargaining_report"))
 
         def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
             out = dict(a)
@@ -115,9 +119,7 @@ def export_parquet(source_db: str, output_path: str) -> None:
             "countries": _safe_json_dumps(country_report.get("countries") or []),
             "agg": _safe_json_dumps(country_report.get("agg") or []),
             "risk_summary": _safe_json_dumps(risk_summary or {}),
-            "bargaining_report": _safe_json_dumps(
-                country_report.get("bargaining_report")
-            ),
+            "bargaining_report": _safe_json_dumps(item1_barg or item1a_barg or {}),
         }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
