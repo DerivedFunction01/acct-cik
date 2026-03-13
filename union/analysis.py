@@ -12099,9 +12099,11 @@ class UnionAnalyzer:
                 ):
                     c_data["employee_count_covered"] = n_data["employee_count_covered"]
 
-                # Use potential total from current sentence if available (local count priority)
-                if not c_data["employee_count_total"] and current.get(
-                    "potential_total"
+                # Use potential total from current sentence if available, but only when neither entry provides a total.
+                if (
+                    not c_data.get("employee_count_total")
+                    and not n_data.get("employee_count_total")
+                    and current.get("potential_total")
                 ):
                     c_data["employee_count_total"] = current["potential_total"]
                     c_data["note"] = (
