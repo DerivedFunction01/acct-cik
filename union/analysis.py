@@ -1315,9 +1315,11 @@ class RiskDigest:
         risk_negated_count = 0
         conditional_count = 0
         coverage_totals = {
-            "employee_count_covered": 0.0,
-            "employee_count_not_covered": 0.0,
-            "employee_count_total": 0.0,
+            "cov": 0.0,
+            "not_cov": 0.0,
+            "tot": 0.0,
+            "bu": 0.0,
+            "pct": 0.0,
         }
         coverage_has_signal = False
 
@@ -1386,71 +1388,77 @@ class RiskDigest:
 
             coverage = item.get("coverage_data") or {}
             if coverage:
-                for key in (
-                    "employee_count_covered",
-                    "employee_count_not_covered",
-                    "employee_count_total",
+                for key, short_k in (
+                    ("employee_count_covered", "cov"),
+                    ("employee_count_not_covered", "not_cov"),
+                    ("employee_count_total", "tot"),
+                    ("bargaining_unit_counts", "bu"),
+                    ("percentage", "pct"),
                 ):
                     val = coverage.get(key)
                     if val is not None:
-                        coverage_totals[key] += float(val)
+                        coverage_totals[short_k] += float(val)
                         coverage_has_signal = True
-                if coverage.get("percentage") is not None:
-                    coverage_has_signal = True
 
         out = {
-            "total_items": len(risk_items),
-            "by_type": by_type,
-            "by_signal_type": by_signal_type,
-            "by_temporal_scope": by_temporal_scope,
-            "by_activity_class": by_activity_class,
-            "relationship_status": relationship_status_counts,
-            "negated_items": negated_count,
-            "risk_negated_items": risk_negated_count,
-            "conditional_items": conditional_count,
-            "risk_terms": risk_term_counts,
-            "labor_terms": labor_term_counts,
-            "relationship_terms": relationship_term_counts,
-            "third_party_terms": supplier_term_counts,
-            "legal_requirement_terms": legal_requirement_term_counts,
-            "boilerplate_terms": boilerplate_term_counts,
-            "global_keywords": global_keywords,
+            "n": len(risk_items),
+            "typ": by_type,
+            "sig": by_signal_type,
+            "temp": by_temporal_scope,
+            "act": by_activity_class,
+            "rel": relationship_status_counts,
+            "neg_n": negated_count,
+            "r_neg_n": risk_negated_count,
+            "cond_n": conditional_count,
+            "kw_r": risk_term_counts,
+            "kw_l": labor_term_counts,
+            "kw_rel": relationship_term_counts,
+            "kw_3p": supplier_term_counts,
+            "kw_leg": legal_requirement_term_counts,
+            "kw_bp": boilerplate_term_counts,
+            "kw_g": global_keywords,
         }
         if coverage_has_signal:
-            out["coverage_totals"] = {
+            # Recalculate mathematically accurate percentage if counts exist
+            if coverage_totals["tot"] > 0:
+                coverage_totals["pct"] = round((coverage_totals["cov"] / coverage_totals["tot"]) * 100.0, 2)
+
+            out["cov_t"] = {
                 k: (v if v > 0 else None) for k, v in coverage_totals.items()
             }
             if (
-                out["coverage_totals"].get("employee_count_covered") is None
-                and out["coverage_totals"].get("employee_count_not_covered") is None
-                and out["coverage_totals"].get("employee_count_total") is None
+                out["cov_t"].get("cov") is None
+                and out["cov_t"].get("not_cov") is None
+                and out["cov_t"].get("tot") is None
+                and out["cov_t"].get("bu") is None
+                and out["cov_t"].get("pct") is None
             ):
-                out.pop("coverage_totals", None)
+                out.pop("cov_t", None)
 
         # Drop empty sections for compactness.
-        compact = {"total_items": out.get("total_items", 0)}
+        compact = {"n": out.get("n", 0)}
         for key in (
-            "by_type",
-            "by_signal_type",
-            "by_temporal_scope",
-            "by_activity_class",
-            "relationship_status",
-            "risk_terms",
-            "labor_terms",
-            "relationship_terms",
-            "third_party_terms",
-            "legal_requirement_terms",
-            "boilerplate_terms",
+            "typ",
+            "sig",
+            "temp",
+            "act",
+            "rel",
+            "kw_r",
+            "kw_l",
+            "kw_rel",
+            "kw_3p",
+            "kw_leg",
+            "kw_bp",
         ):
             if out.get(key):
                 compact[key] = out[key]
-        for key in ("negated_items", "risk_negated_items", "conditional_items"):
+        for key in ("neg_n", "r_neg_n", "cond_n"):
             if out.get(key):
                 compact[key] = out[key]
-        if out.get("global_keywords"):
-            compact["global_keywords"] = out["global_keywords"]
-        if out.get("coverage_totals"):
-            compact["coverage_totals"] = out["coverage_totals"]
+        if out.get("kw_g"):
+            compact["kw_g"] = out["kw_g"]
+        if out.get("cov_t"):
+            compact["cov_t"] = out["cov_t"]
 
         return compact
 
@@ -13068,6 +13076,7 @@ class UnionAnalyzer:
                                 "employee_count_covered",
                                 "employee_count_not_covered",
                                 "employee_count_total",
+                                "bargaining_unit_counts",
                             )
                         )
                         if has_signal:

@@ -104,10 +104,10 @@ def export_parquet(source_db: str, output_path: str) -> None:
         risk_summary = {}
         if item1_risk or item1a_risk:
             risk_summary = _merge_counts(item1_risk or {}, item1a_risk or {})
-            if "total_items" in risk_summary:
-                risk_summary["total_items"] = (
-                    (item1_risk or {}).get("total_items", 0)
-                    + (item1a_risk or {}).get("total_items", 0)
+            if "n" in risk_summary:
+                risk_summary["n"] = (
+                    (item1_risk or {}).get("n", 0)
+                    + (item1a_risk or {}).get("n", 0)
                 )
 
         return {

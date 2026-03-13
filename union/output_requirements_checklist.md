@@ -114,37 +114,38 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 
 ```jsonc
 {
-  "total_items": 3,
-  "by_type": {
+  "n": 3,
+  "typ": {
     "UNION_RISK": 2
   },
-  "by_signal_type": {
+  "sig": {
     "RISK_EVENT": 1
   },
-  "by_temporal_scope": {
+  "temp": {
     "CURRENT": 3
   },
-  "by_activity_class": {
+  "act": {
     "ACTUAL": 1,
     "POTENTIAL": 2
   },
-  "relationship_status": {
+  "rel": {
     "POSITIVE": 1
   },
-  "risk_terms": {
+  "kw_r": {
     "risk": 1
   },
-  "labor_terms": {
+  "kw_l": {
     "union": 2
   },
-  "relationship_terms": {
+  "kw_rel": {
     "relationship": 1
   },
-  "global_keywords": ["union", "risk", "relationship"],
-  "coverage_totals": {
-    "employee_count_covered": 1200.0,
-    "employee_count_not_covered": 800.0,
-    "employee_count_total": 2000.0
+  "kw_g": ["union", "risk", "relationship"],
+  "cov_t": {
+    "cov": 1200.0,
+    "not_cov": 800.0,
+    "tot": 2000.0,
+    
   }
 }
 ```
