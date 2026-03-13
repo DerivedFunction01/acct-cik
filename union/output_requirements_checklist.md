@@ -6,26 +6,27 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 
 ```jsonc
 {
+  "schema_version": "3.0",
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
   "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
   "summary": { // Quick summary to see exactly which countries are considered covered or not covered. We only mention explicitly what is provided in the text, so if a country is not mentioned at all, it should not be in either list (e.g., AU in the example below)
-    "covered": {
+    "cov": {
       "NA": ["US", "CA"],
       "EUR": ["DE", "FR", "IT", "CIS"], // CIS is a pseudo-country code representing covered countries in the Commonwealth of Independent States, if no specific country such as Russia is mentioned in text
       "APAC": ["APAC"], // If APAC is a pseudo-country with no children
       "MEA": [], // if no covered countries in MEA region
       "LATAM": ["MX"] // Mexico is part of LATAM region and not part of NA region
     }, 
-    "not_covered": {
+    "not_cov": {
       "NA": [],
       "EUR": ["GB"], // GB was not explicitly covered in text
       "APAC": [],
       "MEA": ["GCC"], // GCC is a pseudo-country code representing non-covered countries in the Gulf Cooperation Council, if no specific country such as Saudi Arabia is mentioned in text
       "LATAM": ["BR"]
     },
-    "domestic_is_covered": true, // boolean indicating whether domestic country is covered
-    "international_is_covered": true // boolean indicating whether any international employees are covered
+    "dom_cov": true, // boolean indicating whether domestic country is covered
+    "int_cov": true // boolean indicating whether any international employees are covered
   },
   "notes": [] // optional run-level notes/warnings
 }
@@ -36,69 +37,70 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 ```jsonc
 {
   "country_code": "DE",
+  "is_domestic": false,
   "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
   "country_totals": {
-    "employee_count_total": 3100.0, // final resolved total for this country (all methods combined)
-    "employee_count_covered": 1224.0, // final resolved covered count (all methods combined)
-    "employee_count_not_covered": 1876.0, // final resolved non-covered count
-    "coverage_percent": 39.48 // final country % (prefer covered/total when available)
+    "tot": 3100.0, // final resolved total for this country (all methods combined)
+    "cov": 1224.0, // final resolved covered count (all methods combined)
+    "not_cov": 1876.0, // final resolved non-covered count
+    "pct": 39.48 // final country % (prefer covered/total when available)
   },
   "reported_totals": { // explicit only
-    "employee_count_total": 3100.0, // final resolved total for this country (explicit only)
-    "employee_count_covered": 1224.0, // final resolved covered count (explicit methods combined)
-    "employee_count_not_covered": 1876.0, // final resolved non-covered count
-    "coverage_percent": 39.48 // final country % (prefer covered/total when available)
+    "tot": 3100.0, // final resolved total for this country (explicit only)
+    "cov": 1224.0, // final resolved covered count (explicit methods combined)
+    "not_cov": 1876.0, // final resolved non-covered count
+    "pct": 39.48 // final country % (prefer covered/total when available)
   },
 
   "method_breakdown": {
     "EXPLICIT": {
-      "employee_count_total": 3100.0, // counts explicitly stated in text
-      "employee_count_covered": 1224.0, // covered count explicitly stated in text
-      "employee_count_not_covered": null, // non-covered explicitly stated in text (null if not explicitly present)
-      "coverage_percent_values": [68.0], // percentages explicitly stated in text
-      "entry_count": 1 // number of contributing entries in this source type
+      "tot": 3100.0, // counts explicitly stated in text
+      "cov": 1224.0, // covered count explicitly stated in text
+      "not_cov": null, // non-covered explicitly stated in text (null if not explicitly present)
+      "pct_vals": [68.0], // percentages explicitly stated in text
+      "n": 1 // number of contributing entries in this source type
     },
     "CALCULATED": {
-      "employee_count_total": null, // totals computed from arithmetic over text-grounded values
-      "employee_count_covered": null, // covered counts computed from text-grounded values
-      "employee_count_not_covered": 1876.0, // e.g., total - covered
-      "coverage_percent_values": [39.48], // percentages computed from counts
-      "entry_count": 2
+      "tot": null, // totals computed from arithmetic over text-grounded values
+      "cov": null, // covered counts computed from text-grounded values
+      "not_cov": 1876.0, // e.g., total - covered
+      "pct_vals": [39.48], // percentages computed from counts
+      "n": 2
     },
     "INFERRED": {
-      "employee_count_total": null, // inferred from qualitative/implicit logic (not fallback denominator)
-      "employee_count_covered": null,
-      "employee_count_not_covered": null,
-      "coverage_percent_values": [], // inferred/dummy qualitative percentages
-      "entry_count": 0
+      "tot": null, // inferred from qualitative/implicit logic (not fallback denominator)
+      "cov": null,
+      "not_cov": null,
+      "pct_vals": [], // inferred/dummy qualitative percentages
+      "n": 0
     },
     "WEIGHTED_DIVISION": {
-      "employee_count_total": null, // weighted allocations derived from explicit/calculated upstream totals
-      "employee_count_covered": null, // covered counts produced by weighted split logic
-      "employee_count_not_covered": null,
-      "coverage_percent_values": [], // percentages produced by weighted split logic
-      "entry_count": 0
+      "tot": null, // weighted allocations derived from explicit/calculated upstream totals
+      "cov": null, // covered counts produced by weighted split logic
+      "not_cov": null,
+      "pct_vals": [], // percentages produced by weighted split logic
+      "n": 0
     },
     "VIRTUAL_POOL": {
-      "employee_count_total": null, // synthetic virtual-pool denominator allocations
-      "employee_count_covered": null,
-      "employee_count_not_covered": null,
-      "coverage_percent_values": [],
-      "entry_count": 0
+      "tot": null, // synthetic virtual-pool denominator allocations
+      "cov": null,
+      "not_cov": null,
+      "pct_vals": [],
+      "n": 0
     },
     "FALLBACK": {
-      "employee_count_total": null, // denominator synthesized via fallback
-      "employee_count_covered": null, // covered derived from % * fallback denominator
-      "employee_count_not_covered": null,
-      "coverage_percent_values": [], // only if the percentage itself was fallback-sourced
-      "entry_count": 0
+      "tot": null, // denominator synthesized via fallback
+      "cov": null, // covered derived from % * fallback denominator
+      "not_cov": null,
+      "pct_vals": [], // only if the percentage itself was fallback-sourced
+      "n": 0
     },
     "INHERITED": {
-      "employee_count_total": null, // true carry-forward inheritance only (context transfer)
-      "employee_count_covered": null,
-      "employee_count_not_covered": null,
-      "coverage_percent_values": [],
-      "entry_count": 0
+      "tot": null, // true carry-forward inheritance only (context transfer)
+      "cov": null,
+      "not_cov": null,
+      "pct_vals": [],
+      "n": 0
     }
   },
 
@@ -128,7 +130,7 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
     "POTENTIAL": 2
   },
   "relationship_status": {
-    "GOOD": 1
+    "POSITIVE": 1
   },
   "risk_terms": {
     "risk": 1
@@ -182,29 +184,29 @@ suppression type is resolved by priority when multiple types overlap:
 {
   "aggregate_key": "EU", // aggregate parent context code (always code, never region name)
   "aggregate_scope": "AGGREGATE", 
-  "employee_count_total": 1000.0, // original parent count
-  "employee_count_covered": 1000.0,
-  "employee_count_not_covered": 0.0,
-  "coverage_percent": 100.0,
+  "tot": 1000.0, // original parent count
+  "cov": 1000.0,
+  "not_cov": 0.0,
+  "pct": 100.0,
   "source_type": "WEIGHTED_DIVISION",
   "children": {
     "DE": {
-      "employee_count_total": 368.0, // allocated from parent using weighted division basis
-      "employee_count_covered": 368.0,
-      "employee_count_not_covered": 0.0,
-      "allocation_weight_total": 368.0 // basis used for weighting (country total)
+      "tot": 368.0, // allocated from parent using weighted division basis
+      "cov": 368.0,
+      "not_cov": 0.0,
+      "w_tot": 368.0 // basis used for weighting (country total)
     },
     "FR": {
-      "employee_count_total": 331.0,
-      "employee_count_covered": 331.0,
-      "employee_count_not_covered": 0.0,
-      "allocation_weight_total": 331.0
+      "tot": 331.0,
+      "cov": 331.0,
+      "not_cov": 0.0,
+      "w_tot": 331.0
     },
     "IT": {
-      "employee_count_total": 301.0,
-      "employee_count_covered": 301.0,
-      "employee_count_not_covered": 0.0,
-      "allocation_weight_total": 301.0
+      "tot": 301.0,
+      "cov": 301.0,
+      "not_cov": 0.0,
+      "w_tot": 301.0
     }
   }
 }
