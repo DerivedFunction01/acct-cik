@@ -129,31 +129,87 @@ def copy_metadata_tables():
 
     conn = sqlite3.connect(TARGET_DB, timeout=30.0)
     c = conn.cursor()
-    
-    # Check if report_data already exists
-    c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_data'")
-    if c.fetchone():
-        logging.info("report_data table already exists in target DB. Skipping copy.")
-        conn.close()
-        return
 
     logging.info("Copying metadata tables (report_data, names) from source DB...")
-    
+
     try:
         # Attach source database
         c.execute("ATTACH DATABASE ? AS src", (SOURCE_DB,))
-        
-        # Copy report_data
-        c.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_report_accession ON report_data(accession)")
-        c.execute("CREATE INDEX IF NOT EXISTS idx_report_url ON report_data(url)")
-        
+
+        # Copy report_data if needed
+        c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='report_data'")
+        if c.fetchone():
+            c.execute("SELECT COUNT(1) FROM src.report_data")
+            src_count = c.fetchone()[0]
+
+            c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='report_data'")
+            tgt_exists = c.fetchone() is not None
+            tgt_count = None
+            if tgt_exists:
+                try:
+                    c.execute("SELECT COUNT(1) FROM report_data")
+                    tgt_count = c.fetchone()[0]
+                except sqlite3.Error:
+                    tgt_count = None
+
+            if (not tgt_exists) or (tgt_count is None) or (tgt_count != src_count):
+                if tgt_exists:
+                    c.execute("DROP TABLE IF EXISTS report_data")
+                c.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
+                c.execute(
+                    "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='report_data' AND sql IS NOT NULL"
+                )
+                for (sql,) in c.fetchall():
+                    try:
+                        c.execute(sql)
+                    except sqlite3.Error as e:
+                        logging.debug(f"Could not create report_data index: {e}")
+                        pass
+                logging.info(
+                    "Copied report_data (%s rows).", src_count
+                )
+            else:
+                logging.info(
+                    "report_data already up to date in target DB (%s rows).",
+                    tgt_count,
+                )
+
         # Copy names if exists
         c.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
         if c.fetchone():
-            c.execute("CREATE TABLE names AS SELECT * FROM src.names")
-            c.execute("CREATE INDEX IF NOT EXISTS idx_names_cik ON names(cik)")
-            
+            c.execute("SELECT COUNT(1) FROM src.names")
+            src_count = c.fetchone()[0]
+
+            c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='names'")
+            tgt_exists = c.fetchone() is not None
+            tgt_count = None
+            if tgt_exists:
+                try:
+                    c.execute("SELECT COUNT(1) FROM names")
+                    tgt_count = c.fetchone()[0]
+                except sqlite3.Error:
+                    tgt_count = None
+
+            if (not tgt_exists) or (tgt_count is None) or (tgt_count != src_count):
+                if tgt_exists:
+                    c.execute("DROP TABLE IF EXISTS names")
+                c.execute("CREATE TABLE names AS SELECT * FROM src.names")
+                c.execute(
+                    "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='names' AND sql IS NOT NULL"
+                )
+                for (sql,) in c.fetchall():
+                    try:
+                        c.execute(sql)
+                    except sqlite3.Error as e:
+                        logging.debug(f"Could not create names index: {e}")
+                        pass
+                logging.info("Copied names (%s rows).", src_count)
+            else:
+                logging.info(
+                    "names already up to date in target DB (%s rows).",
+                    tgt_count,
+                )
+
         conn.commit()
         logging.info("Metadata tables copied successfully.")
         
