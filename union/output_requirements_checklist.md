@@ -36,7 +36,6 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 ```jsonc
 {
   "country_code": "DE",
-  "is_domestic": false,
   "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
   "country_totals": {
     "tot": 3100.0, // final resolved total for this country (all methods combined)
@@ -169,10 +168,9 @@ suppression type is resolved by priority when multiple types overlap:
   "country_code": "GB",
   "suppressed_counts": {
     "CONTRACT_CLAUSE": {
-      "count_total": 0.0, // sum of worker_counts (fallback to numbers)
-      "count_n": 0, // number of count values aggregated
+      "tot": 0.0, // sum of worker_counts (fallback to numbers)
       "pct_vals": [52.0], // collected percentage values
-      "bu_total": 0.0, // sum of bargaining unit counts
+      "bu": 0.0, // sum of bargaining unit counts
       "n": 1 // number of suppressed items contributing
     }
   }
@@ -220,18 +218,18 @@ suppression type is resolved by priority when multiple types overlap:
   "country_code": "GB",
   "method_breakdown": {
     "EXPLICIT": {
-      "coverage_percent_values": [25.0], // 25% explicitly appears in text
-      "employee_count_total": null,
-      "employee_count_covered": null,
-      "employee_count_not_covered": null,
-      "entry_count": 1
+      "pct_vals": [25.0], // 25% explicitly appears in text
+      "tot": null,
+      "cov": null,
+      "not_cov": null,
+      "n": 1
     },
     "FALLBACK": {
-      "employee_count_total": 120.0, // no UK total in text, so fallback denominator applied
-      "employee_count_covered": 30.0, // derived from explicit 25% * fallback denominator
-      "employee_count_not_covered": 90.0,
-      "coverage_percent_values": [],
-      "entry_count": 1
+      "tot": 120.0, // no UK total in text, so fallback denominator applied
+      "cov": 30.0, // derived from explicit 25% * fallback denominator
+      "not_cov": 90.0,
+      "pct_vals": [],
+      "n": 1
     }
   }
 }
@@ -243,7 +241,7 @@ Lean report: summary plus the list of entities (countries/regions).
 
 ```jsonc
 {
-  "total_bargaining_units": 14.0,
+  "tot": 14.0,
   "entities": ["GB", "US"]
 }
 ```
