@@ -4,6 +4,7 @@ import logging
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+import pandas as pd
 
 
 SOURCE_DB_DEFAULT = "analyzed_union_data.db"
@@ -63,50 +64,35 @@ def _init_target(conn: sqlite3.Connection) -> None:
 
 
 def _copy_metadata_tables(tgt_conn: sqlite3.Connection, source_db: str) -> None:
-    cur = tgt_conn.cursor()
-    try:
-        cur.execute("ATTACH DATABASE ? AS src", (source_db,))
-        # Copy report_data table
-        cur.execute(
-            "SELECT name FROM src.sqlite_master WHERE type='table' AND name='report_data'"
-        )
-        if cur.fetchone():
-            logging.info("Copying report_data table...")
-            cur.execute("DROP TABLE IF EXISTS report_data")
-            cur.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
-            cur.execute(
-                "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='report_data' AND sql IS NOT NULL"
-            )
-            for (sql,) in cur.fetchall():
-                try:
-                    cur.execute(sql)
-                except sqlite3.Error as e:
-                    logging.debug(f"Could not create index: {e}")
-                    pass
+    """Copies report_data and names tables from source to target DB using pandas."""
+    if not Path(source_db).exists():
+        return
 
-        # Copy names table
-        cur.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
-        if cur.fetchone():
-            logging.info("Copying names table...")
-            cur.execute("DROP TABLE IF EXISTS names")
-            cur.execute("CREATE TABLE names AS SELECT * FROM src.names")
-            cur.execute(
-                "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='names' AND sql IS NOT NULL"
-            )
-            for (sql,) in cur.fetchall():
-                try:
-                    cur.execute(sql)
-                except sqlite3.Error as e:
-                    logging.debug(f"Could not create index: {e}")
-                    pass
+    logging.info("Copying metadata tables (report_data, names) from source DB...")
+    src_conn = sqlite3.connect(source_db, timeout=30.0)
+
+    try:
+        for table in ("report_data", "names"):
+            try:
+                df = pd.read_sql_query(f"SELECT * FROM {table}", src_conn)
+            except Exception as e:
+                logging.warning("Could not read %s from source DB: %s", table, e)
+                continue
+
+            if df.empty:
+                logging.warning("%s is empty in source DB; skipping.", table)
+                continue
+
+            try:
+                df.to_sql(table, tgt_conn, if_exists="replace", index=False)
+                logging.info("Copied %s via dataframe (%s rows).", table, len(df))
+            except Exception as e:
+                logging.error("Failed to write %s to target DB: %s", table, e)
         tgt_conn.commit()
-    except sqlite3.Error as e:
-        logging.warning(f"Could not copy metadata tables: {e}")
+    except Exception as e:
+        logging.error("Pandas copy failed: %s", e)
     finally:
-        try:
-            cur.execute("DETACH DATABASE src")
-        except sqlite3.Error:
-            pass
+        src_conn.close()
 
 
 def export_reports(
