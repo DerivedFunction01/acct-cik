@@ -9892,7 +9892,7 @@ class Tracker:
             alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
-            if e.covered_count == 0 or e.percentage == 0:
+            if e.covered_count == 0 or e.percentage == 0 or (not e.covered_count and not e.percentage):
                 continue
 
             children = {}
