@@ -70,6 +70,23 @@ def process_row(row: Tuple) -> Optional[Tuple]:
                 )
         except json.JSONDecodeError:
             pass
+    if not item1_analysis:
+        dom_code = home_country or "US"
+        item1_analysis = {
+            "country_report": {
+                "domestic_country_code": dom_code,
+                "countries": [],
+                "agg": [],
+                "summary": {
+                    "cov": {},
+                    "not_cov": {},
+                    "dom_cov": False,
+                    "int_cov": False,
+                },
+                "notes": [],
+            },
+            "risk_summary": {},
+        }
 
     # Process Item 1A
     item1a_analysis = {}
@@ -91,6 +108,23 @@ def process_row(row: Tuple) -> Optional[Tuple]:
                 )
         except json.JSONDecodeError:
             pass
+    if not item1a_analysis:
+        dom_code = home_country or "US"
+        item1a_analysis = {
+            "country_report": {
+                "domestic_country_code": dom_code,
+                "countries": [],
+                "agg": [],
+                "summary": {
+                    "cov": {},
+                    "not_cov": {},
+                    "dom_cov": False,
+                    "int_cov": False,
+                },
+                "notes": [],
+            },
+            "risk_summary": {},
+        }
     
     return (
         accession,
