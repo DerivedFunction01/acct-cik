@@ -585,7 +585,7 @@ NON_COVERAGE_PHRASES = [
     r"decertif(?:ied|y|ications?)",
     r"not\s+under",
     build_compound(
-        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS, sep_prefix=GAP
+        NEGATION_TERMS, COVERAGE_TERMS + WORKER_TERMS + [r"we", r"company", r"registrants?"], sep_prefix=GAP
     ),
 ]
 NON_COVERAGE_REGEX = build_regex(NON_COVERAGE_PHRASES)
