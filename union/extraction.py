@@ -1626,7 +1626,7 @@ class UnionExtractor:
 
         # 7.1 Extract union acronyms in "represented by XYZ" phrasing.
         # This is a fallback for table-derived or abbreviated union names.
-        if TABLE_TOK in text and "work council" not in text.lower():
+        if TABLE_TOK in text and not WORKS_REGEX.search(text):
             process_matches(
                 REPRESENTED_BY_ACRONYM_REGEX,
                 MatchType.UNION_NAME,
