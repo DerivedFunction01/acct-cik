@@ -145,7 +145,8 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
     "cov": 1200.0,
     "not_cov": 800.0,
     "tot": 2000.0,
-    
+    "bu": 14.0,
+    "pct": 60.0
   }
 }
 ```
