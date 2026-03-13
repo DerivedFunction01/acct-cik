@@ -71,9 +71,40 @@ def export_parquet(source_db: str, output_path: str) -> None:
         summary_cov = summary.get("cov") if isinstance(summary, dict) else None
         summary_not_cov = summary.get("not_cov") if isinstance(summary, dict) else None
 
-        risk_summary = _safe_json_loads(row.get("item1_risk_summary"))
-        if not risk_summary:
-            risk_summary = _safe_json_loads(row.get("item1a_risk_summary"))
+        item1_risk = _safe_json_loads(row.get("item1_risk_summary"))
+        item1a_risk = _safe_json_loads(row.get("item1a_risk_summary"))
+
+        def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+            out = dict(a)
+            for k, v in b.items():
+                if isinstance(v, dict):
+                    if k not in out or not isinstance(out[k], dict):
+                        out[k] = dict(v)
+                    else:
+                        for sk, sv in v.items():
+                            out[k][sk] = out[k].get(sk, 0) + sv
+                elif isinstance(v, list):
+                    if k not in out or not isinstance(out[k], list):
+                        out[k] = list(v)
+                    else:
+                        for item in v:
+                            if item not in out[k]:
+                                out[k].append(item)
+                elif isinstance(v, (int, float)):
+                    out[k] = out.get(k, 0) + v
+                else:
+                    if k not in out:
+                        out[k] = v
+            return out
+
+        risk_summary = {}
+        if item1_risk or item1a_risk:
+            risk_summary = _merge_counts(item1_risk or {}, item1a_risk or {})
+            if "total_items" in risk_summary:
+                risk_summary["total_items"] = (
+                    (item1_risk or {}).get("total_items", 0)
+                    + (item1a_risk or {}).get("total_items", 0)
+                )
 
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
