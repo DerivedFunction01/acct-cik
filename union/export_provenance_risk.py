@@ -62,6 +62,53 @@ def _init_target(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _copy_metadata_tables(tgt_conn: sqlite3.Connection, source_db: str) -> None:
+    cur = tgt_conn.cursor()
+    try:
+        cur.execute("ATTACH DATABASE ? AS src", (source_db,))
+        # Copy report_data table
+        cur.execute(
+            "SELECT name FROM src.sqlite_master WHERE type='table' AND name='report_data'"
+        )
+        if cur.fetchone():
+            logging.info("Copying report_data table...")
+            cur.execute("DROP TABLE IF EXISTS report_data")
+            cur.execute("CREATE TABLE report_data AS SELECT * FROM src.report_data")
+            cur.execute(
+                "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='report_data' AND sql IS NOT NULL"
+            )
+            for (sql,) in cur.fetchall():
+                try:
+                    cur.execute(sql)
+                except sqlite3.Error as e:
+                    logging.debug(f"Could not create index: {e}")
+                    pass
+
+        # Copy names table
+        cur.execute("SELECT name FROM src.sqlite_master WHERE type='table' AND name='names'")
+        if cur.fetchone():
+            logging.info("Copying names table...")
+            cur.execute("DROP TABLE IF EXISTS names")
+            cur.execute("CREATE TABLE names AS SELECT * FROM src.names")
+            cur.execute(
+                "SELECT sql FROM src.sqlite_master WHERE type='index' AND tbl_name='names' AND sql IS NOT NULL"
+            )
+            for (sql,) in cur.fetchall():
+                try:
+                    cur.execute(sql)
+                except sqlite3.Error as e:
+                    logging.debug(f"Could not create index: {e}")
+                    pass
+        tgt_conn.commit()
+    except sqlite3.Error as e:
+        logging.warning(f"Could not copy metadata tables: {e}")
+    finally:
+        try:
+            cur.execute("DETACH DATABASE src")
+        except sqlite3.Error:
+            pass
+
+
 def export_reports(
     source_db: str,
     target_db: str,
@@ -77,6 +124,7 @@ def export_reports(
     tgt = sqlite3.connect(target_db)
     try:
         _init_target(tgt)
+        _copy_metadata_tables(tgt, source_db)
         src_cur = src.cursor()
         tgt_cur = tgt.cursor()
 
