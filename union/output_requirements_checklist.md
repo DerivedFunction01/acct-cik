@@ -6,7 +6,6 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 
 ```jsonc
 {
-  "schema_version": "3.0",
   "domestic_country_code": "US", // home country used for domestic/international split
   "countries": [], // one object per country
   "agg": [], // top-level aggregate provenance (parent-level, non-duplicated)
