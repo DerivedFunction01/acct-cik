@@ -3,7 +3,7 @@ import json
 import logging
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 import pandas as pd
 
@@ -36,6 +36,44 @@ def _safe_json_dumps(obj: Any) -> Optional[str]:
     except TypeError:
         return None
 
+
+def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
+    dom_code = report.get("domestic_country_code")
+    if not dom_code:
+        return None, None
+
+    for entry in report.get("countries") or []:
+        if entry.get("country_code") != dom_code:
+            continue
+        explicit = entry.get("method_breakdown", {}).get("EXPLICIT", {})
+        cov = explicit.get("cov")
+        pct_vals = explicit.get("pct_vals") or []
+        pct = pct_vals[0] if pct_vals else None
+        return cov, pct
+    return None, None
+
+def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(a)
+    for k, v in b.items():
+        if isinstance(v, dict):
+            if k not in out or not isinstance(out[k], dict):
+                out[k] = dict(v)
+            else:
+                for sk, sv in v.items():
+                    out[k][sk] = out[k].get(sk, 0) + sv
+        elif isinstance(v, list):
+            if k not in out or not isinstance(out[k], list):
+                out[k] = list(v)
+            else:
+                for item in v:
+                    if item not in out[k]:
+                        out[k].append(item)
+        elif isinstance(v, (int, float)):
+            out[k] = out.get(k, 0) + v
+        else:
+            if k not in out:
+                out[k] = v
+    return out
 
 def export_parquet(source_db: str, output_path: str) -> None:
     source_path = Path(source_db)
@@ -78,29 +116,6 @@ def export_parquet(source_db: str, output_path: str) -> None:
         item1_barg = _safe_json_loads(row.get("item1_bargaining_report"))
         item1a_barg = _safe_json_loads(row.get("item1a_bargaining_report"))
 
-        def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
-            out = dict(a)
-            for k, v in b.items():
-                if isinstance(v, dict):
-                    if k not in out or not isinstance(out[k], dict):
-                        out[k] = dict(v)
-                    else:
-                        for sk, sv in v.items():
-                            out[k][sk] = out[k].get(sk, 0) + sv
-                elif isinstance(v, list):
-                    if k not in out or not isinstance(out[k], list):
-                        out[k] = list(v)
-                    else:
-                        for item in v:
-                            if item not in out[k]:
-                                out[k].append(item)
-                elif isinstance(v, (int, float)):
-                    out[k] = out.get(k, 0) + v
-                else:
-                    if k not in out:
-                        out[k] = v
-            return out
-
         risk_summary = {}
         if item1_risk or item1a_risk:
             risk_summary = _merge_counts(item1_risk or {}, item1a_risk or {})
@@ -109,6 +124,8 @@ def export_parquet(source_db: str, output_path: str) -> None:
                     (item1_risk or {}).get("n", 0)
                     + (item1a_risk or {}).get("n", 0)
                 )
+
+        dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
 
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
@@ -120,6 +137,8 @@ def export_parquet(source_db: str, output_path: str) -> None:
             "agg": _safe_json_dumps(country_report.get("agg") or []),
             "risk_summary": _safe_json_dumps(risk_summary or {}),
             "bargaining_report": _safe_json_dumps(item1_barg or item1a_barg or {}),
+            "dom_count": dom_domestic_count,
+            "dom_pct": dom_domestic_pct,
         }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
