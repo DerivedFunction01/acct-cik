@@ -170,7 +170,7 @@ WORKER_COUNT_REGEX = build_regex(
 )
 
 BARGAINING_UNIT_GAP_PREPOSITION_REGEX = re.compile(
-    r"\b(?:in|of|under|for|with|by|from|to|at|among|between|an|a|the)\b", re.IGNORECASE
+    r"\b(?:in|under|for|with|by|from|to|at|among|between|an|a|the)\b", re.IGNORECASE
 )
 
 BARGAINING_UNIT_WORKER_BASE_PATTERN = build_alternation(WORKER_TERMS)
