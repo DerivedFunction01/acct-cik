@@ -1064,6 +1064,7 @@ class ContextualNumberCleaner:
             r"offices?",
             r"cit(?:y|ies)",
             r"states?",
+            r"locations?",
             r"stores?",
             r"branch(?:es)?",
             r"warehouses?",
@@ -1340,7 +1341,6 @@ class ContextualNumberCleaner:
         other_terms_strict = [
             r"countr(?:y|ies)",
             r"regions?",
-            r"locations?",
             r"cities",
             r"states",
             r"areas",
