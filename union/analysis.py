@@ -12932,8 +12932,9 @@ class UnionAnalyzer:
         data = {}
 
         # Capture explicit bargaining unit counts (summed per user instruction)
-        if analysis.bargaining_unit_counts:
-            data["bargaining_unit_count"] = sum(analysis.bargaining_unit_counts)
+        bu_sum = sum(analysis.bargaining_unit_counts) if analysis.bargaining_unit_counts else None
+        if bu_sum is not None:
+            data["bargaining_unit_count"] = bu_sum
 
         if analysis.has_union_denominator:
             denom_data = self.extra_analyzer.analyze_denominator(analysis)
@@ -12944,6 +12945,9 @@ class UnionAnalyzer:
             data = self.simple_analyzer.analyze(analysis)
         else:
             data = self._analyze_complex_coverage(analysis, inherited_total_count)
+
+        if bu_sum is not None and data.get("bargaining_unit_count") is None:
+            data["bargaining_unit_count"] = bu_sum
 
         # Common Post-Processing (Temporal Scope, etc.)
         data.setdefault("temporal_scope", TemporalScope.CURRENT.value)
