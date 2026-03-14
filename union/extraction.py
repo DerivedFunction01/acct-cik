@@ -176,19 +176,20 @@ BARGAINING_UNIT_GAP_PREPOSITION_REGEX = re.compile(
 BARGAINING_UNIT_WORKER_BASE_PATTERN = build_alternation(WORKER_TERMS)
 BARGAINING_UNIT_WORKER_PREFIX_PATTERN = build_alternation(INDUSTRY_PREFIX_TERMS)
 BARGAINING_UNIT_WORKER_PHRASE_PATTERN = (
-    rf"(?:(?:{BARGAINING_UNIT_WORKER_PREFIX_PATTERN})\s+)?"
-    rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN})(?:['’]s?)?"
+    # Allow a one word gap
+    r"(?:[^\W\d][\w\.-]*\s+){0,1}"
+    rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN})(?:['’]s?)?" # base word
 )
 
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
     [
         rf"(\d{{1,3}})\s+((?:{BARGAINING_UNIT_WORKER_PHRASE_PATTERN}\s+)?)"
-        rf"(?:collective[-\s]+)?bargaining[-\s]+unit(?:s|\(s\))?",
+        rf"(?:collective\s+)?bargaining\s+units?",
     ]
 )
 BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX = build_regex(
     [
-        r"number\s+of\s+(?:collective[-\s]+)?bargaining[-\s]+units?\s+(?:is|are|was|were)\s+(\d{1,3})",
+        r"number\s+of\s+(?:collective[-\s]+)?bargaining\s+units?\s+(?:is|are|was|were)\s+(\d{1,3})",
     ]
 )
 WORKER_TERM_REGEX = re.compile(rf"\b{worker_term_pattern}\b", re.IGNORECASE)
@@ -2401,6 +2402,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
@@ -2409,6 +2411,7 @@ class UnionExtractor:
         for p in parts:
             final_parts.append(p.strip())
         return final_parts
+
 
 
 # %%
