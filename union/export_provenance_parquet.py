@@ -126,6 +126,9 @@ def export_parquet(source_db: str, output_path: str) -> None:
                 )
 
         dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
+        if summary.get("dom_cov") is False:
+            dom_domestic_count = 0.0
+            dom_domestic_pct = 0.0
 
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),

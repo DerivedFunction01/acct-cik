@@ -9966,9 +9966,16 @@ class Tracker:
 
         for e in self.bargaining_entries:
             if e.key:
-                entities.add(str(e.key))
+                base_key = str(e.key)
+                main_key = base_key.split("::", 1)[0]
+                if main_key in REGION_NAME_MAP:
+                    main_key = REGION_NAME_MAP[main_key]
+                entities.add(main_key)
             total_units += float(e.bargaining_unit_count or 0.0)
             total_entries += 1
+            for code in e.related_geo_codes or []:
+                if code:
+                    entities.add(code)
 
         entities_out = sorted(list(entities))
 
