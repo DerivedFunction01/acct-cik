@@ -177,7 +177,7 @@ BARGAINING_UNIT_WORKER_BASE_PATTERN = build_alternation(WORKER_TERMS)
 BARGAINING_UNIT_WORKER_PREFIX_PATTERN = build_alternation(INDUSTRY_PREFIX_TERMS)
 BARGAINING_UNIT_WORKER_PHRASE_PATTERN = (
     # Allow a one word gap
-    r"(?:[^\W\d][\w\.-]*\s+){0,1}"
+    r"(?:[^\W\d][\w-]*\s+){0,1}"
     rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN})(?:['’]s?)?" # base word
 )
 
@@ -1302,7 +1302,7 @@ class UnionExtractor:
         )
 
         # 3.1 Extract Bargaining Unit Counts
-        def extract_bargaining_unit_count(m: re.Match) -> float:
+        def extract_bargaining_unit_count(m: re.Match) -> Tuple[float, int, int]:
             # Skip prepositional forms like "20 in a bargaining unit" (subset count),
             # while retaining explicit unit counts such as "12 bargaining units".
             gap = (m.group(2) or "").strip()
@@ -1312,7 +1312,7 @@ class UnionExtractor:
             count = m.group(1)
             if not count:
                 raise ValueError
-            return float(count)
+            return float(count), m.start(1), m.end(1)
 
         process_matches(
             BARGAINING_UNIT_COUNT_REGEX,
@@ -1323,7 +1323,7 @@ class UnionExtractor:
         process_matches(
             BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX,
             MatchType.BARGAINING_UNIT_COUNT,
-            lambda m: float(m.group(1)),
+            lambda m: (float(m.group(1)), m.start(1), m.end(1)),
             lambda m, val: analysis.bargaining_unit_counts.append(val),
         )
 
