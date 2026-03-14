@@ -1536,7 +1536,7 @@ class ConcisenessCleaner:
             for sent in SENTENCE_SPLIT_PATTERN.split(p):
 
                 # Apply removals
-                sent = self.removal_regex.sub(" ", sent)
+                # sent = self.removal_regex.sub(" ", sent)
 
                 # Apply replacements
                 for pattern, replacement in self.replacements:
