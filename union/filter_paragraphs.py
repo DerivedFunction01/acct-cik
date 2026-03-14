@@ -67,7 +67,7 @@ OFF_TOPIC_SECTION_TERMS = [
     r"401\s*\(k\)",
     r"pension",
     r"(?:post[-\s]?)?retirements?",
-    r"lease(?:d)?\s+properties",
+    r"lease(?:d|s)?",
     r"product\s+(?:developments?|segments?|markets?)",
 ]
 OFF_TOPIC_SECTION_REGEX = build_regex(OFF_TOPIC_SECTION_TERMS)
