@@ -315,6 +315,17 @@ DEMOGRAPHIC_GEO_PHRASE_REGEX = build_regex(
     ],
     ignore_case=True,
 )
+NON_POPULATION_GEO_REGEX = build_regex(
+    [
+        r"products",
+        r"leases?",
+        r"leased?",
+        r"revenues?",
+        r"customers?",
+        r"clients?",
+        r"product\s+(?:segments?|markets?)"
+    ]
+)
 SUBSET_REGEX = build_regex(
     [
         r"of\s+(?:which|whom|these|those|them)",
@@ -2358,6 +2369,12 @@ class UnionExtractor:
             )
             if risk_or_boilerplate_numeric:
                 analysis.suppress_coverage_counts = True
+
+            if NON_POPULATION_GEO_REGEX.search(text) and not has_worker_context and not analysis.is_union:
+                analysis.geo_matches = []
+                analysis._matches = [
+                    m for m in analysis._matches if m.get("type") != MatchType.GEO
+                ]
 
             # # Boilerplate: Exclude if no quantitative data and matches boilerplate
             # elif BOILERPLATE_REGEX.search(text):
