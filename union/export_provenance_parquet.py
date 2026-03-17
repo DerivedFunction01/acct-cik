@@ -271,32 +271,33 @@ def export_parquet(source_db: str, output_path: str) -> None:
         if agg_int_not_cov is not None:
             int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
 
-        if summary.get("int_cov") is False and agg_int_cov is None:
+        summary_int_false = summary.get("int_cov") is False
+        if summary_int_false and agg_int_cov is None:
             int_cov = 0.0
 
-        # Calculate total explicit coverage (dom + int + agg)
-        total_cov_val = 0.0
-        has_total_cov = False
+        if int_cov is not None and int_cov > 0 and int_tot == 0:
+            int_tot = None
+        if (not summary_int_false) and int_cov == 0 and int_tot == 0 and (
+            int_not_cov in (0, None)
+        ):
+            int_cov = None
+            int_tot = None
+            int_not_cov = None
 
-        if dom_domestic_count is not None:
-            total_cov_val += dom_domestic_count
-            has_total_cov = True
-
-        if int_cov is not None:
-            total_cov_val += int_cov
-            has_total_cov = True
-
-        for a in (country_report.get("agg") or []):
-            if _agg_is_purely_international(
-                a, country_report.get("domestic_country_code")
-            ):
-                continue
-            acov = a.get("cov")
-            if acov is not None:
-                total_cov_val += float(acov)
-                has_total_cov = True
-
-        total_cov = total_cov_val if has_total_cov else None
+        # Calculate total explicit coverage (dom + int + non-intl agg),
+        # only when both dom and int are known (int can be 0.0).
+        total_cov = None
+        if dom_domestic_count is not None and int_cov is not None:
+            total_cov_val = float(dom_domestic_count) + float(int_cov)
+            for a in (country_report.get("agg") or []):
+                if _agg_is_purely_international(
+                    a, country_report.get("domestic_country_code")
+                ):
+                    continue
+                acov = a.get("cov")
+                if acov is not None:
+                    total_cov_val += float(acov)
+            total_cov = total_cov_val
 
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
