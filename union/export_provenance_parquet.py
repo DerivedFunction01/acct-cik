@@ -311,9 +311,7 @@ def export_parquet(source_db: str, output_path: str) -> None:
             "dom_count": dom_domestic_count,
             "dom_pct": dom_domestic_pct,
             "int_count": int_cov,
-            "int_tot": int_tot,
-            "int_not_cov": int_not_cov,
-            "total_cov": total_cov,
+            "tot_count": total_cov,
         }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
