@@ -12,7 +12,16 @@ from defs.regex_lib import (
     build_regex,
     YEAR_REGEX,
 )
-from defs.union_regex import CHANGE_TERMS, NOUNS, PERSONNEL_EVENT_TERMS, WORKER_TERMS, DIVERSITY_TERMS, SUFFIX_AGREEMENTS, SUFFIX_ORGS
+from defs.union_regex import (
+    CHANGE_TERMS,
+    COMPARATIVE_CHANGE_TERMS,
+    NOUNS,
+    PERSONNEL_EVENT_TERMS,
+    WORKER_TERMS,
+    DIVERSITY_TERMS,
+    SUFFIX_AGREEMENTS,
+    SUFFIX_ORGS,
+)
 from defs.region_regex import MAJOR_CURRENCIES
 
 COMPANY_TOKEN = "the Company"
@@ -1142,7 +1151,9 @@ class ContextualNumberCleaner:
         #     re.IGNORECASE,
         # )
 
+        change_terms_post = [t for t in CHANGE_TERMS if t not in COMPARATIVE_CHANGE_TERMS]
         change_pattern = build_alternation(CHANGE_TERMS)
+        change_pattern_post = build_alternation(change_terms_post)
 
         # Matches: "10% of the increase"
         self.change_pre_regex = re.compile(
@@ -1152,7 +1163,7 @@ class ContextualNumberCleaner:
 
         # Matches: "increase of approx 10%" or "increase by 10% to 30%"
         self.change_post_regex = re.compile(
-            rf"\b({change_pattern})"
+            rf"\b({change_pattern_post})"
             rf"(?:\s+[\'<>\w-]+){{0,5}}\s+"  # allow N filler words
             rf"((?:{percent_range}|{number_range}\b)\s+"
             rf"(?:[\'<>\w-]+\s+){{0,4}})?"
