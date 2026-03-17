@@ -744,4 +744,14 @@ CHANGE_TERMS = [
     r"transition(?:s|ed|ing)?",
 ]
 
+COMPARATIVE_CHANGE_TERMS = [
+    r"higher",
+    r"fewer",
+    r"greater",
+    r"lesser",
+    r"less",
+    r"more",
+    r"lower",
+]
+
 PERSONNEL_EVENT_REGEX = build_regex(PERSONNEL_EVENT_TERMS)
