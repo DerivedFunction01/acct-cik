@@ -43,14 +43,29 @@ def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optiona
         return None, None
 
     for entry in report.get("countries") or []:
-        if entry.get("country_code") != dom_code:
-            continue
-        explicit = entry.get("method_breakdown", {}).get("EXPLICIT", {})
-        cov = explicit.get("cov")
-        pct_vals = explicit.get("pct_vals") or []
-        pct = pct_vals[0] if pct_vals else None
-        return cov, pct
+        if entry.get("country_code") == dom_code:
+            reported = entry.get("reported_totals") or {}
+            cov = reported.get("cov")
+            pct = reported.get("pct")
+            return cov, pct
     return None, None
+
+def _int_reported_count(report: Dict[str, Any]) -> Optional[float]:
+    dom_code = report.get("domestic_country_code")
+    countries = report.get("countries") or []
+    
+    total_int_cov = 0.0
+    has_val = False
+    for entry in countries:
+        if entry.get("country_code") == dom_code:
+            continue
+        reported = entry.get("reported_totals") or {}
+        cov = reported.get("cov")
+        if cov is not None:
+            total_int_cov += float(cov)
+            has_val = True
+            
+    return total_int_cov if has_val else None
 
 def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(a)
@@ -126,9 +141,19 @@ def export_parquet(source_db: str, output_path: str) -> None:
                 )
 
         dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
+        
+        if not dom_domestic_count and risk_summary:
+            risk_cov = risk_summary.get("cov_t", {}).get("cov")
+            if risk_cov is not None:
+                dom_domestic_count = float(risk_cov)
+
         if summary.get("dom_cov") is False:
             dom_domestic_count = 0.0
             dom_domestic_pct = 0.0
+
+        int_count = _int_reported_count(country_report)
+        if summary.get("int_cov") is False:
+            int_count = 0.0
 
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
@@ -142,6 +167,7 @@ def export_parquet(source_db: str, output_path: str) -> None:
             "bargaining_report": _safe_json_dumps(item1_barg or item1a_barg or {}),
             "dom_count": dom_domestic_count,
             "dom_pct": dom_domestic_pct,
+            "int_count": int_count,
         }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
