@@ -9711,10 +9711,11 @@ class Tracker:
                     weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
-            explicit_pcts = explicit_bucket.get("pct_vals", [])
+            calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
+            combined_pcts = explicit_bucket.get("pct_vals", []) + calculated_bucket.get("pct_vals", [])
             reported_pct = None
-            if explicit_pcts:
-                vals = [float(p) for p in explicit_pcts if p is not None]
+            if combined_pcts:
+                vals = [float(p) for p in combined_pcts if p is not None]
                 vals = [p for p in vals if 0.0 <= p <= 100.0]
                 if vals:
                     if len(vals) == 1:
@@ -9773,9 +9774,9 @@ class Tracker:
                 list(self.country_table_keywords.get(code, set()))
             )
             reported_totals = {
-                "tot": explicit_bucket.get("tot"),
-                "cov": explicit_bucket.get("cov"),
-                "not_cov": explicit_bucket.get("not_cov"),
+                "tot": add_nullable(explicit_bucket.get("tot"), calculated_bucket.get("tot")),
+                "cov": add_nullable(explicit_bucket.get("cov"), calculated_bucket.get("cov")),
+                "not_cov": add_nullable(explicit_bucket.get("not_cov"), calculated_bucket.get("not_cov")),
                 "pct": reported_pct,
             }
 
