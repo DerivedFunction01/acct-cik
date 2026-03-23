@@ -188,7 +188,101 @@ def _flatten_summary_dict(d: Optional[Dict[str, Any]]) -> List[str]:
             flat.update(v)
     return sorted(list(flat))
 
-def export_parquet(source_db: str, output_path: str) -> None:
+def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv: Optional[str] = None) -> pd.DataFrame:
+    sampled_accessions = set()
+    
+    if explicit_csv and Path(explicit_csv).exists():
+        explicit_df = pd.read_csv(explicit_csv)
+        if "accession" in explicit_df.columns:
+            explicit_accs = set(explicit_df["accession"].astype(str))
+            sampled_accessions.update(explicit_accs)
+            logging.info("Added %d explicit accessions from %s", len(explicit_accs), explicit_csv)
+
+    if target_size <= 0:
+        return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
+
+    def print_and_sample(series_col, num_per_group):
+        counts = series_col.value_counts(dropna=False)
+        logging.info("--- Category: %s ---", series_col.name)
+        for val, count in counts.items():
+            logging.info("  %s: %d candidates", val, count)
+            
+        # Sample
+        for val in counts.index:
+            if pd.isna(val):
+                mask = series_col.isna()
+            else:
+                mask = series_col == val
+            
+            pool = df[mask & (~df["accession"].isin(sampled_accessions))]
+            if len(pool) > 0:
+                k = min(num_per_group, len(pool))
+                chosen = pool.sample(n=k, random_state=42)
+                sampled_accessions.update(chosen["accession"])
+
+    # Calculate rough distribution to hit the target target_size (~8 dimensions = ~40 buckets)
+    n_per_stratum = max(1, target_size // 40)
+
+    df_sample = df.copy()
+    
+    # Setup stratified buckets for numeric and keyword variables
+    df_sample["dom_pct_bucket"] = pd.cut(
+        df_sample["dom_pct"].fillna(-1), 
+        bins=[-2, -0.1, 0.1, 25, 50, 75, 100], 
+        labels=["Null", "0", "1-25", "26-50", "51-75", "76-100"]
+    )
+    
+    df_sample["tot_count_bucket"] = pd.cut(
+        df_sample["tot_count"].fillna(-1), 
+        bins=[-2, -0.1, 0.1, 1000, 10000, 100000, float("inf")], 
+        labels=["Null", "0", "1-1K", "1K-10K", "10K-100K", ">100K"]
+    )
+
+    df_sample["int_count_bucket"] = pd.cut(
+        df_sample["int_count"].fillna(-1), 
+        bins=[-2, -0.1, 0.1, 1000, 10000, 100000, float("inf")], 
+        labels=["Null", "0", "1-1K", "1K-10K", "10K-100K", ">100K"]
+    )
+
+    df_sample["kw_bucket"] = pd.cut(
+        df_sample["global_keyword_count"].fillna(-1), 
+        bins=[-2, -0.1, 0.1, 5, 20, float("inf")], 
+        labels=["Null", "0", "1-5", "6-20", ">20"]
+    )
+    
+    # Domestic code (Top 5 + Rest)
+    top_codes = df_sample["domestic_country_code"].value_counts().nlargest(5).index
+    df_sample["dom_code_bucket"] = df_sample["domestic_country_code"].where(
+        df_sample["domestic_country_code"].isin(top_codes), "OTHER"
+    )
+
+    print_and_sample(df_sample["year"], n_per_stratum)
+    print_and_sample(df_sample["dom_cov"], n_per_stratum)
+    print_and_sample(df_sample["int_cov"], n_per_stratum)
+    print_and_sample(df_sample["dom_pct_bucket"], n_per_stratum)
+    print_and_sample(df_sample["tot_count_bucket"], n_per_stratum)
+    print_and_sample(df_sample["int_count_bucket"], n_per_stratum)
+    print_and_sample(df_sample["dom_code_bucket"], n_per_stratum)
+    print_and_sample(df_sample["kw_bucket"], n_per_stratum)
+
+    # Fill any remaining samples with random selection to hit target size exactly
+    remaining = target_size - len(sampled_accessions)
+    if remaining > 0:
+        pool = df[~df["accession"].isin(sampled_accessions)]
+        if len(pool) > 0:
+            chosen = pool.sample(n=min(remaining, len(pool)), random_state=42)
+            sampled_accessions.update(chosen["accession"])
+            
+    logging.info("Total unique sampled accessions: %d", len(sampled_accessions))
+    return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
+
+
+def export_parquet(
+    source_db: str, 
+    output_path: str, 
+    sample_size: int = 0, 
+    explicit_csv: Optional[str] = None
+) -> None:
     source_path = Path(source_db)
     if not source_path.exists():
         logging.error("Source DB not found: %s", source_db)
@@ -322,6 +416,9 @@ def export_parquet(source_db: str, output_path: str) -> None:
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
     out = pd.concat([df[["accession", "cik", "url", "year"]], extracted], axis=1)
 
+    if sample_size > 0 or explicit_csv:
+        out = generate_stratified_sample(out, target_size=sample_size, explicit_csv=explicit_csv)
+
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_parquet(out_path, index=False)
@@ -336,9 +433,15 @@ def main() -> None:
     parser.add_argument(
         "--output", default=TARGET_PARQUET_DEFAULT, help="Output parquet path"
     )
+    parser.add_argument(
+        "--sample-size", type=int, default=0, help="If > 0, randomly sample this many rows across stratified buckets"
+    )
+    parser.add_argument(
+        "--explicit-sample-csv", type=str, default=None, help="Path to CSV containing an 'accession' column to include in sample"
+    )
     args = parser.parse_args()
 
-    export_parquet(args.source, args.output)
+    export_parquet(args.source, args.output, args.sample_size, args.explicit_sample_csv)
 
 
 if __name__ == "__main__":
