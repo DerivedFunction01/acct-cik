@@ -1353,7 +1353,8 @@ class ContextualNumberCleaner:
             r"countr(?:y|ies)",
             r"regions?",
             r"cities",
-            r"states",
+            r"city",
+            r"states?",
             r"areas",
             r"units?",
             r"companies"
