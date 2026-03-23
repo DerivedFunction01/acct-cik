@@ -307,6 +307,10 @@ def export_parquet(source_db: str, output_path: str) -> None:
             "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
             "countries": _safe_json_dumps(country_report.get("countries") or []),
             "agg": _safe_json_dumps(country_report.get("agg") or []),
+            "global_keywords": _safe_json_dumps(
+                country_report.get("global_keywords") or []
+            ),
+            "global_keyword_count": country_report.get("global_keyword_count"),
             "risk_summary": _safe_json_dumps(risk_summary or {}),
             "bargaining_report": _safe_json_dumps(item1_barg or item1a_barg or {}),
             "dom_count": dom_domestic_count,

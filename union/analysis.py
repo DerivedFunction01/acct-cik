@@ -9952,11 +9952,20 @@ class Tracker:
             summary["cov"][k].sort()
             summary["not_cov"][k].sort()
 
+        global_keywords = sorted(
+            {kw for _, kw in self.global_sentence_keywords if kw}
+            | {kw for kw in self.global_table_keywords if kw}
+        )
+        global_table_keywords = sorted(list(self.global_table_keywords))
+
         return {
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
             "agg": agg,
             "summary": summary,
+            "global_keywords": global_keywords,
+            "global_keyword_count": len(global_keywords),
+            "global_table_keywords": global_table_keywords,
             "notes": [],
         }
 
