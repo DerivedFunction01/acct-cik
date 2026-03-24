@@ -90,6 +90,11 @@ HARD_EXCLUSION_TERMS = [
     r"discounts?",
     r"fixed[-\s]prices?",
     r"credit",
+    r"prepaid",
+    r"debit",
+    r"debts?",
+    r"loans?",
+    r"mortgages?",
     r"ordering",
     r"merger",
 ]
