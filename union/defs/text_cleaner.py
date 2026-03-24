@@ -82,20 +82,49 @@ class WebTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "The EU"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
-        (re.compile(r"\bUnion\s+of\s+south\s+africa\b", re.IGNORECASE), "South Africa"), # South africa
-        (re.compile(r"\bUnion\s+of\s+south\s+american?\b", re.IGNORECASE), "South America"), # South africa
+        (
+            re.compile(r"\bUnion\s+of\s+south\s+africa\b", re.IGNORECASE),
+            "South Africa",
+        ),  # South africa
+        (
+            re.compile(r"\bUnion\s+of\s+south\s+american?\b", re.IGNORECASE),
+            "South America",
+        ),  # South africa
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "Speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
-        (re.compile(r"\b(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)\b", re.IGNORECASE), "fracture"),
+        (
+            re.compile(
+                r"\b(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)\b",
+                re.IGNORECASE,
+            ),
+            "fracture",
+        ),
         (re.compile(r"\bmonetary\s+unions?\b", re.IGNORECASE), "currency agreement"),
-        (re.compile(r"\b(?:kosher|orthodox|kashrut)\s+unions?\b", re.IGNORECASE), "certification"),
+        (
+            re.compile(r"\b(?:kosher|orthodox|kashrut)\s+unions?\b", re.IGNORECASE),
+            "certification",
+        ),
         (re.compile(r"joints?\s+or\s+unions?"), "joints"),
-        (re.compile(r"\bUnion\s+of\s+Orthodox\s+(?:Jewish\s+)?(?:Congregations)?\b", re.IGNORECASE), "certification"),
+        (
+            re.compile(
+                r"\bUnion\s+of\s+Orthodox\s+(?:Jewish\s+)?(?:Congregations)?\b",
+                re.IGNORECASE,
+            ),
+            "certification",
+        ),
         (
             build_regex(
                 [
                     build_compound(
-                        [r"union", r"pacific", r"western", r"first", r"trans", r"inter"],
+                        [
+                            r"union",
+                            r"pacific",
+                            r"western",
+                            r"first",
+                            r"trans",
+                            r"inter",
+                            r"company",
+                        ],
                         [
                             r"union",
                             r"fire",
@@ -107,22 +136,36 @@ class WebTextCleaner:
                             r"corporation",
                             r"oil",
                             r"holdings?",
-                            r"gas"
+                            r"gas",
                             r"trusts?",
                             r"stations?",
                             r"electric",
                             r"colleges?",
                             r"university",
-                            r"cit(?:y|ies)",
-                            r"states?",
-                            r"regions?",
                             r"enterprises?",
-                            r"capital"
+                            r"capital",
+                            r"pak"
                         ],
                     ),
                 ]
             ),
             "Company",
+        ),
+        (
+            build_regex(
+                [
+                    build_compound(
+                        [r"union"],
+                        [
+                            r"cit(?:y|ies)",
+                            r"states?",
+                            r"regions?",
+                            r"count(?:y|ies)",
+                        ],
+                    )
+                ]
+            ),
+            "location",
         ),
     ]
 
