@@ -368,6 +368,11 @@ LOWER_DYNAMIC_UNION_REGEX = re.compile(
     r"\b((?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2})(?:\s*(?:,|and|or|&)\s*(?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}))*)\s+(?:trade|labou?r)\s+unions?\b"
 )
 
+# TitleCase two-word company names that include "Union" (e.g. "Royal Union", "Union Capital")
+TITLECASE_UNION_COMPANY_REGEX = re.compile(
+    r"\b(?:Union\s+[A-Z][a-z][\w'-]*|[A-Z][a-z][\w'-]*\s+Union)\b"
+)
+
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -1626,6 +1631,26 @@ class UnionExtractor:
             lambda m, val: analysis.negation_terms.append(
                 val
             ),  # Treat as negation term for general logic
+        )
+
+        # 6.5 Mask TitleCase two-word "Union" company names so they don't count as union terms.
+        def titlecase_union_company_extractor(m: re.Match):
+            val = m.group(0)
+            if self.matcher.specific_union_regex and self.matcher.specific_union_regex.fullmatch(val):
+                raise ValueError
+            if (
+                DYNAMIC_UNION_REGEX.fullmatch(val)
+                or LOOSE_DYNAMIC_UNION_REGEX.fullmatch(val)
+                or FX_DYNAMIC_UNION_REGEX.fullmatch(val)
+                or LOWER_DYNAMIC_UNION_REGEX.fullmatch(val)
+            ):
+                raise ValueError
+            return val
+
+        process_matches(
+            TITLECASE_UNION_COMPANY_REGEX,
+            MatchType.NON_UNION,
+            titlecase_union_company_extractor,
         )
 
         # 7. Extract Union Terms (Generic)
