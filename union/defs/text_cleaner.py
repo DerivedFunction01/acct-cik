@@ -290,6 +290,11 @@ class MinimalTextCleaner:
         re.IGNORECASE,
     )
 
+    # Markdown-style header artifacts like "6 * * *" that can appear mid-paragraph
+    header_number_artifact_pattern = re.compile(
+        r"\b\d{1,3}\s*(?:[*#_\-~]\s*){3,}"
+    )
+
     # Date and Year Patterns
     months = [
         "January",
@@ -1015,6 +1020,7 @@ class MinimalTextCleaner:
             paragraph = self.bullet_pattern.sub(" ", paragraph)
             paragraph = self.sentence_bullet_pattern.sub(" ", paragraph)
             paragraph = self.page_number_pattern.sub(" ", paragraph)
+            paragraph = self.header_number_artifact_pattern.sub(" ", paragraph)
 
             # 1. Whitespace
             paragraph = clean_spaces_and_punctuation(paragraph)
