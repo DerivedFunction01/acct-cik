@@ -124,6 +124,7 @@ class WebTextCleaner:
                             r"trans",
                             r"inter",
                             r"company",
+                            r"royal"
                         ],
                         [
                             r"union",
