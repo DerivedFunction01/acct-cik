@@ -656,7 +656,7 @@ class MinimalTextCleaner:
     law_pattern_str = build_alternation(law_terms)
 
     law_year_regex = re.compile(
-        rf"\b((?:{law_pattern_str})\s+(?:of\s+)?)(?:19|20)\d{{2}}\b|"
+        rf"\b((?:{law_pattern_str})\s+(?:of\s+)?)\d+\b|"
         rf"\b(?:19|20)\d{{2}}(\s+(?:[\w-]+\s+){{0,2}}{law_pattern_str})\b",
         re.IGNORECASE
     )
@@ -1551,6 +1551,16 @@ class ConcisenessCleaner:
         modifiers = r"(?:[Ss]everal|(?:[Ii]nter)?[Nn]ational|(?:[Ii]n)?[Dd]ependent)"
         conjunctions = r"(?:\s*(?:and|or|&|,)?\s*)"
         modifier_phrase = rf"{modifiers}(?:{conjunctions}{modifiers})*"
+
+        # Handle "one of several independent labor unions" -> "One labor unions"
+        self.replacements.append(
+            (
+                re.compile(
+                    rf"\b(?P<one>[Oo]ne)\s+of\s+{modifier_phrase}\s+((?:[Ll]abo(?:u)?r\s+)?unions?)\b"
+                ),
+                lambda m: f"{m.group('one')} {m.group(2)}",
+            )
+        )
 
         self.replacements.append(
             (
