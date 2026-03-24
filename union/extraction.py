@@ -368,9 +368,10 @@ LOWER_DYNAMIC_UNION_REGEX = re.compile(
     r"\b((?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2})(?:\s*(?:,|and|or|&)\s*(?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}))*)\s+(?:trade|labou?r)\s+unions?\b"
 )
 
-# TitleCase two-word company names that include "Union" (e.g. "Royal Union", "Union Capital")
+# TitleCased company names that include "Union" (e.g. "Royal Union", "Union Capital", 
+# "Union Express Mortgage", "First National Union Bank", "Union of Southern States Credit")
 TITLECASE_UNION_COMPANY_REGEX = re.compile(
-    r"\b(?:Union\s+[A-Z][a-z][\w'-]*|[A-Z][a-z][\w'-]*\s+Union)\b"
+    r"\b(?:[A-Z][a-z][\w'-]*\s+)*Union(?:\s+[A-Z][a-z][\w'-]*)*\b"
 )
 
 
@@ -408,6 +409,7 @@ class MatchType(Enum):
     BOILERPLATE = "BOILERPLATE"
     LEGAL_PROCESS = "LEGAL_PROCESS"
     CONTRACT_CLAUSE = "CONTRACT_CLAUSE"
+    MISC = "MISC"
 
 
 @dataclass
@@ -1649,7 +1651,7 @@ class UnionExtractor:
 
         process_matches(
             TITLECASE_UNION_COMPANY_REGEX,
-            MatchType.NON_UNION,
+            MatchType.MISC,
             titlecase_union_company_extractor,
         )
 
@@ -1799,6 +1801,28 @@ class UnionExtractor:
             lambda m: m.group(0),
             lambda m, val: analysis.coverage_terms.append(val),
         )
+
+        # 14.5 Convert Union/Coverage Terms to Negation Terms if preceded by a standalone negation
+        # Handles cases like "... not aware of any employees or outside organization efforts to unionize"
+        for neg_m in NEGATION_REGEX.finditer(text):
+            _, neg_end = neg_m.span()
+            for m in analysis._matches:
+                if m["type"] in (MatchType.UNION_TERM, MatchType.UNION_NAME, MatchType.SPECIFIC_UNION, MatchType.COVERAGE_TERM):
+                    u_start, _ = m["span"]
+                    if u_start > neg_end:
+                        text_between = text[neg_end:u_start]
+                        if not SEGMENT_DELIMITER_REGEX.search(text_between) and len(text_between) < 150:
+                            if m["type"] == MatchType.COVERAGE_TERM:
+                                m["type"] = MatchType.NON_COVERAGE
+                                if m["val"] in analysis.coverage_terms:
+                                    analysis.coverage_terms.remove(m["val"])
+                            else:
+                                m["type"] = MatchType.NON_UNION
+                                if m["val"] in analysis.union_terms:
+                                    analysis.union_terms.remove(m["val"])
+                            
+                            if m["val"] not in analysis.negation_terms:
+                                analysis.negation_terms.append(m["val"])
 
         working_text = text
         # 15. Extract Relationship Terms (e.g. "employee relations")
