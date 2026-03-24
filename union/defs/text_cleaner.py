@@ -1350,6 +1350,10 @@ class ContextualNumberCleaner:
             r"feet",
             r"loans",
             r"debt",
+            r"tons?",
+            r"gallons?",
+            r"square",
+            r"cubic",
         ] + street_terms
 
         other_terms_strict = [
