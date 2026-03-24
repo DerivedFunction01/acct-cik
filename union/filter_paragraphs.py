@@ -65,13 +65,25 @@ OFF_TOPIC_SECTION_TERMS = [
     r"privacy",
     r"401k",
     r"401\s*\(k\)",
-    r"pension",
+    r"pensions?",
     r"(?:post[-\s]?)?retirements?",
     r"lease(?:d|s)?",
     r"product\s+(?:developments?|segments?|markets?)",
-    r"(?:preferred|treasury|common)\s+(?:stocks?|shares)",
 ]
 OFF_TOPIC_SECTION_REGEX = build_regex(OFF_TOPIC_SECTION_TERMS)
+
+HARD_EXCLUSION_TERMS = [
+    r"(?:preferred|treasury|common)\s+(?:stocks?|shares)",
+    r"(?:shares?|stock)[-\s](?:splits?|awards?|dividends?)",
+    r"brokers?",
+    r"stock\s+purchases?",
+    r"convertible",
+    r"hedging",
+    r"derivatives?",
+    r"(?:series|class)\s+[A-Z]",
+    r"per\s+share",
+]
+HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
 
 # =============================================================================
 # REGEX COMPILATION
@@ -491,7 +503,7 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
 
-        if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
+        if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block) or HARD_EXCLUSION_REGEX.search(cleaned_block):
             prev_census_block = None
             prev_census_raw = None
             continue
