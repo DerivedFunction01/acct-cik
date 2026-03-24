@@ -1454,9 +1454,7 @@ class ContextualNumberCleaner:
 
         def union_id_replacer(m):
             ident = m.group(1)
-            # Default to US unless explicitly Canada
-            suffix = "Canada" if home_country == "CA" else "US"
-            return f" {ident} {suffix} "
+            return f" {ident}"
 
         paragraphs = text.split("\n\n")
         paragraphs = [p.strip() for p in paragraphs]
