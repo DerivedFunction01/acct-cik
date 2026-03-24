@@ -481,11 +481,12 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         # Remove currency figures to avoid confusion with employee counts
         cleaned_block = CURRENCY_REMOVER.clean(cleaned_block)
 
+        # Remove unnecessary words and simplify
+        cleaned_block = CONCISENESS_CLEANER.clean(cleaned_block)
+
         # Remove non-employee numerics (facilities, growth rates)
         cleaned_block = CONTEXTUAL_CLEANER.clean(cleaned_block, home_country=home_country)
 
-        # Remove unnecessary words and simplify
-        cleaned_block = CONCISENESS_CLEANER.clean(cleaned_block)
 
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
