@@ -1424,6 +1424,7 @@ class ContextualNumberCleaner:
             r"kilgrams?",
             r"bushels?",
             r"shares?",
+            r"steps?",
         ] + street_terms
 
         other_terms_strict = [
