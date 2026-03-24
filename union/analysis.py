@@ -982,7 +982,36 @@ class SimpleCoverageAnalyzer:
             )
 
             if qual_match:
-                # For qualitative+count cases, do not apply qualitative percentages.
+                union_spans = [
+                    m["span"]
+                    for m in analysis._matches
+                    if m["type"] in UNION_MATCH_TYPES
+                ]
+                qual_span = qual_match["span"]
+                has_union_before = any(s[0] < qual_span[0] for s in union_spans)
+                has_union_after = any(s[0] > qual_span[1] for s in union_spans)
+
+                # If union indicators appear after the qualitative term (and not before),
+                # treat it as a qualitative percentage over the count.
+                if has_union_after and not has_union_before:
+                    qinfo = interpret_qualitative_match(
+                        qual_match, analysis, prefer_note=False
+                    )
+                    pct = qinfo.get("percentage")
+                    amb_mult = qinfo.get("ambiguity_multiplier")
+                    if pct is not None:
+                        data["percentage"] = pct
+                    if amb_mult is not None:
+                        data["ambiguity_multiplier"] = amb_mult
+                    data["employee_count_total"] = count
+                    data["type"] = CoverageType.QUALITATIVE.value
+                    val_str = f"{pct}%" if pct is not None else f"(Ambiguous x{amb_mult})"
+                    notes.append(
+                        f"Qualitative '{qual_match['text']}' after count -> Percent: {val_str}"
+                    )
+                    return
+
+                # For qualitative+count cases (default), do not apply qualitative percentages.
                 # Treat the raw count as the covered/not-covered subset, with total = count.
                 has_status_negation = has_status_negation_matches(analysis._matches)
                 data["percentage"] = None
