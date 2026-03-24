@@ -1465,6 +1465,7 @@ class RiskDigest:
 
 EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
 DATA_LOADED = False
+EXTERNAL_COUNT_MAX_MULTIPLIER = 1.5
 
 
 def load_external_counts():
@@ -1511,6 +1512,35 @@ def load_external_counts():
 def get_external_global_count(cik: int, year: int) -> Optional[float]:
     load_external_counts()
     return EXTERNAL_COUNTS.get((cik, year))
+
+
+def get_external_global_count_with_fallback(
+    cik: int, year: Optional[int]
+) -> Optional[float]:
+    """
+    Prefer the exact year when available; otherwise fall back to any other year
+    for the same CIK (closest year if reporting_year is provided).
+    """
+    load_external_counts()
+    if year is not None:
+        direct = EXTERNAL_COUNTS.get((cik, year))
+        if direct:
+            return direct
+
+    candidates = [
+        (y, v) for (c, y), v in EXTERNAL_COUNTS.items() if c == cik and v
+    ]
+    if not candidates:
+        return None
+
+    if year is None:
+        # No target year: choose most recent available
+        y, v = max(candidates, key=lambda t: t[0])
+        return v
+
+    # Closest year by absolute distance; tie-breaker = latest year
+    candidates.sort(key=lambda t: (abs(t[0] - year), -t[0]))
+    return candidates[0][1]
 
 
 def apply_qualitative_multipliers(
@@ -10750,12 +10780,20 @@ class UnionAnalyzer:
             tracker = Tracker(domestic_country_code=self.domestic_country_code)
 
             # Inject external global total if available
+            ext_total = None
             if cik and reporting_year:
-                ext_total = get_external_global_count(cik, reporting_year)
+                ext_total = get_external_global_count_with_fallback(cik, reporting_year)
                 if ext_total:
                     tracker.global_total = ext_total
                     tracker.resolution_log.append(
                         f"Loaded external global total: {ext_total}"
+                    )
+            elif cik:
+                ext_total = get_external_global_count_with_fallback(cik, None)
+                if ext_total:
+                    tracker.global_total = ext_total
+                    tracker.resolution_log.append(
+                        f"Loaded external global total (fallback year): {ext_total}"
                     )
 
             all_sentences = self.extractor.split_sentences(text)
@@ -10791,6 +10829,7 @@ class UnionAnalyzer:
                     p_sentences,
                     reporting_year=reporting_year,
                     global_max_workers=tracker.global_total,
+                    external_total=ext_total,
                     initial_geo_context=last_geo_context,
                     initial_geo_sentence_idx=last_geo_sentence_idx,
                     previous_totals=prev_paragraph_totals,
@@ -12314,6 +12353,7 @@ class UnionAnalyzer:
         sentences: List[str],
         reporting_year: Optional[int] = None,
         global_max_workers: float = 0.0,
+        external_total: Optional[float] = None,
         initial_geo_context: Optional[Dict] = None,
         initial_geo_sentence_idx: int = -1,
         previous_totals: Optional[Dict[str, float]] = None,
@@ -12394,6 +12434,31 @@ class UnionAnalyzer:
             # Preserve insertion order while removing duplicates
             return list(dict.fromkeys(keys))
 
+        def _filter_counts_by_external(counts: List[float]) -> List[float]:
+            if not counts:
+                return counts
+            if not external_total or external_total <= 0:
+                return counts
+            max_allowed = external_total * EXTERNAL_COUNT_MAX_MULTIPLIER
+            return [c for c in counts if c <= max_allowed]
+
+        def _prune_analysis_counts_by_external(analysis: SentenceAnalysis) -> None:
+            if not external_total or external_total <= 0:
+                return
+            max_allowed = external_total * EXTERNAL_COUNT_MAX_MULTIPLIER
+            analysis.worker_counts = [
+                c for c in analysis.worker_counts if c <= max_allowed
+            ]
+            analysis.numbers = [n for n in analysis.numbers if n <= max_allowed]
+            pruned_matches = []
+            for m in analysis._matches:
+                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER):
+                    val = m.get("val")
+                    if isinstance(val, (int, float)) and val > max_allowed:
+                        continue
+                pruned_matches.append(m)
+            analysis._matches = pruned_matches
+
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
             current_idx = start_index + idx
@@ -12435,7 +12500,9 @@ class UnionAnalyzer:
                 risk_items.append(risk_item)
 
             # 2. Update Context (Worker Counts)
+            _prune_analysis_counts_by_external(analysis)
             effective_counts = get_effective_counts(analysis)
+            effective_counts = _filter_counts_by_external(effective_counts)
             current_sentence_count = None
             if effective_counts and not is_historical:
                 range_avg = self._detect_count_range(analysis, effective_counts)
