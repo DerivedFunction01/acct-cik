@@ -10906,33 +10906,33 @@ class UnionAnalyzer:
             for item in results:
                 cov: Dict[str, Any] = item.get("coverage_data", {})
                 geo = item.get("geographic_context", {})
-                if (
-                    explicit_non_table
-                    and item.get("is_table_generated")
-                    and _has_explicit_quant(cov)
-                ):
-                    # Suppress tabular explicit values when narrative explicit values exist.
-                    for k in (
-                        "percentage",
-                        "employee_count_covered",
-                        "employee_count_not_covered",
-                        "employee_count_total",
-                    ):
-                        cov[k] = None
-                    cov["type"] = CoverageType.NONE.value
-                    cov["note"] = (
-                        ((cov.get("note") or "") + " | ")
-                        if cov.get("note")
-                        else ""
-                    ) + "Suppressed table explicit values (narrative explicit present)"
+                # if (
+                #     explicit_non_table
+                #     and item.get("is_table_generated")
+                #     and _has_explicit_quant(cov)
+                # ):
+                #     # Suppress tabular explicit values when narrative explicit values exist.
+                #     for k in (
+                #         "percentage",
+                #         "employee_count_covered",
+                #         "employee_count_not_covered",
+                #         "employee_count_total",
+                #     ):
+                #         cov[k] = None
+                #     cov["type"] = CoverageType.NONE.value
+                #     cov["note"] = (
+                #         ((cov.get("note") or "") + " | ")
+                #         if cov.get("note")
+                #         else ""
+                #     ) + "Suppressed table explicit values (narrative explicit present)"
 
-                    # Still record keywords so table signals are retained.
-                    tracker.register_sentence_keywords(
-                        item.get("sentence_index", -1),
-                        item.get("keyword_matched"),
-                        is_table_generated=True,
-                    )
-                    continue
+                #     # Still record keywords so table signals are retained.
+                #     tracker.register_sentence_keywords(
+                #         item.get("sentence_index", -1),
+                #         item.get("keyword_matched"),
+                #         is_table_generated=True,
+                #     )
+                #     continue
                 tracker.record_bargaining_units(
                     bargaining_unit_count=cov.get("bargaining_unit_count"),
                     geo_context=geo,
