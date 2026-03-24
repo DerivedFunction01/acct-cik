@@ -368,7 +368,7 @@ LOWER_DYNAMIC_UNION_REGEX = re.compile(
     r"\b((?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2})(?:\s*(?:,|and|or|&)\s*(?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}))*)\s+(?:trade|labou?r)\s+unions?\b"
 )
 
-# TitleCased company names that include "Union" (e.g. "Royal Union", "Union Capital", 
+# TitleCased company names that include "Union" (e.g. "Royal Union", "Union Capital",
 # "Union Express Mortgage", "First National Union Bank", "Union of Southern States Credit")
 TITLECASE_UNION_COMPANY_REGEX = re.compile(
     r"\b(?:[A-Z][a-z][\w'-]*\s+)*Union(?:\s+[A-Z][a-z][\w'-]*)*\b"
@@ -1149,7 +1149,7 @@ class UnionExtractor:
         # Use the centralized RegionMatcher for all geo/specific union logic
         self.matcher = RegionMatcher()
 
-    def analyze_sentence(self, text: str) -> SentenceAnalysis:
+    def analyze_sentence(self, text: str, emp_count: Optional[float] = None) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
         working_text = text  # Mutable text for masking
 
@@ -1632,13 +1632,13 @@ class UnionExtractor:
         )
 
         # 5b. Extract Non-Coverage Terms (at-will, unrepresented, non-union)
+        # Only count as negation if we later find a union mention in the sentence.
+        pending_non_coverage_negations: List[str] = []
         process_matches(
             NON_COVERAGE_REGEX,
             MatchType.NON_COVERAGE,
             lambda m: m.group(0),
-            lambda m, val: analysis.negation_terms.append(
-                val
-            ),  # Treat as negation term for general logic
+            lambda m, val: pending_non_coverage_negations.append(val),
         )
 
         # 6.5 Mask TitleCase two-word "Union" company names so they don't count as union terms.
@@ -1678,6 +1678,12 @@ class UnionExtractor:
                 lambda m: m.group(1),
                 lambda m, val: analysis.union_terms.append(val),
             )
+
+        # Apply pending non-coverage negations only when a union mention exists.
+        if analysis.union_terms and pending_non_coverage_negations:
+            for val in pending_non_coverage_negations:
+                if val not in analysis.negation_terms:
+                    analysis.negation_terms.append(val)
 
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regexes:
@@ -1793,13 +1799,39 @@ class UnionExtractor:
         # Remove generic numbers that are likely footnotes or list markers not removed
         all_counts = analysis.worker_counts + analysis.numbers
         if all_counts:
-            max_count = max(all_counts)
-            # For large counts (>10k), drop numbers < 10 as likely noise/footnotes
-            if max_count >= 10000:
-                noise_threshold = 10
-                analysis.numbers = [
-                    n for n in analysis.numbers if not (n < noise_threshold)
+            if emp_count is not None:
+                max_allowed = max(100.0, emp_count * 1.5)
+                analysis.worker_counts = [
+                    n for n in analysis.worker_counts if n <= max_allowed
                 ]
+                analysis.numbers = [n for n in analysis.numbers if n <= max_allowed]
+
+                analysis._matches = [
+                    m
+                    for m in analysis._matches
+                    if not (
+                        m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                        and m["val"] > max_allowed
+                    )
+                ]
+
+            all_counts_filtered = analysis.worker_counts + analysis.numbers
+            if all_counts_filtered:
+                eff_max = max(max(all_counts_filtered), emp_count or 0)
+                # For large counts (>2k), drop numbers < 10 as likely noise/footnotes
+                if eff_max >= 2000:
+                    noise_threshold = 10
+                    analysis.numbers = [
+                        n for n in analysis.numbers if not (n < noise_threshold)
+                    ]
+                    analysis._matches = [
+                        m
+                        for m in analysis._matches
+                        if not (
+                            m["type"] == MatchType.NUMBER and m["val"] < noise_threshold
+                        )
+                    ]
+
         # 14. Extract Coverage Terms (e.g. "represented", "covered")
         process_matches(
             COVERAGE_REGEX,
@@ -1826,7 +1858,7 @@ class UnionExtractor:
                                 m["type"] = MatchType.NON_UNION
                                 if m["val"] in analysis.union_terms:
                                     analysis.union_terms.remove(m["val"])
-                            
+
                             if m["val"] not in analysis.negation_terms:
                                 analysis.negation_terms.append(m["val"])
 
@@ -2395,7 +2427,7 @@ class UnionExtractor:
                 m["type"] in (MatchType.NON_UNION, MatchType.NON_COVERAGE)
                 for m in analysis._matches
             )
-            
+
             has_hard_coverage_signal = bool(
                 analysis.worker_counts
                 or has_status_negation
@@ -2474,7 +2506,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        # # # # # # # # print(analysis)
+        print(analysis)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
@@ -2483,7 +2515,6 @@ class UnionExtractor:
         for p in parts:
             final_parts.append(p.strip())
         return final_parts
-
 
 
 # %%

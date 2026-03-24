@@ -9764,10 +9764,10 @@ class Tracker:
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
-            combined_pcts = explicit_bucket.get("pct_vals", []) + calculated_bucket.get("pct_vals", [])
+            explicit_pcts = explicit_bucket.get("pct_vals", [])
             reported_pct = None
-            if combined_pcts:
-                vals = [float(p) for p in combined_pcts if p is not None]
+            if explicit_pcts:
+                vals = [float(p) for p in explicit_pcts if p is not None]
                 vals = [p for p in vals if 0.0 <= p <= 100.0]
                 if vals:
                     if len(vals) == 1:
@@ -10250,6 +10250,7 @@ class GeoPopulationResolver:
         tracker: Tracker,
         reporting_year: Optional[int] = None,
         initial_geo_context: Optional[Dict] = None,
+        emp_count: Optional[float] = None,
     ) -> None:
         last_geo_context = initial_geo_context
         last_geo_sentence_idx = -1
@@ -10257,7 +10258,7 @@ class GeoPopulationResolver:
         last_strict_total_idx: int = -10_000
 
         for idx, s in enumerate(sentences):
-            analysis = self.analyzer.extractor.analyze_sentence(s)
+            analysis = self.analyzer.extractor.analyze_sentence(s, emp_count=emp_count)
 
             # Skip historical counts
             is_historical = False
@@ -10540,6 +10541,7 @@ class UnionAnalyzer:
         reporting_year: Optional[int] = None,
         allowed_sentence_indices: Optional[Set[int]] = None,
         only_suppressed: bool = False,
+        emp_count: Optional[float] = None,
     ) -> List[Dict[str, Any]]:
         """
         Builds a separate report for legal/process/contract clause numerics.
@@ -10555,7 +10557,7 @@ class UnionAnalyzer:
                 and idx not in allowed_sentence_indices
             ):
                 continue
-            analysis = self.extractor.analyze_sentence(sent)
+            analysis = self.extractor.analyze_sentence(sent, emp_count=emp_count)
 
             is_historical = False
             if reporting_year and analysis.years:
@@ -10788,8 +10790,20 @@ class UnionAnalyzer:
         country_report: Dict[str, Any] = {}
         bargaining_report: Dict[str, Any] = {}
 
+        # Inject external global total if available
+        ext_total = None
+        ext_total_log = None
+        if cik and reporting_year:
+            ext_total = get_external_global_count(cik, reporting_year)
+            if ext_total:
+                ext_total_log = f"Loaded external global total: {ext_total}"
+        elif cik:
+            ext_total = get_external_global_count(cik, None)
+            if ext_total:
+                ext_total_log = f"Loaded external global total (fallback year): {ext_total}"
+
         if item_type == "item1a":
-            risk_items = self._analyze_item1a(sentences, reporting_year)
+            risk_items = self._analyze_item1a(sentences, reporting_year, ext_total)
             # Backward compatibility: keep risk rows under `items` for item1a callers.
             results = risk_items
         else:
@@ -10801,30 +10815,17 @@ class UnionAnalyzer:
             # 2. Pass 1: Census (Populate Tracker with Totals)
             tracker = Tracker(domestic_country_code=self.domestic_country_code)
 
-            # Inject external global total if available
-            ext_total = None
-            if cik and reporting_year:
-                ext_total = get_external_global_count(cik, reporting_year)
-                if ext_total:
-                    tracker.global_total = ext_total
-                    tracker.resolution_log.append(
-                        f"Loaded external global total: {ext_total}"
-                    )
-            elif cik:
-                ext_total = get_external_global_count(cik, None)
-                if ext_total:
-                    tracker.global_total = ext_total
-                    tracker.resolution_log.append(
-                        f"Loaded external global total (fallback year): {ext_total}"
-                    )
+            if ext_total and ext_total_log:
+                tracker.global_total = ext_total
+                tracker.resolution_log.append(ext_total_log)
 
             all_sentences = self.extractor.split_sentences(text)
-            self._populate_tracker(all_sentences, tracker, reporting_year)
+            self._populate_tracker(all_sentences, tracker, reporting_year, emp_count=ext_total)
             tracker.resolve()
             # tracker.resolve_coverage() # Will be called after population
 
             suppressed_clause_items = self._build_clause_report(
-                all_sentences, reporting_year=reporting_year, only_suppressed=True
+                all_sentences, reporting_year=reporting_year, only_suppressed=True, emp_count=ext_total
             )
 
             # 3. Pass 2: Coverage Analysis (Process Paragraphs)
@@ -10871,7 +10872,7 @@ class UnionAnalyzer:
 
                 # Handle Excluded Geographies (Implicit Coverage)
                 for idx, analysis in enumerate(
-                    [self.extractor.analyze_sentence(s) for s in p_sentences]
+                    [self.extractor.analyze_sentence(s, emp_count=ext_total) for s in p_sentences]
                 ):
                     # We need to match the analysis to the result item to get coverage_data
                     # This is handled inside _analyze_block now to keep context aligned
@@ -10970,6 +10971,7 @@ class UnionAnalyzer:
         tracker: Tracker,
         reporting_year: Optional[int] = None,
         initial_geo_context: Optional[Dict] = None,
+        emp_count: Optional[float] = None,
     ):
         """
         Pass 1: Scans text specifically to find population totals (denominators)
@@ -10980,6 +10982,7 @@ class UnionAnalyzer:
             tracker=tracker,
             reporting_year=reporting_year,
             initial_geo_context=initial_geo_context,
+            emp_count=emp_count,
         )
 
     def _prepare_counts(
@@ -12399,12 +12402,13 @@ class UnionAnalyzer:
             local_tracker,
             reporting_year,
             initial_geo_context=initial_geo_context,
+            emp_count=external_total,
         )
         local_tracker.resolve()
 
         results = []
         risk_items = []
-        analyzed_sentences = [self.extractor.analyze_sentence(s) for s in sentences]
+        analyzed_sentences = [self.extractor.analyze_sentence(s, emp_count=external_total) for s in sentences]
 
         # Context inheritance state
         last_geo_context = initial_geo_context
@@ -13113,14 +13117,14 @@ class UnionAnalyzer:
         return analyzer.analyze()
 
     def _analyze_item1a(
-        self, sentences: List[str], reporting_year: Optional[int] = None
+        self, sentences: List[str], reporting_year: Optional[int] = None, ext_total: Optional[float] = None
     ) -> List[Dict[str, Any]]:
         """
         Analyzes sentences for Item 1A (Risk Factors).
         """
         results = []
         for idx, sent in enumerate(sentences):
-            analysis = self.extractor.analyze_sentence(sent)
+            analysis = self.extractor.analyze_sentence(sent, emp_count=ext_total)
 
             is_historical = False
             # Historical Check for Risks
