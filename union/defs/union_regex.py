@@ -598,7 +598,7 @@ NON_UNION_REGEX = build_regex(
     [
         CORE.NONUNION.value,
         build_compound(
-            NEGATION_TERMS + [r"not\s+under", r"outside"],
+            NEGATION_TERMS + [r"not\s+under", r"outside", r"not\s+aware"],
             UNION_PHRASES,
             sep_prefix=STD_GAP,
         ),
