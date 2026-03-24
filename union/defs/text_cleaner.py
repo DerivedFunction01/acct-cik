@@ -178,7 +178,6 @@ class MinimalTextCleaner:
         (re.compile(r"not\s+all", re.IGNORECASE), "Some"),
     ] + WebTextCleaner.false_positives
 
-
     ip_terms_pattern = build_alternation(
         [
             r"patents?",
@@ -191,7 +190,16 @@ class MinimalTextCleaner:
     )
     ip_context_regex = re.compile(rf"\b(?:{ip_terms_pattern})\b", re.IGNORECASE)
     labor_contract_regex = re.compile(r"\blabor\s+contracts?\b", re.IGNORECASE)
-
+    link_regex = re.compile(
+        r"(?:"
+        r'https?://[^\s<>"\'()]+'  # standard http/https URLs
+        r'|www\.[^\s<>"\'()]+'  # www. without scheme
+        r"|[a-zA-Z0-9\-]+\."  # bare domain (e.g. google.com/path)
+        r"(?:com|org|net|io|co|uk|edu|gov|me|dev|ai|app)"
+        r'(?:/[^\s<>"\'()]*)?'
+        r")",
+        re.IGNORECASE,
+    )
     # Bullet and Dashed Patterns
     bullet_pattern = re.compile(
         r"(?:(?<=^)|(?<=\n))"  # Start of paragraph or line
@@ -643,7 +651,7 @@ class MinimalTextCleaner:
         r"Treat(?:y|ies)",
     ]
     law_pattern_str = build_alternation(law_terms)
-    
+
     law_year_regex = re.compile(
         rf"\b((?:{law_pattern_str})\s+(?:of\s+)?)(?:19|20)\d{{2}}\b|"
         rf"\b(?:19|20)\d{{2}}(\s+(?:[\w-]+\s+){{0,2}}{law_pattern_str})\b",
@@ -908,6 +916,9 @@ class MinimalTextCleaner:
         for paragraph in paragraphs:
             # Normalize Unicode quotes to ASCII straight quotes
             paragraph = normalize_unicode(paragraph)
+
+            # Clean links
+            paragraph = self.link_regex.sub(r" ", paragraph)
 
             # 2. Normalize Acronyms (Early)
             paragraph = self.normalize_acronyms(paragraph)
