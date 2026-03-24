@@ -83,6 +83,12 @@ HARD_EXCLUSION_TERMS = [
     r"derivatives?",
     r"(?:series|class)\s+[A-Z]",
     r"per\s+share",
+    r"pricing",
+    r"sells?",
+    r"customers",
+    r"clients",
+    r"discounts?",
+    r"fixed[-\s]prices?",
 ]
 HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
 
