@@ -6,8 +6,21 @@ from defs.table_processor import MAJOR_CURRENCIES, YEAR_REGEX
 FOOTNOTE_REGEX = re.compile(r'(\(\d+\)|\[\w+\]|[\*\†\‡]+)$')
 CLEAN_NUM_REGEX = re.compile(r'[^\d\.\-]')
 NUMBER_TOKEN_REGEX = re.compile(r'\d+(?:\.\d+)?')
-LOCAL_NUMBER_REGEX = re.compile(r"\bLocals?\s*#?\s*\d+(?:\s*[-–]\s*\d+)?\b", re.IGNORECASE)
-
+# Pre-built at module level alongside your other regex constants
+_ALL_CURRENCY_SYMBOLS = {
+    s for props in MAJOR_CURRENCIES.values() for s in props["symbols"]
+}
+_UNIT_WORDS = re.compile(
+    r"\b(hundred|thousand|million|billion|trillion)s?\b", re.IGNORECASE
+)
+# Strips everything that's "allowed" in a pure numeric/currency cell
+_STRIP_ALLOWED = re.compile(
+    r"[\d\s\.\,\(\)\-\%]"
+    + r"|"
+    + "|".join(
+        re.escape(s) for s in sorted(_ALL_CURRENCY_SYMBOLS, key=len, reverse=True)
+    )
+)
 def _clean_cell(text: str) -> str:
     """Removes footnote markers and extra whitespace."""
     if not text:
@@ -16,80 +29,71 @@ def _clean_cell(text: str) -> str:
     cleaned = FOOTNOTE_REGEX.sub('', text.strip())
     return cleaned.strip()
 
-def _format_value(val: str, col_type: Optional[str], multiplier: float, currency: str) -> str:
-    """
-    Formats the value with currency, multipliers, and type awareness.
-    Example: 1.5 with multiplier 1,000,000 -> 1,500,000 (with commas, else the cleaner will think it is a year)
-    """
+
+def _format_value(
+    val: str, col_type: Optional[str], multiplier: float, currency: str
+) -> str:
     val = _clean_cell(val)
     if not val:
         return ""
-    
-    # 1. Check for Percentage
-    # If explicitly typed as percentage or contains %, treat as percent (ignore multiplier)
-    if col_type == 'percentage' or '%' in val:
-        if '%' not in val:
+
+    # 1. Percentage (ignore multiplier)
+    if col_type == "percentage" or "%" in val:
+        if "%" not in val:
             return f"{val}%"
         return val
 
-    # 2. Check for Date (don't multiply dates)
-    if col_type == 'date':
+    # 2. Date (don't multiply)
+    if col_type == "date":
         return val
 
-    # 3. Numeric Processing
-    # Try to parse as number to apply multiplier
-    # We strip currency symbols and commas for parsing
-    raw_num_str = CLEAN_NUM_REGEX.sub('', val)
-
-    # If a cell contains multiple numeric tokens (e.g., "198 ... 90"),
-    # do not concatenate them. Preserve the original cleaned text.
+    # 3. Guard: if the cell contains multiple numeric tokens, it's a
+    #    composite/narrative value — preserve it as-is.
     number_tokens = NUMBER_TOKEN_REGEX.findall(val)
     if len(number_tokens) >= 2:
         return val
-    if LOCAL_NUMBER_REGEX.search(val):
+
+    # 4. Guard: if there's no numeric token at all, it's pure text — skip.
+    if len(number_tokens) == 0:
         return val
-    
+
+    # 5. Guard: only currency symbols and unit words are allowed as non-numeric text.
+    #    Strip digits, punctuation, whitespace, currency symbols, and unit words.
+    #    If anything remains, the cell is narrative text — preserve as-is.
+    scrubbed = _UNIT_WORDS.sub("", val)  # remove "million", "billion", etc.
+    scrubbed = _STRIP_ALLOWED.sub("", scrubbed)  # remove digits, symbols, currency
+    if scrubbed.strip():  # letters remain → narrative text
+        return val
+    # 6. Numeric processing
+    raw_num_str = CLEAN_NUM_REGEX.sub("", val)
     try:
-        # Handle parentheses for negative numbers if present in original string (e.g. "(500)")
         is_negative = "(" in val and ")" in val
-        
-        if not raw_num_str:
-            return val
-            
         num = float(raw_num_str)
-            
-        # Apply Multiplier Logic
         num = num * multiplier
-        # If the number >=1000, then remove the decimals, 
-        # else keep two decimals only if it is not an integer
+
         if num >= 1000:
             num = int(num)
         elif int(num) != num:
             num = round(num, 2)
         else:
             num = int(num)
-        # Convert it to a string with commas
         num = f"{num:,}"
-          
-        if is_negative:
-            # Convert it back to parenthesis
-            num = f"({num})"
-        
-        # Determine Currency Symbol
-        has_symbol = False
-        for props in MAJOR_CURRENCIES.values():
-            if any(s in val for s in props["symbols"]):
-                has_symbol = True
-                break
 
-        has_currency = has_symbol or '$' in val or col_type == 'dollar'
+        if is_negative:
+            num = f"({num})"
+
+        has_symbol = any(s in val for s in _ALL_CURRENCY_SYMBOLS)
+        has_currency = (
+            has_symbol or col_type == "dollar"
+        )
         
         if has_currency:
             curr_props = MAJOR_CURRENCIES.get(currency)
-            if curr_props:
-                sym = curr_props["symbols"][0]
-            else:
-                sym = "$" if currency == "USD" else f"{currency} "
+            sym = (
+                curr_props["symbols"][0]
+                if curr_props
+                else ("$" if currency == "USD" else f"{currency} ")
+            )
             return f"{sym}{num}"
         else:
             return f"{num}"
@@ -168,11 +172,6 @@ def _get_cell_info(c_idx: int, val: str, context: Dict[str, Any]) -> Dict[str, A
             col_type = "value"
         else:
             col_type = "text"
-
-    # If the cell contains union local numbers, treat it as text to avoid
-    # collapsing locals into numeric counts.
-    if LOCAL_NUMBER_REGEX.search(val):
-        col_type = "text"
 
     col_year = context["col_years"].get(c_idx)
     header = _clean_cell(context["headers"].get(c_idx, ""))
