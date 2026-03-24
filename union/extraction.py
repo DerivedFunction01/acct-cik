@@ -1349,6 +1349,12 @@ class UnionExtractor:
         # These are explicit names like "UAW", "IG Metall" defined in region_regex
         if self.matcher.specific_union_regex:
 
+            def specific_union_extractor(m):
+                val = m.group(0)
+                if not self.matcher.is_valid_specific_union_match(val):
+                    raise ValueError
+                return val
+
             def specific_union_side_effect(m, val):
                 analysis.union_terms.append(val)
                 info = self.matcher.get_union(val)
@@ -1368,7 +1374,7 @@ class UnionExtractor:
             process_matches(
                 self.matcher.specific_union_regex,
                 MatchType.SPECIFIC_UNION,
-                lambda m: m.group(0),
+                specific_union_extractor,
                 specific_union_side_effect,
             )
 

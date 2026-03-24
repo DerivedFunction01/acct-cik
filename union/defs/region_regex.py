@@ -3894,6 +3894,8 @@ class RegionMatcher:
         if self.specific_union_regex:
             for m in self.specific_union_regex.finditer(text):
                 term = m.group(0)
+                if not self.is_valid_specific_union_match(term):
+                    continue
                 info = self.get_union(term)
                 if not info:
                     continue
@@ -3908,6 +3910,12 @@ class RegionMatcher:
                     }
                 )
         return results
+
+    @staticmethod
+    def is_valid_specific_union_match(term: str) -> bool:
+        # Require at least one uppercase letter in the matched text to avoid
+        # matching common lowercase words like "cut".
+        return any(ch.isupper() for ch in term)
 
 REGION_NAME_MAP = {
     Region.EUROPE.value: GeoCode.EUROPE.value,
