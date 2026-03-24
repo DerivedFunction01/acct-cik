@@ -1547,14 +1547,14 @@ class ConcisenessCleaner:
         ]
 
         # Strip "international/national" from "labor unions" if union is lowercase
-        # e.g. "international and national labor unions" -> "labor unions"
-        modifiers = r"(?:(?:[Ii]nter)?[Nn]ational|(?:[Ii]n)?[Dd]ependent)"
-        conjunctions = r"(?:\s*(?:and|or|&|,)\s*)"
+        # e.g. "several international and national labor unions" -> "labor unions"
+        modifiers = r"(?:[Ss]everal|(?:[Ii]nter)?[Nn]ational|(?:[Ii]n)?[Dd]ependent)"
+        conjunctions = r"(?:\s*(?:and|or|&|,)?\s*)"
         modifier_phrase = rf"{modifiers}(?:{conjunctions}{modifiers})*"
 
         self.replacements.append(
             (
-                re.compile(rf"\b{modifier_phrase}\s+((?:[Ll]abor\s+)?unions?)\b"),
+                re.compile(rf"\b(?:of\s+)?{modifier_phrase}\s+((?:[Ll]abo(?:u)?r\s+)?unions?)\b"),
                 r"\1",
             )
         )
