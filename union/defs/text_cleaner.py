@@ -89,6 +89,7 @@ class WebTextCleaner:
         (re.compile(r"\b(?:(?:(?:non|delayed)[- ]?)?union\s+fractures?|bony[- ]unions?)\b", re.IGNORECASE), "fracture"),
         (re.compile(r"\bmonetary\s+unions?\b", re.IGNORECASE), "currency agreement"),
         (re.compile(r"\b(?:kosher|orthodox|kashrut)\s+unions?\b", re.IGNORECASE), "certification"),
+        (re.compile(r"joints?\s+or\s+unions?"), "joints"),
         (re.compile(r"\bUnion\s+of\s+Orthodox\s+(?:Jewish\s+)?(?:Congregations)?\b", re.IGNORECASE), "certification"),
         (
             build_regex(
@@ -116,6 +117,7 @@ class WebTextCleaner:
                             r"states?",
                             r"regions?",
                             r"enterprises?",
+                            r"capital"
                         ],
                     ),
                 ]
