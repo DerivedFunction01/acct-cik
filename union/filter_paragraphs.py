@@ -91,6 +91,7 @@ HARD_EXCLUSION_TERMS = [
     r"fixed[-\s]prices?",
     r"credit",
     r"ordering",
+    r"merger",
 ]
 HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
 
