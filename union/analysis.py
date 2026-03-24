@@ -1543,7 +1543,7 @@ def get_external_global_count(cik: int, year: int) -> Optional[float]:
     return EXTERNAL_COUNTS.get((cik, year))
 
 
-def get_external_global_count_with_fallback(
+def get_external_global_count(
     cik: int, year: Optional[int]
 ) -> Optional[float]:
     """
@@ -10811,14 +10811,14 @@ class UnionAnalyzer:
             # Inject external global total if available
             ext_total = None
             if cik and reporting_year:
-                ext_total = get_external_global_count_with_fallback(cik, reporting_year)
+                ext_total = get_external_global_count(cik, reporting_year)
                 if ext_total:
                     tracker.global_total = ext_total
                     tracker.resolution_log.append(
                         f"Loaded external global total: {ext_total}"
                     )
             elif cik:
-                ext_total = get_external_global_count_with_fallback(cik, None)
+                ext_total = get_external_global_count(cik, None)
                 if ext_total:
                     tracker.global_total = ext_total
                     tracker.resolution_log.append(

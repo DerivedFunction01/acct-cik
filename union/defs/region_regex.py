@@ -2421,7 +2421,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Abuja", ["abuja"]),
             Location("Port Harcourt", ["port harcourt"]),  # Oil/Gas Hub
         ],
-        ["NLC", "Nigeria Labour Congress", "TUC Nigeria"],
+        ["Nigeria Labour Congress", "TUC Nigeria"],
         code="NG",
     ),
     Nation(
