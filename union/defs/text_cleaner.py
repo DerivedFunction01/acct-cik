@@ -94,7 +94,7 @@ class WebTextCleaner:
             build_regex(
                 [
                     build_compound(
-                        [r"union", r"pacific", r"western", r"first", r"trans"],
+                        [r"union", r"pacific", r"western", r"first", r"trans", r"inter"],
                         [
                             r"union",
                             r"fire",
@@ -1359,6 +1359,7 @@ class ContextualNumberCleaner:
             r"pounds?",
             r"kilgrams?",
             r"bushels?",
+            r"shares?",
         ] + street_terms
 
         other_terms_strict = [
