@@ -1494,8 +1494,6 @@ class RiskDigest:
 
 EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
 DATA_LOADED = False
-EXTERNAL_COUNT_MAX_MULTIPLIER = 1.5
-
 
 def load_external_counts():
     global DATA_LOADED
@@ -1536,11 +1534,6 @@ def load_external_counts():
         pass
 
     DATA_LOADED = True
-
-
-def get_external_global_count(cik: int, year: int) -> Optional[float]:
-    load_external_counts()
-    return EXTERNAL_COUNTS.get((cik, year))
 
 
 def get_external_global_count(
@@ -12463,30 +12456,6 @@ class UnionAnalyzer:
             # Preserve insertion order while removing duplicates
             return list(dict.fromkeys(keys))
 
-        def _filter_counts_by_external(counts: List[float]) -> List[float]:
-            if not counts:
-                return counts
-            if not external_total or external_total <= 0:
-                return counts
-            max_allowed = external_total * EXTERNAL_COUNT_MAX_MULTIPLIER
-            return [c for c in counts if c <= max_allowed]
-
-        def _prune_analysis_counts_by_external(analysis: SentenceAnalysis) -> None:
-            if not external_total or external_total <= 0:
-                return
-            max_allowed = external_total * EXTERNAL_COUNT_MAX_MULTIPLIER
-            analysis.worker_counts = [
-                c for c in analysis.worker_counts if c <= max_allowed
-            ]
-            analysis.numbers = [n for n in analysis.numbers if n <= max_allowed]
-            pruned_matches = []
-            for m in analysis._matches:
-                if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER):
-                    val = m.get("val")
-                    if isinstance(val, (int, float)) and val > max_allowed:
-                        continue
-                pruned_matches.append(m)
-            analysis._matches = pruned_matches
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
@@ -12529,9 +12498,7 @@ class UnionAnalyzer:
                 risk_items.append(risk_item)
 
             # 2. Update Context (Worker Counts)
-            _prune_analysis_counts_by_external(analysis)
             effective_counts = get_effective_counts(analysis)
-            effective_counts = _filter_counts_by_external(effective_counts)
             current_sentence_count = None
             if effective_counts and not is_historical:
                 range_avg = self._detect_count_range(analysis, effective_counts)
