@@ -107,11 +107,14 @@ class WebTextCleaner:
                             r"oil",
                             r"holdings?",
                             r"gas"
-                            r"trust",
-                            r"station",
+                            r"trusts?",
+                            r"stations?",
                             r"electric",
-                            r"college",
+                            r"colleges?",
                             r"university",
+                            r"cit(?:y|ies)",
+                            r"states?",
+                            r"regions?",
                         ],
                     ),
                 ]
