@@ -1356,6 +1356,9 @@ class ContextualNumberCleaner:
             r"cubic",
             r"barrels?",
             r"kwh",
+            r"pounds?",
+            r"kilgrams?",
+            r"bushels?",
         ] + street_terms
 
         other_terms_strict = [
