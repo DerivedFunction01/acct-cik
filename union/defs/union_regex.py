@@ -489,8 +489,9 @@ CONTRACT_CLAUSE_TERMS = [
     r"reop(?:en|ener|ened|ening|ens?)",
     r"effective\s+(?:date|through|until|as\s+of)",
     r"term\s+expir(?:e|es|ing|ation|y)",
-    r"contract\s+term",
-    r"agreement\s+term",
+    r"contract\s+terms?",
+    r"agreement\s+terms?",
+    r"vot(?:es?|ed|ing)",
 ]
 CONTRACT_CLAUSE_REGEX = build_regex(CONTRACT_CLAUSE_TERMS)
 
