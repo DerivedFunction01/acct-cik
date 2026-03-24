@@ -115,6 +115,7 @@ class WebTextCleaner:
                             r"cit(?:y|ies)",
                             r"states?",
                             r"regions?",
+                            r"enterprises?",
                         ],
                     ),
                 ]
