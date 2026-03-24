@@ -47,11 +47,42 @@ def _format_value(
     if col_type == "date":
         return val
 
-    # 3. Guard: if the cell contains multiple numeric tokens, it's a
-    #    composite/narrative value — preserve it as-is.
+    # 3. Multiple numeric tokens: try to sum if homogeneous, else preserve.
     number_tokens = NUMBER_TOKEN_REGEX.findall(val)
     if len(number_tokens) >= 2:
-        return val
+        # Detect which currencies are present in the cell
+        symbols_found = {
+            code
+            for code, props in MAJOR_CURRENCIES.items()
+            for s in props["symbols"]
+            if s in val
+        }
+
+        # If multiple distinct currencies appear, preserve as-is
+        if len(symbols_found) > 1:
+            return val
+
+        # If narrative text remains after stripping allowed chars + unit words,
+        # preserve as-is (reuses the same scrub logic as guard #5)
+        scrubbed = _UNIT_WORDS.sub("", val)
+        scrubbed = _STRIP_ALLOWED.sub("", scrubbed)
+        if scrubbed.strip():
+            return val
+
+        # Homogeneous: sum the tokens and let the rest of the function format it
+        total = sum(float(t) for t in number_tokens)
+        # Reconstruct a clean value string, preserving currency symbol if present
+        sym = ""
+        if symbols_found:
+            code = next(iter(symbols_found))
+            sym = MAJOR_CURRENCIES[code]["symbols"][0]
+        elif "$" in val:
+            sym = "$"
+
+        is_negative = "(" in val and ")" in val
+        val = f"({sym}{total})" if is_negative else f"{sym}{total}"
+        # Re-run token detection so the rest of the function sees 1 token
+        number_tokens = NUMBER_TOKEN_REGEX.findall(val)
 
     # 4. Guard: if there's no numeric token at all, it's pure text — skip.
     if len(number_tokens) == 0:
@@ -86,7 +117,7 @@ def _format_value(
         has_currency = (
             has_symbol or col_type == "dollar"
         )
-        
+
         if has_currency:
             curr_props = MAJOR_CURRENCIES.get(currency)
             sym = (
