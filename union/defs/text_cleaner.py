@@ -82,7 +82,7 @@ class WebTextCleaner:
         (re.compile(r"\beuropean\s+union\b", re.IGNORECASE), "The EU"),
         (re.compile(r"\bsoviet\s+union\b", re.IGNORECASE), "USSR"),
         (re.compile(r"\bafrican\s+union\b", re.IGNORECASE), "Africa"),
-        (re.compile(r"\bthe\s+Union\s+of\s+south\s+africa\b", re.IGNORECASE), "South Africa"), # South africa
+        (re.compile(r"\bUnion\s+of\s+south\s+africa\b", re.IGNORECASE), "South Africa"), # South africa
         (re.compile(r"\bUnion\s+of\s+south\s+american?\b", re.IGNORECASE), "South America"), # South africa
         (re.compile(r"\bstate\s+of\s+the\s+union\b", re.IGNORECASE), "Speech"),
         (re.compile(r"\bstudent\s+unions?\b", re.IGNORECASE), "Student Body"),
