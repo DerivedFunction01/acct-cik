@@ -662,6 +662,8 @@ NORTH_AMERICA = {
             "PBA",
             "Police Benevolent Association",
             "International Bricklayers of America",
+            r"American Federation of State, County and Municipal Employees",
+            r"AFSCME"
         ],
         [r"Railway Labor Act", r"RLA", r"National Mediation Board"],
         code="US",
