@@ -1314,7 +1314,7 @@ class ContextualNumberCleaner:
 
         # 10. Small Contract Counts (1-20) to prevent accidental ratio/count confusion
         contract_context = (
-            r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining)\s+)?"
+            r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining\s+(?:agreements?|contracts?))\s+)?"
         )
         contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
 
