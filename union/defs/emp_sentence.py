@@ -18,6 +18,8 @@ from defs.table_processor import TABLE_TOK
 SPACE_REGEX = re.compile(r"\s+")
 NULL_HEADER_REGEX = re.compile(r"^(?:-|—|n/?a|na)$", re.IGNORECASE)
 SPLIT_HINT_REGEX = re.compile(r"[|/;,]")
+LOCAL_NUMBER_REGEX = re.compile(r"\bLocals?\s*#?\s*\d+(?:\s*[-–]\s*\d+)?\b", re.IGNORECASE)
+PURE_NUMBER_REGEX = re.compile(r"^\(?-?\d[\d,]*(?:\.\d+)?\)?$")
 CONTRACT_CONTEXT_REGEX = build_regex(
     [
         build_compound(
@@ -564,6 +566,8 @@ def _extract_metrics(header_ctx: Dict[str, Any]) -> Dict[str, Optional[str]]:
             metrics["total"] = val
             continue
         if category == "bu" and is_numeric and not is_percent and not metrics["bu"]:
+            if not _looks_like_pure_number(val):
+                continue
             metrics["bu"] = val
             continue
         if category == "works_council" and is_numeric and not is_percent and not metrics["works_covered"]:
@@ -616,6 +620,13 @@ def _parse_number_token(value: str) -> Optional[float]:
     if negative:
         num = -num
     return num
+
+
+def _looks_like_pure_number(value: str) -> bool:
+    if not value:
+        return False
+    raw = value.strip()
+    return bool(PURE_NUMBER_REGEX.match(raw))
 
 
 def _format_int_like(value: float) -> str:
@@ -973,9 +984,40 @@ def _extract_union_mentions(text_values: List[str]) -> List[str]:
             if key not in seen_all:
                 out.append(text)
                 seen_all.add(key)
-        return out
+        return _clean_union_names(out)
 
-    return deduped_explicit
+    return _clean_union_names(deduped_explicit)
+
+
+def _strip_local_numbers(text: str) -> str:
+    if not text:
+        return ""
+    cleaned = LOCAL_NUMBER_REGEX.sub("", text)
+    cleaned = SPACE_REGEX.sub(" ", cleaned).strip(" ,;:-")
+    # Remove dangling conjunctions caused by stripping locals.
+    cleaned = re.sub(r"^(?:and|&)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s+(?:and|&)$", "", cleaned, flags=re.IGNORECASE)
+    # Drop bare "Local(s)" tokens that no longer carry meaning.
+    if cleaned.lower() in {"local", "locals"}:
+        return ""
+    return cleaned
+
+
+def _clean_union_names(names: List[str]) -> List[str]:
+    if not names:
+        return []
+    cleaned: List[str] = []
+    seen = set()
+    for name in names:
+        stripped = _strip_local_numbers(name)
+        if not stripped:
+            continue
+        key = stripped.lower()
+        if key in seen:
+            continue
+        cleaned.append(stripped)
+        seen.add(key)
+    return cleaned
 
 
 @lru_cache(maxsize=4096)

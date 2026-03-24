@@ -5,6 +5,8 @@ from defs.table_processor import MAJOR_CURRENCIES, YEAR_REGEX
 # Regex to remove footnote markers like (1), [a], *, †
 FOOTNOTE_REGEX = re.compile(r'(\(\d+\)|\[\w+\]|[\*\†\‡]+)$')
 CLEAN_NUM_REGEX = re.compile(r'[^\d\.\-]')
+NUMBER_TOKEN_REGEX = re.compile(r'\d+(?:\.\d+)?')
+LOCAL_NUMBER_REGEX = re.compile(r"\bLocals?\s*#?\s*\d+(?:\s*[-–]\s*\d+)?\b", re.IGNORECASE)
 
 def _clean_cell(text: str) -> str:
     """Removes footnote markers and extra whitespace."""
@@ -38,6 +40,14 @@ def _format_value(val: str, col_type: Optional[str], multiplier: float, currency
     # Try to parse as number to apply multiplier
     # We strip currency symbols and commas for parsing
     raw_num_str = CLEAN_NUM_REGEX.sub('', val)
+
+    # If a cell contains multiple numeric tokens (e.g., "198 ... 90"),
+    # do not concatenate them. Preserve the original cleaned text.
+    number_tokens = NUMBER_TOKEN_REGEX.findall(val)
+    if len(number_tokens) >= 2:
+        return val
+    if LOCAL_NUMBER_REGEX.search(val):
+        return val
     
     try:
         # Handle parentheses for negative numbers if present in original string (e.g. "(500)")
@@ -158,6 +168,11 @@ def _get_cell_info(c_idx: int, val: str, context: Dict[str, Any]) -> Dict[str, A
             col_type = "value"
         else:
             col_type = "text"
+
+    # If the cell contains union local numbers, treat it as text to avoid
+    # collapsing locals into numeric counts.
+    if LOCAL_NUMBER_REGEX.search(val):
+        col_type = "text"
 
     col_year = context["col_years"].get(c_idx)
     header = _clean_cell(context["headers"].get(c_idx, ""))
