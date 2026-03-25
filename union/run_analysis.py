@@ -42,10 +42,20 @@ def init_worker():
 def process_row(row: Tuple) -> Optional[Tuple]:
     """
     Process a single row.
-    Row format: (accession, item1_json, item1a_json, home_country, item1_percents, item1a_percents, company_name, year)
+    Row format: (accession, item1_json, item1a_json, home_country, item1_percents, item1a_percents, company_name, year, cik)
     """
     try:
-        accession, item1_json, item1a_json, home_country, item1_percents, item1a_percents, company_name, year = row
+        (
+            accession,
+            item1_json,
+            item1a_json,
+            home_country,
+            item1_percents,
+            item1a_percents,
+            company_name,
+            year,
+            cik,
+        ) = row
     except ValueError as e:
         logging.error(f"Error unpacking row: {e}")
         return None
@@ -66,14 +76,15 @@ def process_row(row: Tuple) -> Optional[Tuple]:
                 item1_analysis = ANALYZER.analyze_paragraph(
                     item1_text, 
                     item_type="item1", 
-                    reporting_year=year
+                    reporting_year=year,
+                    cik=cik,
                 )
         except json.JSONDecodeError:
             pass
     if not item1_analysis:
         # Run minimal analysis to avoid hardcoding report JSON.
         item1_analysis = ANALYZER.analyze_paragraph(
-            "", item_type="item1", reporting_year=year
+            "", item_type="item1", reporting_year=year, cik=cik
         )
 
     # Process Item 1A
@@ -93,14 +104,15 @@ def process_row(row: Tuple) -> Optional[Tuple]:
                 item1a_analysis = ANALYZER.analyze_paragraph(
                     item1a_text, 
                     item_type="item1a", 
-                    reporting_year=year
+                    reporting_year=year,
+                    cik=cik,
                 )
         except json.JSONDecodeError:
             pass
     if not item1a_analysis:
         # Run minimal analysis to avoid hardcoding report JSON.
         item1a_analysis = ANALYZER.analyze_paragraph(
-            "", item_type="item1a", reporting_year=year
+            "", item_type="item1a", reporting_year=year, cik=cik
         )
     
     return (
@@ -192,7 +204,7 @@ def data_generator(source_db: str, processed_accessions: Set[str], batch_size: i
     
     # Join to get metadata (Company Name, Year) for filtering context
     query = """
-        SELECT w.accession, w.item1, w.item1a, w.home_country, w.item1_percents, w.item1a_percents, n.name, r.year
+        SELECT w.accession, w.item1, w.item1a, w.home_country, w.item1_percents, w.item1a_percents, n.name, r.year, r.cik
         FROM webpage_result w
         LEFT JOIN report_data r ON w.accession = r.accession
         LEFT JOIN names n ON r.cik = n.cik
