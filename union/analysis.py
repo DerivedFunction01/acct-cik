@@ -9521,6 +9521,57 @@ class Tracker:
 
         countries = []
 
+        def entry_union_indicator(entry: Entry) -> Optional[int]:
+            if entry.covered_count is not None and entry.covered_count > 0:
+                return 1
+            if (
+                (entry.covered_count is not None and entry.covered_count == 0)
+                or (entry.percentage is not None and entry.percentage == 0)
+                or (
+                    entry.not_covered_count is not None
+                    and entry.not_covered_count > 0
+                    and not entry.covered_count
+                )
+            ):
+                return 0
+            return None
+
+        def fallback_union_indicator(code: str) -> Optional[int]:
+            # 1) Region/composite/international containers
+            container_indicators = []
+            for e in self.entries:
+                if not isinstance(e.key, str):
+                    continue
+                if e.scope not in (Scope.REGION, Scope.AGGREGATE, Scope.COUNTRY):
+                    continue
+                container_key = e.key.split("::")[0]
+                if container_key in GLOBAL_SET:
+                    continue
+                if not is_contained(
+                    container_key=container_key,
+                    item_key=code,
+                    domestic_country_code=self.domestic_country_code,
+                ):
+                    continue
+                ind = entry_union_indicator(e)
+                if ind is not None:
+                    container_indicators.append(ind)
+
+            if 0 in container_indicators:
+                return 0
+            if 1 in container_indicators:
+                return 1
+
+            # 2) Global fallback
+            for e in self.entries:
+                if e.scope == Scope.GLOBAL or (
+                    isinstance(e.key, str) and e.key.split("::")[0] in GLOBAL_SET
+                ):
+                    ind = entry_union_indicator(e)
+                    if ind is not None:
+                        return ind
+            return None
+
         def build_country_output(
             code: str,
             total_val: Optional[float],
@@ -9534,6 +9585,7 @@ class Tracker:
             country_table_keywords: Optional[List[str]] = None,
             suppressed_items: Optional[Dict[str, Dict[str, Any]]] = None,
             language_fallback: bool = False,
+            fallback_union_indicator: Optional[int] = None,
         ) -> Dict[str, Any]:
             method_breakdown = {k: empty_bucket() for k in method_keys}
             for e in country_entries + segment_entries:
@@ -9672,7 +9724,10 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                union_indicator = 1
+                union_indicator = -1
+
+            if union_indicator == -1 and fallback_union_indicator is not None:
+                union_indicator = fallback_union_indicator
 
             # Prune empty buckets to reduce verbosity
             def _bucket_has_signal(bucket: Dict[str, Any]) -> bool:
@@ -9902,6 +9957,7 @@ class Tracker:
                 country_table_keywords=country_table_keywords,
                 suppressed_items=suppressed_items,
                 language_fallback=code in self.language_fallback_countries,
+                fallback_union_indicator=fallback_union_indicator(code),
             )
 
             countries.append(country)
