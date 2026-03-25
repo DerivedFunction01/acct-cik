@@ -393,6 +393,20 @@ def export_parquet(
                     total_cov_val += float(acov)
             total_cov = total_cov_val
 
+        # Prefer explicit global coverage when available to avoid double counting
+        global_entry = country_report.get("global") or {}
+        global_cov = global_entry.get("cov")
+        if global_cov is None:
+            g_tot = global_entry.get("tot")
+            g_pct = global_entry.get("pct")
+            if g_tot is not None and g_pct is not None:
+                try:
+                    global_cov = (float(g_pct) / 100.0) * float(g_tot)
+                except (TypeError, ValueError):
+                    global_cov = None
+        if global_cov is not None:
+            total_cov = float(global_cov)
+
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
             "dom_cov": summary.get("dom_cov") if isinstance(summary, dict) else None,
@@ -401,6 +415,7 @@ def export_parquet(
             "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
             "countries": _safe_json_dumps(country_report.get("countries") or []),
             "agg": _safe_json_dumps(country_report.get("agg") or []),
+            "global": _safe_json_dumps(country_report.get("global") or {}),
             "global_keywords": _safe_json_dumps(
                 country_report.get("global_keywords") or []
             ),

@@ -9520,6 +9520,209 @@ class Tracker:
                 bucket["n"] += 1
 
         countries = []
+
+        def build_country_output(
+            code: str,
+            total_val: Optional[float],
+            covered_val: Optional[float],
+            not_covered_val: Optional[float],
+            pct_val: Optional[float],
+            country_entries: List[Entry],
+            segment_entries: List[Entry],
+            weighted_seed: Optional[Dict[str, Any]],
+            country_keywords: Optional[Dict[str, Any]] = None,
+            country_table_keywords: Optional[List[str]] = None,
+            suppressed_items: Optional[Dict[str, Dict[str, Any]]] = None,
+            language_fallback: bool = False,
+        ) -> Dict[str, Any]:
+            method_breakdown = {k: empty_bucket() for k in method_keys}
+            for e in country_entries + segment_entries:
+                field_sources = [
+                    ("tot", e.total_count, e.total_count_source_type),
+                    ("cov", e.covered_count, e.covered_count_source_type),
+                    ("not_cov", e.not_covered_count, e.not_covered_count_source_type),
+                    ("pct_vals", e.percentage, e.percentage_source_type),
+                ]
+
+                used_bucket_keys = set()
+                for field_name, val, stype in field_sources:
+                    # Aggregate-propagated values are weighted split provenance.
+                    if stype == SourceType.CALCULATED.value:
+                        is_weighted_from_agg = False
+                        if (
+                            field_name == "pct_vals"
+                            and e.percentage_source
+                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
+                        ):
+                            is_weighted_from_agg = True
+                        elif (
+                            field_name
+                            in (
+                                "cov",
+                                "not_cov",
+                            )
+                            and e.percentage_source
+                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
+                            and (
+                                e.covered_count_source
+                                == CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value
+                                or e.not_covered_count_source
+                                == CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value
+                            )
+                        ):
+                            is_weighted_from_agg = True
+                        if is_weighted_from_agg:
+                            stype = SourceType.WEIGHTED_DIVISION.value
+                        else:
+                            # Reclassify calculated covered/not_covered parts as FALLBACK
+                            # when their denominator provenance is fallback-based.
+                            if field_name in ("cov", "not_cov"):
+                                fallback_denom = (
+                                    e.total_count_source_type
+                                    == SourceType.FALLBACK.value
+                                    or e.denominator_source_type
+                                    == SourceType.FALLBACK.value
+                                )
+                                if fallback_denom:
+                                    stype = SourceType.FALLBACK.value
+
+                    # Virtual pool is a global-mode fallback. When active, reclassify
+                    # downstream fallback/calculated derivatives to VIRTUAL_POOL.
+                    if self.is_using_virtual and stype in (
+                        SourceType.FALLBACK.value,
+                        SourceType.CALCULATED.value,
+                    ):
+                        denom_linked = e.total_count_source_type in (
+                            SourceType.VIRTUAL_POOL.value,
+                            SourceType.FALLBACK.value,
+                        ) or e.denominator_source_type in (
+                            SourceType.VIRTUAL_POOL.value,
+                            SourceType.FALLBACK.value,
+                        )
+                        if denom_linked:
+                            stype = SourceType.VIRTUAL_POOL.value
+
+                    if stype not in method_breakdown:
+                        continue
+                    bucket = method_breakdown[stype]
+                    used_bucket_keys.add(stype)
+                    if field_name == "pct_vals":
+                        if val is not None:
+                            bucket["pct_vals"].append(float(val))
+                    else:
+                        bucket[field_name] = add_nullable(bucket[field_name], val)
+                for k in used_bucket_keys:
+                    method_breakdown[k]["n"] += 1
+
+            # Backfill weighted split method bucket from aggregate allocations
+            # when this country/pseudo-country has no direct weighted entries.
+            if weighted_seed:
+                weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
+                if weighted_bucket["n"] == 0:
+                    for f in (
+                        "tot",
+                        "cov",
+                        "not_cov",
+                    ):
+                        weighted_bucket[f] = add_nullable(
+                            weighted_bucket[f], weighted_seed.get(f)
+                        )
+                    weighted_bucket["pct_vals"].extend(
+                        weighted_seed.get("pct_vals", [])
+                    )
+                    weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
+
+            explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
+            calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
+            explicit_pcts = explicit_bucket.get("pct_vals", [])
+            reported_pct = None
+            if explicit_pcts:
+                vals = [float(p) for p in explicit_pcts if p is not None]
+                vals = [p for p in vals if 0.0 <= p <= 100.0]
+                if vals:
+                    if len(vals) == 1:
+                        reported_pct = vals[0]
+                    else:
+                        vals_sorted = sorted(vals, reverse=True)
+                        largest = vals_sorted[0]
+                        smaller_sum = sum(vals_sorted[1:])
+                        total_sum = sum(vals_sorted)
+                        if abs(largest - smaller_sum) <= 2.0:
+                            reported_pct = largest
+                        elif total_sum <= 100.0 + 1e-9:
+                            reported_pct = total_sum
+                        else:
+                            reported_pct = sum(vals) / len(vals)
+                    if reported_pct is not None:
+                        reported_pct = round(reported_pct, 2)
+
+            # Coverage-only indicator:
+            # 1 => positive covered population
+            # 0 => explicit non-coverage with no covered population
+            if covered_val is not None and covered_val > 0:
+                union_indicator = 1
+            elif (
+                (covered_val is not None and covered_val == 0)
+                or (pct_val is not None and pct_val == 0)
+                or (
+                    not_covered_val is not None
+                    and not_covered_val > 0
+                    and not covered_val
+                )
+            ):
+                union_indicator = 0
+            else:
+                union_indicator = 1
+
+            # Prune empty buckets to reduce verbosity
+            def _bucket_has_signal(bucket: Dict[str, Any]) -> bool:
+                return bool(
+                    bucket.get("tot") is not None
+                    or bucket.get("cov") is not None
+                    or bucket.get("not_cov") is not None
+                    or (bucket.get("pct_vals") or [])
+                )
+
+            for k in list(method_breakdown.keys()):
+                bucket = method_breakdown.get(k)
+                if not bucket:
+                    continue
+                if bucket.get("n", 0) == 0 or not _bucket_has_signal(bucket):
+                    del method_breakdown[k]
+
+            reported_totals = {
+                "tot": add_nullable(explicit_bucket.get("tot"), calculated_bucket.get("tot")),
+                "cov": add_nullable(explicit_bucket.get("cov"), calculated_bucket.get("cov")),
+                "not_cov": add_nullable(explicit_bucket.get("not_cov"), calculated_bucket.get("not_cov")),
+                "pct": reported_pct,
+            }
+
+            country = {
+                "country_code": code,
+                "union_indicator": union_indicator,
+                "country_totals": {
+                    "tot": total_val,
+                    "cov": covered_val,
+                    "not_cov": not_covered_val,
+                    "pct": pct_val,
+                },
+            }
+            if language_fallback:
+                country["language_fallback_country"] = True
+            if any(v is not None for v in reported_totals.values()):
+                country["reported_totals"] = reported_totals
+            if country_keywords:
+                country["country_keywords"] = country_keywords
+            if country_table_keywords:
+                country["country_table_keywords"] = country_table_keywords
+            if suppressed_items:
+                country["suppressed_counts"] = suppressed_items
+            # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
+            if union_indicator != 0 and method_breakdown:
+                country["method_breakdown"] = method_breakdown
+
+            return country
+
         for code in sorted(country_codes):
             is_pseudo_region = code in pseudo_region_by_code
             is_promoted_pseudo_region = code in promoted_region_codes
@@ -9679,198 +9882,27 @@ class Tracker:
             ):
                 pct_val = round((covered_val / total_val) * 100.0, 2)
 
-            method_breakdown = {k: empty_bucket() for k in method_keys}
-            for e in country_entries + segment_entries:
-                field_sources = [
-                    ("tot", e.total_count, e.total_count_source_type),
-                    ("cov", e.covered_count, e.covered_count_source_type),
-                    ("not_cov", e.not_covered_count, e.not_covered_count_source_type),
-                    ("pct_vals", e.percentage, e.percentage_source_type),
-                ]
-
-                used_bucket_keys = set()
-                for field_name, val, stype in field_sources:
-                    # Aggregate-propagated values are weighted split provenance.
-                    if stype == SourceType.CALCULATED.value:
-                        is_weighted_from_agg = False
-                        if (
-                            field_name == "pct_vals"
-                            and e.percentage_source
-                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
-                        ):
-                            is_weighted_from_agg = True
-                        elif (
-                            field_name
-                            in (
-                                "cov",
-                                "not_cov",
-                            )
-                            and e.percentage_source
-                            == PercentageSourceDetail.AGGREGATE_PROPAGATION.value
-                            and (
-                                e.covered_count_source
-                                == CountSourceDetail.CALCULATED_FROM_PERCENTAGE_AND_TOTAL.value
-                                or e.not_covered_count_source
-                                == CountSourceDetail.CALCULATED_FROM_TOTAL_MINUS_COVERED.value
-                            )
-                        ):
-                            is_weighted_from_agg = True
-                        if is_weighted_from_agg:
-                            stype = SourceType.WEIGHTED_DIVISION.value
-                        else:
-                            # Reclassify calculated covered/not_covered parts as FALLBACK
-                            # when their denominator provenance is fallback-based.
-                            if field_name in ("cov", "not_cov"):
-                                fallback_denom = (
-                                    e.total_count_source_type
-                                    == SourceType.FALLBACK.value
-                                    or e.denominator_source_type
-                                    == SourceType.FALLBACK.value
-                                )
-                                if fallback_denom:
-                                    stype = SourceType.FALLBACK.value
-
-                    # Virtual pool is a global-mode fallback. When active, reclassify
-                    # downstream fallback/calculated derivatives to VIRTUAL_POOL.
-                    if self.is_using_virtual and stype in (
-                        SourceType.FALLBACK.value,
-                        SourceType.CALCULATED.value,
-                    ):
-                        denom_linked = e.total_count_source_type in (
-                            SourceType.VIRTUAL_POOL.value,
-                            SourceType.FALLBACK.value,
-                        ) or e.denominator_source_type in (
-                            SourceType.VIRTUAL_POOL.value,
-                            SourceType.FALLBACK.value,
-                        )
-                        if denom_linked:
-                            stype = SourceType.VIRTUAL_POOL.value
-
-                    if stype not in method_breakdown:
-                        continue
-                    bucket = method_breakdown[stype]
-                    used_bucket_keys.add(stype)
-                    if field_name == "pct_vals":
-                        if val is not None:
-                            bucket["pct_vals"].append(float(val))
-                    else:
-                        bucket[field_name] = add_nullable(bucket[field_name], val)
-                for k in used_bucket_keys:
-                    method_breakdown[k]["n"] += 1
-
-            # Backfill weighted split method bucket from aggregate allocations
-            # when this country/pseudo-country has no direct weighted entries.
-            weighted_seed = aggregate_weighted_by_code.get(code)
-            if weighted_seed:
-                weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
-                if weighted_bucket["n"] == 0:
-                    for f in (
-                        "tot",
-                        "cov",
-                        "not_cov",
-                    ):
-                        weighted_bucket[f] = add_nullable(
-                            weighted_bucket[f], weighted_seed.get(f)
-                        )
-                    weighted_bucket["pct_vals"].extend(
-                        weighted_seed.get("pct_vals", [])
-                    )
-                    weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
-
-            explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
-            calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
-            explicit_pcts = explicit_bucket.get("pct_vals", [])
-            reported_pct = None
-            if explicit_pcts:
-                vals = [float(p) for p in explicit_pcts if p is not None]
-                vals = [p for p in vals if 0.0 <= p <= 100.0]
-                if vals:
-                    if len(vals) == 1:
-                        reported_pct = vals[0]
-                    else:
-                        vals_sorted = sorted(vals, reverse=True)
-                        largest = vals_sorted[0]
-                        smaller_sum = sum(vals_sorted[1:])
-                        total_sum = sum(vals_sorted)
-                        if abs(largest - smaller_sum) <= 2.0:
-                            reported_pct = largest
-                        elif total_sum <= 100.0 + 1e-9:
-                            reported_pct = total_sum
-                        else:
-                            reported_pct = sum(vals) / len(vals)
-                    if reported_pct is not None:
-                        reported_pct = round(reported_pct, 2)
-
-            # Coverage-only indicator:
-            # 1 => positive covered population
-            # 0 => explicit non-coverage with no covered population
-            union_indicator: Optional[int]
-            if covered_val is not None and covered_val > 0:
-                union_indicator = 1
-            elif (
-                (covered_val is not None and covered_val == 0)
-                or (pct_val is not None and pct_val == 0)
-                or (
-                    not_covered_val is not None
-                    and not_covered_val > 0
-                    and not covered_val
-                )
-            ):
-                union_indicator = 0
-            else:
-                union_indicator = 1
-
-            # Prune empty buckets to reduce verbosity
-            def _bucket_has_signal(bucket: Dict[str, Any]) -> bool:
-                return bool(
-                    bucket.get("tot") is not None
-                    or bucket.get("cov") is not None
-                    or bucket.get("not_cov") is not None
-                    or (bucket.get("pct_vals") or [])
-                )
-
-            for k in method_keys:
-                bucket = method_breakdown.get(k)
-                if not bucket:
-                    continue
-                if bucket.get("n", 0) == 0 or not _bucket_has_signal(bucket):
-                    del method_breakdown[k]
-
             country_keywords = self.country_keywords.get(code, {})
             country_table_keywords = sorted(
                 list(self.country_table_keywords.get(code, set()))
             )
-            reported_totals = {
-                "tot": add_nullable(explicit_bucket.get("tot"), calculated_bucket.get("tot")),
-                "cov": add_nullable(explicit_bucket.get("cov"), calculated_bucket.get("cov")),
-                "not_cov": add_nullable(explicit_bucket.get("not_cov"), calculated_bucket.get("not_cov")),
-                "pct": reported_pct,
-            }
-
-            country = {
-                "country_code": code,
-                "union_indicator": union_indicator,
-                "country_totals": {
-                    "tot": total_val,
-                    "cov": covered_val,
-                    "not_cov": not_covered_val,
-                    "pct": pct_val,
-                },
-            }
-            if code in self.language_fallback_countries:
-                country["language_fallback_country"] = True
-            if any(v is not None for v in reported_totals.values()):
-                country["reported_totals"] = reported_totals
-            if country_keywords:
-                country["country_keywords"] = country_keywords
-            if country_table_keywords:
-                country["country_table_keywords"] = country_table_keywords
             suppressed_items = suppressed_by_code.get(code)
-            if suppressed_items:
-                country["suppressed_counts"] = suppressed_items
-            # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
-            if union_indicator != 0 and method_breakdown:
-                country["method_breakdown"] = method_breakdown
+            weighted_seed = aggregate_weighted_by_code.get(code)
+
+            country = build_country_output(
+                code=code,
+                total_val=total_val,
+                covered_val=covered_val,
+                not_covered_val=not_covered_val,
+                pct_val=pct_val,
+                country_entries=country_entries,
+                segment_entries=segment_entries,
+                weighted_seed=weighted_seed,
+                country_keywords=country_keywords,
+                country_table_keywords=country_table_keywords,
+                suppressed_items=suppressed_items,
+                language_fallback=code in self.language_fallback_countries,
+            )
 
             countries.append(country)
 
@@ -9985,6 +10017,40 @@ class Tracker:
                 }
             )
 
+        global_entry = next(
+            (
+                e
+                for e in self.entries
+                if e.scope == Scope.GLOBAL
+                or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
+            ),
+            None,
+        )
+        global_obj = None
+        if global_entry and any(
+            v is not None
+            for v in (
+                global_entry.total_count,
+                global_entry.covered_count,
+                global_entry.not_covered_count,
+                global_entry.percentage,
+            )
+        ):
+            global_obj = build_country_output(
+                code=GeoCode.GLOBAL.value,
+                total_val=global_entry.total_count,
+                covered_val=global_entry.covered_count,
+                not_covered_val=global_entry.not_covered_count,
+                pct_val=global_entry.percentage,
+                country_entries=[global_entry],
+                segment_entries=[],
+                weighted_seed=None,
+                country_keywords=None,
+                country_table_keywords=None,
+                suppressed_items=None,
+                language_fallback=False,
+            )
+
         # Build Summary
         summary = {
             "cov": {code: [] for code in REGION_NAME_MAP.values()},
@@ -10029,6 +10095,7 @@ class Tracker:
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
             "agg": agg,
+            "global": global_obj,
             "summary": summary,
             "global_keywords": global_keywords,
             "global_keyword_count": len(global_keywords),
