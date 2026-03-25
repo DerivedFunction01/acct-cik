@@ -1495,7 +1495,7 @@ class RiskDigest:
 EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
 DATA_LOADED = False
 
-def load_external_counts(path="defs/employee_processed.csv"):
+def load_external_counts(path="employee_processed.csv"):
     global DATA_LOADED
     if DATA_LOADED:
         return
