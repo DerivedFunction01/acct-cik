@@ -1803,6 +1803,32 @@ class ComplexCoverageAnalyzer:
         )
         return dist_non_cov < 50
 
+    def _is_worker_type_linked_percent(
+        self, pct_match: Dict[str, Any], count_match: Dict[str, Any]
+    ) -> bool:
+        """
+        Returns True when a percent appears to describe worker-type composition
+        (e.g. "62% were part-time") rather than union coverage.
+        """
+        pct_span = pct_match["span"]
+        count_span = count_match["span"]
+
+        # Only apply when percent precedes the count.
+        if pct_span[1] > count_span[0]:
+            return False
+
+        between = self.analysis.text[pct_span[1] : count_span[0]]
+        if not re.search(r"\b(?:were|are|is|was)\b", between, re.IGNORECASE):
+            return False
+
+        for m in self.analysis._matches:
+            if m["type"] not in (MatchType.WORKER_TYPE, MatchType.WORKER_TERM):
+                continue
+            if pct_span[1] <= m["span"][0] and m["span"][1] <= count_span[0]:
+                return True
+
+        return False
+
     def _is_union_linked_count(self, match: Dict[str, Any]) -> bool:
         """
         Returns True if the count match is linked to union context directly
@@ -2261,6 +2287,8 @@ class ComplexCoverageAnalyzer:
                 if ";" in text_between:
                     continue
 
+                if self._is_worker_type_linked_percent(pct_match, count_match):
+                    continue
                 self._resolve_local_pair(pct_match, count_match)
                 consumed_indices.update(id(m) for m in group)
                 self.data["note"] = (self.data["note"] or "") + f" (Grouped{geo_note})"
@@ -2350,6 +2378,12 @@ class ComplexCoverageAnalyzer:
                         if ";" in text_between:
                             continue
 
+                        pct_match = m1 if m1["type"] == MatchType.PERCENT else m2
+                        count_match = m2 if pct_match is m1 else m1
+                        if self._is_worker_type_linked_percent(
+                            pct_match, count_match
+                        ):
+                            continue
                         self._resolve_local_pair(m1, m2)
                         consumed_indices.add(id(m1))
                         consumed_indices.add(id(m2))
