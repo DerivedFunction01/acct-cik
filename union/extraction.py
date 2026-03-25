@@ -321,7 +321,7 @@ NON_POPULATION_GEO_REGEX = build_regex(
         r"leases?",
         r"leased?",
         r"revenues?",
-        r"customers?",
+        r"customers",
         r"clients?",
         r"product\s+(?:segments?|markets?)"
     ]
