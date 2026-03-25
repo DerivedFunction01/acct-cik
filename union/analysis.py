@@ -1809,6 +1809,8 @@ class ComplexCoverageAnalyzer:
         """
         Returns True when a percent appears to describe worker-type composition
         (e.g. "62% were part-time") rather than union coverage.
+        Checks if there's a worker type match between the percent and count_match,
+        with a form of "to be" (were/was/are/is) in between.
         """
         pct_span = pct_match["span"]
         count_span = count_match["span"]
@@ -1817,14 +1819,18 @@ class ComplexCoverageAnalyzer:
         if pct_span[1] > count_span[0]:
             return False
 
-        between = self.analysis.text[pct_span[1] : count_span[0]]
-        if not re.search(r"\b(?:were|are|is|was)\b", between, re.IGNORECASE):
-            return False
-
+        # Look for worker type matches between the percent and count matches
         for m in self.analysis._matches:
             if m["type"] not in (MatchType.WORKER_TYPE, MatchType.WORKER_TERM):
                 continue
-            if pct_span[1] <= m["span"][0] and m["span"][1] <= count_span[0]:
+            
+            # Worker type must be between percent and count
+            if not (pct_span[1] <= m["span"][0] and m["span"][1] <= count_span[0]):
+                continue
+            
+            # Check if there's a form of "to be" between percent and worker type
+            between = self.analysis.text[pct_span[1] : m["span"][0]]
+            if re.search(r"\b(?:were|are|is|was)\b", between, re.IGNORECASE):
                 return True
 
         return False
