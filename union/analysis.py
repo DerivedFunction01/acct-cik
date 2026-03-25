@@ -9451,10 +9451,18 @@ class Tracker:
             if e.scope != Scope.REGION or not isinstance(e.key, str):
                 continue
             region_name = _CODE_TO_REGION.get(e.key, e.key)
-            if region_name in REGION_NAME_MAP and not has_region_children(region_name):
-                p_code = REGION_NAME_MAP[region_name]
-                country_codes.add(p_code)
-                pseudo_region_by_code[p_code] = region_name
+            if region_name in REGION_NAME_MAP:
+                # Always add region to country_codes if it has explicit data,
+                # even if it has children. Subtraction logic will handle residuals.
+                if e.total_count is not None or e.covered_count is not None or e.percentage is not None:
+                    p_code = REGION_NAME_MAP[region_name]
+                    country_codes.add(p_code)
+                    pseudo_region_by_code[p_code] = region_name
+                elif not has_region_children(region_name):
+                    # Only add childless regions without explicit data
+                    p_code = REGION_NAME_MAP[region_name]
+                    country_codes.add(p_code)
+                    pseudo_region_by_code[p_code] = region_name
 
         # Precompute weighted allocations from aggregate parents for country-level
         # method breakdown seeding/reclassification.
@@ -9963,13 +9971,16 @@ class Tracker:
             countries.append(country)
 
         # Drop redundant pseudo-countries when child countries are present.
-        # Keep pseudo-countries if they represent subtraction residuals (SUB::Region).
+        # Keep pseudo-countries if:
+        #   1. They represent subtraction residuals (SUB::Region)
+        #   2. They have explicit reported data (don't drop if children are partial/empty)
         countries_by_code = {c.get("country_code"): c for c in countries}
         redundant_pseudo_codes: set[str] = set()
         for pseudo_code in pseudo_region_name_by_code:
             if pseudo_code not in countries_by_code:
                 continue
 
+            # Check if there are subtraction segments for this pseudo-country
             has_subtraction_segment = any(
                 e.scope == Scope.SEGMENT
                 and self._segment_matches_country(e.key, pseudo_code)
@@ -9979,6 +9990,17 @@ class Tracker:
             if has_subtraction_segment:
                 continue
 
+            # Check if this pseudo-country has explicit reported data
+            # If it does, keep it even if children are present
+            pseudo_entry = countries_by_code[pseudo_code]
+            has_explicit_data = (
+                (pseudo_entry.get("reported_totals") or {}).get("tot") is not None
+                or (pseudo_entry.get("reported_totals") or {}).get("cov") is not None
+            )
+            if has_explicit_data:
+                continue
+
+            # Only mark as redundant if it has no explicit data and child countries exist
             has_child_country = any(
                 c_code != pseudo_code
                 and c_code not in IGNORED_REGIONS

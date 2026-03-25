@@ -12,6 +12,11 @@ from defs.region_regex import (
     INT_SET,
     REGION_NAME_MAP,
     _CODE_TO_REGION,
+    is_contained,
+    IGNORED_REGIONS,
+    AGG_SET,
+    COMPOSITE_REGION_MAP,
+    get_composite_constituents,
 )
 
 SOURCE_DB_DEFAULT = "union_provenance_risk.db"
@@ -69,6 +74,9 @@ def _int_reported_totals(report: Dict[str, Any]) -> Tuple[Optional[float], Optio
     
     for entry in countries:
         if entry.get("country_code") == dom_code:
+            continue
+        # Skip sub-allocations to avoid double-counting
+        if entry.get("is_sub_allocation"):
             continue
         reported = entry.get("reported_totals") or {}
         cov = reported.get("cov")
@@ -187,6 +195,152 @@ def _flatten_summary_dict(d: Optional[Dict[str, Any]]) -> List[str]:
         if isinstance(v, list):
             flat.update(v)
     return sorted(list(flat))
+
+
+def _mark_sub_allocations(
+    countries: List[Dict[str, Any]], 
+    domestic_country_code: Optional[str] = None
+) -> None:
+    """
+    Mark countries as sub-allocations of their parents when:
+    parent_reported_cov >= sum(direct_children_reported_cov)
+    
+    This prevents double-counting in hierarchies like:
+    - EUR: 2000 (parent)
+      ├─ CIS: 1000 (child)
+      │   └─ RU and others
+      └─ DE: 500 (child)
+    
+    Modifies countries list in-place, adding:
+    - "is_sub_allocation": True
+    - "parent_allocation_code": <parent_code>
+    """
+    if not countries:
+        return
+    
+    countries_by_code = {c.get("country_code"): c for c in countries if c.get("country_code")}
+    if not countries_by_code:
+        return
+    
+    # Build parent-child relationships using COMPOSITE_REGION_MAP and containment
+    parent_map = {}  # child_code -> parent_code
+    children_map = {}  # parent_code -> list of direct children
+    
+    for child_code in countries_by_code.keys():
+        if child_code in IGNORED_REGIONS or child_code in AGG_SET or child_code in DOMESTIC_SET:
+            continue
+        
+        # Find potential parents
+        potential_parents = []
+        
+        for parent_code in countries_by_code.keys():
+            if parent_code == child_code or parent_code in IGNORED_REGIONS or parent_code in AGG_SET:
+                continue
+            
+            # Check if parent is a composite region containing child's constituents
+            if parent_code in COMPOSITE_REGION_MAP and child_code in COMPOSITE_REGION_MAP:
+                parent_constituents = set(get_composite_constituents(parent_code) or [])
+                child_constituents = set(get_composite_constituents(child_code) or [])
+                
+                # If child's constituents are a subset of parent's, it's a parent-child relationship
+                if child_constituents and child_constituents.issubset(parent_constituents):
+                    potential_parents.append(parent_code)
+            elif parent_code in COMPOSITE_REGION_MAP:
+                # Parent is composite, check if child_code is in its constituents
+                parent_constituents = set(get_composite_constituents(parent_code) or [])
+                if child_code in parent_constituents:
+                    potential_parents.append(parent_code)
+            elif child_code in COMPOSITE_REGION_MAP:
+                # Child is composite, check if parent_code contains it
+                child_constituents = set(get_composite_constituents(child_code) or [])
+                if parent_code in COMPOSITE_REGION_MAP:
+                    parent_constituents = set(get_composite_constituents(parent_code) or [])
+                    if child_constituents.issubset(parent_constituents):
+                        potential_parents.append(parent_code)
+        
+        # If no composite mapping found, fall back to is_contained
+        if not potential_parents:
+            for parent_code in countries_by_code.keys():
+                if parent_code == child_code or parent_code in IGNORED_REGIONS or parent_code in AGG_SET:
+                    continue
+                if is_contained(container_key=parent_code, item_key=child_code, domestic_country_code=domestic_country_code):
+                    potential_parents.append(parent_code)
+        
+        if not potential_parents:
+            continue
+        
+        # Choose the most-specific (smallest) parent
+        # by finding the one that is not contained in any other potential parent
+        for candidate in potential_parents:
+            is_smallest = True
+            for other in potential_parents:
+                if other != candidate:
+                    # Check if candidate is contained in other (meaning other is larger)
+                    if candidate in COMPOSITE_REGION_MAP and other in COMPOSITE_REGION_MAP:
+                        candidate_constituents = set(get_composite_constituents(candidate) or [])
+                        other_constituents = set(get_composite_constituents(other) or [])
+                        if candidate_constituents and candidate_constituents.issubset(other_constituents) and candidate_constituents != other_constituents:
+                            is_smallest = False
+                            break
+                    elif is_contained(
+                        container_key=other,
+                        item_key=candidate,
+                        domestic_country_code=domestic_country_code,
+                    ):
+                        is_smallest = False
+                        break
+            
+            if is_smallest:
+                parent_map[child_code] = candidate
+                if candidate not in children_map:
+                    children_map[candidate] = []
+                children_map[candidate].append(child_code)
+                break
+    
+    # Mark sub-allocations: for each parent, check if sum(children) <= parent
+    processed = set()
+    
+    def mark_subtree(parent_code):
+        """Recursively mark a parent's children as sub-allocations if appropriate."""
+        if parent_code in processed:
+            return
+        processed.add(parent_code)
+        
+        direct_children = children_map.get(parent_code, [])
+        if not direct_children:
+            return
+        
+        parent_entry = countries_by_code.get(parent_code)
+        if not parent_entry:
+            return
+        
+        # Get parent's reported coverage
+        parent_cov = (parent_entry.get("reported_totals") or {}).get("cov")
+        if parent_cov is None:
+            return
+        
+        # Sum direct children's reported coverage
+        children_cov_sum = 0.0
+        for child_code in direct_children:
+            child_entry = countries_by_code.get(child_code)
+            if child_entry:
+                child_cov = (child_entry.get("reported_totals") or {}).get("cov")
+                if child_cov is not None:
+                    children_cov_sum += float(child_cov)
+        
+        # If parent >= sum(direct_children), mark children as sub-allocations
+        if float(parent_cov) >= children_cov_sum:
+            for child_code in direct_children:
+                child_entry = countries_by_code.get(child_code)
+                if child_entry:
+                    child_entry["is_sub_allocation"] = True
+                    child_entry["parent_allocation_code"] = parent_code
+                    # Continue processing grandchildren under this child
+                    mark_subtree(child_code)
+    
+    # Start from all entries
+    for country_code in countries_by_code.keys():
+        mark_subtree(country_code)
 
 def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv: Optional[str] = None) -> pd.DataFrame:
     sampled_accessions = set()
@@ -313,6 +467,14 @@ def export_parquet(
         item1_report = _safe_json_loads(row.get("item1_country_report"))
         item1a_report = _safe_json_loads(row.get("item1a_country_report"))
         country_report = item1_report or item1a_report or {}
+
+        # Mark countries as sub-allocations of their parents to prevent double-counting
+        countries = country_report.get("countries") or []
+        if countries:
+            _mark_sub_allocations(
+                countries, 
+                domestic_country_code=country_report.get("domestic_country_code")
+            )
 
         summary = country_report.get("summary") or {}
         summary_cov = summary.get("cov") if isinstance(summary, dict) else None
