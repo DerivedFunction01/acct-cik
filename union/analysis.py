@@ -12579,6 +12579,21 @@ class UnionAnalyzer:
 
             # 3. Relevance Check
             if not analysis.is_relevant:
+                # Allow geo-only sentences to update paragraph context
+                # (e.g., "We operate in China." -> applies to following relevant sentences)
+                if analysis.geo_matches:
+                    geo_context = self._determine_geo_context(
+                        analysis, last_geo_context, current_idx, last_geo_sentence_idx
+                    )
+                    is_strong_geo = geo_context["specificity"] in (
+                        Specificity.EXPLICIT.value,
+                        Specificity.INFERRED_UNION.value,
+                        Specificity.EXPLICIT_INFERRED.value,
+                        Specificity.INFERRED_LANG.value,
+                    )
+                    if is_strong_geo:
+                        last_geo_context = geo_context
+                        last_geo_sentence_idx = current_idx
                 continue
 
             # Exclude procedural/risk boilerplate numerics from coverage math.
