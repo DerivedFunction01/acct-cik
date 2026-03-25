@@ -1800,7 +1800,7 @@ class UnionExtractor:
         all_counts = analysis.worker_counts + analysis.numbers
         if all_counts:
             if emp_count is not None:
-                max_allowed = max(20000.0, (emp_count + 1) * 1.05)
+                max_allowed = (emp_count + 1) * 1.05
                 analysis.worker_counts = [
                     n for n in analysis.worker_counts if n <= max_allowed
                 ]
