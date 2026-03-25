@@ -1495,43 +1495,24 @@ class RiskDigest:
 EXTERNAL_COUNTS: Dict[Tuple[int, int], float] = {}
 DATA_LOADED = False
 
-def load_external_counts():
+def load_external_counts(path="defs/employee_processed.csv"):
     global DATA_LOADED
     if DATA_LOADED:
         return
+    df = pd.read_csv(path)
+    df.columns = [c.lower() for c in df.columns]
 
-    candidates = [
-        Path("employee_processed.csv"),
-        Path(__file__).parent / "employee_processed.csv",
-        Path(__file__).parent.parent / "employee_processed.csv",
-    ]
+    if {"cik", "year", "emp"}.issubset(df.columns):
+        df = df[["cik", "year", "emp"]].dropna()
+        df["cik"] = pd.to_numeric(df["cik"], errors="coerce")
+        df["year"] = pd.to_numeric(df["year"], errors="coerce")
+        df["emp"] = pd.to_numeric(df["emp"], errors="coerce")
 
-    path = None
-    for p in candidates:
-        if p.exists():
-            path = p
-            break
+        df = df.dropna()
+        df["cik"] = df["cik"].astype(int)
+        df["year"] = df["year"].astype(int)
 
-    if not path:
-        return
-
-    try:
-        df = pd.read_csv(path)
-        df.columns = [c.lower() for c in df.columns]
-
-        if {"cik", "year", "emp"}.issubset(df.columns):
-            df = df[["cik", "year", "emp"]].dropna()
-            df["cik"] = pd.to_numeric(df["cik"], errors="coerce")
-            df["year"] = pd.to_numeric(df["year"], errors="coerce")
-            df["emp"] = pd.to_numeric(df["emp"], errors="coerce")
-
-            df = df.dropna()
-            df["cik"] = df["cik"].astype(int)
-            df["year"] = df["year"].astype(int)
-
-            EXTERNAL_COUNTS.update(df.set_index(["cik", "year"])["emp"].to_dict())  # type: ignore
-    except Exception:
-        pass
+        EXTERNAL_COUNTS.update(df.set_index(["cik", "year"])["emp"].to_dict())  # type: ignore
 
     DATA_LOADED = True
 
