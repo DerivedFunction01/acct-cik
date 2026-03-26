@@ -2506,10 +2506,10 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        print(analysis)
-        print("Counts: ", analysis.worker_counts + analysis.numbers)
-        print("Union terms", analysis.union_terms)
-        print("Negation terms", analysis.negation_terms)
+        # print(analysis)
+        # print("Counts: ", analysis.worker_counts + analysis.numbers)
+        # print("Union terms", analysis.union_terms)
+        # print("Negation terms", analysis.negation_terms)
         return analysis
 
     def split_sentences(self, text: str | List[str]) -> List[str]:
