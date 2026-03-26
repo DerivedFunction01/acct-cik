@@ -10,6 +10,7 @@ import pandas as pd
 from defs.region_regex import (
     DOMESTIC_SET,
     INT_SET,
+    NON_G20_SIGNIFICANT_ECOS,
     REGION_NAME_MAP,
     _CODE_TO_REGION,
     is_contained,
@@ -111,14 +112,13 @@ def _domestic_parent_pct(report: Dict[str, Any]) -> Optional[float]:
 
     return None
 
-NON_G20_REMAINDER_EXCEPTIONS = {"IL"}
 
 def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
     dom_code = report.get("domestic_country_code")
     if not dom_code:
         return None
     dom_is_g20 = dom_code in G20_CODES
-    dom_has_exception = dom_code in NON_G20_REMAINDER_EXCEPTIONS
+    dom_has_exception = dom_code in NON_G20_SIGNIFICANT_ECOS
 
     countries = report.get("countries") or []
     countries_by_code = {

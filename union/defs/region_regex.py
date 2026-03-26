@@ -3684,7 +3684,7 @@ BUSINESS_BOOSTER = {
     "JP": 1.2,  # Japan to extend its dominance
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
-
+NON_G20_SIGNIFICANT_ECOS = {"IL", "NL", "CH", "SE", "NO", "PL"}
 
 class RegionMatcher:
     """
@@ -3955,7 +3955,7 @@ _CODE_TO_REGION, _CODE_TO_REGION_CODE = _build_code_to_region_map()
 def is_contained(
     container_key: Optional[str] = None,
     item_key: Optional[str] = None,
-    domestic_country_code: str = "US",
+    domestic_country_code: Optional[str] = "US",
     excluded_keys: Optional[Set[str]] = None,
 ) -> bool:
     """
