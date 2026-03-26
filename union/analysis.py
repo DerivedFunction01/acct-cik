@@ -6012,6 +6012,30 @@ class Tracker:
         for e in list(self.entries):
             if e.scope == Scope.AGGREGATE and e.related_geo_codes:
                 pct = e.percentage
+                related_codes = [
+                    c for c in e.related_geo_codes if isinstance(c, str) and c
+                ]
+                effective_children: List[str] = []
+                for c in related_codes:
+                    if (
+                        c in IGNORED_REGIONS
+                        or c in AGG_SET
+                        or c in DOMESTIC_SET
+                    ):
+                        continue
+                    if is_region(c):
+                        has_concrete_child = any(
+                            other != c
+                            and isinstance(other, str)
+                            and is_contained(
+                                c, other, self.domestic_country_code, excluded_keys=None
+                            )
+                            for other in related_codes
+                        )
+                        if has_concrete_child:
+                            continue
+                    if c not in effective_children:
+                        effective_children.append(c)
 
                 # Try to derive percentage from counts if missing
                 if pct is None and e.covered_count is not None:
@@ -6087,6 +6111,45 @@ class Tracker:
                             if has_zero_segment:
                                 self.resolution_log.append(
                                     f"Skipped aggregate propagation to {t.key}: explicit zero/negated segment exists."
+                                )
+                                continue
+
+                            # Special case: aggregate has a single child and explicit data.
+                            # Treat it as a direct explicit report for that child (not weighted).
+                            if (
+                                len(effective_children) == 1
+                                and code == effective_children[0]
+                                and e.is_explicit
+                                and t.covered_count is None
+                                and t.percentage is None
+                                and t.not_covered_count is None
+                            ):
+                                if e.covered_count is not None:
+                                    t.covered_count = e.covered_count
+                                    self._mark_source(
+                                        t,
+                                        "covered_count_source",
+                                        CountSourceDetail.EXPLICIT_COVERED_COUNT.value,
+                                    )
+                                if e.not_covered_count is not None:
+                                    t.not_covered_count = e.not_covered_count
+                                    self._mark_source(
+                                        t,
+                                        "not_covered_count_source",
+                                        CountSourceDetail.EXPLICIT_NOT_COVERED_COUNT.value,
+                                    )
+                                if e.percentage is not None:
+                                    t.percentage = e.percentage
+                                    self._mark_source(
+                                        t,
+                                        "percentage_source",
+                                        PercentageSourceDetail.EXPLICIT_PERCENTAGE.value,
+                                    )
+                                t.is_explicit = True
+                                # Flag aggregate for downstream reporting suppression.
+                                e._single_child_explicit_applied = True  # type: ignore[attr-defined]
+                                self.resolution_log.append(
+                                    f"Applied explicit aggregate values to single child {t.key} from {e.key}."
                                 )
                                 continue
 
@@ -10258,6 +10321,10 @@ class Tracker:
 
             if not child_codes:
                 continue
+            # Avoid double-counting: omit aggregates that already copied explicit
+            # values directly to their single child.
+            if getattr(e, "_single_child_explicit_applied", False):
+                continue
 
             child_weights = {
                 c: float(self.country_totals.get(c, 0.0) or 0.0) for c in child_codes
@@ -10284,6 +10351,10 @@ class Tracker:
                     "w_tot": child_weights.get(c),
                 }
 
+            agg_source_type = SourceType.WEIGHTED_DIVISION.value
+            if e.is_explicit and len(child_codes) == 1:
+                agg_source_type = SourceType.EXPLICIT.value
+
             agg.append(
                 {
                     "aggregate_key": aggregate_key,
@@ -10292,7 +10363,7 @@ class Tracker:
                     "cov": e.covered_count,
                     "not_cov": e.not_covered_count,
                     "pct": e.percentage,
-                    "source_type": SourceType.WEIGHTED_DIVISION.value,
+                    "source_type": agg_source_type,
                     "children": children,
                 }
             )
@@ -11740,8 +11811,16 @@ class UnionAnalyzer:
                             ]
 
                             if not valid_children and children:
-                                # Fallback: If all children were excluded but we have a count, map to them (e.g. "except Germany (1000)")
+                                # If all children were excluded, skip weighted division
+                                # so we don't force a single remaining entity to absorb counts.
+                                if local_excluded_keys:
+                                    continue
+                                # Fallback only when no exclusions are active.
                                 valid_children = children
+
+                            if len(valid_children) == 1:
+                                local_map[valid_children[0]["key"]] = c["val"]
+                                continue
 
                             child_map, c_note = weighted_division(
                                 c["val"],
@@ -11816,8 +11895,15 @@ class UnionAnalyzer:
                         ]
 
                         if not valid_group and group:
-                            # Fallback: If all were excluded but we have a count, map to them
+                            # If all were excluded, skip weighted division
+                            if local_excluded_keys:
+                                continue
+                            # Fallback only when no exclusions are active.
                             valid_group = group
+
+                        if len(valid_group) == 1:
+                            local_map[valid_group[0]["key"]] = c["val"]
+                            continue
 
                         if len(valid_group) < len(group):
                             filtered_note = " (Filtered Containers)"
@@ -11854,8 +11940,14 @@ class UnionAnalyzer:
                 ]
 
                 if not valid_entities and curr_entities:
-                    # Fallback: If all were excluded but we have a count, map to them
+                    # If all were excluded, skip weighted division
+                    if local_excluded_keys:
+                        return None
+                    # Fallback only when no exclusions are active.
                     valid_entities = curr_entities
+
+                if len(valid_entities) == 1:
+                    return {valid_entities[0]["key"]: count_val}, "Naive Split (Single Entity)"
 
                 filtered_note = ""
                 if len(valid_entities) < len(curr_entities):
