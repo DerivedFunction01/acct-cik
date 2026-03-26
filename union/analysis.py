@@ -12290,6 +12290,11 @@ class UnionAnalyzer:
             m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
         ]
         raw_geo_matches = [m for m in analysis._matches if m["type"] == MatchType.GEO]
+        count_matches = [
+            m
+            for m in analysis._matches
+            if m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+        ]
 
         # Pre-calculate segments for exclusion refinement
         segments = get_text_segments(analysis.text)
@@ -12400,6 +12405,62 @@ class UnionAnalyzer:
                         "list_group_id": obj.list_group_id,
                     }
                 )
+
+        # Prefer explicitly linked geo counts over positional inference.
+        if geo_entries and count_matches:
+            geo_link_map: Dict[Any, List[str]] = {}
+
+            def _add_geo_link(link_id: Any, key: str) -> None:
+                if link_id is None:
+                    return
+                lst = geo_link_map.setdefault(link_id, [])
+                if key not in lst:
+                    lst.append(key)
+
+            for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                key = obj.geo_code or ""
+                if obj.geo_code in REGION_CODES and obj.geo_code not in DOMESTIC_SET:
+                    key = obj.region.value
+                if obj.list_group_id:
+                    _add_geo_link(obj.list_group_id, key)
+                _add_geo_link(id(obj), key)
+                if raw.get("geo_obj") is not None:
+                    _add_geo_link(id(raw["geo_obj"]), key)
+
+            linked_map: Dict[str, float] = {}
+            for c in count_matches:
+                link_id = c.get("linked_geo_group_id")
+                if not link_id:
+                    continue
+                keys = geo_link_map.get(link_id, [])
+                if len(keys) != 1:
+                    continue
+                key = keys[0]
+                linked_map[key] = max(linked_map.get(key, 0.0), float(c["val"]))
+
+            if linked_map:
+                first_geo_start = min(e["span"][0] for e in geo_entries)
+                unlinked_counts = [
+                    c for c in count_matches if not c.get("linked_geo_group_id")
+                ]
+                pre_geo_unlinked = [
+                    c for c in unlinked_counts if c["span"][0] < first_geo_start
+                ]
+                # If all unlinked counts are pre-geo, treat the largest as a global total
+                # and avoid naive remapping of linked counts to other geos.
+                if unlinked_counts and len(pre_geo_unlinked) == len(unlinked_counts):
+                    total_val = max(c["val"] for c in pre_geo_unlinked)
+                    mapped_counts = dict(linked_map)
+                    if total_val is not None:
+                        mapped_counts[GeoCode.GLOBAL.value] = float(total_val)
+                    return mapped_counts, float(total_val), [
+                        "Linked Geo Counts",
+                        "Pre-Geo Total",
+                    ]
+
+                # If all counts are linked, return those mappings directly.
+                if not unlinked_counts:
+                    return linked_map, None, ["Linked Geo Counts"]
 
         return self._resolve_counts_generic(
             analysis,
