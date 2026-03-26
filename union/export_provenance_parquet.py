@@ -61,6 +61,55 @@ def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optiona
             return cov, pct
     return None, None
 
+def _domestic_parent_pct(report: Dict[str, Any]) -> Optional[float]:
+    dom_code = report.get("domestic_country_code")
+    if not dom_code:
+        return None
+
+    # 1) Prefer aggregate parents that explicitly list the domestic code.
+    for agg in report.get("agg") or []:
+        pct = agg.get("pct")
+        if pct is None:
+            continue
+        children = agg.get("children") or {}
+        if dom_code in children:
+            return float(pct)
+
+    def _parent_pct_for_codes(codes: List[str]) -> Optional[float]:
+        for entry in report.get("countries") or []:
+            c_code = entry.get("country_code")
+            if not c_code or c_code == dom_code:
+                continue
+            if c_code not in codes:
+                continue
+            if c_code in IGNORED_REGIONS:
+                continue
+            if not is_contained(
+                container_key=c_code,
+                item_key=dom_code,
+                domestic_country_code=dom_code,
+            ):
+                continue
+            reported = entry.get("reported_totals") or {}
+            pct = reported.get("pct")
+            if pct is not None:
+                return float(pct)
+        return None
+
+    # 2) Composite containers (e.g., CIS, EMEA composites)
+    composite_codes = list(COMPOSITE_REGION_MAP.keys())
+    pct = _parent_pct_for_codes(composite_codes)
+    if pct is not None:
+        return pct
+
+    # 3) Region containers (e.g., EUR)
+    region_codes = list(REGION_NAME_MAP.values())
+    pct = _parent_pct_for_codes(region_codes)
+    if pct is not None:
+        return pct
+
+    return None
+
 def _int_reported_totals(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
     dom_code = report.get("domestic_country_code")
     countries = report.get("countries") or []
@@ -498,6 +547,9 @@ def export_parquet(
                 )
 
         dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
+
+        if dom_domestic_pct is None:
+            dom_domestic_pct = _domestic_parent_pct(country_report)
         
         dom_pulled_from_risk = False
         # Note: 'not dom_domestic_count' is True if count is 0.0 or None
