@@ -21,7 +21,34 @@ CASES = [
         300.0,
         100.0,
     ),
-    ("100 of 200 are in a union.", None, None, 200.0, None),
+    ("100 of 200 are in a union.", 100.0, 100.0, 200.0, 50.0),
+    (
+        "100 of the 200 employees are under collective bargaining.",
+        100.0,
+        100.0,
+        200.0,
+        50.0,
+    ),
+    (
+        "50% of the 200 employees are under collective bargaining.",
+        100.0,
+        100.0,
+        200.0,
+        50.0,
+    ),
+    ("For 100 employees, 60% are unionized", 60.0, 40.0, 100.0, 60.0),
+    (
+        "100 are unionzied employees, representing 20% of the workforce.",
+       100.0, 400.0, 500.0, 20.0
+    ),
+    ("60% of the company's 1000 employees are unionized.", 60.0, 40.0, 1000.0, 60.0),
+    (
+        "20% our our workers are unionized, consisting of 1000 workers.",
+        1000.0,
+        4000.0,
+        5000.0,
+        20.0,
+    ),
     ("We employed 100 workers and 50 workers are unionized.", 50.0, None, 100.0, 50.0),
     (
         "We employed 100 workers and 10% of the workers are unionized.",
@@ -30,6 +57,7 @@ CASES = [
         100.0,
         10.0,
     ),
+    ("500 workers are unionized.", 500.0, 0, None, None),
     (
         "There are 200 workers, including 50 salaried employees, and 50 that are under collective bargaining.",
         50.0,
