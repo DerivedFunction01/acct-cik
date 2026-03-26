@@ -9893,7 +9893,7 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                union_indicator = 1
+                union_indicator = 0
 
             explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
@@ -10341,7 +10341,8 @@ class Tracker:
 
         for c_obj in countries:
             code = c_obj["country_code"]
-            is_covered = c_obj["union_indicator"] == 1
+            union_indicator = c_obj.get("union_indicator")
+            is_covered = union_indicator == 1
 
             if is_covered:
                 if code == self.domestic_country_code:
