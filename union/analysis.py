@@ -9696,6 +9696,10 @@ class Tracker:
             )
             if not is_aggregate_parent or not e.related_geo_codes:
                 continue
+            if getattr(e, "_single_child_explicit_applied", False):
+                # Avoid weighted-division seeding when aggregate was collapsed
+                # into a single explicit child.
+                continue
 
             aggregate_key = e.key if isinstance(e.key, str) else None
             if isinstance(aggregate_key, str):
@@ -10015,6 +10019,15 @@ class Tracker:
                 "not_cov": add_nullable(explicit_bucket.get("not_cov"), calculated_bucket.get("not_cov")),
                 "pct": reported_pct,
             }
+            # Special case: Global (GLO) is treated as a parent "country".
+            # If its pct is propagated, surface it as reported.
+            if (
+                code == GeoCode.GLOBAL.value
+                and reported_totals.get("pct") is None
+                and _has_explicit_or_propagated_pct(country_entries + segment_entries)
+                and pct_val is not None
+            ):
+                reported_totals["pct"] = pct_val
 
             country = {
                 "country_code": code,
