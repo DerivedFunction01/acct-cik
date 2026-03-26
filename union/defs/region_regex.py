@@ -3684,7 +3684,7 @@ BUSINESS_BOOSTER = {
     "JP": 1.2,  # Japan to extend its dominance
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
-NON_G20_REMAINDER_EXCEPTIONS = {
+NON_G20_SIGNIFICANT_ECOS = {
     # Middle East / Gulf
     "IL",
     "AE",
