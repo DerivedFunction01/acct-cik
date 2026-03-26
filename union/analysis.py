@@ -13608,6 +13608,7 @@ class UnionAnalyzer:
                     current_val = max(effective_counts)
 
                 updates_found = []
+                update_sources = []
 
                 if mapped_counts or union_counts:
                     # Use specific mappings
@@ -13620,6 +13621,9 @@ class UnionAnalyzer:
                             curr_max = effective_totals.get(code, 0)
                             if count > prev_val and count >= curr_max:
                                 updates_found.append(f"{code}: {count}")
+                                update_sources.append(
+                                    f"{code}: mapped_counts (prev={prev_val}, prior_max={curr_max})"
+                                )
 
                             if count > local_totals.get(code, 0):
                                 local_totals[code] = count
@@ -13650,6 +13654,9 @@ class UnionAnalyzer:
                                 if count > prev_val and count >= curr_max:
                                     updates_found.append(
                                         f"{code} (via {union_name}): {count}"
+                                    )
+                                    update_sources.append(
+                                        f"{code}: union_counts '{union_name}' (prev={prev_val}, prior_max={curr_max})"
                                     )
 
                                 if count > local_totals.get(code, 0):
@@ -13682,6 +13689,9 @@ class UnionAnalyzer:
                         curr_max = effective_totals.get(region_key, 0)
                         if current_val > prev_val and current_val >= curr_max:
                             updates_found.append(f"{region_key}: {current_val}")
+                            update_sources.append(
+                                f"{region_key}: fallback_context (prev={prev_val}, prior_max={curr_max})"
+                            )
 
                         if current_val > local_totals.get(region_key, 0):
                             local_totals[region_key] = current_val
@@ -13698,6 +13708,9 @@ class UnionAnalyzer:
                             curr_max = effective_totals.get(c_code, 0)
                             if current_val > prev_val and current_val >= curr_max:
                                 updates_found.append(f"{c_code}: {current_val}")
+                                update_sources.append(
+                                    f"{c_code}: fallback_context (prev={prev_val}, prior_max={curr_max})"
+                                )
 
                             # Only update if we didn't map it specifically above (though mapped_counts check covers this)
                             if current_val > local_totals.get(c_code, 0):
@@ -13708,6 +13721,11 @@ class UnionAnalyzer:
                 if updates_found:
                     unique_updates = sorted(list(set(updates_found)))
                     census_update_note = f"Updates lookup: {', '.join(unique_updates)}"
+                    if update_sources:
+                        unique_sources = sorted(list(set(update_sources)))
+                        census_update_note += (
+                            " | Update sources: " + ", ".join(unique_sources)
+                        )
                     if geo_notes:
                         census_update_note += f" | Geo Strategy: {', '.join(geo_notes)}"
                     if union_notes:
