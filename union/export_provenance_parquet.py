@@ -579,6 +579,33 @@ def export_parquet(
         if agg_int_not_cov is not None:
             int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
 
+        # If domestic coverage exists and international totals include a parent container
+        # that contains the domestic country, subtract domestic once to avoid double-counting.
+        if dom_domestic_count is not None and int_cov is not None:
+            dom_code = country_report.get("domestic_country_code")
+            if dom_code:
+                has_parent_container = False
+                for entry in country_report.get("countries") or []:
+                    c_code = entry.get("country_code")
+                    if not c_code or c_code == dom_code:
+                        continue
+                    if c_code in IGNORED_REGIONS:
+                        continue
+                    if entry.get("is_sub_allocation"):
+                        continue
+                    reported = entry.get("reported_totals") or {}
+                    if reported.get("cov") is None:
+                        continue
+                    if is_contained(
+                        container_key=c_code,
+                        item_key=dom_code,
+                        domestic_country_code=dom_code,
+                    ):
+                        has_parent_container = True
+                        break
+                if has_parent_container:
+                    int_cov = max(0.0, float(int_cov) - float(dom_domestic_count))
+
         summary_int_false = summary.get("int_cov") is False
         if summary_int_false and agg_int_cov is None:
             int_cov = 0.0
