@@ -111,10 +111,14 @@ def _domestic_parent_pct(report: Dict[str, Any]) -> Optional[float]:
 
     return None
 
+NON_G20_REMAINDER_EXCEPTIONS = {"IL"}
+
 def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
     dom_code = report.get("domestic_country_code")
-    if not dom_code or dom_code not in G20_CODES:
+    if not dom_code:
         return None
+    dom_is_g20 = dom_code in G20_CODES
+    dom_has_exception = dom_code in NON_G20_REMAINDER_EXCEPTIONS
 
     countries = report.get("countries") or []
     countries_by_code = {
@@ -146,6 +150,45 @@ def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
                 total += float(cov)
         return total
 
+    def _has_missing_g20_sibling(
+        parent_code: str, child_codes: Optional[List[str]] = None
+    ) -> bool:
+        if dom_is_g20 or dom_has_exception:
+            return False
+
+        # Aggregate: explicit child list
+        if child_codes is not None:
+            for code in child_codes:
+                if not code or code == dom_code:
+                    continue
+                if code in G20_CODES and _entry_cov(code) is None:
+                    return True
+            return False
+
+        # Composite parent
+        if parent_code in COMPOSITE_REGION_MAP:
+            constituents = get_composite_constituents(parent_code) or []
+            for code in constituents:
+                if code == dom_code:
+                    continue
+                if code in G20_CODES and _entry_cov(code) is None:
+                    return True
+            return False
+
+        # Region parent
+        if parent_code in REGION_NAME_MAP.values():
+            region_name = _CODE_TO_REGION.get(parent_code)
+            if not region_name:
+                return False
+            for code in G20_CODES:
+                if code == dom_code:
+                    continue
+                if _CODE_TO_REGION.get(code) == region_name and _entry_cov(code) is None:
+                    return True
+            return False
+
+        return False
+
     # 1) Aggregate parents: explicit child list.
     for agg in report.get("agg") or []:
         parent_code = agg.get("aggregate_key")
@@ -167,6 +210,8 @@ def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
             for c in child_codes
         ):
             continue
+        if _has_missing_g20_sibling(parent_code, child_codes):
+            continue
         sibling_sum = _sibling_cov_sum(parent_code, child_codes)
         remainder = float(parent_cov) - sibling_sum
         if remainder >= 0:
@@ -184,6 +229,8 @@ def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
             continue
         parent_cov = _entry_cov(parent_code)
         if parent_cov is None:
+            continue
+        if _has_missing_g20_sibling(parent_code):
             continue
         child_codes = [
             code
@@ -212,6 +259,8 @@ def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
             continue
         parent_cov = _entry_cov(parent_code)
         if parent_cov is None:
+            continue
+        if _has_missing_g20_sibling(parent_code):
             continue
         child_codes = [
             code
