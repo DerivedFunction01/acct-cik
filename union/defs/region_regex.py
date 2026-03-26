@@ -3684,8 +3684,17 @@ BUSINESS_BOOSTER = {
     "JP": 1.2,  # Japan to extend its dominance
     "AE": 1.10,  # UAE – real corporate hub, not a tax haven
 }
-NON_G20_SIGNIFICANT_ECOS = {"IL", "NL", "CH", "SE", "NO", "PL"}
-
+NON_G20_REMAINDER_EXCEPTIONS = {
+    # Middle East / Gulf
+    "IL",
+    "AE",
+    # Europe
+    "NL",
+    "CH",
+    "SE",
+    "NO",
+    "PL",
+}
 class RegionMatcher:
     """
     Compiles regexes for Regions, Nations, and Specific Unions.
