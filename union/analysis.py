@@ -2704,6 +2704,8 @@ class ComplexCoverageAnalyzer:
         """
         True when a percentage appears to describe composition inside an already
         scoped union subgroup (e.g., "Of those represented, 95% ... represented by X").
+        ONLY for these type of sentences: Of our unionized employees 80% are represented by UAW. 
+        However, the true firm percentage is 20%; the 80% is the subgroup of the unionized percentage.
         """
         has_specific_union_targets = any(
             m["type"] in (MatchType.SPECIFIC_UNION, MatchType.UNION_NAME)
