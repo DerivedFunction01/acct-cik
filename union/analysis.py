@@ -13125,6 +13125,49 @@ class UnionAnalyzer:
                 return []
             if not analysis.percentages:
                 return []
+
+            # Build geo list_group_id -> geo_code map from aligned explicit geos
+            geo_match_objs = [
+                m for m in analysis.geo_matches if m.source_type == GeoSource.EXPLICIT
+            ]
+            raw_geo_matches = [m for m in analysis._matches if m.get("type") == MatchType.GEO]
+            geo_gid_to_code: Dict[Any, str] = {}
+            if len(geo_match_objs) == len(raw_geo_matches):
+                for obj, raw in zip(geo_match_objs, raw_geo_matches):
+                    code = obj.geo_code
+                    if not code:
+                        continue
+                    if code == GeoCode.DOMESTIC.value:
+                        code = self.domestic_country_code
+                    gid = obj.list_group_id or id(obj)
+                    geo_gid_to_code[gid] = code
+
+            # Try direct linking via linked_geo_group_id on percent matches
+            pct_matches = [m for m in analysis._matches if m.get("type") == MatchType.PERCENT]
+            linked_map: Dict[str, float] = {}
+            for pm in pct_matches:
+                link_id = pm.get("linked_geo_group_id")
+                if link_id and link_id in geo_gid_to_code:
+                    code = geo_gid_to_code[link_id]
+                    linked_map[code] = float(pm["val"])
+
+            explicit_geo_codes = [
+                (obj.geo_code if obj.geo_code != GeoCode.DOMESTIC.value else self.domestic_country_code)
+                for obj in geo_match_objs if obj.geo_code
+            ]
+            # Accept linked map only when it covers all explicit geos
+            if linked_map and len(linked_map) == len(set(explicit_geo_codes)):
+                return [
+                    {
+                        "geo_code": code,
+                        "percentage": pct,
+                        "sentence_index": sentence_index,
+                        "note": "Explicit percent linked via geo proximity",
+                    }
+                    for code, pct in linked_map.items()
+                ]
+
+            # Fallback: require explicit-percent coverage signal
             if not (
                 cov_data.get("is_explicit_percent")
                 or cov_data.get("type") == CoverageType.EXPLICIT_PERCENT.value
@@ -13136,29 +13179,18 @@ class UnionAnalyzer:
             )
             if not pct_map:
                 return []
-
-            explicit_geo_count = len(
-                [
-                    g
-                    for g in analysis.geo_matches
-                    if g.source_type == GeoSource.EXPLICIT and g.geo_code
-                ]
-            )
-            if explicit_geo_count > 1 and len(pct_map) < explicit_geo_count:
+            if len(pct_map) < len(set(explicit_geo_codes)):
                 return []
 
-            entries: List[Dict[str, Any]] = []
-            for code, pct in pct_map.items():
-                entries.append(
-                    {
-                        "geo_code": code,
-                        "percentage": float(pct),
-                        "sentence_index": sentence_index,
-                        "note": "Explicit percent in mixed-geo sentence",
-                    }
-                )
-            return entries
-
+            return [
+                {
+                    "geo_code": code,
+                    "percentage": float(pct),
+                    "sentence_index": sentence_index,
+                    "note": "Explicit percent in mixed-geo sentence",
+                }
+                for code, pct in pct_map.items()
+            ]
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
@@ -13444,13 +13476,11 @@ class UnionAnalyzer:
             explicit_pct_entries = _collect_explicit_pct_entries(
                 analysis, geo_context, coverage_data, current_idx
             )
+            # Fire unconditionally when entries were collected
             if explicit_pct_entries:
-                if coverage_data.get("is_explicit_percent"):
-                    coverage_data.pop("is_explicit_percent", None)
-                if coverage_data.get("type") == CoverageType.EXPLICIT_PERCENT.value:
-                    coverage_data["type"] = CoverageType.NONE.value
-                if coverage_data.get("percentage") is not None:
-                    coverage_data["percentage"] = None
+                coverage_data.pop("is_explicit_percent", None)
+                coverage_data["type"] = CoverageType.NONE.value
+                coverage_data["percentage"] = None
                 coverage_data["note"] = (
                     (coverage_data.get("note", "") + " | ")
                     if coverage_data.get("note")
