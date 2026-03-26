@@ -22,6 +22,7 @@ CASES = [
         100.0,
     ),
     ("100 of 200 are in a union.", 100.0, 100.0, 200.0, 50.0),
+    ("We have 1000 union employees and 200 that are non-union", 1000.0, 200.0, None, None),
     (
         "100 of the 200 employees are under collective bargaining.",
         100.0,
