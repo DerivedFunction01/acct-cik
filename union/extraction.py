@@ -138,6 +138,7 @@ TOTAL_MODIFIER_REGEX = build_regex(
         r"whole",
         r"employ(?:s|ed|ing)?",
         r"equal(?:s|ed|ing)?",
+        build_compound([r"company", r"registrant", r"we"], [r"have", r"has", r"had", r"employ(?:s|ed|ing)?"])
     ]
 )
 
@@ -1140,7 +1141,7 @@ PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
-    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))",
+    r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))|\band\b(?=\s+\d)",
     re.IGNORECASE,
 )
 
@@ -2252,7 +2253,7 @@ class UnionExtractor:
                                 if n_end <= worker_start
                                 else text[worker_end:n_start]
                             )
-                            
+
                             if SEGMENT_DELIMITER_REGEX.search(text_between) or STRICT_LIST_CONNECTOR.search(text_between):
                                 continue
 
