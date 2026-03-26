@@ -514,7 +514,7 @@ LEGAL_PROCESS_TERMS = [
     r"authorization\s+cards?",
     r"certif(?:y|ied|ication)",
     r"craft\s+or\s+class",
-    r"legislations?",
+    # r"legislations?",
 ]
 LEGAL_PROCESS_REGEX = build_regex(LEGAL_PROCESS_TERMS)
 
