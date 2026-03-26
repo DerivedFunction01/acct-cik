@@ -4584,6 +4584,7 @@ class Tracker:
         self.domestic_is_negated: bool = False
         # Countries created via INT_* fallback mapping without explicit mention.
         self.language_fallback_countries: Set[str] = set()
+        self.census_log: List[str] = []
 
     @staticmethod
     def _source_type_from_detail(source: Optional[str]) -> str:
@@ -4731,7 +4732,10 @@ class Tracker:
         # 1. Update Lookups (Keep for analyze_block usage)
         # This logic is simplified to just maintain max values for lookups
         # The actual rate calculation will happen in calculate_metrics using self.entries
-
+        self.census_log.append(
+            f"update(count={count}, region={geo_context.get('region')}, "
+            f"codes={[c.get('code') for c in geo_context.get('countries', [])]})"
+        )
         region = geo_context.get("region")
         countries = geo_context.get("countries", [])
         regions = geo_context.get("regions", [])
@@ -8814,6 +8818,7 @@ class Tracker:
             ),
             "_logs": [],  # New key to store logs
             "resolution": self.resolution_log,
+            "census": self.census_log,
         }
 
         # Ensure data consistency before calculation
@@ -11023,7 +11028,7 @@ class GeoPopulationResolver:
 
             max_count = max(effective_counts)
             range_avg = self.analyzer._detect_count_range(analysis, effective_counts)
-            summation = self.analyzer._detect_summation(analysis, effective_counts)
+            summation = None if analysis.is_union else self.analyzer._detect_summation(analysis, effective_counts)
 
             # Temporal Alignment (2 Years, 2 Counts)
             # "In 2009 we had 100, in 2010 we had 110"
@@ -11063,9 +11068,15 @@ class GeoPopulationResolver:
                 final_count = summation
             else:
                 final_count = max_count
-
+            tracker.census_log.append(
+                f"[CENSUS] sent={s[:60]!r} | effective_counts={effective_counts} | "
+                f"range_avg={range_avg} | summation={summation} | final_count={final_count}"
+            )
             tracker.update(final_count, geo_context)
-
+            tracker.census_log.append(
+                f"  -> after update: country_totals={dict(tracker.country_totals)} | "
+                f"region_totals={dict(tracker.region_totals)}"
+            )
             if STRICT_EMPLOYMENT_ANCHOR_REGEX.search(analysis.text or ""):
                 last_strict_total = float(final_count)
                 last_strict_total_idx = idx
