@@ -303,10 +303,6 @@ FILING_20F = re.compile(r"\b20-F\b", re.IGNORECASE | re.MULTILINE)
 FILING_40F = re.compile(r"\b40-F\b", re.IGNORECASE | re.MULTILINE)
 PART_I_PATTERN = re.compile(r"^\s*Part\s+I\b(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE)
 PART_II_PATTERN = re.compile(r"^\s*Part\s+II\b(?!\s*[\.\-_]{3,})", re.MULTILINE | re.IGNORECASE)
-FORWARD_LOOKING_PATTERN = re.compile(
-    r"^\s*(?:(?:special|cautionary)\s+(?:note|statement|notice)\s+(?:regarding|concerning|about)\s+)?forward[- ]looking\s+statements",
-    re.IGNORECASE | re.MULTILINE
-)
 
 HOME_COUNTRY_PATTERNS = [
     (JURISDICTION_PATTERN, 5.0),
