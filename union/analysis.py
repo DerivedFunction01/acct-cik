@@ -2914,6 +2914,15 @@ class ComplexCoverageAnalyzer:
                 logic_notes.append("Subset Indicator -> Total")
                 return "total"
 
+            def has_hard_delimiter_between(
+                a_start: int, a_end: int, b_start: int, b_end: int
+            ) -> bool:
+                lo = min(a_end, b_end)
+                hi = max(a_start, b_start)
+                if hi <= lo:
+                    return False
+                return bool(SEGMENT_DELIMITER_REGEX.search(self.analysis.text[lo:hi]))
+
             best_dist = float("inf")
             best_type = None
 
@@ -2958,16 +2967,26 @@ class ComplexCoverageAnalyzer:
 
             for c_type, m in candidates:
                 m_start, m_end = m["span"]
-                dist = 0
+                dist = None
                 if m_end < t_start:
+                    # Match is before target
+                    if has_hard_delimiter_between(m_start, m_end, t_start, t_end):
+                        continue
                     dist = t_start - m_end
                 elif t_end < m_start:
+                    # Match is after target
+                    if has_hard_delimiter_between(t_start, t_end, m_start, m_end):
+                        continue
                     dist = m_start - t_end
+                else:
+                    # Overlapping
+                    dist = 0
 
-                eff_dist = dist + (20 if c_type == "total" else 0)
-                if eff_dist < best_dist:
-                    best_dist = eff_dist
-                    best_type = c_type
+                if dist is not None:
+                    eff_dist = dist + (20 if c_type == "total" else 0)
+                    if eff_dist < best_dist:
+                        best_dist = eff_dist
+                        best_type = c_type
 
             return best_type if best_dist <= 150 else None
 
