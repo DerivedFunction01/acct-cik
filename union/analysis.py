@@ -3211,6 +3211,7 @@ class ComplexCoverageAnalyzer:
                     "type": la["type"],
                     "seg_idx": seg_idx,
                     "seg_text": seg_text,
+                    "is_local": True,
                 }
                 if "override_val" in la:
                     entry["override_val"] = la["override_val"]
@@ -3276,7 +3277,9 @@ class ComplexCoverageAnalyzer:
 
         # 5. Propagate Types (List Logic)
         # Sort by position
-        count_assignments.sort(key=lambda x: x["match"]["span"][0])
+        count_assignments.sort(
+            key=lambda x: (x["match"]["span"][0], 0 if x.get("is_local") else 1)
+        )
 
         def is_connected(idx1, idx2):
             if is_global_context:
@@ -3498,7 +3501,7 @@ class ComplexCoverageAnalyzer:
         for item in count_assignments:
             ctype = item["type"]
             match_obj = item["match"]
-            if id(match_obj) in excluded_match_ids:
+            if id(match_obj) in excluded_match_ids and not item.get("is_local"):
                 continue
             list_gid = match_obj.get("worker_list_group_id")
             list_sum = match_obj.get("worker_list_group_sum")
