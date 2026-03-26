@@ -9956,7 +9956,7 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                union_indicator = 0
+                union_indicator = 1 if (pct_val is not None and pct_val > 0) else 0
 
             explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
