@@ -2904,7 +2904,6 @@ INTERNATIONAL = {
             "Arbeid",
             "Staking",
             "Vakbonden",
-            "CAO",
             "Ondernemingsraad",
             "Medezeggenschap",
             "Metaal",
