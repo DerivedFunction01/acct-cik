@@ -2463,7 +2463,17 @@ class ComplexCoverageAnalyzer:
 
         # 2. Pair Patterns (2 items)
         # Re-filter matches to exclude consumed ones
+        original_matches = matches
         matches = [m for m in matches if id(m) not in consumed_indices]
+
+        def has_consumed_between(m_left, m_right) -> bool:
+            left_end = m_left["span"][1]
+            right_start = m_right["span"][0]
+            for m in original_matches:
+                if m["span"][0] >= left_end and m["span"][1] <= right_start:
+                    if id(m) in consumed_indices:
+                        return True
+            return False
 
         if len(matches) >= 2:
             for i in range(len(matches) - 1):
@@ -2478,6 +2488,8 @@ class ComplexCoverageAnalyzer:
                 has_percent = MatchType.PERCENT in types
 
                 if has_count and has_percent:
+                    if has_consumed_between(m1, m2):
+                        continue
                     # Check distance (e.g. 50 chars)
                     dist = m2["span"][0] - m1["span"][1]
                     if dist < 50:
@@ -2533,6 +2545,8 @@ class ComplexCoverageAnalyzer:
                 is_count_2 = m2["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
 
                 if is_count_1 and is_count_2:
+                    if has_consumed_between(m1, m2):
+                        continue
                     dist = m2["span"][0] - m1["span"][1]
                     if dist < 50:
                         text_between = self.analysis.text[m1["span"][1] : m2["span"][0]]
@@ -3484,6 +3498,8 @@ class ComplexCoverageAnalyzer:
         for item in count_assignments:
             ctype = item["type"]
             match_obj = item["match"]
+            if id(match_obj) in excluded_match_ids:
+                continue
             list_gid = match_obj.get("worker_list_group_id")
             list_sum = match_obj.get("worker_list_group_sum")
             val = item.get("override_val", match_obj["val"])
