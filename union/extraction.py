@@ -2252,7 +2252,8 @@ class UnionExtractor:
                                 if n_end <= worker_start
                                 else text[worker_end:n_start]
                             )
-                            if SEGMENT_DELIMITER_REGEX.search(text_between):
+                            
+                            if SEGMENT_DELIMITER_REGEX.search(text_between) or STRICT_LIST_CONNECTOR.search(text_between):
                                 continue
 
                         if dist < min_dist:
