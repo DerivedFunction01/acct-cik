@@ -16,7 +16,7 @@ from extraction import (
     UnionExtractor,
     SentenceAnalysis,
     MatchType,
-    OF_REGEX,
+    OF_REGEX, STRICT_OF_REGEX,
     QUALITATIVE_MULTIPLIERS,
     REMAIN_REGEX,
     EXCEPT_REGEX,
@@ -1862,7 +1862,7 @@ class ComplexCoverageAnalyzer:
                     # (X is numerator, Y is denominator in subset relationship)
                     # But if X >= Y, the intervening number IS a blocker.
                     text_between = self.analysis.text[m_end:c_start]
-                    if OF_REGEX.search(text_between) and m["val"] < cand["val"]:
+                    if STRICT_OF_REGEX.search(text_between) and m["val"] < cand["val"]:
                         continue
                     return True
             return False
