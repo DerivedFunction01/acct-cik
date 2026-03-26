@@ -10885,7 +10885,12 @@ class GeoPopulationResolver:
             ]
             assigned_sum = sum(assigned_counts.values())
             residual_count = max(0.0, float(total_population) - float(assigned_sum))
-
+            tracker.census_log.append(
+                f"[REMAINDER] assigned_codes={list(assigned_counts.keys())} "
+                f"all_codes={all_codes_in_sentence} "
+                f"residual_codes={residual_codes} "
+                f"residual_count={residual_count}"
+            )
             if residual_count > 0 and residual_codes:
                 if len(residual_codes) == 1:
                     code = residual_codes[0]
@@ -10965,6 +10970,9 @@ class GeoPopulationResolver:
 
             # Try to resolve specific counts to geography (e.g. "200 in China")
             mapped_counts, _, _ = self.analyzer._resolve_counts_to_geography(analysis)
+                tracker.census_log.append(
+                f"[PRE-MAPPED] mapped_counts={mapped_counts}"
+            )
             if mapped_counts:
                 for code, val in mapped_counts.items():
                     r_name = _CODE_TO_REGION.get(code, Region.UNKNOWN.value)
