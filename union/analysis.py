@@ -10970,7 +10970,7 @@ class GeoPopulationResolver:
 
             # Try to resolve specific counts to geography (e.g. "200 in China")
             mapped_counts, _, _ = self.analyzer._resolve_counts_to_geography(analysis)
-                tracker.census_log.append(
+            tracker.census_log.append(
                 f"[PRE-MAPPED] mapped_counts={mapped_counts}"
             )
             if mapped_counts:
