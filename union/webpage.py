@@ -1362,15 +1362,20 @@ def filter_for_item1(content: str, is_20f: bool = False, is_40f: bool = False) -
             matches.append((m.start(), m.end(), label))
     
     if not matches:
-        return "", ""
+        # Fallback: if no headers are found at all, treat the whole relevant content as Item 1
+        return relevant_content.strip(), ""
     
     # Sort by position
     matches.sort(key=lambda x: x[0])
     
+    # Fallback: if the first found section is not Item 1, assume the text before it is Item 1
+    business_section = ""
+    if matches[0][2] != business_label:
+        business_section = relevant_content[:matches[0][0]].strip()
+
     # ========================================================================
     # BLOCK EXTRACTION: Extract content between section headers
     # ========================================================================
-    business_section = ""
     risk_section = ""
     
     for i, (start, header_end, label) in enumerate(matches):
