@@ -10118,6 +10118,23 @@ class Tracker:
         #   2. They have explicit reported data (don't drop if children are partial/empty)
         countries_by_code = {c.get("country_code"): c for c in countries}
         redundant_pseudo_codes: set[str] = set()
+
+        def _country_has_signal(country_obj: Dict[str, Any]) -> bool:
+            if not country_obj:
+                return False
+            reported = country_obj.get("reported_totals") or {}
+            if any(v is not None for v in reported.values()):
+                return True
+            if country_obj.get("country_keywords"):
+                return True
+            if country_obj.get("country_table_keywords"):
+                return True
+            if country_obj.get("method_breakdown"):
+                return True
+            if country_obj.get("suppressed_counts"):
+                return True
+            return False
+
         for pseudo_code in pseudo_region_name_by_code:
             if pseudo_code not in countries_by_code:
                 continue
@@ -10153,6 +10170,7 @@ class Tracker:
                     item_key=c_code,
                     domestic_country_code=self.domestic_country_code,
                 )
+                and _country_has_signal(countries_by_code.get(c_code, {}))
                 for c_code in countries_by_code.keys()
             )
             if has_child_country:
@@ -10212,7 +10230,13 @@ class Tracker:
             alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
-            if e.covered_count == 0 or e.percentage == 0 or (not e.covered_count and not e.percentage):
+            has_agg_counts = any(
+                v is not None
+                for v in (e.total_count, e.covered_count, e.not_covered_count)
+            )
+            if not has_agg_counts:
+                continue
+            if e.covered_count == 0:
                 continue
 
             children = {}
@@ -11274,7 +11298,8 @@ class UnionAnalyzer:
                     is_remaining=(cov.get("type") == CoverageType.REMAINING.value),
                     is_explicit=(
                         cov.get("type") == CoverageType.EXPLICIT_PERCENT.value
-                    ),
+                        or cov.get("is_explicit_percent")
+                    ), # type: ignore
                     is_negated=cov.get("negated", False),
                     is_union_record=item.get("is_union", False),
                     sentence_index=item.get("sentence_index", -1),
@@ -12780,12 +12805,31 @@ class UnionAnalyzer:
         worker_type_lookup: Dict[str, Dict[str, float]] = {}
         worker_type_total_lookup: Dict[str, float] = {}
 
+        prev_sentence_geo_key: Optional[Tuple[str, ...]] = None
+        prev_sentence_has_explicit = False
+
         def _normalize_country_code(code: Optional[str]) -> Optional[str]:
             if not code:
                 return None
             return (
                 self.domestic_country_code if code == GeoCode.DOMESTIC.value else code
             )
+
+        def _geo_key(ctx: Dict[str, Any]) -> Optional[Tuple[str, ...]]:
+            if not ctx:
+                return None
+            countries = ctx.get("countries") or []
+            codes = sorted(
+                c.get("code")
+                for c in countries
+                if c.get("code")
+            )
+            if codes:
+                return tuple(f"C:{c}" for c in codes)
+            region = ctx.get("region")
+            if region and region not in UNK_SET:
+                return (f"R:{region}",)
+            return None
 
         def _worker_lookup_keys(ctx: Dict[str, Any]) -> List[str]:
             keys: List[str] = []
@@ -12814,6 +12858,7 @@ class UnionAnalyzer:
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
             current_idx = start_index + idx
+            suppress_clause_numbers = False
 
             # 1. Historical Check
             is_historical = False
@@ -12891,6 +12936,25 @@ class UnionAnalyzer:
             geo_context = self._determine_geo_context(
                 analysis, last_geo_context, current_idx, last_geo_sentence_idx
             )
+            current_geo_key = _geo_key(geo_context)
+
+            # Suppress contract-clause numerics when the previous sentence
+            # in the same geo already reported explicit coverage.
+            has_quantitative = bool(
+                analysis.percentages or analysis.worker_counts or analysis.numbers
+            )
+            if (
+                analysis.contract_clause_terms
+                and has_quantitative
+                and prev_sentence_has_explicit
+                and prev_sentence_geo_key
+                and current_geo_key == prev_sentence_geo_key
+            ):
+                suppress_clause_numbers = True
+
+            if suppress_clause_numbers:
+                effective_counts = []
+                current_sentence_count = None
 
             # Update context anchor if:
             # 1. Strong Geography (Explicit/Inferred)
@@ -12910,7 +12974,7 @@ class UnionAnalyzer:
             # 5. Update Region Totals
             geo_notes, union_notes, census_update_note = None, None, None
 
-            if effective_counts:
+            if effective_counts and not suppress_clause_numbers:
                 # Check for range first
                 range_avg = self._detect_count_range(analysis, effective_counts)
 
@@ -13057,6 +13121,20 @@ class UnionAnalyzer:
             coverage_data = self._determine_coverage_data(
                 analysis, relevant_total, reporting_year, is_historical=is_historical
             )
+
+            if suppress_clause_numbers:
+                # Keep the sentence and keywords, but drop numeric coverage signals.
+                coverage_data["percentage"] = None
+                coverage_data["employee_count_covered"] = None
+                coverage_data["employee_count_not_covered"] = None
+                coverage_data["employee_count_total"] = None
+                coverage_data["type"] = CoverageType.NONE.value
+                coverage_data.pop("is_explicit_percent", None)
+                coverage_data["note"] = (
+                    ((coverage_data.get("note") or "") + " | ")
+                    if coverage_data.get("note")
+                    else ""
+                ) + "Suppressed contract-clause numerics (prior explicit in same geo)"
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
@@ -13346,6 +13424,11 @@ class UnionAnalyzer:
                 results.append(item)
 
             last_employee_count = current_sentence_count
+            prev_sentence_geo_key = current_geo_key
+            prev_sentence_has_explicit = bool(
+                coverage_data.get("is_explicit_percent")
+                or coverage_data.get("type") == CoverageType.EXPLICIT_PERCENT.value
+            )
 
             # Exception-item synthesis is temporarily disabled (experimental/buggy).
             # Keep exclusion behavior from geo parsing, but do not emit synthetic items.
@@ -13466,6 +13549,18 @@ class UnionAnalyzer:
                         data["negated"] = True
                         data["negation_type"] = NegationType.NOT_COVERED.value
                         data["note"] = (data.get("note") or "") + " (Negated Status)"
+
+        # If the chosen percentage appears explicitly in the sentence, mark it explicit.
+        if data.get("percentage") is not None and analysis.percentages:
+            pct_val = float(data["percentage"])
+            is_direct_pct = any(
+                abs(float(p) - pct_val) < 1e-6 for p in analysis.percentages
+            )
+            if is_direct_pct and data.get("type") not in (
+                CoverageType.CALCULATED.value,
+                CoverageType.QUALITATIVE.value,
+            ):
+                data["is_explicit_percent"] = True
 
         return data
 
