@@ -10066,6 +10066,20 @@ class Tracker:
                         return True
                 return False
 
+            # If explicit pct exists for this code, avoid forcing a 0%/non-coverage
+            # classification purely from inferred totals when no denominator-backed
+            # covered/not-covered counts exist.
+            if explicit_pct_present and total_val is not None:
+                if (
+                    (covered_val is None or covered_val == 0)
+                    and not_covered_val is not None
+                    and (pct_val is None or pct_val == 0)
+                    and not_covered_val >= total_val
+                ):
+                    covered_val = None
+                    not_covered_val = None
+                    pct_val = None
+
             # Coverage-only indicator:
             # 1 => positive covered population
             # 0 => explicit non-coverage with no covered population
@@ -10091,6 +10105,11 @@ class Tracker:
                 if explicit_pct_present:
                     has_explicit_or_propagated = True
                 union_indicator = 1 if (has_pct_signal and has_explicit_or_propagated) else 0
+
+            # If explicit pct exists but country pct is missing, surface the explicit pct
+            # in country_totals without fabricating counts.
+            if pct_val is None and explicit_pct_present and explicit_pct_vals:
+                pct_val = max(explicit_pct_vals)
 
             explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
@@ -11609,16 +11628,18 @@ class UnionAnalyzer:
                             "domestic_negated": False,
                         }
 
-                        ep_total = None
-                        if len(item_codes) == 1 and ep_code in item_codes:
+                        ep_total = ep.get("derived_total")
+                        ep_covered = ep.get("derived_covered")
+                        ep_not_covered = ep.get("derived_not_covered")
+                        if ep_total is None and len(item_codes) == 1 and ep_code in item_codes:
                             ep_total = cov.get("employee_count_total")
 
                         tracker.record_coverage(
                             percentage=ep_pct,
-                            covered_count=None,
+                            covered_count=ep_covered,
                             geo_context=ep_geo,
                             scope_total=ep_total,
-                            not_covered_count=None,
+                            not_covered_count=ep_not_covered,
                             is_qualitative=False,
                             is_remaining=False,
                             is_explicit=True,
