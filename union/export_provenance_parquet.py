@@ -17,6 +17,7 @@ from defs.region_regex import (
     AGG_SET,
     COMPOSITE_REGION_MAP,
     get_composite_constituents,
+    G20_CODES,
 )
 
 SOURCE_DB_DEFAULT = "union_provenance_risk.db"
@@ -109,6 +110,148 @@ def _domestic_parent_pct(report: Dict[str, Any]) -> Optional[float]:
         return pct
 
     return None
+
+def _domestic_parent_cov_remainder(report: Dict[str, Any]) -> Optional[float]:
+    dom_code = report.get("domestic_country_code")
+    if not dom_code or dom_code not in G20_CODES:
+        return None
+
+    countries = report.get("countries") or []
+    countries_by_code = {
+        c.get("country_code"): c for c in countries if c.get("country_code")
+    }
+
+    def _entry_cov(code: str) -> Optional[float]:
+        entry = countries_by_code.get(code) or {}
+        reported = entry.get("reported_totals") or {}
+        cov = reported.get("cov")
+        return float(cov) if cov is not None else None
+
+    def _sibling_cov_sum(
+        parent_code: str, child_codes: List[str]
+    ) -> float:
+        total = 0.0
+        for code in child_codes:
+            if not code or code == parent_code:
+                continue
+            # Skip any child container that contains the domestic country.
+            if is_contained(
+                container_key=code,
+                item_key=dom_code,
+                domestic_country_code=dom_code,
+            ):
+                continue
+            cov = _entry_cov(code)
+            if cov is not None:
+                total += float(cov)
+        return total
+
+    # 1) Aggregate parents: explicit child list.
+    for agg in report.get("agg") or []:
+        parent_code = agg.get("aggregate_key")
+        if not parent_code:
+            continue
+        parent_cov = agg.get("cov")
+        if parent_cov is None:
+            continue
+        children = agg.get("children") or {}
+        child_codes = list(children.keys())
+        # Ensure domestic is within this aggregate scope.
+        if not any(
+            is_contained(
+                container_key=parent_code,
+                item_key=dom_code,
+                domestic_country_code=dom_code,
+            )
+            or c == dom_code
+            for c in child_codes
+        ):
+            continue
+        sibling_sum = _sibling_cov_sum(parent_code, child_codes)
+        remainder = float(parent_cov) - sibling_sum
+        if remainder >= 0:
+            return remainder
+
+    # 2) Composite containers.
+    for parent_code in COMPOSITE_REGION_MAP.keys():
+        if parent_code not in countries_by_code:
+            continue
+        if not is_contained(
+            container_key=parent_code,
+            item_key=dom_code,
+            domestic_country_code=dom_code,
+        ):
+            continue
+        parent_cov = _entry_cov(parent_code)
+        if parent_cov is None:
+            continue
+        child_codes = [
+            code
+            for code in countries_by_code.keys()
+            if code != parent_code
+            and is_contained(
+                container_key=parent_code,
+                item_key=code,
+                domestic_country_code=dom_code,
+            )
+        ]
+        sibling_sum = _sibling_cov_sum(parent_code, child_codes)
+        remainder = float(parent_cov) - sibling_sum
+        if remainder >= 0:
+            return remainder
+
+    # 3) Region containers.
+    for parent_code in REGION_NAME_MAP.values():
+        if parent_code not in countries_by_code:
+            continue
+        if not is_contained(
+            container_key=parent_code,
+            item_key=dom_code,
+            domestic_country_code=dom_code,
+        ):
+            continue
+        parent_cov = _entry_cov(parent_code)
+        if parent_cov is None:
+            continue
+        child_codes = [
+            code
+            for code in countries_by_code.keys()
+            if code != parent_code
+            and is_contained(
+                container_key=parent_code,
+                item_key=code,
+                domestic_country_code=dom_code,
+            )
+        ]
+        sibling_sum = _sibling_cov_sum(parent_code, child_codes)
+        remainder = float(parent_cov) - sibling_sum
+        if remainder >= 0:
+            return remainder
+
+    return None
+
+def test_domestic_parent_remainder(
+    dom_code: str, cov_by_code: Dict[str, float]
+) -> Optional[float]:
+    """
+    Adapter test helper: supply a domestic code and a dict of coverage counts
+    by code, and return the inferred domestic remainder (if any).
+    """
+    countries = []
+    for code, cov in cov_by_code.items():
+        countries.append(
+            {
+                "country_code": code,
+                "reported_totals": {"cov": float(cov)},
+            }
+        )
+
+    report = {
+        "domestic_country_code": dom_code,
+        "countries": countries,
+        "agg": [],
+    }
+    return _domestic_parent_cov_remainder(report)
 
 def _int_reported_totals(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
     dom_code = report.get("domestic_country_code")
@@ -550,6 +693,9 @@ def export_parquet(
 
         if dom_domestic_pct is None:
             dom_domestic_pct = _domestic_parent_pct(country_report)
+
+        if dom_domestic_count is None:
+            dom_domestic_count = _domestic_parent_cov_remainder(country_report)
         
         dom_pulled_from_risk = False
         # Note: 'not dom_domestic_count' is True if count is 0.0 or None
