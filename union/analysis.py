@@ -1858,6 +1858,12 @@ class ComplexCoverageAnalyzer:
                         and cand.get("worker_list_group_id") == m_list_gid
                     ):
                         continue
+                    # Exception: in "X of Y" patterns where X < Y, do not block
+                    # (X is numerator, Y is denominator in subset relationship)
+                    # But if X >= Y, the intervening number IS a blocker.
+                    text_between = self.analysis.text[m_end:c_start]
+                    if OF_REGEX.search(text_between) and m["val"] < cand["val"]:
+                        continue
                     return True
             return False
 
