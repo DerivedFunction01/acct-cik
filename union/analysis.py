@@ -2259,6 +2259,36 @@ class ComplexCoverageAnalyzer:
                 count_match = counts[0]
                 pct_match = percents[0]
 
+                # Guard: skip if percent describes a worker type and a separate union count exists
+                _dist_union = get_min_distance_to_matches(
+                    pct_match["span"],
+                    self.analysis._matches,
+                    UNION_MATCH_TYPES,
+                    text=self.analysis.text,
+                )
+                _dist_wtype = get_min_distance_to_matches(
+                    pct_match["span"],
+                    self.analysis._matches,
+                    [MatchType.WORKER_TYPE, MatchType.WORKER_TERM],
+                    text=self.analysis.text,
+                )
+                if _dist_wtype < _dist_union and _dist_wtype < 30:
+                    has_separate_union_count = any(
+                        m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                        and m is not count_match
+                        and get_min_distance_to_matches(
+                            m["span"],
+                            self.analysis._matches,
+                            UNION_MATCH_TYPES,
+                            text=self.analysis.text,
+                        )
+                        < _dist_union
+                        for m in self.analysis._matches
+                    )
+                    if has_separate_union_count:
+                        consumed_indices.update(id(m) for m in group)
+                        continue
+
                 # Use _resolve_local_pair logic but for this specific group
                 # We can reuse the logic by calling it directly or replicating it.
                 # Replicating simplified version here for clarity and to ensure group usage.
@@ -2312,6 +2342,37 @@ class ComplexCoverageAnalyzer:
                 c2 = counts[1]["val"]
                 pct = percents[0]["val"]
 
+                # Skip if this percent describes a worker type rather than union coverage,
+                # but only when a separate union-linked count exists.
+                _pct_m = percents[0]
+                _dist_union = get_min_distance_to_matches(
+                    _pct_m["span"],
+                    self.analysis._matches,
+                    UNION_MATCH_TYPES,
+                    text=self.analysis.text,
+                )
+                _dist_wtype = get_min_distance_to_matches(
+                    _pct_m["span"],
+                    self.analysis._matches,
+                    [MatchType.WORKER_TYPE, MatchType.WORKER_TERM],
+                    text=self.analysis.text,
+                )
+                if _dist_wtype < _dist_union and _dist_wtype < 30:
+                    has_separate_union_count = any(
+                        m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                        and get_min_distance_to_matches(
+                            m["span"],
+                            self.analysis._matches,
+                            UNION_MATCH_TYPES,
+                            text=self.analysis.text,
+                        )
+                        < _dist_union
+                        for m in self.analysis._matches
+                    )
+                    if has_separate_union_count:
+                        consumed_indices.add(id(_pct_m))
+                        continue
+
                 # Check math: Total * Pct = Part
                 # Case A: c1 is Total, c2 is Part
                 if c1 > 0 and abs(c1 * (pct / 100.0) - c2) < max(1.0, c1 * 0.01):
@@ -2360,6 +2421,38 @@ class ComplexCoverageAnalyzer:
 
                         pct_match = m1 if m1["type"] == MatchType.PERCENT else m2
                         count_match = m2 if pct_match is m1 else m1
+
+                        # Skip if this percent describes a worker type rather than union coverage,
+                        # but only when a separate union-linked count exists.
+                        dist_to_union = get_min_distance_to_matches(
+                            pct_match["span"],
+                            self.analysis._matches,
+                            UNION_MATCH_TYPES,
+                            text=self.analysis.text,
+                        )
+                        dist_to_worker_type = get_min_distance_to_matches(
+                            pct_match["span"],
+                            self.analysis._matches,
+                            [MatchType.WORKER_TYPE, MatchType.WORKER_TERM],
+                            text=self.analysis.text,
+                        )
+                        if dist_to_worker_type < dist_to_union and dist_to_worker_type < 30:
+                            has_separate_union_count = any(
+                                m["type"] in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                                and m is not count_match
+                                and get_min_distance_to_matches(
+                                    m["span"],
+                                    self.analysis._matches,
+                                    UNION_MATCH_TYPES,
+                                    text=self.analysis.text,
+                                )
+                                < dist_to_union
+                                for m in self.analysis._matches
+                            )
+                            if has_separate_union_count:
+                                consumed_indices.add(id(pct_match))
+                                continue
+
                         self._resolve_local_pair(m1, m2)
                         consumed_indices.add(id(m1))
                         consumed_indices.add(id(m2))
