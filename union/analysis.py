@@ -9869,6 +9869,16 @@ class Tracker:
             else:
                 union_indicator = 1
 
+            explicit_non_coverage = (
+                (covered_val is not None and covered_val == 0)
+                or (pct_val is not None and pct_val == 0)
+                or (
+                    not_covered_val is not None
+                    and not_covered_val > 0
+                    and not covered_val
+                )
+            )
+
             has_country_keywords = False
             if country_keywords:
                 has_country_keywords = any(
@@ -9876,7 +9886,7 @@ class Tracker:
                 )
             if country_table_keywords:
                 has_country_keywords = True
-            if has_country_keywords:
+            if has_country_keywords and not explicit_non_coverage:
                 union_indicator = 1
 
             # Prune empty buckets to reduce verbosity
