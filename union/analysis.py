@@ -4515,6 +4515,17 @@ class BargainingEntry:
     bargaining_unit_count_source_type: str = SourceType.EXPLICIT.value
 
 
+@dataclass
+class ExplicitPctEntry:
+    geo_code: str
+    percentage: float
+    sent_idx: int
+    scope: Scope = Scope.COUNTRY
+    percentage_source: str = PercentageSourceDetail.EXPLICIT_PERCENTAGE.value
+    percentage_source_type: str = SourceType.EXPLICIT.value
+    note: Optional[str] = None
+
+
 class Tracker:
     """
     Tracks the 'Whole Pie' (Total Employee Counts) across different geographic scopes.
@@ -4528,7 +4539,9 @@ class Tracker:
         self.resolution_log: List[str] = []
         self.entries: List[Entry] = []
         self.bargaining_entries: List[BargainingEntry] = []
+        self.explicit_pct_entries: List[ExplicitPctEntry] = []
         self._seen_bargaining_records: Set[Tuple[int, str, float]] = set()
+        self._seen_explicit_pct_entries: Set[Tuple[int, str, float]] = set()
         # Start empty; only populate from actual detected context.
         self.mentioned_countries: set[str] = set()
         self.domestic_country_code = _normalize_domestic_country_code(
@@ -5572,6 +5585,31 @@ class Tracker:
                 related_geo_codes=normalized_related_codes,
             )
         )
+
+    def record_explicit_pct_entries(
+        self, entries: Optional[List[Dict[str, Any]]]
+    ) -> None:
+        if not entries:
+            return
+
+        for e in entries:
+            code = e.get("geo_code")
+            pct = e.get("percentage")
+            sent_idx = e.get("sentence_index", -1)
+            if not code or pct is None:
+                continue
+            dedupe_key = (int(sent_idx), str(code), float(pct))
+            if dedupe_key in self._seen_explicit_pct_entries:
+                continue
+            self._seen_explicit_pct_entries.add(dedupe_key)
+            self.explicit_pct_entries.append(
+                ExplicitPctEntry(
+                    geo_code=str(code),
+                    percentage=float(pct),
+                    sent_idx=int(sent_idx),
+                    note=e.get("note"),
+                )
+            )
 
     def _get_tolerance(
         self, entries: List[Entry], base_threshold: float = 0.05
@@ -9542,6 +9580,13 @@ class Tracker:
             r_name = _CODE_TO_REGION.get(r_code, r_code)
             if isinstance(r_name, str):
                 region_name_to_code.setdefault(r_name, r_code)
+
+        explicit_pct_by_code: Dict[str, List[float]] = {}
+        for e in self.explicit_pct_entries:
+            code = normalize_geo_code(e.geo_code, region_name_to_code)
+            if not code:
+                continue
+            explicit_pct_by_code.setdefault(code, []).append(float(e.percentage))
         pseudo_region_name_by_code = {
             code: region_name for region_name, code in REGION_NAME_MAP.items()
         }
@@ -9824,6 +9869,13 @@ class Tracker:
             fallback_union_indicator: Optional[int] = None,
         ) -> Dict[str, Any]:
             method_breakdown = {k: empty_bucket() for k in method_keys}
+            explicit_pct_present = False
+            explicit_pct_vals = explicit_pct_by_code.get(code, [])
+            if explicit_pct_vals:
+                explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
+                explicit_bucket["pct_vals"].extend(explicit_pct_vals)
+                explicit_bucket["n"] += len(explicit_pct_vals)
+                explicit_pct_present = True
             for e in country_entries + segment_entries:
                 field_sources = [
                     ("tot", e.total_count, e.total_count_source_type),
@@ -9971,10 +10023,14 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                has_pct_signal = pct_val is not None and pct_val > 0
+                has_pct_signal = (
+                    (pct_val is not None and pct_val > 0) or explicit_pct_present
+                )
                 has_explicit_or_propagated = _has_explicit_or_propagated_pct(
                     country_entries + segment_entries
                 )
+                if explicit_pct_present:
+                    has_explicit_or_propagated = True
                 union_indicator = 1 if (has_pct_signal and has_explicit_or_propagated) else 0
 
             explicit_non_coverage = (
@@ -10470,6 +10526,15 @@ class Tracker:
             | {kw for kw in self.global_table_keywords if kw}
         )
         global_table_keywords = sorted(list(self.global_table_keywords))
+        explicit_pct_entries = [
+            {
+                "geo_code": e.geo_code,
+                "percentage": e.percentage,
+                "sentence_index": e.sent_idx,
+                "note": e.note,
+            }
+            for e in self.explicit_pct_entries
+        ]
 
         return {
             "domestic_country_code": self.domestic_country_code,
@@ -10480,6 +10545,7 @@ class Tracker:
             "global_keywords": global_keywords,
             "global_keyword_count": len(global_keywords),
             "global_table_keywords": global_table_keywords,
+            "explicit_pct_entries": explicit_pct_entries,
             "notes": [],
         }
 
@@ -10602,7 +10668,7 @@ class GeoPopulationResolver:
         return aligned
 
     def _map_percentages_to_geo_codes(
-        self, analysis: SentenceAnalysis
+        self, analysis: SentenceAnalysis, allow_sum: bool = True
     ) -> Dict[str, float]:
         aligned_geos = self._align_explicit_geo_spans(analysis)
         if not aligned_geos:
@@ -10641,10 +10707,15 @@ class GeoPopulationResolver:
             pct_val = float(pct_m.get("val", 0.0) or 0.0)
             if pct_val <= 0:
                 continue
-            pct_to_geo[best_code] = pct_to_geo.get(best_code, 0.0) + pct_val
+            if allow_sum:
+                pct_to_geo[best_code] = pct_to_geo.get(best_code, 0.0) + pct_val
+            else:
+                # Keep closest match only; do not aggregate multiple percents into one geo.
+                if best_code not in pct_to_geo:
+                    pct_to_geo[best_code] = pct_val
 
         total_pct = sum(pct_to_geo.values())
-        if total_pct > 100.0 + 2.0:
+        if total_pct > 100.0 + 2.0 and allow_sum:
             return {}
         return pct_to_geo
 
@@ -11415,6 +11486,10 @@ class UnionAnalyzer:
                     bargaining_unit_count=cov.get("bargaining_unit_count"),
                     geo_context=geo,
                     sentence_index=item.get("sentence_index", -1),
+                )
+
+                tracker.record_explicit_pct_entries(
+                    item.get("explicit_pct_entries")
                 )
 
                 # Handle Union Context (Denominator) items
@@ -13039,6 +13114,51 @@ class UnionAnalyzer:
             # Preserve insertion order while removing duplicates
             return list(dict.fromkeys(keys))
 
+        def _collect_explicit_pct_entries(
+            analysis: SentenceAnalysis,
+            geo_context: Dict[str, Any],
+            cov_data: Dict[str, Any],
+            sentence_index: int,
+        ) -> List[Dict[str, Any]]:
+            countries = geo_context.get("countries", []) or []
+            if len(countries) <= 1:
+                return []
+            if not analysis.percentages:
+                return []
+            if not (
+                cov_data.get("is_explicit_percent")
+                or cov_data.get("type") == CoverageType.EXPLICIT_PERCENT.value
+            ):
+                return []
+
+            pct_map = self.geo_population_resolver._map_percentages_to_geo_codes(
+                analysis, allow_sum=False
+            )
+            if not pct_map:
+                return []
+
+            explicit_geo_count = len(
+                [
+                    g
+                    for g in analysis.geo_matches
+                    if g.source_type == GeoSource.EXPLICIT and g.geo_code
+                ]
+            )
+            if explicit_geo_count > 1 and len(pct_map) < explicit_geo_count:
+                return []
+
+            entries: List[Dict[str, Any]] = []
+            for code, pct in pct_map.items():
+                entries.append(
+                    {
+                        "geo_code": code,
+                        "percentage": float(pct),
+                        "sentence_index": sentence_index,
+                        "note": "Explicit percent in mixed-geo sentence",
+                    }
+                )
+            return entries
+
 
         for idx, analysis in enumerate(analyzed_sentences):
             sent = sentences[idx]
@@ -13321,6 +13441,22 @@ class UnionAnalyzer:
                     else ""
                 ) + "Suppressed contract-clause numerics (prior explicit in same geo)"
 
+            explicit_pct_entries = _collect_explicit_pct_entries(
+                analysis, geo_context, coverage_data, current_idx
+            )
+            if explicit_pct_entries:
+                if coverage_data.get("is_explicit_percent"):
+                    coverage_data.pop("is_explicit_percent", None)
+                if coverage_data.get("type") == CoverageType.EXPLICIT_PERCENT.value:
+                    coverage_data["type"] = CoverageType.NONE.value
+                if coverage_data.get("percentage") is not None:
+                    coverage_data["percentage"] = None
+                coverage_data["note"] = (
+                    (coverage_data.get("note", "") + " | ")
+                    if coverage_data.get("note")
+                    else ""
+                ) + "Explicit percent recorded separately for mixed-geo sentence"
+
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
 
@@ -13585,6 +13721,7 @@ class UnionAnalyzer:
                                 "worker_types": analysis.worker_types,
                                 "is_remaining": analysis.has_remaining_other,
                                 "is_union": analysis.is_union,
+                                "explicit_pct_entries": explicit_pct_entries,
                             }
                             split_items.append(split_item)
 
@@ -13605,6 +13742,7 @@ class UnionAnalyzer:
                     "is_remaining": analysis.has_remaining_other,
                     "is_union": analysis.is_union,
                     "potential_total": current_sentence_count,
+                    "explicit_pct_entries": explicit_pct_entries,
                 }
                 results.append(item)
 
