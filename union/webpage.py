@@ -160,7 +160,7 @@ XML_REGEX = re.compile(r"xml", re.IGNORECASE)
 # 10-K PATTERNS
 # ============================================================================
 ITEM_1_START_PATTERN = re.compile(
-    r"^\s*Item\s+1\b(?!\s*[AB])\.?\s*(?:Business)?",
+    r"^\s*Items?\s+1\b(?!\s*[AB])\.?\s*(?:Business)?",
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_1A_START_PATTERN = re.compile(
@@ -172,7 +172,7 @@ ITEM_1B_START_PATTERN = re.compile(
     re.MULTILINE | re.IGNORECASE,
 )
 ITEM_2_START_PATTERN = re.compile(
-    r"^\s*Item\s+2\b\.?",
+    r"^\s*Items?\s+2\b\.?",
     re.MULTILINE | re.IGNORECASE,
 )
 
