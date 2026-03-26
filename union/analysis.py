@@ -11511,39 +11511,40 @@ class UnionAnalyzer:
                     item.get("explicit_pct_entries")
                 )
 
-                for ep in (item.get("explicit_pct_entries") or []):
-                    ep_code = ep.get("geo_code")
-                    ep_pct = ep.get("percentage")
-                    if not ep_code or ep_pct is None:
-                        continue
-                    if ep_code == GeoCode.DOMESTIC.value:
-                        ep_code = self.domestic_country_code
-                    r_name = _CODE_TO_REGION.get(ep_code, Region.UNKNOWN.value)
-                    ep_geo = {
-                        "region": r_name,
-                        "countries": [{"code": ep_code, "name": ep_code}],
-                        "specificity": Specificity.EXPLICIT.value,
-                        "explicit_countries": [ep_code],
-                        "regions": [],
-                        "union_names_map": {},
-                        "domestic_negated": False,
-                    }
-                    tracker.record_coverage(
-                        percentage=ep_pct,
-                        covered_count=None,
-                        geo_context=ep_geo,
-                        scope_total=cov.get("employee_count_total"),
-                        not_covered_count=None,
-                        is_qualitative=False,
-                        is_remaining=False,
-                        is_explicit=True,
-                        is_negated=False,
-                        is_union_record=item.get("is_union", False),
-                        sentence_index=item.get("sentence_index", -1),
-                        keywords=item.get("keyword_matched"),
-                        coverage_type=CoverageType.EXPLICIT_PERCENT.value,
-                        is_table_generated=item.get("is_table_generated", False),
-                    )
+                if not item.get("is_split_item"):
+                    for ep in (item.get("explicit_pct_entries") or []):
+                        ep_code = ep.get("geo_code")
+                        ep_pct = ep.get("percentage")
+                        if not ep_code or ep_pct is None:
+                            continue
+                        if ep_code == GeoCode.DOMESTIC.value:
+                            ep_code = self.domestic_country_code
+                        r_name = _CODE_TO_REGION.get(ep_code, Region.UNKNOWN.value)
+                        ep_geo = {
+                            "region": r_name,
+                            "countries": [{"code": ep_code, "name": ep_code}],
+                            "specificity": Specificity.EXPLICIT.value,
+                            "explicit_countries": [ep_code],
+                            "regions": [],
+                            "union_names_map": {},
+                            "domestic_negated": False,
+                        }
+                        tracker.record_coverage(
+                            percentage=ep_pct,
+                            covered_count=None,
+                            geo_context=ep_geo,
+                            scope_total=cov.get("employee_count_total"),
+                            not_covered_count=None,
+                            is_qualitative=False,
+                            is_remaining=False,
+                            is_explicit=True,
+                            is_negated=False,
+                            is_union_record=item.get("is_union", False),
+                            sentence_index=item.get("sentence_index", -1),
+                            keywords=item.get("keyword_matched"),
+                            coverage_type=CoverageType.EXPLICIT_PERCENT.value,
+                            is_table_generated=item.get("is_table_generated", False),
+                        )
 
                 # Handle Union Context (Denominator) items
                 if cov.get("type") == CoverageType.UNION_CONTEXT.value:
@@ -13812,7 +13813,11 @@ class UnionAnalyzer:
                                 "worker_types": analysis.worker_types,
                                 "is_remaining": analysis.has_remaining_other,
                                 "is_union": analysis.is_union,
-                                "explicit_pct_entries": explicit_pct_entries,
+                                "explicit_pct_entries": [
+                                    ep for ep in explicit_pct_entries
+                                    if ep.get("geo_code") == c_code
+                                ] if explicit_pct_entries else [],
+                                "is_split_item": True,
                             }
                             split_items.append(split_item)
 
