@@ -7839,7 +7839,7 @@ class Tracker:
                 )
 
     def resolve_coverage(
-        self, use_virtual_pool: bool = False, apply_dummy_percentages: bool = False
+        self, use_virtual_pool: bool = False, apply_dummy_percentages: bool = False, use_fallback: bool = False
     ):
         """
         Fills in missing info for countries and regions.
@@ -7893,7 +7893,8 @@ class Tracker:
             self._inject_virtual_global_pool()
 
         # 5. Apply fallback denominators (0.1%) for remaining percentage-only entries
-        self._apply_fallback_denominators()
+        if use_fallback:
+            self._apply_fallback_denominators()
         # 6. Final denominator dedup to prevent same-scope denominator inflation
         # from repeated references to the same population.
         self._dedupe_redundant_scope_denominators()
@@ -9866,10 +9867,17 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                union_indicator = -1
+                union_indicator = 1
 
-            if union_indicator == -1 and fallback_union_indicator is not None:
-                union_indicator = fallback_union_indicator
+            has_country_keywords = False
+            if country_keywords:
+                has_country_keywords = any(
+                    (v or 0) > 0 for v in country_keywords.values()
+                )
+            if country_table_keywords:
+                has_country_keywords = True
+            if has_country_keywords:
+                union_indicator = 1
 
             # Prune empty buckets to reduce verbosity
             def _bucket_has_signal(bucket: Dict[str, Any]) -> bool:
