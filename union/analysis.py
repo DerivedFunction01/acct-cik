@@ -11512,6 +11512,9 @@ class UnionAnalyzer:
                 )
 
                 if not item.get("is_split_item"):
+                    item_countries = (item.get("geographic_context") or {}).get("countries") or []
+                    item_codes = {c.get("code") for c in item_countries if c.get("code")}
+
                     for ep in (item.get("explicit_pct_entries") or []):
                         ep_code = ep.get("geo_code")
                         ep_pct = ep.get("percentage")
@@ -11529,11 +11532,16 @@ class UnionAnalyzer:
                             "union_names_map": {},
                             "domestic_negated": False,
                         }
+
+                        ep_total = None
+                        if len(item_codes) == 1 and ep_code in item_codes:
+                            ep_total = cov.get("employee_count_total")
+
                         tracker.record_coverage(
                             percentage=ep_pct,
                             covered_count=None,
                             geo_context=ep_geo,
-                            scope_total=cov.get("employee_count_total"),
+                            scope_total=ep_total,
                             not_covered_count=None,
                             is_qualitative=False,
                             is_remaining=False,
@@ -11572,7 +11580,6 @@ class UnionAnalyzer:
                 if (
                     item.get("explicit_pct_entries")
                     and cov.get("type") == CoverageType.NONE.value
-                    and cov.get("percentage") is None
                 ):
                     continue
 
