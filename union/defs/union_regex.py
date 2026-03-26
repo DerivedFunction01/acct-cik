@@ -488,7 +488,6 @@ CONTRACT_CLAUSE_TERMS = [
     r"ratif(?:y|ied|ication)",
     r"reop(?:en|ener|ened|ening|ens?)",
     r"effective\s+(?:date|through|until|as\s+of)",
-    r"term\s+expir(?:e|es|ing|ation|y)",
     r"contract\s+terms?",
     r"agreement\s+terms?",
     r"vot(?:es?|ed|ing)",
