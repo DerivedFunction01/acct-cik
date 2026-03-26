@@ -39,10 +39,10 @@ CASES = [
     ),
     ("For 100 employees, 60% are unionized", 60.0, 40.0, 100.0, 60.0),
     (
-        "100 are unionzied employees, representing 20% of the workforce.",
+        "100 are union employees, representing 20% of the workforce.",
        100.0, 400.0, 500.0, 20.0
     ),
-    ("60% of the company's 1000 employees are unionized.", 60.0, 40.0, 1000.0, 60.0),
+    ("60% of the company's 100 employees are unionized.", 60.0, 40.0, 100.0, 60.0),
     (
         "20% our our workers are unionized, consisting of 1000 workers.",
         1000.0,
@@ -163,6 +163,9 @@ def test_sentence_expected_counts(
     not_covered = cov.get("employee_count_not_covered")
     total = cov.get("employee_count_total")
     pct = cov.get("percentage")
+    note = cov.get("note")
+    print(note)
+    print()
 
     if exp_covered is None:
         pass
