@@ -1351,6 +1351,11 @@ class RiskDigest:
             "pct": 0.0,
         }
         coverage_has_signal = False
+        cov_has_count = False
+        tot_has_count = False
+        pct_has_direct = False
+        pct_has_explicit = False
+        pct_has_qualitative = False
 
         def _register_keyword(term: str) -> None:
             if not term or term in global_keywords_seen:
@@ -1417,6 +1422,16 @@ class RiskDigest:
 
             coverage = item.get("coverage_data") or {}
             if coverage:
+                if coverage.get("employee_count_covered") is not None:
+                    cov_has_count = True
+                if coverage.get("employee_count_total") is not None:
+                    tot_has_count = True
+                if coverage.get("percentage") is not None:
+                    pct_has_direct = True
+                if coverage.get("is_explicit_percent") or coverage.get("type") == CoverageType.EXPLICIT_PERCENT.value:
+                    pct_has_explicit = True
+                if coverage.get("type") == CoverageType.QUALITATIVE.value or coverage.get("qualitative_bounds"):
+                    pct_has_qualitative = True
                 for key, short_k in (
                     ("employee_count_covered", "cov"),
                     ("employee_count_not_covered", "not_cov"),
@@ -1455,6 +1470,14 @@ class RiskDigest:
             out["cov_t"] = {
                 k: (v if v > 0 else None) for k, v in coverage_totals.items()
             }
+            out["cov_t_meta"] = {
+                "cov_has_count": cov_has_count,
+                "tot_has_count": tot_has_count,
+                "pct_from_counts": bool(coverage_totals["tot"] > 0 and cov_has_count),
+                "pct_has_direct": pct_has_direct,
+                "pct_has_explicit": pct_has_explicit,
+                "pct_has_qualitative": pct_has_qualitative,
+            }
             if (
                 out["cov_t"].get("cov") is None
                 and out["cov_t"].get("not_cov") is None
@@ -1463,6 +1486,7 @@ class RiskDigest:
                 and out["cov_t"].get("pct") is None
             ):
                 out.pop("cov_t", None)
+                out.pop("cov_t_meta", None)
 
         # Drop empty sections for compactness.
         compact = {"n": out.get("n", 0)}
@@ -1488,6 +1512,8 @@ class RiskDigest:
             compact["kw_g"] = out["kw_g"]
         if out.get("cov_t"):
             compact["cov_t"] = out["cov_t"]
+        if out.get("cov_t_meta"):
+            compact["cov_t_meta"] = out["cov_t_meta"]
 
         return compact
 

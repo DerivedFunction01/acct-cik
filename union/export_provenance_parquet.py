@@ -411,8 +411,15 @@ def _merge_counts(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
             if k not in out or not isinstance(out[k], dict):
                 out[k] = dict(v)
             else:
-                for sk, sv in v.items():
-                    out[k][sk] = out[k].get(sk, 0) + sv
+                if k == "cov_t_meta":
+                    for sk, sv in v.items():
+                        if isinstance(sv, bool):
+                            out[k][sk] = bool(out[k].get(sk, False)) or sv
+                        else:
+                            out[k][sk] = out[k].get(sk, 0) + sv
+                else:
+                    for sk, sv in v.items():
+                        out[k][sk] = out[k].get(sk, 0) + sv
         elif isinstance(v, list):
             if k not in out or not isinstance(out[k], list):
                 out[k] = list(v)
@@ -751,12 +758,19 @@ def export_parquet(
         if dom_domestic_count in (None, 0, 0.0) and risk_summary:
             risk_cov = risk_summary.get("cov_t", {}).get("cov")
             risk_pct = risk_summary.get("cov_t", {}).get("pct")
+            risk_meta = risk_summary.get("cov_t_meta", {}) or {}
+            risk_cov_has_count = bool(risk_meta.get("cov_has_count"))
+            risk_pct_from_counts = bool(risk_meta.get("pct_from_counts"))
+            risk_pct_has_qual = bool(risk_meta.get("pct_has_qualitative"))
             if risk_cov is not None:
-                dom_domestic_count = float(risk_cov)
-                dom_pulled_from_risk = True
+                if risk_cov_has_count:
+                    dom_domestic_count = float(risk_cov)
+                    dom_pulled_from_risk = True
             if risk_pct is not None and float(risk_pct) != 100.0:
-                dom_domestic_pct = float(risk_pct)
-                dom_pulled_from_risk = True
+                pct_val = float(risk_pct)
+                if risk_pct_from_counts and not risk_pct_has_qual and 0.0 <= pct_val <= 100.0:
+                    dom_domestic_pct = pct_val
+                    dom_pulled_from_risk = True
 
         if summary.get("dom_cov") is False and not dom_pulled_from_risk:
             dom_domestic_count = 0.0
