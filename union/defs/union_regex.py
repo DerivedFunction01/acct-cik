@@ -482,7 +482,7 @@ BOILERPLATE_REGEX = build_regex(BOILERPLATE_TERMS)
 CONTRACT_CLAUSE_TERMS = [
     r"expir(?:e|es|ing|ation|y)",
     r"amend(?:able|ed|ing|ment|ments)?",
-    r"renegotiat(?:e|ed|ing|ions?)",
+    r"(?:re)?negotiat(?:e|ed|ing|ions?)",
     r"renew(?:al|als|ed|ing)?",
     r"extend(?:ed|ing|s|sion)?",
     r"ratif(?:y|ied|ication)",
@@ -491,6 +491,7 @@ CONTRACT_CLAUSE_TERMS = [
     r"contract\s+terms?",
     r"agreement\s+terms?",
     r"vot(?:es?|ed|ing)",
+    r"retroactive",
 ]
 CONTRACT_CLAUSE_REGEX = build_regex(CONTRACT_CLAUSE_TERMS)
 
