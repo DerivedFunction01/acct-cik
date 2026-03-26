@@ -9940,6 +9940,17 @@ class Tracker:
                     if reported_pct is not None:
                         reported_pct = round(reported_pct, 2)
 
+            def _has_explicit_or_propagated_pct(entries: List[Entry]) -> bool:
+                for ent in entries:
+                    if ent.percentage is None:
+                        continue
+                    if ent.percentage_source in (
+                        PercentageSourceDetail.EXPLICIT_PERCENTAGE.value,
+                        PercentageSourceDetail.AGGREGATE_PROPAGATION.value,
+                    ):
+                        return True
+                return False
+
             # Coverage-only indicator:
             # 1 => positive covered population
             # 0 => explicit non-coverage with no covered population
@@ -9956,7 +9967,11 @@ class Tracker:
             ):
                 union_indicator = 0
             else:
-                union_indicator = 1 if (pct_val is not None and pct_val > 0) else 0
+                has_pct_signal = pct_val is not None and pct_val > 0
+                has_explicit_or_propagated = _has_explicit_or_propagated_pct(
+                    country_entries + segment_entries
+                )
+                union_indicator = 1 if (has_pct_signal and has_explicit_or_propagated) else 0
 
             explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
