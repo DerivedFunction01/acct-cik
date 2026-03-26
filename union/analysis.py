@@ -12509,6 +12509,18 @@ class UnionAnalyzer:
                     and not has_type_inference_signal
                 ):
                     break
+                # Guard: avoid merging a global baseline + worker-type composition
+                # with a subsequent union-coverage sentence scoped to that worker-type.
+                # This prevents using a global total as the denominator for a subset.
+                if (
+                    current_is_employment_baseline
+                    and next_has_quantitative_data
+                    and (
+                        bool(next_item.get("worker_types"))
+                        or bool(next_item.get("worker_terms"))
+                    )
+                ):
+                    break
 
                 should_merge = True
 
