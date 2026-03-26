@@ -9873,8 +9873,6 @@ class Tracker:
             explicit_pct_vals = explicit_pct_by_code.get(code, [])
             if explicit_pct_vals:
                 explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
-                explicit_bucket["pct_vals"].extend(explicit_pct_vals)
-                explicit_bucket["n"] += len(explicit_pct_vals)
                 explicit_pct_present = True
             for e in country_entries + segment_entries:
                 field_sources = [
@@ -10270,6 +10268,28 @@ class Tracker:
             ):
                 pct_val = round((covered_val / total_val) * 100.0, 2)
 
+            # NEW: also surface explicit pct when no count-derived pct exists
+            if pct_val is None:
+                explicit_vals = explicit_pct_by_code.get(code, [])
+                if explicit_vals:
+                    vals = [float(p) for p in explicit_vals if 0.0 <= float(p) <= 100.0]
+                    if vals:
+                        if len(vals) == 1:
+                            pct_val = vals[0]
+                        else:
+                            vals_sorted = sorted(vals, reverse=True)
+                            largest = vals_sorted[0]
+                            smaller_sum = sum(vals_sorted[1:])
+                            total_sum = sum(vals_sorted)
+                            if abs(largest - smaller_sum) <= 2.0:
+                                pct_val = largest
+                            elif total_sum <= 100.0 + 1e-9:
+                                pct_val = total_sum
+                            else:
+                                pct_val = sum(vals) / len(vals)
+                        if pct_val is not None:
+                            pct_val = round(pct_val, 2)
+
             country_keywords = self.country_keywords.get(code, {})
             country_table_keywords = sorted(
                 list(self.country_table_keywords.get(code, set()))
@@ -10545,7 +10565,6 @@ class Tracker:
             "global_keywords": global_keywords,
             "global_keyword_count": len(global_keywords),
             "global_table_keywords": global_table_keywords,
-            "explicit_pct_entries": explicit_pct_entries,
             "notes": [],
         }
 
@@ -11492,6 +11511,40 @@ class UnionAnalyzer:
                     item.get("explicit_pct_entries")
                 )
 
+                for ep in (item.get("explicit_pct_entries") or []):
+                    ep_code = ep.get("geo_code")
+                    ep_pct = ep.get("percentage")
+                    if not ep_code or ep_pct is None:
+                        continue
+                    if ep_code == GeoCode.DOMESTIC.value:
+                        ep_code = self.domestic_country_code
+                    r_name = _CODE_TO_REGION.get(ep_code, Region.UNKNOWN.value)
+                    ep_geo = {
+                        "region": r_name,
+                        "countries": [{"code": ep_code, "name": ep_code}],
+                        "specificity": Specificity.EXPLICIT.value,
+                        "explicit_countries": [ep_code],
+                        "regions": [],
+                        "union_names_map": {},
+                        "domestic_negated": False,
+                    }
+                    tracker.record_coverage(
+                        percentage=ep_pct,
+                        covered_count=None,
+                        geo_context=ep_geo,
+                        scope_total=cov.get("employee_count_total"),
+                        not_covered_count=None,
+                        is_qualitative=False,
+                        is_remaining=False,
+                        is_explicit=True,
+                        is_negated=False,
+                        is_union_record=item.get("is_union", False),
+                        sentence_index=item.get("sentence_index", -1),
+                        keywords=item.get("keyword_matched"),
+                        coverage_type=CoverageType.EXPLICIT_PERCENT.value,
+                        is_table_generated=item.get("is_table_generated", False),
+                    )
+
                 # Handle Union Context (Denominator) items
                 if cov.get("type") == CoverageType.UNION_CONTEXT.value:
                     # If it has a count, treat it as a Covered Count record
@@ -11511,6 +11564,14 @@ class UnionAnalyzer:
                     and cov.get("employee_count_total") is None
                     and not cov.get("negated")
                     and not item.get("is_union", False)
+                ):
+                    continue
+
+                # Skip vacuous NONE entries whose data was already decomposed into explicit_pct_entries
+                if (
+                    item.get("explicit_pct_entries")
+                    and cov.get("type") == CoverageType.NONE.value
+                    and cov.get("percentage") is None
                 ):
                     continue
 
