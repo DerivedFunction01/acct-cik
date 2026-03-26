@@ -4539,6 +4539,10 @@ class ExplicitPctEntry:
     scope: Scope = Scope.COUNTRY
     percentage_source: str = PercentageSourceDetail.EXPLICIT_PERCENTAGE.value
     percentage_source_type: str = SourceType.EXPLICIT.value
+    derived_total: Optional[float] = None
+    derived_covered: Optional[float] = None
+    derived_not_covered: Optional[float] = None
+    derived_source: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -5623,6 +5627,10 @@ class Tracker:
                     geo_code=str(code),
                     percentage=float(pct),
                     sent_idx=int(sent_idx),
+                    derived_total=e.get("derived_total"),
+                    derived_covered=e.get("derived_covered"),
+                    derived_not_covered=e.get("derived_not_covered"),
+                    derived_source=e.get("derived_source"),
                     note=e.get("note"),
                 )
             )
@@ -9598,11 +9606,48 @@ class Tracker:
                 region_name_to_code.setdefault(r_name, r_code)
 
         explicit_pct_by_code: Dict[str, List[float]] = {}
+        explicit_pct_counts_by_code: Dict[str, Dict[str, Optional[float]]] = {}
         for e in self.explicit_pct_entries:
             code = normalize_geo_code(e.geo_code, region_name_to_code)
             if not code:
                 continue
             explicit_pct_by_code.setdefault(code, []).append(float(e.percentage))
+            if (
+                e.derived_total is not None
+                or e.derived_covered is not None
+                or e.derived_not_covered is not None
+            ):
+                existing = explicit_pct_counts_by_code.get(code)
+                candidate = {
+                    "tot": e.derived_total,
+                    "cov": e.derived_covered,
+                    "not_cov": e.derived_not_covered,
+                    "source": e.derived_source,
+                }
+                if existing is None:
+                    explicit_pct_counts_by_code[code] = candidate
+                else:
+                    # Prefer the entry with the largest total; fall back to larger covered.
+                    existing_total = existing.get("tot")
+                    candidate_total = candidate.get("tot")
+                    if (
+                        candidate_total is not None
+                        and (
+                            existing_total is None
+                            or candidate_total > existing_total
+                        )
+                    ):
+                        explicit_pct_counts_by_code[code] = candidate
+                    elif (
+                        candidate_total is None
+                        and existing_total is None
+                        and candidate.get("cov") is not None
+                        and (
+                            existing.get("cov") is None
+                            or candidate.get("cov") > existing.get("cov") # type: ignore
+                        )
+                    ):
+                        explicit_pct_counts_by_code[code] = candidate
         pseudo_region_name_by_code = {
             code: region_name for region_name, code in REGION_NAME_MAP.items()
         }
@@ -10089,6 +10134,21 @@ class Tracker:
                 "not_cov": add_nullable(explicit_bucket.get("not_cov"), calculated_bucket.get("not_cov")),
                 "pct": reported_pct,
             }
+            # If explicit pct entries carry derived counts (mixed-geo), surface them as reported totals
+            # only when we otherwise have no reported totals.
+            if (
+                reported_totals.get("tot") is None
+                and reported_totals.get("cov") is None
+                and reported_totals.get("not_cov") is None
+            ):
+                derived_counts = explicit_pct_counts_by_code.get(code)
+                if derived_counts:
+                    reported_totals = {
+                        "tot": derived_counts.get("tot"),
+                        "cov": derived_counts.get("cov"),
+                        "not_cov": derived_counts.get("not_cov"),
+                        "pct": reported_pct,
+                    }
             # Special case: Global (GLO) is treated as a parent "country".
             # If its pct is propagated, surface it as reported.
             if (
@@ -13278,6 +13338,11 @@ class UnionAnalyzer:
             ]
             raw_geo_matches = [m for m in analysis._matches if m.get("type") == MatchType.GEO]
             geo_gid_to_code: Dict[Any, str] = {}
+            def _add_geo_gid(gid: Any, code: str) -> None:
+                if gid is None or not code:
+                    return
+                if gid not in geo_gid_to_code:
+                    geo_gid_to_code[gid] = code
             if len(geo_match_objs) == len(raw_geo_matches):
                 for obj, raw in zip(geo_match_objs, raw_geo_matches):
                     code = obj.geo_code
@@ -13285,17 +13350,56 @@ class UnionAnalyzer:
                         continue
                     if code == GeoCode.DOMESTIC.value:
                         code = self.domestic_country_code
-                    gid = obj.list_group_id or id(obj)
-                    geo_gid_to_code[gid] = code
+                    _add_geo_gid(obj.list_group_id or id(obj), code)
+                    if raw.get("geo_obj") is not None:
+                        _add_geo_gid(id(raw["geo_obj"]), code)
 
             # Try direct linking via linked_geo_group_id on percent matches
             pct_matches = [m for m in analysis._matches if m.get("type") == MatchType.PERCENT]
             linked_map: Dict[str, float] = {}
+            derived_counts: Dict[str, Dict[str, float]] = {}
             for pm in pct_matches:
                 link_id = pm.get("linked_geo_group_id")
                 if link_id and link_id in geo_gid_to_code:
                     code = geo_gid_to_code[link_id]
                     linked_map[code] = float(pm["val"])
+
+            # If percent is grouped with a count (e.g., "10% of 700") and linked to a geo,
+            # carry derived counts for later reported_totals usage.
+            groups: Dict[Any, List[Dict[str, Any]]] = {}
+            for m in analysis._matches:
+                gid = m.get("numeric_group_id")
+                if gid:
+                    groups.setdefault(gid, []).append(m)
+
+            for group in groups.values():
+                counts = [
+                    m for m in group
+                    if m.get("type") in (MatchType.WORKER_COUNT, MatchType.NUMBER)
+                ]
+                percents = [m for m in group if m.get("type") == MatchType.PERCENT]
+                if len(counts) != 1 or len(percents) != 1:
+                    continue
+                pct_match = percents[0]
+                count_match = counts[0]
+                link_id = (
+                    pct_match.get("linked_geo_group_id")
+                    or count_match.get("linked_geo_group_id")
+                )
+                if not link_id or link_id not in geo_gid_to_code:
+                    continue
+                code = geo_gid_to_code[link_id]
+                total_val = float(count_match["val"])
+                pct_val = float(pct_match["val"])
+                covered_val = round((pct_val / 100.0) * total_val)
+                not_covered_val = max(0.0, total_val - covered_val)
+                existing = derived_counts.get(code)
+                if existing is None or total_val > existing.get("total", 0.0):
+                    derived_counts[code] = {
+                        "total": total_val,
+                        "covered": covered_val,
+                        "not_covered": not_covered_val,
+                    }
 
             explicit_geo_codes = [
                 (obj.geo_code if obj.geo_code != GeoCode.DOMESTIC.value else self.domestic_country_code)
@@ -13309,6 +13413,10 @@ class UnionAnalyzer:
                         "percentage": pct,
                         "sentence_index": sentence_index,
                         "note": "Explicit percent linked via geo proximity",
+                        "derived_total": (derived_counts.get(code) or {}).get("total"),
+                        "derived_covered": (derived_counts.get(code) or {}).get("covered"),
+                        "derived_not_covered": (derived_counts.get(code) or {}).get("not_covered"),
+                        "derived_source": "linked_group_calc" if code in derived_counts else None,
                     }
                     for code, pct in linked_map.items()
                 ]
@@ -13632,6 +13740,17 @@ class UnionAnalyzer:
                     if coverage_data.get("note")
                     else ""
                 ) + "Explicit percent recorded separately for mixed-geo sentence"
+                # Avoid double counting: if this is a mixed-geo sentence and we are not
+                # splitting it into per-geo items, clear derived counts from the main entry.
+                if len(geo_context.get("countries", [])) > 1:
+                    coverage_data["employee_count_covered"] = None
+                    coverage_data["employee_count_not_covered"] = None
+                    coverage_data["employee_count_total"] = None
+                    coverage_data["note"] = (
+                        (coverage_data.get("note", "") + " | ")
+                        if coverage_data.get("note")
+                        else ""
+                    ) + "Cleared counts to avoid mixed-geo double counting"
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
