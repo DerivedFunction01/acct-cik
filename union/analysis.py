@@ -12551,7 +12551,11 @@ class UnionAnalyzer:
                 ]
                 # If all unlinked counts are pre-geo, treat the largest as a global total
                 # and avoid naive remapping of linked counts to other geos.
-                if unlinked_counts and len(pre_geo_unlinked) == len(unlinked_counts):
+                if (
+                    unlinked_counts
+                    and len(pre_geo_unlinked) == len(unlinked_counts)
+                    and not analysis.has_remaining_other
+                ):
                     total_val = max(c["val"] for c in pre_geo_unlinked)
                     mapped_counts = dict(linked_map)
                     if total_val is not None:
