@@ -10488,20 +10488,36 @@ class Tracker:
         total_units = 0.0
         total_entries = 0
 
+        def _normalize_entity(val: str) -> str:
+            if val in REGION_NAME_MAP:
+                return REGION_NAME_MAP[val]
+            return val
+
+        def _is_code(val: str) -> bool:
+            if not val:
+                return False
+            # Accept uppercase code-like tokens only (drop names).
+            return val.isupper() and val.replace(" ", "").isalnum()
+
         for e in self.bargaining_entries:
             if e.key:
                 base_key = str(e.key)
                 main_key = base_key.split("::", 1)[0]
-                if main_key in REGION_NAME_MAP:
-                    main_key = REGION_NAME_MAP[main_key]
-                entities.add(main_key)
+                norm = _normalize_entity(main_key)
+                if _is_code(norm):
+                    entities.add(norm)
             total_units += float(e.bargaining_unit_count or 0.0)
             total_entries += 1
             for code in e.related_geo_codes or []:
                 if code:
-                    entities.add(code)
+                    norm = _normalize_entity(code)
+                    if _is_code(norm):
+                        entities.add(norm)
 
         entities_out = sorted(list(entities))
+
+        if total_units == 0.0 and not entities_out:
+            return {}
 
         return {
             "tot": total_units,
