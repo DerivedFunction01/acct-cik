@@ -4853,7 +4853,7 @@ class Tracker:
             return (
                 _is_scope_anchor(e),
                 _source_priority(e),
-                int(e.is_explicit),
+                int(e.is_explicit or False),
                 int(e.covered_count is not None or e.not_covered_count is not None),
                 int(e.percentage is not None),
                 -abs(e.sent_idx) if e.sent_idx >= 0 else -10_000,
