@@ -189,7 +189,7 @@ STD_GAP = r"(?:\s+[\'\w-]+){0,3}\s+"
 TITLE_PREFIX = r"(?:[A-Z][\'\w-]*\s+)*"
 TITLE_SUFFIX = r"(?:\s+[A-Z][\'\w-]*)*"
 
-UNION_TERMS = [
+UNION_TERMS = {
     CORE.UNION,
     CORE.FEDERATION,
     CORE.GUILD,
@@ -203,13 +203,13 @@ UNION_TERMS = [
     CORE.FRATERNAL,
     CORE.BENEVOLENT,
     CORE.LODGE,
-]
+}
 
 _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
-        build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=GAP),
+        build_compound(UNION_TERMS - {CORE.UNION}, CORE.UNION, sep_prefix=GAP),
     ]
     + _FX_DYNAMIC_LIST
 )
@@ -222,7 +222,7 @@ _LOOSE_CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=LOOSE_GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=LOOSE_GAP),
-        build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=LOOSE_GAP),
+        build_compound(UNION_TERMS - {CORE.UNION}, CORE.UNION, sep_prefix=LOOSE_GAP),
     ]
 )
 LOOSE_DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_LOOSE_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
