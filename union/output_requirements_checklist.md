@@ -102,11 +102,12 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
       "n": 0
     }
   },
-
   "country_keywords": {
     "IG Metall": 1,
-    "works council": 1
-  }
+  },
+  "country_table_keywords": {
+    "collective bargaining": 1,
+  },
 }
 ```
 
