@@ -8,6 +8,7 @@ from defs.regex_lib import (
     build_regex,
     to_build_alternation,
 )
+
 import pandas as pd
 from pathlib import Path
 
@@ -2726,7 +2727,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         code="SL",
     ),
-    Nation("Somalia", ["somalia", "somali", "somalian"], Region.MIDDLE_EAST_AFRICA, code="SO"),
+    Nation("Somalia", ["somalia", "somali"], Region.MIDDLE_EAST_AFRICA, code="SO"),
     Nation(
         "South Sudan",
         ["south sudan", "south sudanese"],
@@ -3596,6 +3597,27 @@ INT_UNION_MAP = {
         r"(?:\s+(?:for|för|och|og|i|&|[A-Z][\w-]*)){0,3}\s+",
     ),
 }
+
+FOREIGN_DYNAMIC_PATTERNS = {}
+
+def set_fx_dynamic_patterns():
+    _patt = {} 
+    _foreign_dynamic = []
+    for code, (workers, unions, gap) in INT_UNION_MAP.items():
+        if workers and unions:
+            # Build specific pattern for this language code
+            p_workers = build_compound(unions, workers, sep_prefix=gap)
+            p_workers2 = build_compound(workers, unions, sep_prefix=gap)
+            p_unions = build_compound(unions, unions, sep_prefix=gap)
+            _foreign_dynamic.extend([p_workers, p_unions, p_workers2])
+            _patt[code] = build_regex(
+            [p_workers, p_unions, p_workers2], ignore_case=True
+        )
+    return _patt, _foreign_dynamic
+
+FOREIGN_DYNAMIC_PATTERNS, _FX_DYNAMIC_LIST = set_fx_dynamic_patterns()
+
+
 REGION_CODES = {
     GeoCode.NORTH_AMERICA.value,
     GeoCode.EUROPE.value,
@@ -3739,6 +3761,95 @@ class RegionMatcher:
         for pattern, info in cls.regex_union_map.items():
             if re.fullmatch(pattern, text, re.IGNORECASE):
                 return info
+        return None
+
+    @classmethod
+    def resolve_dynamic_union(cls, text: str) -> Optional[Tuple[Region, str, str]]:
+        """
+        Resolves a dynamic union name to a specific region, country, and code,
+        handling ambiguities like the Iberian cluster.
+        """
+        # 1. Check for specific, non-dynamic union matches.
+        specific_info = cls.get_union(text)
+
+        # If specific info points to a concrete country, it's high confidence.
+        if specific_info:
+            _, _, code = specific_info
+            if code and not (
+                code.startswith("INT_") or code in IGNORED_REGIONS or code in REGION_CODES
+            ):
+                return specific_info
+
+        # 2. Check dynamic patterns for more specific language-based matches.
+        matched_codes = []
+        for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
+            if pattern.search(text):
+                matched_codes.append(code)
+
+        final_code = None
+        if matched_codes:
+            # Priority logic for Iberian cluster
+            iberian_set = {"INT_IBE", "INT_ES", "INT_PT"}
+            matches_set = set(matched_codes)
+
+            if matches_set.intersection(iberian_set):
+                if "INT_ES" in matches_set and "INT_PT" in matches_set:
+                    final_code = "INT_IBE"
+                elif "INT_ES" in matches_set:
+                    final_code = "INT_ES"
+                elif "INT_PT" in matches_set:
+                    final_code = "INT_PT"
+                else:
+                    final_code = "INT_IBE"
+            else:  # No iberian matches
+                final_code = matched_codes[0]
+
+        if final_code:
+            # We have a final_code from dynamic patterns, now get its info.
+            all_nations: List[Nation] = []
+            for region_set in [
+                NORTH_AMERICA,
+                EUROPE,
+                ASIA_PACIFIC,
+                LATIN_AMERICA,
+                MIDDLE_EAST_AFRICA,
+                INTERNATIONAL,
+            ]:
+                all_nations.extend(list(region_set))
+
+            for nation in all_nations:
+                if nation.code == final_code:
+                    return nation.region, nation.name, nation.code
+
+            if final_code.startswith("INT_"):
+                return Region.INTERNATIONAL, "International", final_code
+
+            # This path should ideally not be taken if final_code is valid.
+            # But as a safeguard, we can return None.
+            return None
+
+        # 3. If no dynamic pattern matched, but we had a generic specific match, use it.
+        if specific_info:
+            return specific_info
+
+        # 4. Fallback: Check if the text contains a known location
+        if cls.location_regexes:
+            # Find the longest location match to be more specific
+            best_loc_match = None
+            for regex in cls.location_regexes:
+                for loc_match in regex.finditer(text):
+                    if best_loc_match is None or len(
+                        loc_match.group(0)
+                    ) > len(best_loc_match.group(0)):
+                        best_loc_match = loc_match
+
+            if best_loc_match:
+                loc_term = best_loc_match.group(0)
+                loc_info = cls.get_location(loc_term)
+                if loc_info:
+                    region, country, city, code = loc_info
+                    return region, country, code
+
         return None
 
     @classmethod

@@ -32,7 +32,6 @@ from defs.union_regex import (
     LEGAL_REQUIREMENT_REGEX,
     LEGAL_PROCESS_REGEX,
     PERSONNEL_EVENT_REGEX,
-    FOREIGN_DYNAMIC_PATTERNS,
     LOOSE_TITLE_PREFIX_REGEX,
     INDUSTRY_TITLE_PREFIX_REGEX,
     INDUSTRY_PREFIX_TERMS,
@@ -1406,106 +1405,11 @@ class UnionExtractor:
 
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
-            info = self.matcher.get_union(val)
 
-            # Determine if we should use the info immediately or try fallbacks
-            use_info_immediately = False
-            if info:
-                _, _, code = info
-                # If specific country (not INT/GLO/INT_), trust it immediately
-                if code and not (code.startswith(GeoCode.INTERNATIONAL.value) or code == GeoCode.GLOBAL.value):
-                    use_info_immediately = True
+            resolved_info = self.matcher.resolve_dynamic_union(val)
 
-                if use_info_immediately:
-                    region, country, code = info
-                    geo_obj = GeoMatch(
-                        text=val,
-                        region=region,
-                        country=country,
-                        geo_code=code,
-                        source_type=GeoSource.INFERRED_UNION,
-                    )
-                    analysis.geo_matches.append(geo_obj)
-                    if analysis._matches:
-                        analysis._matches[-1]["geo_obj"] = geo_obj
-                    return
-
-            # Fallbacks (Foreign Patterns & Location extraction)
-            found_fallback = False
-
-            # Fallback 1: Check if it matches a known foreign dynamic pattern.
-            # Do this first so broad location keywords like "Sindicato" don't
-            # prematurely map to INT_IBE when a more specific INT_* language
-            # code (e.g. INT_ES/INT_PT) is available.
-            matched_codes = []
-            for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
-                assert isinstance(pattern, re.Pattern)
-                if pattern.search(val):
-                    matched_codes.append(code)
-
-            final_code = None
-            if matched_codes:
-                # Priority logic for Iberian cluster
-                iberian_set = {"INT_IBE", "INT_ES", "INT_PT"}
-                matches_set = set(matched_codes)
-
-                if matches_set.intersection(iberian_set):
-                    if "INT_ES" in matches_set and "INT_PT" in matches_set:
-                        final_code = "INT_IBE"
-                    elif "INT_ES" in matches_set:
-                        final_code = "INT_ES"
-                    elif "INT_PT" in matches_set:
-                        final_code = "INT_PT"
-                    else:
-                        final_code = "INT_IBE"
-                else:
-                    final_code = matched_codes[0]
-
-            if final_code:
-                geo_obj = GeoMatch(
-                    text=val,
-                    region=Region.INTERNATIONAL,
-                    geo_code=final_code,
-                    source_type=GeoSource.INFERRED_UNION,
-                )
-                analysis.geo_matches.append(geo_obj)
-                if analysis._matches:
-                    analysis._matches[-1]["geo_obj"] = geo_obj
-                found_fallback = True
-
-            if found_fallback:
-                return
-
-            # Fallback 2: Check if the dynamic name contains a known location
-            # (e.g. "Japanese Union...") when no foreign pattern matched.
-            if self.matcher.location_regexes:
-                for regex in self.matcher.location_regexes:
-                    loc_match = regex.search(val)
-                    if loc_match:
-                        loc_term = loc_match.group(0)
-                        loc_info = self.matcher.get_location(loc_term)
-                        if loc_info:
-                            region, country, city, code = loc_info
-                            geo_obj = GeoMatch(
-                                text=val,
-                                region=region,
-                                country=country,
-                                city=city,
-                                geo_code=code,
-                                source_type=GeoSource.INFERRED_UNION,
-                            )
-                            analysis.geo_matches.append(geo_obj)
-                            if analysis._matches:
-                                analysis._matches[-1]["geo_obj"] = geo_obj
-                            found_fallback = True
-                            break
-
-            if found_fallback:
-                return
-
-            # If no fallbacks matched, but we had generic info, use it now
-            if info:
-                region, country, code = info
+            if resolved_info:
+                region, country, code = resolved_info
                 geo_obj = GeoMatch(
                     text=val,
                     region=region,

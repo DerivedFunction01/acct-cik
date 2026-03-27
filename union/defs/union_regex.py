@@ -16,7 +16,7 @@ Use enums to build core terms, then use another enum or function to build out th
 from enum import Enum
 import re
 from defs.regex_lib import add_restrictions, build_alternation, build_compound, build_regex, to_build_alternation
-from defs.region_regex import INT_UNION_MAP
+from defs.region_regex import _FX_DYNAMIC_LIST
 
 
 class CORE(Enum):
@@ -205,24 +205,13 @@ UNION_TERMS = [
     CORE.LODGE,
 ]
 
-_foreign_dynamic = []
-FOREIGN_DYNAMIC_PATTERNS = {}
-
-for code, (workers, unions, gap) in INT_UNION_MAP.items():
-    if workers and unions:
-        # Build specific pattern for this language code
-        p_workers = build_compound(unions, workers, sep_prefix=gap)
-        p_workers2 = build_compound(workers, unions, sep_prefix=gap)
-        p_unions = build_compound(unions, unions, sep_prefix=gap)
-        _foreign_dynamic.extend([p_workers, p_unions, p_workers2])
-        FOREIGN_DYNAMIC_PATTERNS[code] = build_regex([p_workers, p_unions, p_workers2], ignore_case=True)
-
 _CORE_DYNAMIC_PATTERN = build_alternation(
     [
         build_compound(UNION_TERMS, WORKER_TERMS, sep_prefix=GAP),
         build_compound(WORKER_TERMS, UNION_TERMS, sep_prefix=GAP),
         build_compound(UNION_TERMS, CORE.UNION.value, sep_prefix=GAP),
-    ] + _foreign_dynamic
+    ]
+    + _FX_DYNAMIC_LIST
 )
 DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 
@@ -239,7 +228,7 @@ _LOOSE_CORE_DYNAMIC_PATTERN = build_alternation(
 LOOSE_DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_LOOSE_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 LOOSE_DYNAMIC_UNION_REGEX = build_regex([LOOSE_DYNAMIC_UNION_PATTERN], ignore_case=False)
 
-FX_DYNAMIC_UNION_REGEX = build_regex(_foreign_dynamic, ignore_case=True)
+FX_DYNAMIC_UNION_REGEX = build_regex(_FX_DYNAMIC_LIST, ignore_case=True)
 
 # Regex to capture comma-separated worker titles preceding a union name
 # e.g. "Teachers, Instructors and " before "Writers Association"
