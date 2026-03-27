@@ -6731,6 +6731,19 @@ class Tracker:
                     s_total = s.total_count or 0
 
                     if self._matches_census(val, s_val):
+                        # If keys are different and both are segments.
+                        if (
+                            s.key != t.key
+                            and s.scope == Scope.SEGMENT
+                            and t.scope == Scope.SEGMENT
+                            # and one of the keys do not start with segment
+                            and (
+                                s.key and not s.key.startswith("Segment_")
+                                or t.key and not t.key.startswith("Segment_")
+                            )
+                        ):
+                           continue
+
                         should_remove_t = False
                         reason = ""
 
