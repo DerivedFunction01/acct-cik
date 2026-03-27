@@ -371,9 +371,8 @@ LOWER_DYNAMIC_UNION_REGEX = re.compile(
 # TitleCased company names that include "Union" (e.g. "Royal Union", "Union Capital",
 # "Union Express Mortgage", "First National Union Bank", "Union of Southern States Credit")
 TITLECASE_UNION_COMPANY_REGEX = re.compile(
-    r"\b(?:[A-Z][a-z][\w'-]*\s+)*Union(?:\s+[A-Z][a-z][\w'-]*)*\b"
+    r"\b((?:[A-Z][a-z][\w'-]*\s+)*Union(?:\s+[A-Z][a-z][\w'-]*)*)(?:\s+([a-z][\w'-]*))?\b"
 )
-
 
 class MatchType(Enum):
     PERCENT = "PERCENT"
@@ -1548,7 +1547,12 @@ class UnionExtractor:
 
         # 6.5 Mask TitleCase two-word "Union" company names so they don't count as union terms.
         def titlecase_union_company_extractor(m: re.Match):
-            val = m.group(0)
+            val = m.group(1)
+            emp = m.group(2)
+
+            if (WORKER_TERM_REGEX.search(emp) or WORKER_TYPE_REGEX.search(emp)) and val.lower() == "union":
+                raise ValueError
+
             if self.matcher.specific_union_regex and self.matcher.specific_union_regex.fullmatch(val):
                 raise ValueError
             if (
