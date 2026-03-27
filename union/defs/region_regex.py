@@ -4003,16 +4003,16 @@ def is_contained(
         return True
 
     # Composite item is contained by a region/container if any constituent is contained
-    if check_key in COMPOSITE_COUNTRIES:
-        constituents = get_composite_constituents(check_key)
-        for c in constituents:
-            if is_contained(
-                container_key=container_key,
-                item_key=c,
-                domestic_country_code=domestic_country_code,
-                excluded_keys={check_key},
-            ):
-                return True
+    # if check_key in COMPOSITE_COUNTRIES:
+    #     constituents = get_composite_constituents(check_key)
+    #     for c in constituents:
+    #         if is_contained(
+    #             container_key=container_key,
+    #             item_key=c,
+    #             domestic_country_code=domestic_country_code,
+    #             excluded_keys={check_key},
+    #         ):
+    #             return True
 
     # Region contains its countries
     item_region = _CODE_TO_REGION.get(check_key, check_key)
