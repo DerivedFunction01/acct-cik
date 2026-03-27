@@ -7375,6 +7375,41 @@ class Tracker:
                     self.resolution_log.append(f"Resolved {e.key} to {new_key}")
                     e.key = new_key
 
+                    # Migrate sentence keywords from old prefix to new_code
+                    if prefix in self.country_sentence_keywords:
+                        keywords_to_move = {
+                            kw
+                            for sent_idx, kw in self.country_sentence_keywords[prefix]
+                            if sent_idx == e.sent_idx
+                        }
+                        if keywords_to_move:
+                            # Add to new code's sentence keywords
+                            self.country_sentence_keywords.setdefault(new_code, set())
+                            for kw in keywords_to_move:
+                                self.country_sentence_keywords[new_code].add(
+                                    (e.sent_idx, kw)
+                                )
+
+                            # Add to new code's summary keywords and remove from old
+                            self.country_keywords.setdefault(new_code, {})
+                            for kw in keywords_to_move:
+                                self.country_keywords[new_code][kw] = (
+                                    self.country_keywords[new_code].get(kw, 0) + 1
+                                )
+                                if prefix in self.country_keywords and kw in self.country_keywords[prefix]:
+                                    self.country_keywords[prefix][kw] -= 1
+                                    if self.country_keywords[prefix][kw] <= 0:
+                                        del self.country_keywords[prefix][kw]
+                            if prefix in self.country_keywords and not self.country_keywords[prefix]:
+                                del self.country_keywords[prefix]
+
+                            # Remove from old code's sentence keywords for this sentence
+                            self.country_sentence_keywords[prefix] = {
+                                (sent_idx, kw) for sent_idx, kw in self.country_sentence_keywords[prefix] if sent_idx != e.sent_idx
+                            }
+                            if not self.country_sentence_keywords[prefix]:
+                                del self.country_sentence_keywords[prefix]
+
                     if e.scope != Scope.SEGMENT:
                         if is_region(new_code):
                             e.scope = Scope.REGION
