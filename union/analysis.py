@@ -12477,7 +12477,6 @@ class UnionAnalyzer:
                             [MatchType.REMAINING_OTHER],
                             text=analysis.text,
                         )
-
                         if min_dist < 40:
                             should_exclude = True
 
@@ -12500,6 +12499,7 @@ class UnionAnalyzer:
                 key = obj.geo_code
                 if obj.geo_code in REGION_CODES and obj.geo_code not in DOMESTIC_SET:
                     key = obj.region.value
+
                 geo_entries.append(
                     {
                         "key": key,
@@ -12510,6 +12510,7 @@ class UnionAnalyzer:
                 )
 
         # Prefer explicitly linked geo counts over positional inference.
+        linked_map: Dict[str, float] = {}
         if geo_entries and count_matches:
             geo_link_map: Dict[Any, List[str]] = {}
 
@@ -12530,7 +12531,6 @@ class UnionAnalyzer:
                 if raw.get("geo_obj") is not None:
                     _add_geo_link(id(raw["geo_obj"]), key)
 
-            linked_map: Dict[str, float] = {}
             for c in count_matches:
                 link_id = c.get("linked_geo_group_id")
                 if not link_id:
@@ -12541,21 +12541,24 @@ class UnionAnalyzer:
                 key = keys[0]
                 linked_map[key] = max(linked_map.get(key, 0.0), float(c["val"]))
 
-            if linked_map:
-                first_geo_start = min(e["span"][0] for e in geo_entries)
+            # Only early-return with pure linked_map when there is NO remaining_other logic needed.
+            # If we have a remaining clause, we MUST let _resolve_counts_generic handle total + virtual remainder.
+            has_remaining = getattr(analysis, 'has_remaining_other', False)
+
+            if linked_map and not has_remaining:
                 unlinked_counts = [
                     c for c in count_matches if not c.get("linked_geo_group_id")
                 ]
+                if not unlinked_counts:
+                    return linked_map, None, ["Linked Geo Counts"]
+
+                first_geo_start = min(e["span"][0] for e in geo_entries)
                 pre_geo_unlinked = [
                     c for c in unlinked_counts if c["span"][0] < first_geo_start
                 ]
                 # If all unlinked counts are pre-geo, treat the largest as a global total
                 # and avoid naive remapping of linked counts to other geos.
-                if (
-                    unlinked_counts
-                    and len(pre_geo_unlinked) == len(unlinked_counts)
-                    and not analysis.has_remaining_other
-                ):
+                if len(pre_geo_unlinked) == len(unlinked_counts):
                     total_val = max(c["val"] for c in pre_geo_unlinked)
                     mapped_counts = dict(linked_map)
                     if total_val is not None:
@@ -12565,10 +12568,9 @@ class UnionAnalyzer:
                         "Pre-Geo Total",
                     ]
 
-                # If all counts are linked, return those mappings directly.
-                if not unlinked_counts:
-                    return linked_map, None, ["Linked Geo Counts"]
-
+        # If we reach here, either:
+        # - There was no clean linked_map, or
+        # - has_remaining_other is True (critical for "remaining" cases)
         return self._resolve_counts_generic(
             analysis,
             geo_entries,
