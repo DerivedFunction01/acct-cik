@@ -2727,7 +2727,7 @@ MIDDLE_EAST_AFRICA = {
         Region.MIDDLE_EAST_AFRICA,
         code="SL",
     ),
-    Nation("Somalia", ["somalia", "somali"], Region.MIDDLE_EAST_AFRICA, code="SO"),
+    Nation("Somalia", ["somalian?", "somali"], Region.MIDDLE_EAST_AFRICA, code="SO"),
     Nation(
         "South Sudan",
         ["south sudan", "south sudanese"],
