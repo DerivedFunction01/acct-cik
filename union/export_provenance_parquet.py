@@ -592,7 +592,7 @@ def _mark_sub_allocations(
 
 def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv: Optional[str] = None) -> pd.DataFrame:
     sampled_accessions = set()
-    
+
     if explicit_csv and Path(explicit_csv).exists():
         explicit_df = pd.read_csv(explicit_csv)
         if "accession" in explicit_df.columns:
@@ -608,14 +608,14 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
         logging.info("--- Category: %s ---", series_col.name)
         for val, count in counts.items():
             logging.info("  %s: %d candidates", val, count)
-            
+
         # Sample
         for val in counts.index:
             if pd.isna(val):
                 mask = series_col.isna()
             else:
                 mask = series_col == val
-            
+
             pool = df[mask & (~df["accession"].isin(sampled_accessions))]
             if len(pool) > 0:
                 k = min(num_per_group, len(pool))
@@ -626,14 +626,14 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
     n_per_stratum = max(1, target_size // 40)
 
     df_sample = df.copy()
-    
+
     # Setup stratified buckets for numeric and keyword variables
     df_sample["dom_pct_bucket"] = pd.cut(
         df_sample["dom_pct"].fillna(-1), 
         bins=[-2, -0.1, 0.1, 25, 50, 75, 100], 
         labels=["Null", "0", "1-25", "26-50", "51-75", "76-100"]
     )
-    
+
     df_sample["tot_count_bucket"] = pd.cut(
         df_sample["tot_count"].fillna(-1), 
         bins=[-2, -0.1, 0.1, 1000, 10000, 100000, float("inf")], 
@@ -651,13 +651,19 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
         bins=[-2, -0.1, 0.1, 5, 20, float("inf")], 
         labels=["Null", "0", "1-5", "6-20", ">20"]
     )
-    
+
     # Domestic code (Top 5 + Rest)
     top_codes = df_sample["domestic_country_code"].value_counts().nlargest(5).index
     df_sample["dom_code_bucket"] = df_sample["domestic_country_code"].where(
         df_sample["domestic_country_code"].isin(top_codes), "OTHER"
     )
 
+    df_sample["lang_fallback_bucket"] = (
+        df_sample["has_language_fallback"]
+        .map({True: "fallback", False: "no_fallback"})
+        .fillna("no_fallback")
+    )
+    print_and_sample(df_sample["lang_fallback_bucket"], n_per_stratum)
     print_and_sample(df_sample["year"], n_per_stratum)
     print_and_sample(df_sample["dom_cov"], n_per_stratum)
     print_and_sample(df_sample["int_cov"], n_per_stratum)
@@ -674,7 +680,7 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
         if len(pool) > 0:
             chosen = pool.sample(n=min(remaining, len(pool)), random_state=42)
             sampled_accessions.update(chosen["accession"])
-            
+
     logging.info("Total unique sampled accessions: %d", len(sampled_accessions))
     return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
 
@@ -752,7 +758,7 @@ def export_parquet(
 
         if dom_domestic_count is None:
             dom_domestic_count = _domestic_parent_cov_remainder(country_report)
-        
+
         dom_pulled_from_risk = False
         # Note: 'not dom_domestic_count' is True if count is 0.0 or None
         if dom_domestic_count in (None, 0, 0.0) and risk_summary:
@@ -857,12 +863,19 @@ def export_parquet(
         if global_cov is not None:
             total_cov = float(global_cov)
 
+        lang_fallback_codes = [
+            c.get("country_code")
+            for c in (country_report.get("countries") or [])
+            if c.get("language_fallback_country") is True and c.get("country_code")
+        ]
         return {
             "domestic_country_code": country_report.get("domestic_country_code"),
             "dom_cov": summary.get("dom_cov") if isinstance(summary, dict) else None,
             "int_cov": summary.get("int_cov") if isinstance(summary, dict) else None,
             "summary_cov": _safe_json_dumps(summary_cov_flat),
             "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
+            "has_language_fallback": bool(lang_fallback_codes),
+            "language_fallback_codes": _safe_json_dumps(lang_fallback_codes),
             "countries": _safe_json_dumps(country_report.get("countries") or []),
             "agg": _safe_json_dumps(country_report.get("agg") or []),
             "global": _safe_json_dumps(country_report.get("global") or {}),
@@ -886,6 +899,8 @@ def export_parquet(
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # Drop unneeded cols
+    out = out.drop(columns=["has_language_fallback"])
     out.to_parquet(out_path, index=False)
     logging.info("Wrote parquet: %s (rows: %s)", out_path, len(out))
 
