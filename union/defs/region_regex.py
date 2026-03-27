@@ -5162,6 +5162,90 @@ def group_by_scope(
 
     return []
 
+def refine_generic_code(
+    code: str,
+    candidates: List[Dict[str, Any]],
+    domestic_country_code: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
+    """
+    Refines a generic/container code (INT/GLO/INT_* or region containers like NA)
+    based on candidate countries, with optional domestic fallback.
+    Returns (refined_code, refined_name). If no refinement, returns (code, None).
+    """
+    if not code:
+        return code, None
+
+    allowed: Optional[Set[str]] = None
+    is_container_scope = False
+    if code.startswith(GeoCode.INT_LANG.value) and code in INT_LANGUAGE_MAP:
+        allowed = set(INT_LANGUAGE_MAP[code])
+        is_container_scope = True
+    elif code in [GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value]:
+        allowed = None  # Any specific country is allowed
+        is_container_scope = True
+    elif code in REGION_CODES or code in COMPOSITE_COUNTRIES or is_region(code):
+        is_container_scope = True
+    else:
+        return code, None
+
+    matches = []
+    seen_codes = set()
+
+    for cand in candidates:
+        c_code = cand.get("code")
+        # Filter out generic/container codes from candidates
+        if c_code and c_code not in IGNORED_REGIONS:
+            if c_code in seen_codes:
+                continue
+            # If allowed is set, code must be in it.
+            # If allowed is None:
+            # - INT/GLO accept any specific code
+            # - container regions/composites accept contained countries only
+            contained_ok = True
+            if (
+                allowed is None
+                and is_container_scope
+                and code
+                not in (
+                    GeoCode.INTERNATIONAL.value,
+                    GeoCode.GLOBAL.value,
+                )
+            ):
+                contained_ok = is_contained(
+                    container_key=code,
+                    item_key=c_code,
+                    domestic_country_code=domestic_country_code or "US",
+                )
+
+            if (allowed is None and contained_ok) or (
+                allowed is not None and c_code in allowed
+            ):
+                matches.append(cand)
+                seen_codes.add(c_code)
+
+    if len(matches) > 0:
+        return matches[0]["code"], matches[0].get("name")
+
+    # Domestic fallback for generic/container union codes.
+    if domestic_country_code and is_container_scope:
+        can_use_domestic = True
+        if allowed is not None and domestic_country_code not in allowed:
+            can_use_domestic = False
+        if (
+            allowed is None
+            and code not in (GeoCode.INTERNATIONAL.value, GeoCode.GLOBAL.value)
+            and not is_contained(
+                container_key=code,
+                item_key=domestic_country_code,
+                domestic_country_code=domestic_country_code,
+            )
+        ):
+            can_use_domestic = False
+
+        if can_use_domestic:
+            return domestic_country_code, domestic_country_code
+
+    return code, Nones
 
 def resolve_remaining_int(
     mentioned_countries: Set[str],
