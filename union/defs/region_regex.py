@@ -5245,7 +5245,7 @@ def refine_generic_code(
         if can_use_domestic:
             return domestic_country_code, domestic_country_code
 
-    return code, Nones
+    return code, None
 
 def resolve_remaining_int(
     mentioned_countries: Set[str],
