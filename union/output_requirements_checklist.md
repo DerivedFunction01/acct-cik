@@ -37,6 +37,7 @@ Goal: keep `calculate_metrics` as-is for debugging/consistency checks, and emit 
 {
   "country_code": "DE",
   "union_indicator": 1, // 1 if any union coverage signal exists for this country, else null
+  "language_fallback_country": true, // If true, then a foreign union's language was mapped to this country
   "country_totals": {
     "tot": 3100.0, // final resolved total for this country (all methods combined)
     "cov": 1224.0, // final resolved covered count (all methods combined)
