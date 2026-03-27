@@ -658,7 +658,6 @@ NORTH_AMERICA = {
             "Transport Workers Union",
             "ATU",
             "Amalgamated Transit Union",
-            "FOP",
             "Fraternal Order of Police",
             "PBA",
             "Police Benevolent Association",
