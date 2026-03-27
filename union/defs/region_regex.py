@@ -3608,10 +3608,9 @@ def set_fx_dynamic_patterns():
             # Build specific pattern for this language code
             p_workers = build_compound(unions, workers, sep_prefix=gap)
             p_workers2 = build_compound(workers, unions, sep_prefix=gap)
-            p_unions = build_compound(unions, unions, sep_prefix=gap)
-            _foreign_dynamic.extend([p_workers, p_unions, p_workers2])
+            _foreign_dynamic.extend([p_workers, p_workers2])
             _patt[code] = build_regex(
-            [p_workers, p_unions, p_workers2], ignore_case=True
+            [p_workers, p_workers2], ignore_case=True
         )
     return _patt, _foreign_dynamic
 
