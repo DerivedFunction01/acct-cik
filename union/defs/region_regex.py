@@ -704,7 +704,7 @@ NORTH_AMERICA = {
             "CUPE",
             "Canadian Union of Public Employees",
             "CLC",
-            "Canadian Labour Congress",
+            "Canadian Labou?r Congress",
             "CSN",
             "Confédération des syndicats nationaux",
             "FTQ",
