@@ -2957,7 +2957,7 @@ INTERNATIONAL = {
 }
 
 INT_LANGUAGE_MAP = {
-    "INT_IBERIA": {
+    "INT_IBE": {
         "BR",
         "PT",
         "ES",
