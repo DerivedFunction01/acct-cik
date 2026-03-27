@@ -1435,29 +1435,29 @@ class UnionExtractor:
 
             # Fallback 1: Check if it matches a known foreign dynamic pattern.
             # Do this first so broad location keywords like "Sindicato" don't
-            # prematurely map to INT_IBERIA when a more specific INT_* language
+            # prematurely map to INT_IBE when a more specific INT_* language
             # code (e.g. INT_ES/INT_PT) is available.
             matched_codes = []
             for code, pattern in FOREIGN_DYNAMIC_PATTERNS.items():
                 assert isinstance(pattern, re.Pattern)
-                if pattern.fullmatch(val):
+                if pattern.search(val):
                     matched_codes.append(code)
 
             final_code = None
             if matched_codes:
                 # Priority logic for Iberian cluster
-                iberian_set = {"INT_IBERIA", "INT_ES", "INT_PT"}
+                iberian_set = {"INT_IBE", "INT_ES", "INT_PT"}
                 matches_set = set(matched_codes)
 
                 if matches_set.intersection(iberian_set):
                     if "INT_ES" in matches_set and "INT_PT" in matches_set:
-                        final_code = "INT_IBERIA"
+                        final_code = "INT_IBE"
                     elif "INT_ES" in matches_set:
                         final_code = "INT_ES"
                     elif "INT_PT" in matches_set:
                         final_code = "INT_PT"
                     else:
-                        final_code = "INT_IBERIA"
+                        final_code = "INT_IBE"
                 else:
                     final_code = matched_codes[0]
 
