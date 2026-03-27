@@ -1550,7 +1550,7 @@ class UnionExtractor:
             val = m.group(1)
             emp = m.group(2)
 
-            if (WORKER_TERM_REGEX.search(emp) or WORKER_TYPE_REGEX.search(emp)) and val.lower() == "union":
+            if emp and (WORKER_TERM_REGEX.search(emp) or WORKER_TYPE_REGEX.search(emp)) and val.lower() == "union":
                 raise ValueError
 
             if self.matcher.specific_union_regex and self.matcher.specific_union_regex.fullmatch(val):

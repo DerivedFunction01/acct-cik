@@ -72,15 +72,14 @@ def build_regex(keywords: list|set, ignore_case: bool = True, use_sep: bool = Tr
 
 
 def to_list(items: Any) -> List[str]:
-    """Flattens a mix of Enums, strings, and lists into a list of strings."""
-    if not isinstance(items, list):
+    if not isinstance(items, (list, set)):
         items = [items]
 
     out = []
     for item in items:
         if isinstance(item, Enum):
             out.append(item.value)
-        elif isinstance(item, (list, tuple)):
+        elif isinstance(item, (list, tuple, set)):
             out.extend(to_list(list(item)))
         else:
             out.append(str(item))
