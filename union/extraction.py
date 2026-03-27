@@ -2262,6 +2262,7 @@ class UnionExtractor:
             has_union_keywords
             or has_union_geo
             or has_negation
+            or bool(analysis.geo_matches)
             or bool(analysis.coverage_terms)
             or bool(analysis.generic_risk_terms)
             or (has_quant and has_worker_context)
