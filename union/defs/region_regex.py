@@ -895,7 +895,6 @@ EUROPE = {
             "IF Metall",
             "Sveriges Ingenjörer",
             "Ledarna",
-            "LO",
             "Landsorganisationen",
         ],
         [
