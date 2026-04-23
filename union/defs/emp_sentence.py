@@ -391,7 +391,7 @@ def _render_template(
     metric_sentence = _render_metric_sentence(
         label,
         metrics,
-        has_specific_union=bool(union_name_segment),
+        has_specific_union=bool(hints.get("has_union_name_match")),
         coverage_basis=coverage_basis,
     )
     if metric_sentence:
@@ -792,6 +792,8 @@ def _coverage_basis_phrase(
             joined = " and ".join(basis_parts)
             return joined
         if len(basis_parts) == 1:
+            if basis_parts[0] == PHRASE_MAP["coverage_neutral"] and _has_header_category(header_ctx, "union_name"):
+                return PHRASE_MAP["coverage_union"]
             return basis_parts[0]
 
     for hdr_key in ("covered_header", "pct_header", "works_header"):
@@ -813,6 +815,8 @@ def _coverage_basis_phrase(
     categories = set(header_ctx.get("categories_present", []))
     if "works_council" in categories:
         return PHRASE_MAP["coverage_neutral"]
+    if "union_name" in categories and not hints.get("has_union_name_match"):
+        return PHRASE_MAP["coverage_union"]
     if hints.get("union_names"):
         return PHRASE_MAP["coverage_represented"]
     return PHRASE_MAP["coverage_union"]
@@ -895,6 +899,13 @@ def _first_header_for_category(header_ctx: Dict[str, Any], categories: set[str])
     return None
 
 
+def _has_header_category(header_ctx: Dict[str, Any], category: str) -> bool:
+    return any(
+        (item.get("category") == category)
+        for item in header_ctx.get("per_item", [])
+    )
+
+
 def _header_contract_phrase(headers: List[str]) -> Optional[str]:
     for header in headers:
         if not header:
@@ -919,18 +930,12 @@ def _extract_text_hints(
     compact_text = " | ".join([t for t in texts if t])
 
     union_names = _extract_union_mentions(text_values)
+    has_union_name_match = bool(union_names)
     if not union_names:
         union_match = DYNAMIC_UNION_REGEX.search(compact_text)
         if union_match:
             union_names = [union_match.group(0).strip(" ,.;:-")]
-
-    # Fallback: Check if any text values are in a column explicitly labeled as 'union_name'
-    # This catches acronyms like "AFA", "PAFCA" that aren't in the regex dictionary but are under a "Union" header.
-    for item in header_ctx.get("per_item", []):
-        if item.get("category") == "union_name" and item.get("val"):
-            val = item["val"].strip()
-            if val and val not in union_names:
-                union_names.append(val)
+            has_union_name_match = True
 
     has_union_signal = bool(UNION_REGEX.search(compact_text) or CONTRACT_CONTEXT_REGEX.search(compact_text))
     has_non_union = bool(NON_UNION_REGEX.search(compact_text))
@@ -938,6 +943,7 @@ def _extract_text_hints(
     return {
         "union_name": union_names[0] if union_names else None,
         "union_names": union_names,
+        "has_union_name_match": has_union_name_match,
         "has_union_signal": has_union_signal,
         "has_non_union": has_non_union,
     }
