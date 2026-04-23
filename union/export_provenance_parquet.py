@@ -50,6 +50,128 @@ def _safe_json_dumps(obj: Any) -> Optional[str]:
         return None
 
 
+def _entry_field(entry: Dict[str, Any], field: str) -> Optional[float]:
+    for bucket_name in ("reported_totals", "country_totals"):
+        bucket = entry.get(bucket_name) or {}
+        val = bucket.get(field)
+        if val is not None:
+            try:
+                return float(val)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _report_pcts(report: Dict[str, Any]) -> List[Tuple[str, float]]:
+    out: List[Tuple[str, float]] = []
+    for entry in report.get("countries") or []:
+        code = entry.get("country_code")
+        pct = _entry_field(entry, "pct")
+        if code and pct is not None:
+            out.append((code, pct))
+
+    global_entry = report.get("global") or {}
+    global_pct = global_entry.get("pct")
+    if global_pct is not None:
+        try:
+            out.append((str(global_entry.get("country_code") or "GLO"), float(global_pct)))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def _single_report_pct(report: Dict[str, Any]) -> Optional[float]:
+    pcts = []
+    seen = set()
+    for _, pct in _report_pcts(report):
+        key = round(float(pct), 6)
+        if key in seen:
+            continue
+        seen.add(key)
+        pcts.append(float(pct))
+    if len(pcts) == 1:
+        return pcts[0]
+    return None
+
+
+def _int_reported_pct(report: Dict[str, Any]) -> Optional[float]:
+    dom_code = report.get("domestic_country_code")
+    global_source_code = (report.get("global") or {}).get("global_source_code")
+
+    for entry in report.get("countries") or []:
+        code = entry.get("country_code")
+        pct = _entry_field(entry, "pct")
+        if pct is None:
+            continue
+        if code in INT_SET:
+            return float(pct)
+
+    if global_source_code in INT_SET:
+        global_pct = (report.get("global") or {}).get("pct")
+        if global_pct is not None:
+            return float(global_pct)
+
+    # If only one percent exists in the report, treat it as the international pct.
+    single_pct = _single_report_pct(report)
+    if single_pct is not None:
+        return single_pct
+
+    # Last-resort fallback: if there is a non-domestic pct and no domestic pct,
+    # surface the first non-domestic one.
+    for code, pct in _report_pcts(report):
+        if code != dom_code:
+            return float(pct)
+    return None
+
+
+def _tot_reported_pct(
+    report: Dict[str, Any],
+    total_count: Optional[float],
+    total_covered: Optional[float],
+) -> Optional[float]:
+    global_entry = report.get("global") or {}
+    global_pct = global_entry.get("pct")
+    if global_pct is not None:
+        try:
+            return float(global_pct)
+        except (TypeError, ValueError):
+            pass
+
+    global_cov = global_entry.get("cov")
+    global_tot = global_entry.get("tot")
+    if global_cov is not None and global_tot not in (None, 0):
+        try:
+            return round((float(global_cov) / float(global_tot)) * 100.0, 2)
+        except (TypeError, ValueError, ZeroDivisionError):
+            pass
+
+    dom_code = report.get("domestic_country_code")
+    countries = report.get("countries") or []
+    dom_pct = None
+    has_int_signal = False
+    for entry in countries:
+        code = entry.get("country_code")
+        pct = _entry_field(entry, "pct")
+        if code == dom_code and pct is not None and dom_pct is None:
+            dom_pct = float(pct)
+        elif code in INT_SET and pct is not None:
+            has_int_signal = True
+
+    if not has_int_signal and dom_pct is not None:
+        return dom_pct
+
+    single_pct = _single_report_pct(report)
+    if single_pct is not None:
+        return single_pct
+
+    if total_count not in (None, 0) and total_covered is not None:
+        try:
+            return round((float(total_covered) / float(total_count)) * 100.0, 2)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+    return None
+
+
 def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
     dom_code = report.get("domestic_country_code")
     if not dom_code:
@@ -863,6 +985,32 @@ def export_parquet(
         if global_cov is not None:
             total_cov = float(global_cov)
 
+        country_total_candidates: List[float] = []
+        for entry in countries:
+            tot = _entry_field(entry, "tot")
+            if tot is not None and tot > 0:
+                country_total_candidates.append(float(tot))
+
+        global_tot = global_entry.get("tot")
+        if global_tot is not None:
+            try:
+                country_total_candidates.append(float(global_tot))
+            except (TypeError, ValueError):
+                pass
+
+        tot_count = max(country_total_candidates) if country_total_candidates else None
+        if tot_count is None:
+            tot_count = total_cov
+
+        int_pct = _int_reported_pct(country_report)
+        if int_pct is None and int_cov is not None and int_tot not in (None, 0):
+            try:
+                int_pct = round((float(int_cov) / float(int_tot)) * 100.0, 2)
+            except (TypeError, ValueError, ZeroDivisionError):
+                int_pct = None
+
+        tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)
+
         lang_fallback_codes = [
             c.get("country_code")
             for c in (country_report.get("countries") or [])
@@ -888,7 +1036,9 @@ def export_parquet(
             "dom_count": dom_domestic_count,
             "dom_pct": dom_domestic_pct,
             "int_count": int_cov,
-            "tot_count": total_cov,
+            "int_pct": int_pct,
+            "tot_count": tot_count,
+            "tot_pct": tot_pct,
         }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
