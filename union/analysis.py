@@ -10548,6 +10548,50 @@ class Tracker:
             ),
             None,
         )
+
+        def _country_obj_has_quant_signal(country_obj: Optional[Dict[str, Any]]) -> bool:
+            if not country_obj:
+                return False
+            totals = country_obj.get("country_totals") or {}
+            reported = country_obj.get("reported_totals") or {}
+            for bucket in (totals, reported):
+                if any(bucket.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
+                    return True
+            return False
+
+        def _country_obj_is_explicit_non_coverage(country_obj: Optional[Dict[str, Any]]) -> bool:
+            if not country_obj:
+                return False
+            if country_obj.get("union_indicator") == 0:
+                return True
+            totals = country_obj.get("country_totals") or {}
+            reported = country_obj.get("reported_totals") or {}
+            for bucket in (totals, reported):
+                if bucket.get("pct") == 0:
+                    return True
+                if bucket.get("not_cov") is not None and bucket.get("cov") in (None, 0):
+                    return True
+            return False
+
+        domestic_country_obj = next(
+            (
+                c
+                for c in countries
+                if c.get("country_code") == self.domestic_country_code
+            ),
+            None,
+        )
+        international_country_obj = next(
+            (
+                c
+                for c in countries
+                if c.get("country_code") in INT_SET
+                and _country_obj_has_quant_signal(c)
+                and not _country_obj_is_explicit_non_coverage(c)
+            ),
+            None,
+        )
+
         global_obj = None
         if global_entry and any(
             v is not None
@@ -10571,6 +10615,20 @@ class Tracker:
                 country_table_keywords=None,
                 suppressed_items=None,
                 language_fallback=False,
+            )
+        elif (
+            international_country_obj
+            and not _country_obj_has_quant_signal(domestic_country_obj)
+            and not _country_obj_is_explicit_non_coverage(domestic_country_obj)
+        ):
+            global_obj = dict(international_country_obj)
+            global_obj["country_code"] = GeoCode.GLOBAL.value
+            global_obj["global_source"] = "promoted_from_international"
+            global_obj["global_source_code"] = international_country_obj.get(
+                "country_code"
+            )
+            global_obj["global_source_note"] = (
+                "International promoted to Global because domestic data was missing"
             )
 
         # Build Summary
