@@ -10170,6 +10170,15 @@ class Tracker:
                 country["country_table_keywords"] = country_table_keywords
             if suppressed_items:
                 country["suppressed_counts"] = suppressed_items
+            source_sentence_indices = sorted(
+                {
+                    e.sent_idx
+                    for e in country_entries + segment_entries
+                    if e.sent_idx is not None and e.sent_idx >= 0
+                }
+            )
+            if source_sentence_indices:
+                country["source_sentence_indices"] = source_sentence_indices
             # For explicit non-coverage rows, omit breakdown noise to keep payload compact.
             if union_indicator != 0 and method_breakdown:
                 country["method_breakdown"] = method_breakdown
@@ -10630,6 +10639,61 @@ class Tracker:
             global_obj["global_source_note"] = (
                 "International promoted to Global because domestic data was missing"
             )
+
+        # If a North American union signal produces the same unsplittable signal
+        # for both US and CA from the same sentence, keep only the domestic side
+        # in the provenance report.
+        if self.domestic_country_code in {"US", "CA"}:
+            other_na_code = "CA" if self.domestic_country_code == "US" else "US"
+
+            def _country_signal_signature(country_obj: Optional[Dict[str, Any]]) -> Tuple[Any, ...]:
+                if not country_obj:
+                    return tuple()
+                totals = country_obj.get("country_totals") or {}
+                reported = country_obj.get("reported_totals") or {}
+                source_sentence_indices = tuple(
+                    country_obj.get("source_sentence_indices") or []
+                )
+                return (
+                    source_sentence_indices,
+                    totals.get("tot"),
+                    totals.get("cov"),
+                    totals.get("not_cov"),
+                    totals.get("pct"),
+                    reported.get("tot"),
+                    reported.get("cov"),
+                    reported.get("not_cov"),
+                    reported.get("pct"),
+                    country_obj.get("union_indicator"),
+                )
+
+            domestic_country_obj = next(
+                (
+                    c
+                    for c in countries
+                    if c.get("country_code") == self.domestic_country_code
+                ),
+                None,
+            )
+            other_na_country_obj = next(
+                (
+                    c
+                    for c in countries
+                    if c.get("country_code") == other_na_code
+                ),
+                None,
+            )
+            if (
+                domestic_country_obj
+                and other_na_country_obj
+                and _country_signal_signature(domestic_country_obj)
+                == _country_signal_signature(other_na_country_obj)
+            ):
+                countries = [
+                    c
+                    for c in countries
+                    if c.get("country_code") != other_na_code
+                ]
 
         # Build Summary
         summary = {

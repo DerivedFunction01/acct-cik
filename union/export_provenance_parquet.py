@@ -725,7 +725,15 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
     if target_size <= 0:
         return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
 
-    def print_and_sample(series_col, num_per_group):
+    # Drop duplicated accessions up front so the sampler does not waste quota
+    # on repeated candidates from the same filing.
+    df_sample = df.drop_duplicates(subset=["accession"]).copy()
+
+    def print_and_sample(column_name: str, num_per_group: int):
+        if len(sampled_accessions) >= target_size:
+            return
+        remaining_mask = ~df_sample["accession"].astype(str).isin(sampled_accessions)
+        series_col = df_sample.loc[remaining_mask, column_name]
         counts = series_col.value_counts(dropna=False)
         logging.info("--- Category: %s ---", series_col.name)
         for val, count in counts.items():
@@ -738,16 +746,16 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
             else:
                 mask = series_col == val
 
-            pool = df[mask & (~df["accession"].isin(sampled_accessions))]
+            pool = df_sample.loc[remaining_mask & mask]
             if len(pool) > 0:
-                k = min(num_per_group, len(pool))
+                k = min(num_per_group, len(pool), target_size - len(sampled_accessions))
+                if k <= 0:
+                    return
                 chosen = pool.sample(n=k, random_state=42)
-                sampled_accessions.update(chosen["accession"])
+                sampled_accessions.update(chosen["accession"].astype(str))
 
     # Calculate rough distribution to hit the target target_size (~8 dimensions = ~40 buckets)
     n_per_stratum = max(1, target_size // 40)
-
-    df_sample = df.copy()
 
     # Setup stratified buckets for numeric and keyword variables
     df_sample["dom_pct_bucket"] = pd.cut(
@@ -785,26 +793,26 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
         .map({True: "fallback", False: "no_fallback"})
         .fillna("no_fallback")
     )
-    print_and_sample(df_sample["lang_fallback_bucket"], n_per_stratum)
-    print_and_sample(df_sample["year"], n_per_stratum)
-    print_and_sample(df_sample["dom_cov"], n_per_stratum)
-    print_and_sample(df_sample["int_cov"], n_per_stratum)
-    print_and_sample(df_sample["dom_pct_bucket"], n_per_stratum)
-    print_and_sample(df_sample["tot_count_bucket"], n_per_stratum)
-    print_and_sample(df_sample["int_count_bucket"], n_per_stratum)
-    print_and_sample(df_sample["dom_code_bucket"], n_per_stratum)
-    print_and_sample(df_sample["kw_bucket"], n_per_stratum)
+    print_and_sample("lang_fallback_bucket", n_per_stratum)
+    print_and_sample("year", n_per_stratum)
+    print_and_sample("dom_cov", n_per_stratum)
+    print_and_sample("int_cov", n_per_stratum)
+    print_and_sample("dom_pct_bucket", n_per_stratum)
+    print_and_sample("tot_count_bucket", n_per_stratum)
+    print_and_sample("int_count_bucket", n_per_stratum)
+    print_and_sample("dom_code_bucket", n_per_stratum)
+    print_and_sample("kw_bucket", n_per_stratum)
 
     # Fill any remaining samples with random selection to hit target size exactly
     remaining = target_size - len(sampled_accessions)
     if remaining > 0:
-        pool = df[~df["accession"].isin(sampled_accessions)]
+        pool = df_sample[~df_sample["accession"].astype(str).isin(sampled_accessions)]
         if len(pool) > 0:
             chosen = pool.sample(n=min(remaining, len(pool)), random_state=42)
-            sampled_accessions.update(chosen["accession"])
+            sampled_accessions.update(chosen["accession"].astype(str))
 
     logging.info("Total unique sampled accessions: %d", len(sampled_accessions))
-    return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
+    return df_sample[df_sample["accession"].astype(str).isin(sampled_accessions)].copy()
 
 
 def export_parquet(

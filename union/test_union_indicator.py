@@ -114,3 +114,33 @@ def test_shared_us_ca_signal_keeps_domestic_only_for_ca():
 
     assert "CA" in codes
     assert "US" not in codes
+
+
+def test_shared_us_ca_signal_does_not_collapse_across_sentences():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            covered_count=70.0,
+            total_count=100.0,
+            percentage=70.0,
+            is_union_record=True,
+            sent_idx=1,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="CA",
+            covered_count=70.0,
+            total_count=100.0,
+            percentage=70.0,
+            is_union_record=True,
+            sent_idx=2,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    codes = [c.get("country_code") for c in report.get("countries", [])]
+
+    assert "US" in codes
+    assert "CA" in codes
