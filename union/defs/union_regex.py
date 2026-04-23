@@ -157,7 +157,7 @@ WORKER_TERMS = [
     r"Fabricators?",
     r"Assemblers?",
     r"Welders?",
-    r"Pipefitters?",
+    r"(?:Pipe|Gas)\s*Fitters?",
     r"Boilermakers?",
     r"Millwrights?",
     r"Labor\s+[Ff]orce",
