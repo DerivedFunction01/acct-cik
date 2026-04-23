@@ -110,6 +110,36 @@ def _scenario_union_name_column_fallback() -> dict:
     return _build_table(headers, col_types, data, "Union Representation", 2026)
 
 
+def _scenario_union_header_covered_count() -> dict:
+    headers = {
+        1: "Union",
+        2: "Local",
+        3: "Employees Covered",
+        4: "Contract Start Date",
+        5: "Contract End Date",
+    }
+    col_types = {1: "text", 2: "text", 3: "value", 4: "date", 5: "date"}
+    data = [
+        [
+            "Laclede Gas Company (eastern Missouri)",
+            "XYZ",
+            "884",
+            "60",
+            "August 1, 2015",
+            "July 31, 2018",
+        ],
+        [
+            "Missouri Gas Energy (western Missouri)",
+            "ABC",
+            "11-6",
+            "858",
+            "August 1, 2015",
+            "July 31, 2018",
+        ],
+    ]
+    return _build_table(headers, col_types, data, "Labor Agreements", 2015)
+
+
 def _scenario_works_council_representation() -> dict:
     headers = {
         1: "Employees Covered by Works Councils",
@@ -241,6 +271,7 @@ def run_test():
         ("Union Count + Workforce %", _scenario_union_count_with_total_workforce_pct()),
         ("Union + Workforce %", _scenario_union_with_total_workforce_pct()),
         ("Agreement Words", _scenario_bargaining_agreement_words()),
+        ("Union Header + Covered Count", _scenario_union_header_covered_count()),
         ("Date Noise Only", _scenario_date_noise_only()),
     ]
 
