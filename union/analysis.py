@@ -11679,7 +11679,14 @@ class UnionAnalyzer:
 
                 # Handle Excluded Geographies (Implicit Coverage)
                 for idx, analysis in enumerate(
-                    [self.extractor.analyze_sentence(s, emp_count=ext_total) for s in p_sentences]
+                    [
+                        self.extractor.analyze_sentence(
+                            s,
+                            emp_count=ext_total,
+                            context_total=tracker.global_total or ext_total,
+                        )
+                        for s in p_sentences
+                    ]
                 ):
                     # We need to match the analysis to the result item to get coverage_data
                     # This is handled inside _analyze_block now to keep context aligned
@@ -13417,10 +13424,18 @@ class UnionAnalyzer:
             emp_count=external_total,
         )
         local_tracker.resolve()
+        context_total = local_tracker.global_total or global_max_workers or external_total
 
         results = []
         risk_items = []
-        analyzed_sentences = [self.extractor.analyze_sentence(s, emp_count=external_total) for s in sentences]
+        analyzed_sentences = [
+            self.extractor.analyze_sentence(
+                s,
+                emp_count=external_total,
+                context_total=context_total,
+            )
+            for s in sentences
+        ]
 
         # Context inheritance state
         last_geo_context = initial_geo_context

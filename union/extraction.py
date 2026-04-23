@@ -1148,9 +1148,15 @@ class UnionExtractor:
         # Use the centralized RegionMatcher for all geo/specific union logic
         self.matcher = RegionMatcher()
 
-    def analyze_sentence(self, text: str, emp_count: Optional[float] = None) -> SentenceAnalysis:
+    def analyze_sentence(
+        self,
+        text: str,
+        emp_count: Optional[float] = None,
+        context_total: Optional[float] = None,
+    ) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
         working_text = text  # Mutable text for masking
+        effective_emp_count = emp_count if emp_count is not None else context_total
 
         def dedupe_preserve_order(values: List[str]) -> List[str]:
             seen = set()
@@ -1708,8 +1714,8 @@ class UnionExtractor:
         # Remove generic numbers that are likely footnotes or list markers not removed
         all_counts = analysis.worker_counts + analysis.numbers
         if all_counts:
-            if emp_count is not None:
-                max_allowed = (emp_count + 1) * 1.05
+            if effective_emp_count is not None:
+                max_allowed = (effective_emp_count + 1) * 1.05
                 analysis.worker_counts = [
                     n for n in analysis.worker_counts if n <= max_allowed
                 ]
@@ -1726,7 +1732,7 @@ class UnionExtractor:
 
             all_counts_filtered = analysis.worker_counts + analysis.numbers
             if all_counts_filtered:
-                eff_max = max(max(all_counts_filtered), emp_count or 0)
+                eff_max = max(max(all_counts_filtered), effective_emp_count or 0)
                 # For large counts (>2k), drop numbers < 10 as likely noise/footnotes
                 if eff_max >= 2000:
                     noise_threshold = 10

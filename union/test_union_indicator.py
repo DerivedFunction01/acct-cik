@@ -7,6 +7,13 @@ from analysis import (
     has_year_mismatch,
 )
 from extraction import SentenceAnalysis
+from defs.text_cleaner import (
+    CompanyCleaner,
+    ConcisenessCleaner,
+    ContextualNumberCleaner,
+    CurrencyRemover,
+    MinimalTextCleaner,
+)
 from defs.region_regex import Region
 
 
@@ -183,3 +190,10 @@ def test_country_report_surfaces_year_mismatch_flag():
     report = tracker.build_country_provenance_report()
 
     assert report.get("year_mismatch") is True
+
+
+def test_context_total_fallback_drops_small_noise_numbers():
+    sentence = "We had 50000 employees and footnote 1."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence, context_total=50000)
+
+    assert 1.0 not in analysis.numbers
