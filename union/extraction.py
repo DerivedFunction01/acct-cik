@@ -159,12 +159,16 @@ worker_term_pattern = build_alternation(WORKER_TERMS + [r"managers?", r"officers
 # Gap that avoids consuming numbers (words must start with non-digit)
 non_numeric_gap = r"(?:\b(?!and\b)[^\W\d][\w\.-]*\s+){0,3}"
 GAP = r"\s+(?:[\w-]+\s+){0,3}"
+# "in" is too permissive for tiny geo breakouts like "4 in Canada", so only
+# treat it as a worker-count connector when the number is plausibly a headcount.
+LARGE_COUNT = r"(?:\d{3,}|\d{1,3}(?:,\d{3})+)"
 WORKER_COUNT_REGEX = build_regex(
     [
-        rf"(?:employ(?:ed|s)?|have|had)\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
+        rf"employ(?:ed|s)?\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
+        rf"(?:have|had|has)\s+{non_numeric_gap}({LARGE_COUNT})",
         rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}{worker_term_pattern}",
         rf"{worker_term_pattern}\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
-        rf"(\d+(?:\.\d+)?)\s+(?:in|are|were|have|had)",
+        rf"({LARGE_COUNT})\s+(?:in|are|were)",
         rf"(\d+(?:\.\d+)?)\s+{build_alternation(COVERAGE_VERBS)}",
     ]
 )
