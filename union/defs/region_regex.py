@@ -734,6 +734,8 @@ NORTH_AMERICA = {
             "International Association of Machinists",
             "International Union of Bricklayers and Allied Craftworkers",
             "AFL-CIO-CLC",
+            "United Association",
+            "UA Local",
         ],
         code=GeoCode.NORTH_AMERICA.value,
     ),
