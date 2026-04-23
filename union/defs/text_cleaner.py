@@ -1367,7 +1367,7 @@ class ContextualNumberCleaner:
         contract_context = (
             r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining\s+(?:agreements?|contracts?))\s+)?"
         )
-        contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?"])
+        contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?", r"unions"])
 
         self.small_contract_regex = re.compile(
             rf"\b(?:{number_range}|{percent_range})\s+((?:{contract_context})?{contract_nouns})\b",
