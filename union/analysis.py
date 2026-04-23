@@ -120,6 +120,39 @@ def get_effective_counts(analysis: SentenceAnalysis) -> List[float]:
     return counts
 
 
+def get_effective_years(
+    analysis: SentenceAnalysis, reporting_year: Optional[int] = None
+) -> List[int]:
+    """
+    Return the years that should drive temporal logic for a sentence.
+
+    If the sentence only has a single year and that year is exactly one less
+    than the reporting year, treat it as the present reporting year unless the
+    sentence explicitly signals historical context.
+    """
+    years = sorted(set(analysis.years))
+    if not years or reporting_year is None:
+        return years
+
+    if len(years) == 1 and years[0] == reporting_year - 1 and not analysis.has_historical:
+        return [reporting_year]
+
+    return years
+
+
+def has_year_mismatch(
+    analysis: SentenceAnalysis, reporting_year: Optional[int] = None
+) -> bool:
+    """
+    True when the sentence only exposes a lone prior-year date that we are
+    treating as the reporting year.
+    """
+    if reporting_year is None:
+        return False
+    years = sorted(set(analysis.years))
+    return len(years) == 1 and years[0] == reporting_year - 1 and not analysis.has_historical
+
+
 UNION_MATCH_TYPES = [
     MatchType.UNION_TERM,
     MatchType.COVERAGE_TERM,
@@ -4498,6 +4531,7 @@ class Tracker:
         self._limiter_countries: Set = {"CN", "VN"}
         self.is_using_virtual: bool = False
         self.domestic_is_negated: bool = False
+        self.year_mismatch_detected: bool = False
         # Countries created via INT_* fallback mapping without explicit mention.
         self.language_fallback_countries: Set[str] = set()
         self.census_log: List[str] = []
@@ -10750,6 +10784,7 @@ class Tracker:
             "countries": countries,
             "agg": agg,
             "global": global_obj,
+            "year_mismatch": self.year_mismatch_detected,
             "summary": summary,
             "global_keywords": global_keywords,
             "global_keyword_count": len(global_keywords),
@@ -11024,8 +11059,11 @@ class GeoPopulationResolver:
 
             # Skip historical counts
             is_historical = False
-            if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
+            effective_years = get_effective_years(analysis, reporting_year)
+            if has_year_mismatch(analysis, reporting_year):
+                tracker.year_mismatch_detected = True
+            if reporting_year and effective_years:
+                if all(y < reporting_year for y in effective_years):
                     is_historical = True
             if (is_historical or analysis.has_historical) and not analysis.has_current:
                 continue
@@ -11127,10 +11165,7 @@ class GeoPopulationResolver:
             # Temporal Alignment (2 Years, 2 Counts)
             # "In 2009 we had 100, in 2010 we had 110"
             matched_temporal_count = None
-            if (
-                len(analysis.years) == len(effective_counts)
-                and len(effective_counts) >= 2
-            ):
+            if len(effective_years) == len(effective_counts) and len(effective_counts) >= 2:
                 y_matches = sorted(
                     [m for m in analysis._matches if m["type"] == MatchType.YEAR],
                     key=lambda x: x["span"][0],
@@ -11146,7 +11181,7 @@ class GeoPopulationResolver:
                 )
 
                 if len(y_matches) == len(c_matches):
-                    target_y = reporting_year if reporting_year else max(analysis.years)
+                    target_y = reporting_year if reporting_year else max(effective_years)
                     for y_m, c_m in zip(y_matches, c_matches):
                         if not (target_y - 1 <= y_m["val"] <= target_y + 1):
                             continue
@@ -11331,8 +11366,9 @@ class UnionAnalyzer:
             analysis = self.extractor.analyze_sentence(sent, emp_count=emp_count)
 
             is_historical = False
-            if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
+            effective_years = get_effective_years(analysis, reporting_year)
+            if reporting_year and effective_years:
+                if all(y < reporting_year for y in effective_years):
                     is_historical = True
             if (is_historical or analysis.has_historical) and not analysis.has_current:
                 continue
@@ -13589,8 +13625,9 @@ class UnionAnalyzer:
             # 1. Historical Check
             is_historical = False
             years_indicate_past = False
-            if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
+            effective_years = get_effective_years(analysis, reporting_year)
+            if reporting_year and effective_years:
+                if all(y < reporting_year for y in effective_years):
                     years_indicate_past = True
 
             if (
@@ -14364,8 +14401,9 @@ class UnionAnalyzer:
             is_historical = False
             # Historical Check for Risks
             years_indicate_past = False
-            if reporting_year and analysis.years:
-                if all(y < reporting_year for y in analysis.years):
+            effective_years = get_effective_years(analysis, reporting_year)
+            if reporting_year and effective_years:
+                if all(y < reporting_year for y in effective_years):
                     years_indicate_past = True
 
             if (

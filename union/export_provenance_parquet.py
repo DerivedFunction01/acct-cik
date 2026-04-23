@@ -794,6 +794,13 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
         .fillna("no_fallback")
     )
     print_and_sample("lang_fallback_bucket", n_per_stratum)
+    if "year_mismatch" in df_sample.columns:
+        df_sample["year_mismatch_bucket"] = (
+            df_sample["year_mismatch"]
+            .map({True: "mismatch", False: "no_mismatch"})
+            .fillna("no_mismatch")
+        )
+        print_and_sample("year_mismatch_bucket", n_per_stratum)
     print_and_sample("year", n_per_stratum)
     print_and_sample("dom_cov", n_per_stratum)
     print_and_sample("int_cov", n_per_stratum)
@@ -1028,6 +1035,7 @@ def export_parquet(
             "domestic_country_code": country_report.get("domestic_country_code"),
             "dom_cov": summary.get("dom_cov") if isinstance(summary, dict) else None,
             "int_cov": summary.get("int_cov") if isinstance(summary, dict) else None,
+            "year_mismatch": bool(country_report.get("year_mismatch")),
             "summary_cov": _safe_json_dumps(summary_cov_flat),
             "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
             "has_language_fallback": bool(lang_fallback_codes),

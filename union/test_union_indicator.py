@@ -1,4 +1,12 @@
-from analysis import Entry, Scope, Tracker, UnionAnalyzer
+from analysis import (
+    Entry,
+    Scope,
+    Tracker,
+    UnionAnalyzer,
+    get_effective_years,
+    has_year_mismatch,
+)
+from extraction import SentenceAnalysis
 from defs.region_regex import Region
 
 
@@ -144,3 +152,34 @@ def test_shared_us_ca_signal_does_not_collapse_across_sentences():
 
     assert "US" in codes
     assert "CA" in codes
+
+
+def test_previous_year_promotes_to_reporting_year_without_historical_language():
+    analysis = SentenceAnalysis(text="As of January 1, 2019, the company had 100 employees.")
+    analysis.years = [2019]
+
+    assert get_effective_years(analysis, reporting_year=2020) == [2020]
+
+
+def test_previous_year_stays_previous_with_historical_language():
+    analysis = SentenceAnalysis(text="During the preceding fiscal year, the company had 100 employees.")
+    analysis.years = [2019]
+    analysis.has_historical = True
+
+    assert get_effective_years(analysis, reporting_year=2020) == [2019]
+
+
+def test_year_mismatch_helper_detects_lone_prior_year():
+    analysis = SentenceAnalysis(text="As of January 1, 2019, the company had 100 employees.")
+    analysis.years = [2019]
+
+    assert has_year_mismatch(analysis, reporting_year=2020) is True
+
+
+def test_country_report_surfaces_year_mismatch_flag():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.year_mismatch_detected = True
+
+    report = tracker.build_country_provenance_report()
+
+    assert report.get("year_mismatch") is True
