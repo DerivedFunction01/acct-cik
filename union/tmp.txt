@@ -5,66 +5,66 @@ Testing TechAdvance Manufacturing Corp LTD. Fictional 10-K Filing (Reporting Yea
 ================================================================================
 Cleaned Text:
 
-As of <2023>, we have approximately 39000 employees, nearly 33000 of whom are located in the United States. Of our US employees, 22900 are hourly, with unions representing approximately 14200 employees.
+Our total employees consist of 458 employees in Canada and 1035 employees in the US, including 665 unionized workers
 
 ================================================================================
 Total Sentences Extracted: 2
 
 [
   {
-    "sentence": "As of <2023>, we have approximately 39000 employees, nearly 33000 of whom are located in the United States.",
-    "keyword_matched": null,
+    "sentence": "Our total employees consist of 458 employees in Canada and 1035 employees in the US, including 665 unionized workers",
+    "keyword_matched": [
+      "unionized"
+    ],
     "is_table_generated": false,
     "geographic_context": {
       "region": "North America",
       "countries": [
         {
-          "name": "United States",
-          "code": "US",
+          "name": "Canada",
+          "code": "CA",
           "locations": []
         }
       ],
-      "regions": [],
       "specificity": "EXPLICIT",
-      "explicit_countries": null,
+      "explicit_countries": [
+        "Canada"
+      ],
+      "regions": [],
       "unusual_union_region_combo": false,
       "union_names_mentioned": null,
-      "union_name_indicator": null,
-      "note": null,
-      "union_names_map": {},
-      "domestic_negated": false
+      "note": "Region split"
     },
     "coverage_data": {
       "percentage": null,
       "employee_count_covered": null,
       "employee_count_not_covered": null,
-      "employee_count_total": null,
+      "employee_count_total": 458.0,
       "negated": false,
       "negation_type": null,
-      "type": "NONE",
+      "type": "CALCULATED_FROM_COUNTS",
       "qualitative_bounds": null,
-      "note": null,
+      "note": "Split from list | Mapped to Canada (Linked)",
       "temporal_scope": "CURRENT"
     },
     "lookup_totals": {
-      "North America": 39000.0,
-      "Global": 39000.0,
-      "US": 39000.0,
-      "GLO": 39000.0
+      "North America": 1123.0,
+      "CA": 458.0,
+      "US": 665.0
     },
-    "census_note": "Updates lookup: GLO: 39000.0 | Update sources: GLO: mapped_counts (prev=0, prior_max=0) | Geo Strategy: Linked Geo Counts, Pre-Geo Total | Union Strategy: Exact Parallel",
+    "census_note": "Updates lookup: CA: 458.0, US: 665.0 | Update sources: CA: mapped_counts (prev=0, prior_max=458.0), US: mapped_counts (prev=0, prior_max=665.0) | Geo Strategy: Exact Parallel | Union Strategy: Exact Parallel",
     "sentence_index": 0,
     "worker_type_map": {},
     "worker_types": [],
     "is_remaining": false,
-    "is_union": false,
-    "potential_total": 39000.0,
-    "explicit_pct_entries": []
+    "is_union": true,
+    "explicit_pct_entries": [],
+    "is_split_item": true
   },
   {
-    "sentence": "Of our US employees, 22900 are hourly, with unions representing approximately 14200 employees.",
+    "sentence": "Our total employees consist of 458 employees in Canada and 1035 employees in the US, including 665 unionized workers",
     "keyword_matched": [
-      "unions"
+      "unionized"
     ],
     "is_table_generated": false,
     "geographic_context": {
@@ -76,65 +76,63 @@ Total Sentences Extracted: 2
           "locations": []
         }
       ],
-      "regions": [],
       "specificity": "EXPLICIT",
-      "explicit_countries": null,
+      "explicit_countries": [
+        "United States"
+      ],
+      "regions": [],
       "unusual_union_region_combo": false,
       "union_names_mentioned": null,
-      "union_name_indicator": null,
-      "note": null,
-      "union_names_map": {},
-      "domestic_negated": false
+      "note": "Region split"
     },
     "coverage_data": {
-      "percentage": 100.0,
-      "employee_count_covered": 22900.0,
+      "percentage": null,
+      "employee_count_covered": null,
       "employee_count_not_covered": null,
-      "employee_count_total": 22900.0,
+      "employee_count_total": 1035.0,
       "negated": false,
       "negation_type": null,
       "type": "CALCULATED_FROM_COUNTS",
       "qualitative_bounds": null,
-      "note": "Global Context; Propagated covered Backward; Assigned 22900.0 to covered; Skipped subset covered 14200.0 (subset indicator near ', with'); Inferred total 22900.0 from parts | Calculated from count 22900.0 / total 22900.0",
+      "note": "Split from list | Mapped to United States (Linked)",
       "temporal_scope": "CURRENT"
     },
     "lookup_totals": {
-      "North America": 39000.0,
-      "Global": 39000.0,
-      "US": 39000.0,
-      "GLO": 39000.0
+      "North America": 1123.0,
+      "CA": 458.0,
+      "US": 665.0
     },
-    "census_note": null,
-    "sentence_index": 1,
-    "worker_type_map": {
-      "hourly": 22900.0
-    },
-    "worker_types": [
-      "hourly"
-    ],
+    "census_note": "Updates lookup: CA: 458.0, US: 665.0 | Update sources: CA: mapped_counts (prev=0, prior_max=458.0), US: mapped_counts (prev=0, prior_max=665.0) | Geo Strategy: Exact Parallel | Union Strategy: Exact Parallel",
+    "sentence_index": 0,
+    "worker_type_map": {},
+    "worker_types": [],
     "is_remaining": false,
     "is_union": true,
-    "potential_total": 37100.0,
-    "explicit_pct_entries": []
+    "explicit_pct_entries": [],
+    "is_split_item": true
   }
 ]
 
 CALCULATED SUMMARY:
 
 {
-  "likely_percentage": 58.72,
+  "likely_percentage": 0.0,
   "secondary_percentage": null,
   "derived_regional_coverage": {
-    "North America": 58.72,
-    "Domestic": 58.72,
-    "Global": 58.72
+    "North America": 0.0,
+    "Domestic": 0.0,
+    "International": 0.0,
+    "Global": 0.0
   },
-  "global_covered_count": 22900.0,
-  "global_total_count": 39000.0,
-  "measured_population_coverage": 100.0,
+  "global_covered_count": 0.0,
+  "global_total_count": 1493.0,
+  "measured_population_coverage": null,
   "country_keywords": {
+    "CA": {
+      "unionized": 1
+    },
     "US": {
-      "unions": 1
+      "unionized": 1
     }
   },
   "country_table_keywords": {},
@@ -148,17 +146,22 @@ CALCULATED SUMMARY:
     "\n[STEP 1] Aggregating Regions...",
     "\n  Processing Region: North America",
     "    [A] Aggregating country-level entries for North America...",
-    "      Found 1 country entries",
+    "      Found 2 country entries",
+    "        Processing country: CA",
+    "          \u2192 Checking segments for CA...",
+    "            Found 1 segments",
+    "            \u2192 Aggregated segments: 0/458.0",
+    "          \u2713 Added to bottom-up total. Sum now: 0.0/458.0",
     "        Processing country: US",
     "          \u2192 Checking segments for US...",
     "            Found 1 segments",
-    "            \u2192 Aggregated segments: 22900.0/39000.0",
-    "          \u2713 Added to bottom-up total. Sum now: 22900.0/39000.0",
+    "            \u2192 Aggregated segments: 0/1035.0",
+    "          \u2713 Added to bottom-up total. Sum now: 0.0/1493.0",
     "    [B] Checking region-level entry...",
     "      \u2717 No region-level entry found",
-    "      \u2192 Using Bottom-Up Aggregation: 22900.0/39000.0",
-    "    \u2713 Region North America data: 22900.0/39000.0",
-    "      \u2192 Stored in derived_regional_coverage: 58.72%",
+    "      \u2192 Using Bottom-Up Aggregation: 0.0/1493.0",
+    "    \u2713 Region North America data: 0.0/1493.0",
+    "      \u2192 Stored in derived_regional_coverage: 0.0%",
     "\n  Processing Region: Latin America",
     "    [A] Aggregating country-level entries for Latin America...",
     "      Found 0 country entries",
@@ -191,45 +194,46 @@ CALCULATED SUMMARY:
     "\n[STEP 2] Checking for Explicit Global Entry...",
     "  \u2717 No global entry found",
     "\n[STEP 3] Finalizing Global Metrics...",
-    "  Measured population coverage: 100.0% (39000.0/39000.0)",
-    "  Bottom-up aggregated totals: 22900.0/39000.0",
-    "  \u2713 Using bottom-up data: 58.72% (22900.0/39000.0)",
+    "  Bottom-up aggregated totals: 0.0/1493.0",
+    "  \u2713 Using bottom-up data: 0.0% (0.0/1493.0)",
     "\n[STEP 4] Calculating Domestic & International Metrics...",
-    "  \u2713 Domestic (US): 58.72% (22900/39000)",
+    "  \u2713 Domestic (US): 0.0% (0/1035)",
+    "  \u2713 Derived International: 0.0% (0/458) [Global (0/1493) - Domestic (0/1035)]",
     "\n================================================================================",
     "FINAL METRICS:",
-    "  likely_percentage: 58.72",
+    "  likely_percentage: 0.0",
     "  secondary_percentage: None",
-    "  measured_population_coverage: 100.0",
-    "  global_covered_count: 22900.0",
-    "  global_total_count: 39000.0",
-    "  derived_regional_coverage: {'North America': 58.72, 'Domestic': 58.72, 'Global': 58.72}",
+    "  measured_population_coverage: None",
+    "  global_covered_count: 0.0",
+    "  global_total_count: 1493.0",
+    "  derived_regional_coverage: {'North America': 0.0, 'Domestic': 0.0, 'International': 0.0, 'Global': 0.0}",
     "================================================================================"
   ],
   "resolution": [
+    "Updated region 'North America' from 1035.0 to 1123.0 based on country sum.",
+    "Updated Country Total for US from 665.0 to 1035.0 based on sum of disjoint segments.",
+    "Injected placeholder for mentioned country: CA in North America",
     "Injected placeholder for mentioned country: US in North America",
-    "Backfilled total for US: 39000.0"
+    "Backfilled total for CA: 458.0",
+    "Backfilled total for US: 1035.0",
+    "Deduped denominator for CA::Segment_0: removed 458.0 in COUNTRY:CA (keeper=CA, basis~458.0).",
+    "Deduped denominator for US::Segment_1: removed 1035.0 in COUNTRY:US (keeper=US, basis~1035.0)."
   ],
   "census": [
-    "[PRE-MAPPED] mapped_counts={'US': 33000.0, 'GLO': 39000.0}",
-    "update(count=33000.0, region=North America, codes=['US'])",
-    "update(count=39000.0, region=Global, codes=['GLO'])",
-    "[CENSUS] sent='As of <2023>, we have approximately 39000 employees, nearly ' | effective_counts=[39000.0, 33000.0] | range_avg=None | summation=None | final_count=39000.0",
-    "update(count=39000.0, region=North America, codes=['US'])",
-    "  -> after update: country_totals={'US': 39000.0} | region_totals={'North America': 39000.0, 'Global': 39000.0}",
-    "[PRE-MAPPED] mapped_counts={'US': 22900.0}",
-    "update(count=22900.0, region=North America, codes=['US'])",
-    "[CENSUS] sent='Of our US employees, 22900 are hourly, with unions represent' | effective_counts=[22900.0, 14200.0] | range_avg=None | summation=None | final_count=22900.0",
-    "update(count=22900.0, region=North America, codes=['US'])",
-    "  -> after update: country_totals={'US': 39000.0} | region_totals={'North America': 39000.0, 'Global': 39000.0}"
+    "[PRE-MAPPED] mapped_counts={'CA': 458.0, 'US': 665.0}",
+    "update(count=458.0, region=North America, codes=['CA'])",
+    "update(count=665.0, region=North America, codes=['US'])",
+    "[CENSUS] sent='Our total employees consist of 458 employees in Canada and 1' | effective_counts=[458.0, 1035.0, 665.0] | range_avg=None | summation=None | final_count=1035.0",
+    "update(count=1035.0, region=North America, codes=['CA', 'US'])",
+    "  -> after update: country_totals={'CA': 458.0, 'US': 665.0} | region_totals={'North America': 1035.0}"
   ],
   "entries": [
     {
-      "covered_count": 22900.0,
+      "covered_count": null,
       "not_covered_count": null,
-      "percentage": 100.0,
-      "total_count": 22900.0,
-      "key": "US::Segment_0",
+      "percentage": null,
+      "total_count": null,
+      "key": "CA::Segment_0",
       "is_qualitative": false,
       "is_explicit": null,
       "qualitative_bounds": null,
@@ -237,7 +241,46 @@ CALCULATED SUMMARY:
       "is_negated": false,
       "is_union_record": true,
       "scope": "SEGMENT",
-      "sent_idx": 1,
+      "sent_idx": 0,
+      "related_geo_codes": [
+        "CA"
+      ],
+      "is_dummy_percent": false,
+      "ambiguity_multiplier": null,
+      "is_exception_entry": false,
+      "exception_limit_percent": null,
+      "is_exception_remainder": false,
+      "is_parent_breakdown": false,
+      "is_covered_breakdown": false,
+      "is_not_covered_breakdown": false,
+      "percentage_source": "CALCULATED_PERCENTAGE",
+      "covered_count_source": null,
+      "not_covered_count_source": null,
+      "total_count_source": null,
+      "denominator_source": null,
+      "percentage_source_type": "CALCULATED",
+      "covered_count_source_type": null,
+      "not_covered_count_source_type": null,
+      "total_count_source_type": "UNKNOWN",
+      "denominator_source_type": "UNKNOWN",
+      "source_notes": [
+        "Removed duplicate denominator 458.0 in COUNTRY:CA (kept CA total ~458.0)."
+      ]
+    },
+    {
+      "covered_count": null,
+      "not_covered_count": null,
+      "percentage": null,
+      "total_count": null,
+      "key": "US::Segment_1",
+      "is_qualitative": false,
+      "is_explicit": null,
+      "qualitative_bounds": null,
+      "is_remaining": false,
+      "is_negated": false,
+      "is_union_record": true,
+      "scope": "SEGMENT",
+      "sent_idx": 0,
       "related_geo_codes": [
         "US"
       ],
@@ -250,22 +293,59 @@ CALCULATED SUMMARY:
       "is_covered_breakdown": false,
       "is_not_covered_breakdown": false,
       "percentage_source": "CALCULATED_PERCENTAGE",
-      "covered_count_source": "EXPLICIT_COVERED_COUNT",
+      "covered_count_source": null,
       "not_covered_count_source": null,
-      "total_count_source": "EXPLICIT_SCOPE_TOTAL",
-      "denominator_source": "EXPLICIT_SCOPE_TOTAL",
+      "total_count_source": null,
+      "denominator_source": null,
       "percentage_source_type": "CALCULATED",
-      "covered_count_source_type": "EXPLICIT",
+      "covered_count_source_type": null,
       "not_covered_count_source_type": null,
-      "total_count_source_type": "EXPLICIT",
-      "denominator_source_type": "EXPLICIT",
+      "total_count_source_type": "UNKNOWN",
+      "denominator_source_type": "UNKNOWN",
+      "source_notes": [
+        "Removed duplicate denominator 1035.0 in COUNTRY:US (kept US total ~1035.0)."
+      ]
+    },
+    {
+      "covered_count": null,
+      "not_covered_count": null,
+      "percentage": null,
+      "total_count": 458.0,
+      "key": "CA",
+      "is_qualitative": false,
+      "is_explicit": false,
+      "qualitative_bounds": null,
+      "is_remaining": false,
+      "is_negated": false,
+      "is_union_record": false,
+      "scope": "COUNTRY",
+      "sent_idx": -1,
+      "related_geo_codes": [],
+      "is_dummy_percent": false,
+      "ambiguity_multiplier": null,
+      "is_exception_entry": false,
+      "exception_limit_percent": null,
+      "is_exception_remainder": false,
+      "is_parent_breakdown": false,
+      "is_covered_breakdown": false,
+      "is_not_covered_breakdown": false,
+      "percentage_source": null,
+      "covered_count_source": null,
+      "not_covered_count_source": null,
+      "total_count_source": null,
+      "denominator_source": null,
+      "percentage_source_type": null,
+      "covered_count_source_type": null,
+      "not_covered_count_source_type": null,
+      "total_count_source_type": null,
+      "denominator_source_type": null,
       "source_notes": []
     },
     {
       "covered_count": null,
       "not_covered_count": null,
       "percentage": null,
-      "total_count": 39000.0,
+      "total_count": 1035.0,
       "key": "US",
       "is_qualitative": false,
       "is_explicit": false,
@@ -308,46 +388,29 @@ COUNTRY REPORT:
   "countries": [
     {
       "country_code": "US",
-      "union_indicator": 1,
-      "country_totals": {
-        "tot": 39000.0,
-        "cov": 22900.0,
-        "not_cov": 16100.0,
-        "pct": 58.72
-      },
-      "reported_totals": {
-        "tot": 22900.0,
-        "cov": 22900.0,
-        "not_cov": null,
-        "pct": null
-      },
+      "union_indicator": 0,
       "country_keywords": {
-        "unions": 1
+        "unionized": 1
       },
-      "method_breakdown": {
-        "EXPLICIT": {
-          "tot": 22900.0,
-          "cov": 22900.0,
-          "not_cov": null,
-          "pct_vals": [],
-          "n": 1
-        },
-        "CALCULATED": {
-          "tot": null,
-          "cov": null,
-          "not_cov": null,
-          "pct_vals": [
-            100.0
-          ],
-          "n": 1
-        }
-      }
+      "source_sentence_indices": [
+        0
+      ]
     }
   ],
   "agg": [],
   "global": null,
+  "international": null,
+  "year_mismatch": false,
   "summary": {
     "cov": {
+      "EUR": [],
+      "NA": [],
+      "APAC": [],
+      "LATAM": [],
+      "MEA": [],
+      "INT": []
+    },
+    "not_cov": {
       "EUR": [],
       "NA": [
         "US"
@@ -357,19 +420,11 @@ COUNTRY REPORT:
       "MEA": [],
       "INT": []
     },
-    "not_cov": {
-      "EUR": [],
-      "NA": [],
-      "APAC": [],
-      "LATAM": [],
-      "MEA": [],
-      "INT": []
-    },
-    "dom_cov": true,
+    "dom_cov": false,
     "int_cov": false
   },
   "global_keywords": [
-    "unions"
+    "unionized"
   ],
   "global_keyword_count": 1,
   "global_table_keywords": [],
