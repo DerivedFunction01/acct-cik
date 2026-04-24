@@ -9,7 +9,14 @@ from typing import List, Optional, Set, Tuple, Any
 from tqdm import tqdm
 
 # Import definitions
-from defs.union_regex import EXCLUSION_REGEX, UNION_REGEX, DYNAMIC_UNION_REGEX, RISK_REGEX, LOOSE_DYNAMIC_UNION_REGEX
+from defs.union_regex import (
+    EXCLUSION_REGEX,
+    UNION_REGEX,
+    DYNAMIC_UNION_REGEX,
+    RISK_REGEX,
+    LOOSE_DYNAMIC_UNION_REGEX,
+    LABOR_CONTRACT_BYPASS_REGEX,
+)
 from defs.region_regex import (
     NORTH_AMERICA,
     EUROPE,
@@ -102,6 +109,7 @@ HARD_EXCLUSION_TERMS = [
     r"trademarks?"
 ]
 HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
+CUSTOMER_CLIENT_HARD_EXCLUSION_REGEX = build_regex([r"customers", r"clients"])
 
 # =============================================================================
 # REGEX COMPILATION
@@ -419,6 +427,13 @@ def is_relevant_paragraph(text: str, allow_risk: bool = False) -> bool:
 
     return False
 
+
+def _should_bypass_customer_client_exclusion(text: str) -> bool:
+    return bool(
+        CUSTOMER_CLIENT_HARD_EXCLUSION_REGEX.search(text)
+        and LABOR_CONTRACT_BYPASS_REGEX.search(text)
+    )
+
 def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False, home_country: Optional[str] = None) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
@@ -510,7 +525,12 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         # Normalize whitespace
         cleaned_block = " ".join(cleaned_block.split())
 
-        if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block) or HARD_EXCLUSION_REGEX.search(cleaned_block):
+        if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
+            prev_census_block = None
+            prev_census_raw = None
+            continue
+
+        if HARD_EXCLUSION_REGEX.search(cleaned_block) and not _should_bypass_customer_client_exclusion(cleaned_block):
             prev_census_block = None
             prev_census_raw = None
             continue

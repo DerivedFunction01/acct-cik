@@ -485,6 +485,25 @@ CONTRACT_CLAUSE_TERMS = [
 ]
 CONTRACT_CLAUSE_REGEX = build_regex(CONTRACT_CLAUSE_TERMS)
 
+LABOR_CONTRACT_BYPASS_TERMS = [
+    build_compound(
+        [CORE.BARGAIN],
+        [r"agreements?"],
+        sep_prefix=r"[\s-]+",
+    ),
+    build_compound(
+        [CORE.LABOR],
+        [r"contracts?"],
+        sep_prefix=r"[\s-]+",
+    ),
+    build_compound(
+        [CORE.UNION],
+        [r"agreements?", r"contracts?"],
+        sep_prefix=r"[\s-]+",
+    ),
+]
+LABOR_CONTRACT_BYPASS_REGEX = build_regex(LABOR_CONTRACT_BYPASS_TERMS)
+
 LEGAL_PROCESS_TERMS = [
     r"national\s+labou?r\s+relations?\s+board",
     r"NLRB",

@@ -8,6 +8,7 @@ from analysis import (
 )
 from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
+from defs.union_regex import LABOR_CONTRACT_BYPASS_REGEX
 from defs.text_cleaner import (
     CompanyCleaner,
     ConcisenessCleaner,
@@ -250,6 +251,37 @@ def test_filter_content_keeps_capitalized_agreement_lines_split():
     assert len(filtered) >= 2
     assert "United Steel" not in filtered[0]
     assert any("United Steel" in block for block in filtered[1:])
+
+
+def test_filter_content_allows_customer_language_with_labor_contract_context():
+    blocks = [
+        "Our customers include a union, but the employees work under collective bargaining agreements with the following unions: Allied International Union and Special & Superior Officers Benevolent Association.",
+    ]
+
+    init_worker()
+    filtered = filter_content(blocks, year=1995, home_country="US")[0]
+
+    assert filtered
+    assert any("collective bargaining agreements" in block for block in filtered)
+
+
+def test_filter_content_still_excludes_customer_language_without_labor_context():
+    blocks = [
+        "Our customers include a union and our services are sold to clients across the country.",
+    ]
+
+    init_worker()
+    filtered = filter_content(blocks, year=1995, home_country="US")[0]
+
+    assert not filtered
+
+
+def test_labor_contract_bypass_regex_is_unambiguous():
+    assert LABOR_CONTRACT_BYPASS_REGEX.search("collective bargaining agreements")
+    assert LABOR_CONTRACT_BYPASS_REGEX.search("union contracts")
+    assert LABOR_CONTRACT_BYPASS_REGEX.search("labor contracts")
+    assert not LABOR_CONTRACT_BYPASS_REGEX.search("labor union customers")
+    assert not LABOR_CONTRACT_BYPASS_REGEX.search("a labor union")
 
 
 def test_union_extractor_strips_leading_fillers_from_union_matches():
