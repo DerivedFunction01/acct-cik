@@ -73,9 +73,10 @@ OFF_TOPIC_SECTION_TERMS = [
 OFF_TOPIC_SECTION_REGEX = build_regex(OFF_TOPIC_SECTION_TERMS)
 
 HARD_EXCLUSION_TERMS = [
-    r"(?:preferred|treasury|common)\s+(?:stocks?|shares)",
+    r"(?:preferred|treasury|common|performance)\s+(?:stocks?|shares)",
     r"(?:shares?|stock)[-\s](?:splits?|awards?|dividends?|options?)",
     r"brokers?",
+    r"vested",
     r"stock\s+purchases?",
     r"option\s+agreements?",
     r"convertible",
