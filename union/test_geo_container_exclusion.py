@@ -81,3 +81,15 @@ def test_shared_us_city_names_resolve_to_us():
         "Manchester, UK",
         "GB",
     )
+
+
+def test_warsaw_requires_country_suffix():
+    matcher = RegionMatcher()
+
+    assert matcher.get_location("Warsaw") is None
+    assert matcher.get_location("Warsaw, Poland") == (
+        Region.EUROPE,
+        "Poland",
+        "Warsaw, Poland",
+        "PL",
+    )

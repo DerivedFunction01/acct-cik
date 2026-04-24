@@ -1,3 +1,5 @@
+import pandas as pd
+
 from analysis import (
     Entry,
     Scope,
@@ -10,8 +12,10 @@ from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
 from export_provenance_parquet import (
     _normalize_count_pct_pair,
+    _drop_temp_sample_columns,
     _int_reported_pct,
     _resolve_total_count,
+    generate_stratified_sample,
     _tot_reported_pct,
 )
 from defs.union_regex import LABOR_CONTRACT_BYPASS_REGEX
@@ -363,11 +367,13 @@ def test_same_region_aggregate_collapses_to_region_row():
 
     report = tracker.build_country_provenance_report()
     na = _get_country({"country_report": report}, "NA")
+    reported = na.get("reported_totals") if na else {}
 
     assert na is not None
-    assert na.get("country_totals", {}).get("tot") == 100.0
-    assert na.get("country_totals", {}).get("cov") == 100.0
-    assert na.get("country_totals", {}).get("pct") == 100.0
+    assert reported.get("tot") == 100.0
+    assert reported.get("cov") == 100.0
+    assert reported.get("pct") == 100.0
+    assert "country_totals" not in na
     assert not report.get("agg")
 
 
@@ -411,10 +417,12 @@ def test_same_region_aggregate_with_mexico_collapses_to_na():
 
     report = tracker.build_country_provenance_report()
     na = _get_country({"country_report": report}, "NA")
+    reported = na.get("reported_totals") if na else {}
 
     assert na is not None
-    assert na.get("country_totals", {}).get("tot") == 100.0
-    assert na.get("country_totals", {}).get("cov") == 100.0
+    assert reported.get("tot") == 100.0
+    assert reported.get("cov") == 100.0
+    assert "country_totals" not in na
     assert "MX" in [c.get("country_code") for c in report.get("countries", [])]
     assert not report.get("agg")
 
@@ -533,6 +541,23 @@ def test_int_reported_pct_does_not_infer_from_counts():
     }
 
     assert _int_reported_pct(report) is None
+
+
+def test_stratified_sampling_dedups_accessions_and_temp_columns_drop():
+    df = pd.DataFrame(
+        [
+            {"accession": "A", "cik": 1, "url": "u1", "year": 2000, "dom_cov": True, "int_cov": False, "dom_pct": 10, "tot_count": 100, "int_count": 0, "global_keyword_count": 1, "domestic_country_code": "US", "has_language_fallback": False, "year_mismatch": False},
+            {"accession": "A", "cik": 1, "url": "u1b", "year": 2000, "dom_cov": True, "int_cov": False, "dom_pct": 10, "tot_count": 100, "int_count": 0, "global_keyword_count": 1, "domestic_country_code": "US", "has_language_fallback": False, "year_mismatch": False},
+            {"accession": "B", "cik": 2, "url": "u2", "year": 2001, "dom_cov": False, "int_cov": True, "dom_pct": 0, "tot_count": 50, "int_count": 25, "global_keyword_count": 3, "domestic_country_code": "CA", "has_language_fallback": True, "year_mismatch": True},
+        ]
+    )
+
+    sampled = generate_stratified_sample(df, target_size=1)
+    assert sampled["accession"].astype(str).nunique() == len(sampled)
+
+    cleaned = _drop_temp_sample_columns(sampled.assign(dom_pct_bucket="x", kw_bucket="y"))
+    assert "dom_pct_bucket" not in cleaned.columns
+    assert "kw_bucket" not in cleaned.columns
 
 
 def test_merge_continuation_items_does_not_absorb_following_employment_counts():

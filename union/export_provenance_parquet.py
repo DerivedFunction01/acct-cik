@@ -24,6 +24,15 @@ from defs.region_regex import (
 SOURCE_DB_DEFAULT = "union_provenance_risk.db"
 TARGET_PARQUET_DEFAULT = "union_provenance_risk.parquet"
 SOURCE_TABLE = "provenance_risk"
+TEMP_SAMPLE_COLUMNS = [
+    "dom_pct_bucket",
+    "tot_count_bucket",
+    "int_count_bucket",
+    "kw_bucket",
+    "dom_code_bucket",
+    "lang_fallback_bucket",
+    "year_mismatch_bucket",
+]
 
 
 logging.basicConfig(
@@ -51,14 +60,13 @@ def _safe_json_dumps(obj: Any) -> Optional[str]:
 
 
 def _entry_field(entry: Dict[str, Any], field: str) -> Optional[float]:
-    for bucket_name in ("reported_totals", "country_totals"):
-        bucket = entry.get(bucket_name) or {}
-        val = bucket.get(field)
-        if val is not None:
-            try:
-                return float(val)
-            except (TypeError, ValueError):
-                return None
+    bucket = entry.get("reported_totals") or {}
+    val = bucket.get(field)
+    if val is not None:
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return None
     return None
 
 
@@ -770,7 +778,11 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
             logging.info("Added %d explicit accessions from %s", len(explicit_accs), explicit_csv)
 
     if target_size <= 0:
-        return df[df["accession"].astype(str).isin(sampled_accessions)].copy()
+        return (
+            df[df["accession"].astype(str).isin(sampled_accessions)]
+            .drop_duplicates(subset=["accession"])
+            .copy()
+        )
 
     # Drop duplicated accessions up front so the sampler does not waste quota
     # on repeated candidates from the same filing.
@@ -867,6 +879,13 @@ def generate_stratified_sample(df: pd.DataFrame, target_size: int, explicit_csv:
 
     logging.info("Total unique sampled accessions: %d", len(sampled_accessions))
     return df_sample[df_sample["accession"].astype(str).isin(sampled_accessions)].copy()
+
+
+def _drop_temp_sample_columns(df: pd.DataFrame) -> pd.DataFrame:
+    cols = [c for c in TEMP_SAMPLE_COLUMNS if c in df.columns]
+    if cols:
+        return df.drop(columns=cols)
+    return df
 
 
 def export_parquet(
@@ -1109,6 +1128,8 @@ def export_parquet(
 
     out_path = Path(output_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
+    # Drop temporary stratification columns before writing the parquet.
+    out = _drop_temp_sample_columns(out)
     # Drop unneeded cols
     out = out.drop(columns=["has_language_fallback"])
     out.to_parquet(out_path, index=False)

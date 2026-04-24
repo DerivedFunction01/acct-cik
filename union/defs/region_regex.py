@@ -903,7 +903,6 @@ EUROPE = {
             Location("Norrkoping", ["norrkoping", "norrköping"]),
         ],
         [
-            "Unionen",
             "IF Metall",
             "Sveriges Ingenjörer",
             "Ledarna",
@@ -935,7 +934,7 @@ EUROPE = {
         ["poland", "polish", "polska"],
         Region.EUROPE,
         [
-            Location("Warsaw", ["warsaw"]),
+            Location("Warsaw, Poland", ["warsaw, pl"]),
             Location("Krakow", ["krakow", "kraków"]),
             Location("Wroclaw", ["wroclaw", "wrocław"]),
             Location("Poznan", ["poznan", "poznań"]),
@@ -945,12 +944,11 @@ EUROPE = {
             Location("Gliwice", ["gliwice"]),  # Automotive hub
             Location("Tychy", ["tychy"]),  # Automotive hub
         ],
-        ["NSZZ Solidarnosc", "Solidarity", "OPZZ"],
+        ["NSZZ Solidarnosc", "OPZZ"],
         [
             "Zwiazek",
             "Zawodowy",
             "Pracownikow",
-            "Praca",
             "Stowarzyszenie",
             "Zjednoczone",
             "Federacja",

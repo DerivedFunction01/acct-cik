@@ -10308,12 +10308,6 @@ class Tracker:
             country = {
                 "country_code": code,
                 "union_indicator": union_indicator,
-                "country_totals": {
-                    "tot": total_val,
-                    "cov": covered_val,
-                    "not_cov": not_covered_val,
-                    "pct": pct_val,
-                },
             }
             if language_fallback:
                 country["language_fallback_country"] = True
@@ -10748,11 +10742,13 @@ class Tracker:
         def _country_obj_has_quant_signal(country_obj: Optional[Dict[str, Any]]) -> bool:
             if not country_obj:
                 return False
-            totals = country_obj.get("country_totals") or {}
             reported = country_obj.get("reported_totals") or {}
-            for bucket in (totals, reported):
-                if any(bucket.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
-                    return True
+            if any(bucket.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
+                return True
+            # Backward compatibility with older serialized reports.
+            totals = country_obj.get("country_totals") or {}
+            if any(totals.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
+                return True
             return False
 
         def _country_obj_is_explicit_non_coverage(country_obj: Optional[Dict[str, Any]]) -> bool:
@@ -10760,13 +10756,17 @@ class Tracker:
                 return False
             if country_obj.get("union_indicator") == 0:
                 return True
-            totals = country_obj.get("country_totals") or {}
             reported = country_obj.get("reported_totals") or {}
-            for bucket in (totals, reported):
-                if bucket.get("pct") == 0:
-                    return True
-                if bucket.get("not_cov") is not None and bucket.get("cov") in (None, 0):
-                    return True
+            if reported.get("pct") == 0:
+                return True
+            if reported.get("not_cov") is not None and reported.get("cov") in (None, 0):
+                return True
+            # Backward compatibility with older serialized reports.
+            totals = country_obj.get("country_totals") or {}
+            if totals.get("pct") == 0:
+                return True
+            if totals.get("not_cov") is not None and totals.get("cov") in (None, 0):
+                return True
             return False
 
         def _agg_contains_domestic_context(agg_entry: Dict[str, Any]) -> bool:
@@ -10866,12 +10866,6 @@ class Tracker:
                 global_obj = {
                     "country_code": GeoCode.GLOBAL.value,
                     "union_indicator": 1,
-                    "country_totals": {
-                        "tot": None,
-                        "cov": None,
-                        "not_cov": None,
-                        "pct": pct_only_aggregate.get("pct"),
-                    },
                     "reported_totals": {
                         "tot": None,
                         "cov": None,
@@ -10904,12 +10898,6 @@ class Tracker:
                 international_obj = {
                     "country_code": GeoCode.INTERNATIONAL.value,
                     "union_indicator": 1,
-                    "country_totals": {
-                        "tot": None,
-                        "cov": None,
-                        "not_cov": None,
-                        "pct": int_candidate.get("pct"),
-                    },
                     "reported_totals": {
                         "tot": None,
                         "cov": None,
