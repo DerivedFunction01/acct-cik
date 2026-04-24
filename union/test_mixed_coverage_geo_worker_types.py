@@ -108,6 +108,54 @@ CASES = [
         100.0,
         50.0,
     ),
+    (
+        "We have 1493 employees of which France and Argentina account for 665 unionized workers.",
+        {"FR", "AR"},
+        665.0,
+        828.0,
+        1493.0,
+        44.54,
+    ),
+    (
+        "We have 1493 employees in Europe of which France and Germany account for 665 unionized workers.",
+        {"FR", "DE"},
+        665.0,
+        828.0,
+        1493.0,
+        44.54,
+    ),
+    (
+        "We have 10000 employees in Asia Pacific of which China and India account for 8000 unionized workers.",
+        {"CN", "IN"},
+        8000.0,
+        2000.0,
+        10000.0,
+        80.0,
+    ),
+    (
+        "We have 1493 Argentine and French employees, of which 665 unionized workers.",
+        {"AR", "FR"},
+        665.0,
+        828.0,
+        1493.0,
+        44.54,
+    ),
+    (
+        "We have 1493 employees, of which 458 Argentine employees and 1035 French employees, including 665 unionized workers.",
+        {"AR", "FR"},
+        665.0,
+        828.0,
+        1493.0,
+        44.54,
+    ),
+    (
+        "We have 1493 employees in Europe, of which 458 French employees and 1035 German employees, including 665 unionized workers.",
+        {"FR", "DE"},
+        665.0,
+        828.0,
+        1493.0,
+        44.54,
+    ),
 ]
 
 
@@ -184,3 +232,71 @@ def test_mixed_country_worker_types_can_promote_aggregate_to_global():
     assert global_obj.get("reported_totals", {}).get("cov") == pytest.approx(665.0, abs=0.01)
     assert global_obj.get("reported_totals", {}).get("not_cov") == pytest.approx(828.0, abs=0.01)
     assert global_obj.get("reported_totals", {}).get("pct") == pytest.approx(44.54, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    "sentence,exp_codes,exp_covered,exp_not_covered,exp_total,exp_pct,exp_global_source",
+    [
+        (
+            CASES[-3][0],
+            CASES[-3][1],
+            CASES[-3][2],
+            CASES[-3][3],
+            CASES[-3][4],
+            CASES[-3][5],
+            "promoted_from_aggregate",
+        ),
+        (
+            CASES[-2][0],
+            CASES[-2][1],
+            CASES[-2][2],
+            CASES[-2][3],
+            CASES[-2][4],
+            CASES[-2][5],
+            "promoted_from_aggregate",
+        ),
+        (
+            CASES[-1][0],
+            CASES[-1][1],
+            CASES[-1][2],
+            CASES[-1][3],
+            CASES[-1][4],
+            CASES[-1][5],
+            None,
+        ),
+    ],
+)
+def test_mixed_country_worker_types_total_before_breakdown_keeps_provenance(
+    sentence,
+    exp_codes,
+    exp_covered,
+    exp_not_covered,
+    exp_total,
+    exp_pct,
+    exp_global_source,
+):
+    result = UnionAnalyzer().analyze_paragraph(sentence)
+    items = result.get("items", [])
+    assert len(items) == 1
+
+    item = items[0]
+    assert set(_geo_codes(item)) == exp_codes
+    cov = item.get("coverage_data", {})
+    assert cov.get("employee_count_covered") == pytest.approx(exp_covered, abs=0.01)
+    assert cov.get("employee_count_not_covered") == pytest.approx(exp_not_covered, abs=0.01)
+    assert cov.get("employee_count_total") == pytest.approx(exp_total, abs=0.01)
+    assert cov.get("percentage") == pytest.approx(exp_pct, abs=0.01)
+
+    country_report = result.get("country_report", {}) or {}
+    global_obj = country_report.get("global") or {}
+    if exp_global_source is None:
+        assert global_obj == {}
+        return
+
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("global_source") == exp_global_source
+    reported = global_obj.get("reported_totals", {}) or {}
+    assert reported.get("cov") == pytest.approx(exp_covered, abs=0.01)
+    assert reported.get("not_cov") == pytest.approx(exp_not_covered, abs=0.01)
+    assert reported.get("tot") == pytest.approx(exp_total, abs=0.01)
+    assert reported.get("pct") == pytest.approx(exp_pct, abs=0.01)
