@@ -10813,6 +10813,12 @@ class Tracker:
                 return True
             return False
 
+        def _country_obj_has_reported_values(country_obj: Optional[Dict[str, Any]]) -> bool:
+            if not country_obj:
+                return False
+            reported = country_obj.get("reported_totals") or {}
+            return any(reported.get(k) is not None for k in ("tot", "cov", "not_cov", "pct"))
+
         def _agg_contains_domestic_context(agg_entry: Dict[str, Any]) -> bool:
             children = agg_entry.get("children") or {}
             child_codes = list(children.keys())
@@ -10889,7 +10895,7 @@ class Tracker:
             global_obj["global_source_note"] = (
                 "International promoted to Global because domestic data was missing"
             )
-        elif not global_entry:
+        if not global_obj:
             pct_only_aggregate = next(
                 (
                     a
@@ -10906,6 +10912,7 @@ class Tracker:
                 pct_only_aggregate
                 and _agg_contains_domestic_context(pct_only_aggregate)
                 and not _country_obj_has_quant_signal(domestic_country_obj)
+                and not any(_country_obj_has_reported_values(c) for c in countries)
             ):
                 global_obj = {
                     "country_code": GeoCode.GLOBAL.value,
@@ -10922,6 +10929,42 @@ class Tracker:
                         "Pct-only mixed-region aggregate promoted to Global"
                     ),
                 }
+            else:
+                weighted_global_candidates = [
+                    a
+                    for a in agg
+                    if len((a.get("children") or {}).keys()) > 1
+                    and any(
+                        v is not None
+                        for v in (
+                            a.get("tot"),
+                            a.get("cov"),
+                            a.get("not_cov"),
+                            a.get("pct"),
+                        )
+                    )
+                ]
+                if len(weighted_global_candidates) == 1 and not any(
+                    _country_obj_has_reported_values(c) for c in countries
+                ):
+                    aggregate_candidate = weighted_global_candidates[0]
+                    global_obj = {
+                        "country_code": GeoCode.GLOBAL.value,
+                        "union_indicator": 1,
+                        "reported_totals": {
+                            "tot": aggregate_candidate.get("tot"),
+                            "cov": aggregate_candidate.get("cov"),
+                            "not_cov": aggregate_candidate.get("not_cov"),
+                            "pct": aggregate_candidate.get("pct"),
+                        },
+                        "global_source": "promoted_from_aggregate",
+                        "global_source_code": aggregate_candidate.get(
+                            "aggregate_key"
+                        ),
+                        "global_source_note": (
+                            "Single weighted aggregate promoted to Global"
+                        ),
+                    }
 
         international_obj = None
         if not global_obj:
@@ -11044,6 +11087,42 @@ class Tracker:
         for k in summary["cov"]:
             summary["cov"][k].sort()
             summary["not_cov"][k].sort()
+
+        if not global_obj:
+            weighted_global_candidates = [
+                a
+                for a in agg
+                if len((a.get("children") or {}).keys()) > 1
+                and any(
+                    v is not None
+                    for v in (
+                        a.get("tot"),
+                        a.get("cov"),
+                        a.get("not_cov"),
+                        a.get("pct"),
+                    )
+                )
+            ]
+            if len(weighted_global_candidates) == 1 and not any(
+                _country_obj_has_reported_values(c) for c in countries
+            ):
+                aggregate_candidate = weighted_global_candidates[0]
+                global_obj = {
+                    "country_code": GeoCode.GLOBAL.value,
+                    "union_indicator": 1,
+                    "reported_totals": {
+                        "tot": aggregate_candidate.get("tot"),
+                        "cov": aggregate_candidate.get("cov"),
+                        "not_cov": aggregate_candidate.get("not_cov"),
+                        "pct": aggregate_candidate.get("pct"),
+                    },
+                    "global_source": "promoted_from_aggregate",
+                    "global_source_code": aggregate_candidate.get("aggregate_key"),
+                    "global_source_note": (
+                        "Single weighted aggregate promoted to Global"
+                    ),
+                }
+                international_obj = None
 
         global_keywords = sorted(
             {kw for _, kw in self.global_sentence_keywords if kw}
@@ -14384,26 +14463,58 @@ class UnionAnalyzer:
                     for a in assignments
                     if a["type"] in ("covered", "not_covered", "total")
                 ]
+                linked_total_sum = sum(
+                    float(a.get("override_val", a["match"]["val"]))
+                    for a in relevant_assignments
+                    if a["type"] == "total"
+                    and a["match"].get("linked_geo_group_id") is not None
+                )
 
                 # Do not geo-split when the sentence only provides worker-type
                 # composition alongside multiple countries, but no assignment is
                 # explicitly linked to geography. In that case the country list is
                 # context, not a per-country breakdown.
+                #
+                # Also avoid splitting when the sentence mixes linked country
+                # totals with an unlinked union subset count. Those sentences
+                # usually describe one company-wide population with a country
+                # distribution plus a separate covered subset, and splitting the
+                # linked totals causes us to drop the subset or over-assign it.
                 has_linked_geo_assignment = any(
                     a["match"].get("linked_geo_group_id") is not None
                     for a in relevant_assignments
                 )
                 if (
                     len(geo_context.get("countries", [])) > 1
-                    and (
-                        (analysis.worker_types or analysis.worker_terms)
-                        or any(
-                            a["match"].get("linked_geo_group_id") is None
-                            for a in relevant_assignments
-                        )
+                    and any(
+                        a["match"].get("linked_geo_group_id") is None
+                        for a in relevant_assignments
                     )
-                    and not has_linked_geo_assignment
                 ):
+                    if linked_total_sum > 0:
+                        current_total = coverage_data.get("employee_count_total") or 0.0
+                        if linked_total_sum > current_total:
+                            coverage_data["employee_count_total"] = linked_total_sum
+                            if coverage_data.get("employee_count_covered") is not None:
+                                coverage_data["employee_count_not_covered"] = (
+                                    coverage_data["employee_count_total"]
+                                    - coverage_data["employee_count_covered"]
+                                )
+                                total_val = coverage_data["employee_count_total"]
+                                covered_val = coverage_data["employee_count_covered"]
+                                if total_val and total_val > 0:
+                                    coverage_data["percentage"] = round(
+                                        (covered_val / total_val) * 100.0, 2
+                                    )
+                                coverage_data["type"] = CoverageType.CALCULATED.value
+                                coverage_data["note"] = (
+                                    ((coverage_data.get("note") or "") + " | ")
+                                    if coverage_data.get("note")
+                                    else ""
+                                ) + (
+                                    "Promoted combined geo-linked total "
+                                    f"{linked_total_sum}"
+                                )
                     relevant_assignments = []
 
                 # Only split if we have multiple relevant counts and multiple explicit geos

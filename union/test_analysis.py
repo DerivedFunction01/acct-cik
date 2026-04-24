@@ -15,7 +15,7 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 ITEM_1 = [
     """
-Our total employees consist of 458 employees in Canada and 1035 employees in the US, including 665 unionized workers
+Our total employees consist of 458 employees in Argentina and 1035 employees in the US, including 665 unionized workers
 
 """,
 ]
