@@ -1159,7 +1159,9 @@ class UnionExtractor:
         context_total: Optional[float] = None,
     ) -> SentenceAnalysis:
         analysis = SentenceAnalysis(text=text)
-        working_text = text  # Mutable text for masking
+        # Strip table markers from the matching text so table artifacts like
+        # "TABLE_" cannot become accidental union/geo matches.
+        working_text = text.replace(TABLE_TOK, " ")  # Mutable text for masking
         effective_emp_count = emp_count if emp_count is not None else context_total
 
         def dedupe_preserve_order(values: List[str]) -> List[str]:
