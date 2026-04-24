@@ -16,7 +16,7 @@ from defs.text_cleaner import (
     CurrencyRemover,
     MinimalTextCleaner,
 )
-from defs.region_regex import Region
+from defs.region_regex import Region, RegionMatcher
 
 
 def _get_country(result, code: str):
@@ -282,6 +282,15 @@ def test_labor_contract_bypass_regex_is_unambiguous():
     assert LABOR_CONTRACT_BYPASS_REGEX.search("labor contracts")
     assert not LABOR_CONTRACT_BYPASS_REGEX.search("labor union customers")
     assert not LABOR_CONTRACT_BYPASS_REGEX.search("a labor union")
+
+
+def test_region_matcher_keeps_acronym_unions_case_sensitive():
+    matcher = RegionMatcher()
+
+    assert matcher.get_union("SMART") is not None
+    assert matcher.get_union("smart") is None
+    assert matcher.get_union("AFL-CIO") is not None
+    assert matcher.get_union("afl-cio") is None
 
 
 def test_union_extractor_strips_leading_fillers_from_union_matches():

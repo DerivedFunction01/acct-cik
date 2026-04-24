@@ -70,6 +70,16 @@ class Nation:
         return self.name == other.name
 
 
+def _is_acronym_like_term(term: str) -> bool:
+    """
+    Treat pure all-caps aliases as acronym-like, including hyphenated forms.
+    These are the risky ones that can collide with brands or common words when
+    matched case-insensitively.
+    """
+    compact = re.sub(r"[^A-Za-z0-9]", "", term)
+    return bool(compact) and compact.upper() == compact and any(ch.isalpha() for ch in compact)
+
+
 NORTH_AMERICA = {
     Nation(
         "United States",
@@ -3722,6 +3732,8 @@ class RegionMatcher:
         {}
     )  # term -> (Region, Country, Code)
     regex_union_map: Dict[str, Tuple[Region, str, str]] = {}
+    acronym_union_map: Dict[str, Tuple[Region, str, str]] = {}
+    regex_acronym_union_map: Dict[str, Tuple[Region, str, str]] = {}
 
     location_map: Dict[str, Tuple[Region, str, Optional[str], str]] = (
         {}
@@ -3754,10 +3766,20 @@ class RegionMatcher:
     @classmethod
     def get_union(cls, text: str) -> Optional[Tuple[Region, str, str]]:
         lower = text.lower()
+        if lower in cls.acronym_union_map:
+            # Require visible uppercase characters so lowercase brand words
+            # like "smart" do not resolve to acronym-style union aliases.
+            if not any(ch.isupper() for ch in text):
+                return None
+            return cls.acronym_union_map[lower]
         if lower in cls.union_map:
             return cls.union_map[lower]
         for pattern, info in cls.regex_union_map.items():
             if re.fullmatch(pattern, text, re.IGNORECASE):
+                if pattern in cls.regex_acronym_union_map and not any(
+                    ch.isupper() for ch in text
+                ):
+                    continue
                 return info
         return None
 
@@ -3864,6 +3886,8 @@ class RegionMatcher:
 
         cls.union_map = {}
         cls.regex_union_map = {}
+        cls.acronym_union_map = {}
+        cls.regex_acronym_union_map = {}
         cls.location_map = {}
         cls.regex_location_map = {}
         union_phrases = set()
@@ -3894,8 +3918,12 @@ class RegionMatcher:
                     )
                     if cls.regex_detector_regex.search(union_name):
                         cls.regex_union_map[union_name] = info
+                        if _is_acronym_like_term(union_name):
+                            cls.regex_acronym_union_map[union_name] = info
                     else:
                         cls.union_map[union_name.lower()] = info
+                        if _is_acronym_like_term(union_name):
+                            cls.acronym_union_map[union_name.lower()] = info
                     union_phrases.add(union_name)
 
                 # 1b. Map Keywords (Treat as Phrases for detection - Region Match Only)
