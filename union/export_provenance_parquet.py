@@ -577,6 +577,194 @@ def _agg_is_purely_international(
     return True
 
 
+def build_parquet_fields_from_country_report(
+    country_report: Dict[str, Any],
+    item1_risk_summary: Optional[Dict[str, Any]] = None,
+    item1a_risk_summary: Optional[Dict[str, Any]] = None,
+    item1_bargaining_report: Optional[Dict[str, Any]] = None,
+    item1a_bargaining_report: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Build the parquet export payload from a normalized country report.
+
+    This is intentionally pure so the export row logic can be unit-tested
+    without the database/sample/export plumbing.
+    """
+    country_report = country_report or {}
+
+    countries = country_report.get("countries") or []
+    if countries:
+        _mark_sub_allocations(
+            countries,
+            domestic_country_code=country_report.get("domestic_country_code"),
+        )
+
+    summary = country_report.get("summary") or {}
+    summary_cov = summary.get("cov") if isinstance(summary, dict) else None
+    summary_not_cov = summary.get("not_cov") if isinstance(summary, dict) else None
+    summary_cov_flat = _flatten_summary_dict(summary_cov)
+    summary_not_cov_flat = _flatten_summary_dict(summary_not_cov)
+
+    risk_summary: Dict[str, Any] = {}
+    if item1_risk_summary or item1a_risk_summary:
+        risk_summary = _merge_counts(item1_risk_summary or {}, item1a_risk_summary or {})
+        if "n" in risk_summary:
+            risk_summary["n"] = (
+                (item1_risk_summary or {}).get("n", 0)
+                + (item1a_risk_summary or {}).get("n", 0)
+            )
+
+    dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
+    if dom_domestic_pct is None:
+        dom_domestic_pct = _domestic_parent_pct(country_report)
+    if dom_domestic_count is None:
+        dom_domestic_count = _domestic_parent_cov_remainder(country_report)
+
+    dom_pulled_from_risk = False
+    if dom_domestic_count in (None, 0, 0.0) and risk_summary:
+        risk_cov = risk_summary.get("cov_t", {}).get("cov")
+        risk_pct = risk_summary.get("cov_t", {}).get("pct")
+        risk_meta = risk_summary.get("cov_t_meta", {}) or {}
+        risk_cov_has_count = bool(risk_meta.get("cov_has_count"))
+        risk_pct_from_counts = bool(risk_meta.get("pct_from_counts"))
+        risk_pct_has_qual = bool(risk_meta.get("pct_has_qualitative"))
+        if risk_cov is not None and risk_cov_has_count:
+            dom_domestic_count = float(risk_cov)
+            dom_pulled_from_risk = True
+        if risk_pct is not None and float(risk_pct) != 100.0:
+            pct_val = float(risk_pct)
+            if risk_pct_from_counts and not risk_pct_has_qual and 0.0 <= pct_val <= 100.0:
+                dom_domestic_pct = pct_val
+                dom_pulled_from_risk = True
+
+    if summary.get("dom_cov") is False and not dom_pulled_from_risk:
+        dom_domestic_count = 0.0
+        dom_domestic_pct = 0.0
+
+    int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
+    if not _has_explicit_country_totals(country_report):
+        agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(
+            country_report
+        )
+        if agg_int_cov is not None:
+            int_cov = (int_cov or 0.0) + agg_int_cov
+        if agg_int_tot is not None:
+            int_tot = (int_tot or 0.0) + agg_int_tot
+        if agg_int_not_cov is not None:
+            int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
+
+    if dom_domestic_count is not None and int_cov is not None:
+        dom_code = country_report.get("domestic_country_code")
+        if dom_code:
+            has_parent_container = False
+            for entry in countries:
+                c_code = entry.get("country_code")
+                if not c_code or c_code == dom_code:
+                    continue
+                if c_code in IGNORED_REGIONS:
+                    continue
+                if entry.get("is_sub_allocation"):
+                    continue
+                reported = entry.get("reported_totals") or {}
+                if reported.get("cov") is None:
+                    continue
+                if is_contained(
+                    container_key=c_code,
+                    item_key=dom_code,
+                    domestic_country_code=dom_code,
+                ):
+                    has_parent_container = True
+                    break
+            if has_parent_container:
+                int_cov = max(0.0, float(int_cov) - float(dom_domestic_count))
+
+    summary_int_false = summary.get("int_cov") is False
+    if summary_int_false and _agg_international_totals(country_report)[0] is None:
+        int_cov = 0.0
+
+    if int_cov is not None and int_cov > 0 and int_tot == 0:
+        int_tot = None
+    if (not summary_int_false) and int_cov == 0 and int_tot == 0 and (
+        int_not_cov in (0, None)
+    ):
+        int_cov = None
+        int_tot = None
+        int_not_cov = None
+
+    total_cov = None
+    if dom_domestic_count is not None and int_cov is not None:
+        total_cov_val = float(dom_domestic_count) + float(int_cov)
+        for a in (country_report.get("agg") or []):
+            if _agg_is_purely_international(
+                a, country_report.get("domestic_country_code")
+            ):
+                continue
+            acov = a.get("cov")
+            if acov is not None:
+                total_cov_val += float(acov)
+        total_cov = total_cov_val
+
+    global_entry = country_report.get("global") or {}
+    global_cov = global_entry.get("cov")
+    if global_cov is None:
+        g_tot = global_entry.get("tot")
+        g_pct = global_entry.get("pct")
+        if g_tot is not None and g_pct is not None:
+            try:
+                global_cov = (float(g_pct) / 100.0) * float(g_tot)
+            except (TypeError, ValueError):
+                global_cov = None
+    if global_cov is not None:
+        total_cov = float(global_cov)
+
+    global_tot_candidate = global_entry.get("tot")
+    tot_count = _resolve_total_count(
+        dom_domestic_count,
+        int_cov,
+        global_tot_candidate,
+        fallback_total=total_cov,
+        agg_total_fallback=_synthetic_weighted_agg_total(country_report),
+    )
+
+    int_pct = _int_reported_pct(country_report)
+    int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)
+
+    tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)
+    tot_count, tot_pct = _normalize_count_pct_pair(tot_count, tot_pct)
+
+    lang_fallback_codes = [
+        c.get("country_code")
+        for c in countries
+        if c.get("language_fallback_country") is True and c.get("country_code")
+    ]
+
+    return {
+        "domestic_country_code": country_report.get("domestic_country_code"),
+        "dom_cov": summary.get("dom_cov") if isinstance(summary, dict) else None,
+        "int_cov": summary.get("int_cov") if isinstance(summary, dict) else None,
+        "year_mismatch": bool(country_report.get("year_mismatch")),
+        "summary_cov": _safe_json_dumps(summary_cov_flat),
+        "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
+        "has_language_fallback": bool(lang_fallback_codes),
+        "language_fallback_codes": _safe_json_dumps(lang_fallback_codes),
+        "countries": _safe_json_dumps(countries),
+        "agg": _safe_json_dumps(country_report.get("agg") or []),
+        "global": _safe_json_dumps(country_report.get("global") or {}),
+        "global_keywords": _safe_json_dumps(country_report.get("global_keywords") or []),
+        "global_keyword_count": country_report.get("global_keyword_count"),
+        "risk_summary": _safe_json_dumps(risk_summary or {}),
+        "bargaining_report": _safe_json_dumps(
+            item1_bargaining_report or item1a_bargaining_report or {}
+        ),
+        "dom_count": dom_domestic_count,
+        "dom_pct": dom_domestic_pct,
+        "int_count": int_cov,
+        "int_pct": int_pct,
+        "tot_count": tot_count,
+        "tot_pct": tot_pct,
+    }
+
+
 def _agg_international_totals(
     report: Dict[str, Any],
 ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
@@ -956,195 +1144,17 @@ def export_parquet(
         item1_report = _safe_json_loads(row.get("item1_country_report"))
         item1a_report = _safe_json_loads(row.get("item1a_country_report"))
         country_report = item1_report or item1a_report or {}
-
-        # Mark countries as sub-allocations of their parents to prevent double-counting
-        countries = country_report.get("countries") or []
-        if countries:
-            _mark_sub_allocations(
-                countries, 
-                domestic_country_code=country_report.get("domestic_country_code")
-            )
-
-        summary = country_report.get("summary") or {}
-        summary_cov = summary.get("cov") if isinstance(summary, dict) else None
-        summary_not_cov = summary.get("not_cov") if isinstance(summary, dict) else None
-
-        summary_cov_flat = _flatten_summary_dict(summary_cov)
-        summary_not_cov_flat = _flatten_summary_dict(summary_not_cov)
-
         item1_risk = _safe_json_loads(row.get("item1_risk_summary"))
         item1a_risk = _safe_json_loads(row.get("item1a_risk_summary"))
         item1_barg = _safe_json_loads(row.get("item1_bargaining_report"))
         item1a_barg = _safe_json_loads(row.get("item1a_bargaining_report"))
-
-        risk_summary = {}
-        if item1_risk or item1a_risk:
-            risk_summary = _merge_counts(item1_risk or {}, item1a_risk or {})
-            if "n" in risk_summary:
-                risk_summary["n"] = (
-                    (item1_risk or {}).get("n", 0)
-                    + (item1a_risk or {}).get("n", 0)
-                )
-
-        dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
-
-        if dom_domestic_pct is None:
-            dom_domestic_pct = _domestic_parent_pct(country_report)
-
-        if dom_domestic_count is None:
-            dom_domestic_count = _domestic_parent_cov_remainder(country_report)
-
-        dom_pulled_from_risk = False
-        # Note: 'not dom_domestic_count' is True if count is 0.0 or None
-        if dom_domestic_count in (None, 0, 0.0) and risk_summary:
-            risk_cov = risk_summary.get("cov_t", {}).get("cov")
-            risk_pct = risk_summary.get("cov_t", {}).get("pct")
-            risk_meta = risk_summary.get("cov_t_meta", {}) or {}
-            risk_cov_has_count = bool(risk_meta.get("cov_has_count"))
-            risk_pct_from_counts = bool(risk_meta.get("pct_from_counts"))
-            risk_pct_has_qual = bool(risk_meta.get("pct_has_qualitative"))
-            if risk_cov is not None:
-                if risk_cov_has_count:
-                    dom_domestic_count = float(risk_cov)
-                    dom_pulled_from_risk = True
-            if risk_pct is not None and float(risk_pct) != 100.0:
-                pct_val = float(risk_pct)
-                if risk_pct_from_counts and not risk_pct_has_qual and 0.0 <= pct_val <= 100.0:
-                    dom_domestic_pct = pct_val
-                    dom_pulled_from_risk = True
-
-        if summary.get("dom_cov") is False and not dom_pulled_from_risk:
-            dom_domestic_count = 0.0
-            dom_domestic_pct = 0.0
-
-        int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
-
-        if not _has_explicit_country_totals(country_report):
-            agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(
-                country_report
-            )
-            if agg_int_cov is not None:
-                int_cov = (int_cov or 0.0) + agg_int_cov
-            if agg_int_tot is not None:
-                int_tot = (int_tot or 0.0) + agg_int_tot
-            if agg_int_not_cov is not None:
-                int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
-
-        # If domestic coverage exists and international totals include a parent container
-        # that contains the domestic country, subtract domestic once to avoid double-counting.
-        if dom_domestic_count is not None and int_cov is not None:
-            dom_code = country_report.get("domestic_country_code")
-            if dom_code:
-                has_parent_container = False
-                for entry in country_report.get("countries") or []:
-                    c_code = entry.get("country_code")
-                    if not c_code or c_code == dom_code:
-                        continue
-                    if c_code in IGNORED_REGIONS:
-                        continue
-                    if entry.get("is_sub_allocation"):
-                        continue
-                    reported = entry.get("reported_totals") or {}
-                    if reported.get("cov") is None:
-                        continue
-                    if is_contained(
-                        container_key=c_code,
-                        item_key=dom_code,
-                        domestic_country_code=dom_code,
-                    ):
-                        has_parent_container = True
-                        break
-                if has_parent_container:
-                    int_cov = max(0.0, float(int_cov) - float(dom_domestic_count))
-
-        summary_int_false = summary.get("int_cov") is False
-        if summary_int_false and agg_int_cov is None:
-            int_cov = 0.0
-
-        if int_cov is not None and int_cov > 0 and int_tot == 0:
-            int_tot = None
-        if (not summary_int_false) and int_cov == 0 and int_tot == 0 and (
-            int_not_cov in (0, None)
-        ):
-            int_cov = None
-            int_tot = None
-            int_not_cov = None
-
-        # Calculate total explicit coverage (dom + int + non-intl agg),
-        # only when both dom and int are known (int can be 0.0).
-        total_cov = None
-        if dom_domestic_count is not None and int_cov is not None:
-            total_cov_val = float(dom_domestic_count) + float(int_cov)
-            for a in (country_report.get("agg") or []):
-                if _agg_is_purely_international(
-                    a, country_report.get("domestic_country_code")
-                ):
-                    continue
-                acov = a.get("cov")
-                if acov is not None:
-                    total_cov_val += float(acov)
-            total_cov = total_cov_val
-
-        # Prefer explicit global coverage when available to avoid double counting
-        global_entry = country_report.get("global") or {}
-        global_cov = global_entry.get("cov")
-        if global_cov is None:
-            g_tot = global_entry.get("tot")
-            g_pct = global_entry.get("pct")
-            if g_tot is not None and g_pct is not None:
-                try:
-                    global_cov = (float(g_pct) / 100.0) * float(g_tot)
-                except (TypeError, ValueError):
-                    global_cov = None
-        if global_cov is not None:
-            total_cov = float(global_cov)
-
-        global_tot_candidate = global_entry.get("tot")
-
-        tot_count = _resolve_total_count(
-            dom_domestic_count,
-            int_cov,
-            global_tot_candidate,
-            fallback_total=total_cov,
-            agg_total_fallback=_synthetic_weighted_agg_total(country_report),
+        return build_parquet_fields_from_country_report(
+            country_report,
+            item1_risk_summary=item1_risk,
+            item1a_risk_summary=item1a_risk,
+            item1_bargaining_report=item1_barg,
+            item1a_bargaining_report=item1a_barg,
         )
-
-        int_pct = _int_reported_pct(country_report)
-        int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)
-
-        tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)
-        tot_count, tot_pct = _normalize_count_pct_pair(tot_count, tot_pct)
-
-        lang_fallback_codes = [
-            c.get("country_code")
-            for c in (country_report.get("countries") or [])
-            if c.get("language_fallback_country") is True and c.get("country_code")
-        ]
-        return {
-            "domestic_country_code": country_report.get("domestic_country_code"),
-            "dom_cov": summary.get("dom_cov") if isinstance(summary, dict) else None,
-            "int_cov": summary.get("int_cov") if isinstance(summary, dict) else None,
-            "year_mismatch": bool(country_report.get("year_mismatch")),
-            "summary_cov": _safe_json_dumps(summary_cov_flat),
-            "summary_not_cov": _safe_json_dumps(summary_not_cov_flat),
-            "has_language_fallback": bool(lang_fallback_codes),
-            "language_fallback_codes": _safe_json_dumps(lang_fallback_codes),
-            "countries": _safe_json_dumps(country_report.get("countries") or []),
-            "agg": _safe_json_dumps(country_report.get("agg") or []),
-            "global": _safe_json_dumps(country_report.get("global") or {}),
-            "global_keywords": _safe_json_dumps(
-                country_report.get("global_keywords") or []
-            ),
-            "global_keyword_count": country_report.get("global_keyword_count"),
-            "risk_summary": _safe_json_dumps(risk_summary or {}),
-            "bargaining_report": _safe_json_dumps(item1_barg or item1a_barg or {}),
-            "dom_count": dom_domestic_count,
-            "dom_pct": dom_domestic_pct,
-            "int_count": int_cov,
-            "int_pct": int_pct,
-            "tot_count": tot_count,
-            "tot_pct": tot_pct,
-        }
 
     extracted = df.apply(extract_fields, axis=1, result_type="expand")
     out = pd.concat([df[["accession", "cik", "url", "year"]], extracted], axis=1)

@@ -14,9 +14,18 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
-    """
-Our total employees consist of 458 employees in Argentina and 1035 employees in the US, including 665 unionized workers
-
+    """We had 1,493 employees. 
+We have employees in the Unied States, 204 employees in Canada, 160 employees in Argentina, 29 employees  in Poland and 116 employees in China.
+ Our total employees consist of 458 salaried employees and 1,035 hourly employees and include 665 unionized workers.
+    We have not experienced any work stoppages and consider our relations with our employees to be good. 
+    Our hourly employees at our Selma, Alabama facility are covered by a collective bargaining agreement 
+    with the Industrial Division of the Communications Workers of America, 
+    under a contract. 
+    Our hourly employees at our Alloy, West Virginia, Niagara Falls, the Company and Bridgeport,
+      Alabama facilities are covered by collective bargaining agreements with The United Steel, Paper and Forestry, Rubber, Manufacturing, Energy, Allied Industrial and Service Workers International Union. 
+      Union employees in Argentina are working under a contract running throug. 
+      Union employees in Canada are working under a contract running through.
+        Our operations in Poland and China are not unionized.'
 """,
 ]
 

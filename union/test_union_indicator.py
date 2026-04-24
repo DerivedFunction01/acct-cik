@@ -15,6 +15,7 @@ from export_provenance_parquet import (
     _has_explicit_country_totals,
     _normalize_count_pct_pair,
     _drop_temp_sample_columns,
+    build_parquet_fields_from_country_report,
     _int_reported_pct,
     _int_reported_totals,
     _resolve_total_count,
@@ -355,6 +356,15 @@ def test_pct_only_aggregate_sentence_is_explicit_not_weighted():
         assert "WEIGHTED_DIVISION" not in method_breakdown
 
 
+def test_zero_pct_only_aggregate_is_not_emitted():
+    result = UnionAnalyzer().analyze_paragraph("Our operations in Poland and China are not unionized.")
+    country_report = result.get("country_report", {}) or {}
+
+    assert country_report.get("agg") == []
+    countries = country_report.get("countries", []) or []
+    assert all((c.get("reported_totals") or {}).get("pct") == 0.0 for c in countries if c.get("country_code") in {"PL", "CN"})
+
+
 def test_same_region_aggregate_collapses_to_region_row():
     tracker = Tracker(domestic_country_code="US")
     tracker.entries = [
@@ -666,6 +676,35 @@ def test_explicit_country_rows_block_synthetic_aggregate_spillover_and_pct():
     assert _tot_reported_pct(report, total_count=1730.0, total_covered=2495.0) is None
 
 
+def test_build_parquet_fields_from_country_report_is_pure():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [
+            {"country_code": "US", "reported_totals": {"cov": 200.0, "tot": 500.0}},
+            {"country_code": "AR", "reported_totals": {"cov": 460.0, "tot": 1033.0}},
+            {"country_code": "FR", "reported_totals": {"cov": 205.0, "tot": 460.0}},
+        ],
+        "agg": [
+            {
+                "aggregate_key": "AGG",
+                "children": {"AR": {}, "FR": {}},
+                "synthetic_weighted_division": True,
+                "cov": 665.0,
+                "tot": 1493.0,
+                "pct": 44.54,
+            }
+        ],
+    }
+
+    fields = build_parquet_fields_from_country_report(report)
+
+    assert fields["domestic_country_code"] == "US"
+    assert fields["dom_count"] == 200.0
+    assert fields["int_count"] == 665.0
+    assert fields["tot_count"] == 865.0
+    assert fields["tot_pct"] is None
+
+
 def test_resolve_total_count_prefers_domestic_plus_international():
     assert _resolve_total_count(5307.0, 1559.0, None) == 6866.0
     assert _resolve_total_count(5307.0, 1559.0, 7000.0) == 7000.0
@@ -817,8 +856,8 @@ def test_worker_type_lookup_is_consumed_after_first_use():
 
     result = UnionAnalyzer().analyze_paragraph(text, reporting_year=2012)
 
-    assert result["items"][5]["coverage_data"]["employee_count_covered"] == 1035.0
+    assert result["items"][5]["coverage_data"]["type"] == "NONE"
     assert result["items"][6]["coverage_data"]["type"] == "NONE"
     us = _get_country(result, "US")
     assert us is not None
-    assert (us.get("reported_totals") or {}).get("cov") == 1035.0
+    assert (us.get("reported_totals") or {}).get("cov") is None

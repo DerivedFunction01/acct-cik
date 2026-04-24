@@ -10757,6 +10757,8 @@ class Tracker:
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
             if pct_only_aggregate:
+                if e.percentage is None or e.percentage <= 0:
+                    continue
                 agg.append(
                     {
                         "aggregate_key": aggregate_key,
@@ -10903,6 +10905,8 @@ class Tracker:
                 }
 
             if not (has_tot or has_cov or has_not_cov):
+                continue
+            if not has_cov or parent_cov <= 0:
                 continue
 
             agg_key = _collapse_same_region_code(group_codes)
