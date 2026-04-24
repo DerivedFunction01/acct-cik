@@ -155,7 +155,7 @@ NORTH_AMERICA = {
                 ["illinois"],
                 [
                     Location("Chicago", ["chicago"]),
-                    Location("Springfield", ["springfield, il"]),
+                    Location("Springfield, IL", ["springfield, il"]),
                     Location("Peoria", ["peoria"]),
                     Location("Rockford", ["rockford"]),
                     Location("Belvidere", ["belvidere"]),
@@ -167,8 +167,8 @@ NORTH_AMERICA = {
                 [
                     Location("Boston", ["boston"]),
                     Location("Worcester", ["worcester"]),
-                    Location("Cambridge", ["cambridge, ma"]),
-                    Location("Springfield", ["springfield, ma"]),
+                    Location("Cambridge, MA", ["cambridge, ma"]),
+                    Location("Springfield, MA", ["springfield, ma"]),
                     Location("Lowell", ["lowell"]),
                 ],
             ),
@@ -277,7 +277,7 @@ NORTH_AMERICA = {
                     Location("Birmingham, AL", ["birmingham, al", "birmingham, alabama"]),
                     Location("Huntsville", ["huntsville"]),
                     Location("Tuscaloosa", ["tuscaloosa"]),
-                    Location("Lincoln", ["lincoln, al", "lincoln, alabama"]),
+                    Location("Lincoln, AL", ["lincoln, al", "lincoln, alabama"]),
                 ],
             ),
             Location(
@@ -293,7 +293,7 @@ NORTH_AMERICA = {
                 ["missouri", "mo"],
                 [
                     Location("St. Louis", ["st. louis"]),
-                    Location("Kansas City", ["kansas city, mo"]),
+                    Location("Kansas City, MO", ["kansas city, mo"]),
                 ],
             ),
             Location(
@@ -338,7 +338,7 @@ NORTH_AMERICA = {
                 [
                     Location("Wilmington", ["wilmington"]),
                     Location("Dover", ["dover, de", "dover, delaware"]),
-                    Location("Newark", ["newark"]),
+                    Location("Newark, DE", ["newark, de"]),
                 ],
             ),
             Location(
@@ -347,7 +347,7 @@ NORTH_AMERICA = {
                 [
                     Location("Atlanta", ["atlanta"]),
                     Location("Savannah", ["savannah"]),
-                    Location("Augusta", ["augusta, ga", "augusta, georgia"]),
+                    Location("Augusta, GA", ["augusta, ga", "augusta, georgia"]),
                 ],
             ),
             Location(
@@ -382,7 +382,7 @@ NORTH_AMERICA = {
                 ["kansas", "ks"],
                 [
                     Location("Wichita", ["wichita"]),
-                    Location("Kansas City", ["kansas city"]),
+                    Location("Kansas City, KS", ["kansas city, ks"]),
                     Location("Topeka", ["topeka"]),
                 ],
             ),
@@ -399,8 +399,8 @@ NORTH_AMERICA = {
                 "Maine",
                 ["maine"],
                 [
-                    Location("Portland", ["portland, me"]),
-                    Location("Augusta", ["augusta, me"]),
+                    Location("Portland, ME", ["portland, me"]),
+                    Location("Augusta, ME", ["augusta, me"]),
                     Location("Bangor", ["bangor"]),
                 ],
             ),
@@ -446,7 +446,7 @@ NORTH_AMERICA = {
                 ["nebraska"],
                 [
                     Location("Omaha", ["omaha"]),
-                    Location("Lincoln", ["lincoln, ne"]),
+                    Location("Lincoln, NE", ["lincoln, ne"]),
                     Location("Grand Island", ["grand island"]),
                 ],
             ),
@@ -473,7 +473,7 @@ NORTH_AMERICA = {
                 "New Jersey",
                 ["new jersey", "nj"],
                 [
-                    Location("Newark", ["newark"]),
+                    Location("Newark, NJ", ["newark, nj"]),
                     Location("Jersey City", ["jersey city"]),
                     Location("Trenton", ["trenton"]),
                 ],
@@ -518,7 +518,7 @@ NORTH_AMERICA = {
                 "Oregon",
                 ["oregon"],
                 [
-                    Location("Portland", ["portland, or"]),
+                    Location("Portland, OR", ["portland, or"]),
                     Location("Eugene", ["eugene"]),
                     Location("Salem", ["salem, or"]),
                 ],
@@ -536,7 +536,7 @@ NORTH_AMERICA = {
                 "South Carolina",
                 ["south carolina", "sc"],
                 [
-                    Location("Charleston", ["charleston, sc"]),
+                    Location("Charleston, SC", ["charleston, sc"]),
                     Location("Columbia", ["columbia sc"]),
                     Location("Greenville", ["greenville, sc"]),
                 ],
@@ -581,7 +581,7 @@ NORTH_AMERICA = {
                 "West Virginia",
                 ["west virginia", "wv"],
                 [
-                    Location("Charleston", ["charleston, wv"]),
+                    Location("Charleston, WV", ["charleston, wv"]),
                     Location("Morgantown", ["morgantown"]),
                     Location("Huntington", ["huntington"]),
                 ],
@@ -697,7 +697,7 @@ NORTH_AMERICA = {
             Location("Oakville", ["oakville"]),
             Location("Brampton", ["brampton"]),
             Location(
-                "Cambridge",
+                "Cambridge, Ontario",
                 ["cambridge, on", "cambridge, ontario", "cambridge, canada"],
             ),
             Location("Ingersoll", ["ingersoll"]),
@@ -889,8 +889,6 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("Stockholm", ["stockholm"]),
-            Location("Gothenburg", ["gothenburg", "göteborg"]),
-            Location("Malmo", ["malmo", "malmö"]),
             Location("Gothenburg", ["gothenburg", "göteborg"]),
             Location("Malmo", ["malmo", "malmö"]),
             Location("Umea", ["umea", "umeå"]),
@@ -1107,7 +1105,6 @@ EUROPE = {
             Location("Toulon", ["toulon"]),
             Location("Montpellier", ["montpellier"]),
             Location("Rennes", ["rennes"]),
-            Location("Grenoble", ["grenoble"]),
             Location("Reims", ["reims"]),
             Location("Saint-Etienne", ["saint-etienne", "saint-étienne"]),
             Location("Le Havre", ["le havre"]),
@@ -1261,9 +1258,8 @@ EUROPE = {
             Location("Brussels", ["brussels"]),
             Location("Antwerp", ["antwerp"]),
             Location("Ghent", ["ghent"]),
-            Location("Liege", ["liege"]),
-            Location("Charleroi", ["charleroi"]),
             Location("Liege", ["liege", "liège"]),
+            Location("Charleroi", ["charleroi"]),
             Location("Bruges", ["bruges"]),
         ],
         ["ABVV", "FGTB"],
