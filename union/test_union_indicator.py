@@ -383,6 +383,22 @@ def test_same_region_aggregate_with_mexico_collapses_to_na():
     assert not report.get("agg")
 
 
+def test_pct_only_mixed_region_aggregate_promotes_to_global():
+    text = (
+        "As of <2009>, approximately 40% of our North American packaging plant "
+        "employees and most of our packaging plant employees in Europe were "
+        "covered by collective bargaining agreements."
+    )
+
+    result = UnionAnalyzer().analyze_paragraph(text, reporting_year=2009)
+    country_report = result.get("country_report", {}) or {}
+    global_obj = country_report.get("global") or {}
+
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("global_source") == "promoted_from_pct_only_aggregate"
+    assert global_obj.get("reported_totals", {}).get("pct") == 40.0
+
+
 def test_labor_contract_bypass_regex_is_unambiguous():
     assert LABOR_CONTRACT_BYPASS_REGEX.search("collective bargaining agreements")
     assert LABOR_CONTRACT_BYPASS_REGEX.search("union contracts")

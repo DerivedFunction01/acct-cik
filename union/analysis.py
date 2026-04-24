@@ -10826,6 +10826,41 @@ class Tracker:
             global_obj["global_source_note"] = (
                 "International promoted to Global because domestic data was missing"
             )
+        elif not global_entry:
+            pct_only_aggregate = next(
+                (
+                    a
+                    for a in agg
+                    if a.get("pct") is not None
+                    and a.get("tot") is None
+                    and a.get("cov") is None
+                    and a.get("not_cov") is None
+                    and len((a.get("children") or {}).keys()) > 1
+                ),
+                None,
+            )
+            if pct_only_aggregate and not _country_obj_has_quant_signal(domestic_country_obj):
+                global_obj = {
+                    "country_code": GeoCode.GLOBAL.value,
+                    "union_indicator": 1,
+                    "country_totals": {
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct": pct_only_aggregate.get("pct"),
+                    },
+                    "reported_totals": {
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct": pct_only_aggregate.get("pct"),
+                    },
+                    "global_source": "promoted_from_pct_only_aggregate",
+                    "global_source_code": pct_only_aggregate.get("aggregate_key"),
+                    "global_source_note": (
+                        "Pct-only mixed-region aggregate promoted to Global"
+                    ),
+                }
 
         # If a North American union signal produces the same unsplittable signal
         # for both US and CA from the same sentence, keep only the domestic side
