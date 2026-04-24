@@ -1900,7 +1900,7 @@ ASIA_PACIFIC = {
         Region.ASIA_PACIFIC,
         [
             Location("Auckland", ["auckland"]),
-            Location("Wellington", ["wellington"]),
+            Location("Wellington", ["wellington, nz"]),
             Location("Christchurch", ["christchurch"]),
             Location("Dunedin", ["dunedin"]),
             Location("Hamilton", ["hamilton, nz"]),
