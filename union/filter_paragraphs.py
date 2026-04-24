@@ -97,6 +97,8 @@ HARD_EXCLUSION_TERMS = [
     r"mortgages?",
     r"ordering",
     r"merger",
+    r"patents?",
+    r"trademarks?"
 ]
 HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
 
