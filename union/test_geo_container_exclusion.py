@@ -52,15 +52,32 @@ def test_container_context_prefers_explicit_child_countries():
 
 
 def test_shared_us_city_names_resolve_to_us():
-    assert RegionMatcher.get_location("Birmingham") == (
+    matcher = RegionMatcher()
+
+    assert matcher.get_location("Birmingham") is None
+    assert matcher.get_location("Manchester") is None
+
+    assert matcher.get_location("Birmingham, AL") == (
         Region.NORTH_AMERICA,
         "United States",
-        "Birmingham",
+        "Birmingham, AL",
         "US",
     )
-    assert RegionMatcher.get_location("Manchester") == (
+    assert matcher.get_location("Manchester, NH") == (
         Region.NORTH_AMERICA,
         "United States",
-        "Manchester",
+        "Manchester, NH",
         "US",
+    )
+    assert matcher.get_location("Birmingham, UK") == (
+        Region.EUROPE,
+        "United Kingdom",
+        "Birmingham, UK",
+        "GB",
+    )
+    assert matcher.get_location("Manchester, UK") == (
+        Region.EUROPE,
+        "United Kingdom",
+        "Manchester, UK",
+        "GB",
     )
