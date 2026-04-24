@@ -6,6 +6,7 @@ from analysis import (
     get_effective_years,
     has_year_mismatch,
 )
+from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
 from defs.text_cleaner import (
     CompanyCleaner,
@@ -210,6 +211,45 @@ def test_contextual_cleaner_removes_forward_small_union_breakdown_clauses():
     assert "1 in Mexico" not in cleaned
     assert "1 in Venezuela" not in cleaned
     assert "2 in Brazil" not in cleaned
+
+
+def test_single_country_aggregate_is_reported_as_explicit_not_weighted():
+    blocks = [
+        "At the end of fiscal 2008, we had approximately 13,800 employees. We are party to the following collective bargaining agreements with the:",
+        "United Steel, Paper and Forestry, Rubber, Manufacturing, Energy, Allied Industrial and Service Workers International Union (290 employees in Baltimore, MD), which expires in April 2009",
+        "United Steelworkers of America (33 employees in Vancouver, WA), which expires in January 2011",
+        "Unite Here Local 150 (111 employees in Bloomington, MN), which expires in March 2009",
+        "United Automobile, Aerospace, and Agricultural Implement Workers of America, Local 882 (69 employees in Columbus, GA) which expires in October 2009 and",
+        "United Steel, Paper and Forestry, Rubber, Manufacturing, Energy, Allied Industrial and Service Workers International Union, AFL-CIO, Local 1008 (102 employees in Constantine, MI) which expires in December 2009",
+        "None of our other domestic employees are covered by collective bargaining agreements. We believe our relations with our employees are good.",
+    ]
+
+    init_worker()
+    cleaned = " ".join(
+        filter_content(blocks, year=2008, home_country="US")[0]
+    )
+    result = UnionAnalyzer().analyze_paragraph(cleaned, reporting_year=2008)
+    us = _get_country(result, "US")
+
+    assert us is not None
+    method_breakdown = us.get("method_breakdown") or {}
+    assert "EXPLICIT" in method_breakdown
+    assert "WEIGHTED_DIVISION" not in method_breakdown
+
+
+def test_filter_content_keeps_capitalized_agreement_lines_split():
+    blocks = [
+        "At the end of fiscal 2008, we had approximately 13,800 employees. We are party to the following collective bargaining agreements with the:",
+        "United Steel, Paper and Forestry, Rubber, Manufacturing, Energy, Allied Industrial and Service Workers International Union (290 employees in Baltimore, MD), which expires in April 2009",
+        "United Steelworkers of America (33 employees in Vancouver, WA), which expires in January 2011",
+    ]
+
+    init_worker()
+    filtered = filter_content(blocks, year=2008, home_country="US")[0]
+
+    assert len(filtered) >= 2
+    assert "United Steel" not in filtered[0]
+    assert any("United Steel" in block for block in filtered[1:])
 
 
 def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():

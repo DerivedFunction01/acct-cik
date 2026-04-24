@@ -329,7 +329,9 @@ def reduce_first_long_paragraph(
 def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
     """
     Repairs broken text fragments by merging them with the previous paragraph
-    if they appear to be continuations (start with lowercase or previous was short/incomplete).
+    if they appear to be continuations. We only merge when the next fragment
+    starts lowercase, because capitalized starts usually mark a new sentence or
+    list item that should stay separate.
     """
     if not paragraphs:
         return []
@@ -344,22 +346,9 @@ def repair_broken_fragments(paragraphs: List[str]) -> List[str]:
         if not next_p.strip():
             continue
 
-        should_merge = False
         clean_next = next_p.strip()
-        
-        # Rule 1: Starts with lowercase
-        if clean_next and clean_next[0].islower():
-            should_merge = True
-        
-        # Rule 2: Previous is short and incomplete
-        if not should_merge and current_buffer:
-            clean_curr = current_buffer.strip()
-            # Ends with connector punctuation
-            if clean_curr.endswith((',', '-', ':')):
-                should_merge = True
-            # Short and no terminal punctuation (likely broken line)
-            elif len(clean_curr) < 100 and not clean_curr.endswith(('.', '!', '?', '"', "'", ')')):
-                should_merge = True
+
+        should_merge = bool(clean_next and clean_next[0].islower())
 
         if should_merge:
             current_buffer += " " + next_p

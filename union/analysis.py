@@ -9662,6 +9662,7 @@ class Tracker:
         )
         pseudo_region_by_code: Dict[str, str] = {}
         aggregate_weighted_by_code: Dict[str, Dict[str, Any]] = {}
+        aggregate_explicit_by_code: Dict[str, Dict[str, Any]] = {}
 
         suppressed_by_code: Dict[str, Dict[str, Dict[str, Any]]] = {}
         if suppressed_clause_items:
@@ -9842,8 +9843,13 @@ class Tracker:
             alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
+            bucket_map = (
+                aggregate_explicit_by_code
+                if len(child_codes) == 1
+                else aggregate_weighted_by_code
+            )
             for c in child_codes:
-                bucket = aggregate_weighted_by_code.setdefault(
+                bucket = bucket_map.setdefault(
                     c,
                     {
                         "tot": None,
@@ -9929,6 +9935,7 @@ class Tracker:
             country_entries: List[Entry],
             segment_entries: List[Entry],
             weighted_seed: Optional[Dict[str, Any]],
+            explicit_seed: Optional[Dict[str, Any]] = None,
             country_keywords: Optional[Dict[str, Any]] = None,
             country_table_keywords: Optional[List[str]] = None,
             suppressed_items: Optional[Dict[str, Dict[str, Any]]] = None,
@@ -10036,6 +10043,38 @@ class Tracker:
                         weighted_seed.get("pct_vals", [])
                     )
                     weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
+
+            if explicit_seed:
+                explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
+                for f in ("tot", "cov", "not_cov"):
+                    explicit_bucket[f] = add_nullable(
+                        explicit_bucket[f], explicit_seed.get(f)
+                    )
+                explicit_bucket["pct_vals"].extend(explicit_seed.get("pct_vals", []))
+                explicit_bucket["n"] += int(explicit_seed.get("n") or 0)
+
+            effective_country_codes: set[str] = set()
+            for ent in country_entries:
+                if ent.scope == Scope.COUNTRY and isinstance(ent.key, str):
+                    effective_country_codes.add(ent.key)
+                elif ent.scope == Scope.SEGMENT and isinstance(ent.key, str):
+                    anchor = self._segment_anchor_code(ent.key)
+                    if anchor:
+                        effective_country_codes.add(anchor)
+            if len(effective_country_codes) <= 1:
+                weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
+                explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
+                if weighted_bucket["n"] > 0 and any(
+                    weighted_bucket.get(k) is not None
+                    for k in ("tot", "cov", "not_cov")
+                ):
+                    for f in ("tot", "cov", "not_cov"):
+                        explicit_bucket[f] = add_nullable(
+                            explicit_bucket[f], weighted_bucket.get(f)
+                        )
+                    explicit_bucket["pct_vals"].extend(weighted_bucket.get("pct_vals", []))
+                    explicit_bucket["n"] += int(weighted_bucket.get("n") or 0)
+                    method_breakdown[SourceType.WEIGHTED_DIVISION.value] = empty_bucket()
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
@@ -10406,6 +10445,7 @@ class Tracker:
             )
             suppressed_items = suppressed_by_code.get(code)
             weighted_seed = aggregate_weighted_by_code.get(code)
+            explicit_seed = aggregate_explicit_by_code.get(code)
 
             country = build_country_output(
                 code=code,
@@ -10416,6 +10456,7 @@ class Tracker:
                 country_entries=country_entries,
                 segment_entries=segment_entries,
                 weighted_seed=weighted_seed,
+                explicit_seed=explicit_seed,
                 country_keywords=country_keywords,
                 country_table_keywords=country_table_keywords,
                 suppressed_items=suppressed_items,
@@ -10566,7 +10607,7 @@ class Tracker:
                 }
 
             agg_source_type = SourceType.WEIGHTED_DIVISION.value
-            if e.is_explicit and len(child_codes) == 1:
+            if len(child_codes) == 1:
                 agg_source_type = SourceType.EXPLICIT.value
 
             agg.append(
