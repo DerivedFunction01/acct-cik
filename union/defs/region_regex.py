@@ -2581,7 +2581,7 @@ MIDDLE_EAST_AFRICA = {
             Location("Beirut", ["beirut"]),
             Location("Tripoli", ["tripoli, lebanon"]),
             Location("Sidon", ["sidon"]),
-            Location("Tyre", ["tyre", "sour"]),
+            Location("Tyre", ["tyre"]),
             Location("Nabatieh", ["nabatieh"]),
         ],
         code="LB",
