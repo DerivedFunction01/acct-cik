@@ -11121,7 +11121,9 @@ class Tracker:
                             "Single weighted aggregate promoted to Global"
                         ),
                     }
-                elif len(agg) > 1:
+                elif len(agg) > 1 and not any(
+                    _country_obj_has_reported_values(c) for c in countries
+                ):
                     seen_child_codes: set[str] = set()
                     total_tot = 0.0
                     total_cov = 0.0
