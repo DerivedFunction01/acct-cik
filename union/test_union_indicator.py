@@ -252,6 +252,17 @@ def test_filter_content_keeps_capitalized_agreement_lines_split():
     assert any("United Steel" in block for block in filtered[1:])
 
 
+def test_union_extractor_strips_leading_fillers_from_union_matches():
+    sentence = "The United Steelworkers of America represent employees in the US."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert "United Steelworkers of America" in analysis.union_terms
+    assert all(
+        not term.lower().startswith(("the ", "our ", "a ", "an "))
+        for term in analysis.union_terms
+    )
+
+
 def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():
     cleaned = ContextualNumberCleaner().clean(
         "8 union/contracts/employee groups ... 2 in Brazil, 1 in Mexico, and 30 distribution and manufacturing center employees.",

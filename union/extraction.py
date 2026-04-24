@@ -1140,6 +1140,15 @@ STRICT_LIST_CONNECTOR = re.compile(
     r"^\s*(?:,|;|and|&|or)\s*(?:and|or|&)?\s*$", re.IGNORECASE
 )
 PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
+LEADING_UNION_FILLER_REGEX = re.compile(
+    r"^(?:(?:the|a|an|our|my|your|their|his|her|its|this|that|these|those|some|any|each|every|such)\b[\s,;:\-]+)+",
+    re.IGNORECASE,
+)
+
+
+def normalize_union_candidate(text: str) -> str:
+    cleaned = LEADING_UNION_FILLER_REGEX.sub("", text).strip(" \t\r\n,;:-")
+    return cleaned or text.strip()
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
@@ -1361,7 +1370,7 @@ class UnionExtractor:
         if self.matcher.specific_union_regex:
 
             def specific_union_extractor(m):
-                val = m.group(0)
+                val = normalize_union_candidate(m.group(0))
                 if not self.matcher.is_valid_specific_union_match(val):
                     raise ValueError
                 return val
@@ -1403,16 +1412,16 @@ class UnionExtractor:
             prefix_match = LOOSE_TITLE_PREFIX_REGEX.search(pre_text)
             if prefix_match:
                 prefix = prefix_match.group(0)
-                return prefix + val, start - len(prefix), end
+                return normalize_union_candidate(prefix + val), start - len(prefix), end
 
             # Fallback for formal names that enumerate industries before the
             # core worker/union segment (e.g., "Steel, Paper and Forestry, ...").
             industry_prefix_match = INDUSTRY_TITLE_PREFIX_REGEX.search(pre_text)
             if industry_prefix_match:
                 prefix = industry_prefix_match.group(0)
-                return prefix + val, start - len(prefix), end
+                return normalize_union_candidate(prefix + val), start - len(prefix), end
 
-            return val
+            return normalize_union_candidate(val)
 
         def dynamic_union_side_effect(m, val):
             analysis.union_terms.append(val)
@@ -1483,6 +1492,9 @@ class UnionExtractor:
 
             found_geo = False
             for loc_term in normalized_parts:
+                loc_term = normalize_union_candidate(loc_term)
+                if not loc_term:
+                    continue
                 loc_info = self.matcher.get_location(loc_term)
                 union_label = f"{loc_term} {suffix}"
                 analysis.union_terms.append(union_label)
@@ -1504,12 +1516,12 @@ class UnionExtractor:
 
             # Fallback for non-chained/single term that didn't split cleanly.
             if not normalized_parts:
-                analysis.union_terms.append(val)
+                analysis.union_terms.append(normalize_union_candidate(val))
 
             # Preserve original term only when no location matched,
             # so downstream logic still has a union indicator.
             if not found_geo and val not in analysis.union_terms:
-                analysis.union_terms.append(val)
+                analysis.union_terms.append(normalize_union_candidate(val))
 
         process_matches(
             LOWER_DYNAMIC_UNION_REGEX,
@@ -1586,7 +1598,7 @@ class UnionExtractor:
         process_matches(
             UNION_REGEX,
             MatchType.UNION_TERM,
-            lambda m: m.group(0),
+            lambda m: normalize_union_candidate(m.group(0)),
             lambda m, val: analysis.union_terms.append(val),
         )
 

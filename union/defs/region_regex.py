@@ -1261,8 +1261,8 @@ EUROPE = {
             Location("Liege", ["liege", "liège"]),
             Location("Bruges", ["bruges"]),
         ],
-        ["ACV", "CSC", "ABVV", "FGTB"],
-        ["CBA"],
+        ["ABVV", "FGTB"],
+        [],
         code="BE",
     ),
     Nation(
@@ -1340,7 +1340,7 @@ EUROPE = {
             Location("Turku", ["turku"]),
             Location("Vantaa", ["vantaa"]),
         ],
-        ["SAK", "STTK", "Akava"],
+        ["STTK", "Akava"],
         [
             "Työehtosopimus",
             "TES",
