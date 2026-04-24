@@ -625,7 +625,7 @@ def test_total_reported_pct_prefers_primary_aggregate_pct():
         "agg": [
             {
                 "aggregate_key": "AGG",
-                "children": {"AR": {}, "FR": {}},
+                "children": {"US": {}, "AR": {}, "FR": {}},
                 "synthetic_weighted_division": True,
                 "cov": 665.0,
                 "tot": 1493.0,

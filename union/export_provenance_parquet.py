@@ -673,8 +673,6 @@ def build_parquet_fields_from_country_report(
     dom_domestic_count, dom_domestic_pct = _domestic_explicit(country_report)
     if dom_domestic_pct is None:
         dom_domestic_pct = _domestic_parent_pct(country_report)
-    if dom_domestic_count is None:
-        dom_domestic_count = _domestic_parent_cov_remainder(country_report)
 
     dom_pulled_from_risk = False
     if dom_domestic_count in (None, 0, 0.0) and risk_summary:
@@ -697,38 +695,12 @@ def build_parquet_fields_from_country_report(
         dom_domestic_count = 0.0
         dom_domestic_pct = 0.0
 
-    int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
     agg_tot, agg_cov, agg_pct = _aggregate_report_totals(country_report)
-    if int_cov is None and agg_cov is not None:
+    int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
+    if agg_cov is not None:
         int_cov = float(agg_cov)
-    if int_tot is None and agg_tot is not None and int_cov is None:
-        # No explicit international signal, but a synthetic aggregate exists.
-        int_tot = float(agg_tot)
-
-    if dom_domestic_count is not None and int_cov is not None:
-        dom_code = country_report.get("domestic_country_code")
-        if dom_code:
-            has_parent_container = False
-            for entry in countries:
-                c_code = entry.get("country_code")
-                if not c_code or c_code == dom_code:
-                    continue
-                if c_code in IGNORED_REGIONS:
-                    continue
-                if entry.get("is_sub_allocation"):
-                    continue
-                reported = entry.get("reported_totals") or {}
-                if reported.get("cov") is None:
-                    continue
-                if is_contained(
-                    container_key=c_code,
-                    item_key=dom_code,
-                    domestic_country_code=dom_code,
-                ):
-                    has_parent_container = True
-                    break
-            if has_parent_container:
-                int_cov = max(0.0, float(int_cov) - float(dom_domestic_count))
+        int_tot = float(agg_tot) if agg_tot is not None else None
+        int_not_cov = None
 
     summary_int_false = summary.get("int_cov") is False
     if summary_int_false and agg_cov is None:
