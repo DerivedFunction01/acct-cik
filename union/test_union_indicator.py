@@ -8,7 +8,11 @@ from analysis import (
 )
 from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
-from export_provenance_parquet import _normalize_count_pct_pair
+from export_provenance_parquet import (
+    _normalize_count_pct_pair,
+    _resolve_total_count,
+    _tot_reported_pct,
+)
 from defs.union_regex import LABOR_CONTRACT_BYPASS_REGEX
 from defs.text_cleaner import (
     CompanyCleaner,
@@ -254,6 +258,36 @@ def test_filter_content_keeps_capitalized_agreement_lines_split():
     assert any("United Steel" in block for block in filtered[1:])
 
 
+def test_non_union_employment_sentence_resets_cross_paragraph_geo_context():
+    text = "\n\n".join(
+        [
+            "Labor Relations - The air transportation industry is regulated under the Railway Labor Act, which vests in the National Mediation Board certain regulatory powers with respect to disputes between airlines and labor unions arising under collective bargaining agreements.",
+            "Employees Alaska had 6243 active full-time and part-time employees at <1993>, of which approximately 85% are represented by labor unions.",
+            "The unions and the number of the Company employees represented by each as of <1993> and the amendable dates of existing contracts are outlined below:",
+            "Number of Union Employee Group Employees Contract Status",
+            "International Mechanic, 1493 Amendable <1997> Association of Rampservice and Machinists and related Aerospace Workers classifications",
+            "Association of Flight Attendants 1011 Amendable Flight Attendants <1990> (In negotiation)",
+            "Mexico Workers Mexico Airport 66 Amendable <1994> Association of Air Personnel Transport",
+            "Horizon had 2490 active full-time and part-time employees at <1993>, of which approximately 20% are represented by labor unions.",
+            "The unions and the number of Horizon employees represented by each as of <1993> and the amendable dates of existing contracts are outlined below:",
+            "Number of Union Employee Group Employees Contract Status Transport Workers Mechanics and 234 Amendable <1995> Union of America related classifications",
+            "The Company's labor contracts currently in negotiation are not expected, when finalized, to have a material adverse impact on results of operations.",
+        ]
+    )
+
+    result = UnionAnalyzer().analyze_paragraph(text, reporting_year=1993)
+    items = result.get("items", []) or []
+
+    horizon_item = next(
+        item for item in items if "Horizon had 2490 active full-time" in item.get("sentence", "")
+    )
+    geo = horizon_item.get("geographic_context", {}) or {}
+    country_codes = [c.get("code") for c in geo.get("countries", []) or [] if c.get("code")]
+
+    assert "MX" not in country_codes
+    assert geo.get("region") != "Latin America"
+
+
 def test_filter_content_allows_customer_language_with_labor_contract_context():
     blocks = [
         "Our customers include a union, but the employees work under collective bargaining agreements with the following unions: Allied International Union and Special & Superior Officers Benevolent Association.",
@@ -468,3 +502,129 @@ def test_count_pct_pair_normalizer_keeps_zero_values_consistent():
     assert _normalize_count_pct_pair(12.0, 0.0) == (12.0, None)
     assert _normalize_count_pct_pair(0.0, 25.0) == (None, 25.0)
     assert _normalize_count_pct_pair(0.0, 12.5) == (None, 12.5)
+
+
+def test_total_reported_pct_does_not_derive_from_counts_without_explicit_pct():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [
+            {"country_code": "US", "reported_totals": {"cov": 5307.0, "tot": 6243.0}},
+            {"country_code": "MX", "reported_totals": {"cov": 1559.0, "tot": 2490.0}},
+        ],
+    }
+
+    assert _tot_reported_pct(report, total_count=6866.0, total_covered=6866.0) is None
+
+
+def test_resolve_total_count_prefers_domestic_plus_international():
+    assert _resolve_total_count(5307.0, 1559.0, None) == 6866.0
+    assert _resolve_total_count(5307.0, 1559.0, 7000.0) == 7000.0
+    assert _resolve_total_count(None, None, 7000.0, fallback_total=6500.0) == 7000.0
+
+
+def test_merge_continuation_items_does_not_absorb_following_employment_counts():
+    analyzer = UnionAnalyzer()
+    results = [
+        {
+            "geographic_context": {
+                "specificity": "EXPLICIT",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 0,
+            "is_union": True,
+            "keyword_matched": ["labor unions"],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": None,
+            "coverage_data": {
+                "percentage": None,
+                "employee_count_covered": None,
+                "employee_count_not_covered": None,
+                "employee_count_total": None,
+                "negated": False,
+                "negation_type": None,
+                "type": None,
+                "note": None,
+            },
+        },
+        {
+            "geographic_context": {
+                "specificity": "INHERITED",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 1,
+            "is_union": False,
+            "keyword_matched": [],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": 6243.0,
+            "coverage_data": {
+                "percentage": 85.0,
+                "employee_count_covered": 5307.0,
+                "employee_count_not_covered": 936.0,
+                "employee_count_total": 6243.0,
+                "negated": False,
+                "negation_type": None,
+                "type": None,
+                "note": None,
+            },
+        },
+    ]
+
+    merged = analyzer._merge_continuation_items(results)
+
+    assert len(merged) == 2
+
+
+def test_merge_continuation_items_stops_when_union_sentence_has_own_population():
+    analyzer = UnionAnalyzer()
+    results = [
+        {
+            "geographic_context": {
+                "specificity": "EXPLICIT",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 0,
+            "is_union": True,
+            "keyword_matched": ["labor unions"],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": 6243.0,
+            "coverage_data": {
+                "percentage": 85.0,
+                "employee_count_covered": 5307.0,
+                "employee_count_not_covered": 936.0,
+                "employee_count_total": 6243.0,
+                "negated": False,
+                "negation_type": None,
+                "type": None,
+                "note": None,
+            },
+        },
+        {
+            "geographic_context": {
+                "specificity": "INHERITED",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 1,
+            "is_union": True,
+            "keyword_matched": ["labor unions"],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": 2490.0,
+            "coverage_data": {
+                "percentage": 20.0,
+                "employee_count_covered": 498.0,
+                "employee_count_not_covered": 1992.0,
+                "employee_count_total": 2490.0,
+                "negated": False,
+                "negation_type": None,
+                "type": None,
+                "note": None,
+            },
+        },
+    ]
+
+    merged = analyzer._merge_continuation_items(results)
+
+    assert len(merged) == 2

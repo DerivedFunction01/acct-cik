@@ -79,6 +79,32 @@ def _normalize_count_pct_pair(
     return count, pct
 
 
+def _resolve_total_count(
+    dom_count: Optional[float],
+    int_count: Optional[float],
+    global_covered_count: Optional[float],
+    fallback_total: Optional[float] = None,
+) -> Optional[float]:
+    """
+    Select the export total count using the simplified rule:
+    prefer dom + int, then let a larger global covered count override it.
+    """
+    total = None
+    if dom_count is not None and int_count is not None:
+        total = float(dom_count) + float(int_count)
+    elif fallback_total is not None:
+        total = float(fallback_total)
+
+    if global_covered_count is not None:
+        global_covered_count = float(global_covered_count)
+        if total is None:
+            total = global_covered_count
+        else:
+            total = max(total, global_covered_count)
+
+    return total
+
+
 def _report_pcts(report: Dict[str, Any]) -> List[Tuple[str, float]]:
     out: List[Tuple[str, float]] = []
     for entry in report.get("countries") or []:
@@ -190,12 +216,6 @@ def _tot_reported_pct(
     single_pct = _single_report_pct(report)
     if single_pct is not None:
         return single_pct
-
-    if total_count not in (None, 0) and total_covered is not None:
-        try:
-            return round((float(total_covered) / float(total_count)) * 100.0, 2)
-        except (TypeError, ValueError, ZeroDivisionError):
-            return None
     return None
 
 
@@ -1027,22 +1047,22 @@ def export_parquet(
         if global_cov is not None:
             total_cov = float(global_cov)
 
-        country_total_candidates: List[float] = []
-        for entry in countries:
-            tot = _entry_field(entry, "tot")
-            if tot is not None and tot > 0:
-                country_total_candidates.append(float(tot))
+        global_cov_candidate = global_entry.get("cov")
+        if global_cov_candidate is None:
+            g_tot = global_entry.get("tot")
+            g_pct = global_entry.get("pct")
+            if g_tot is not None and g_pct is not None:
+                try:
+                    global_cov_candidate = (float(g_pct) / 100.0) * float(g_tot)
+                except (TypeError, ValueError, ZeroDivisionError):
+                    global_cov_candidate = None
 
-        global_tot = global_entry.get("tot")
-        if global_tot is not None:
-            try:
-                country_total_candidates.append(float(global_tot))
-            except (TypeError, ValueError):
-                pass
-
-        tot_count = max(country_total_candidates) if country_total_candidates else None
-        if tot_count is None:
-            tot_count = total_cov
+        tot_count = _resolve_total_count(
+            dom_domestic_count,
+            int_cov,
+            global_cov_candidate,
+            fallback_total=total_cov,
+        )
 
         int_pct = _int_reported_pct(country_report)
         if int_pct is None and int_cov is not None and int_tot not in (None, 0):

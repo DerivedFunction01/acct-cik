@@ -11898,6 +11898,29 @@ class UnionAnalyzer:
             for p_text in paragraphs:
                 p_sentences = self.extractor.split_sentences(p_text)
 
+                initial_geo_context = last_geo_context
+                initial_geo_sentence_idx = last_geo_sentence_idx
+                if p_sentences:
+                    first_sentence = p_sentences[0]
+                    first_analysis = self.extractor.analyze_sentence(
+                        first_sentence,
+                        emp_count=ext_total,
+                        context_total=tracker.global_total or ext_total,
+                    )
+                    if (
+                        first_analysis.is_relevant
+                        and (
+                            first_analysis.worker_counts
+                            or first_analysis.numbers
+                            or first_analysis.percentages
+                            or STRICT_EMPLOYMENT_ANCHOR_REGEX.search(first_sentence)
+                        )
+                    ):
+                        # Fresh employment paragraphs should not inherit a prior
+                        # paragraph's geo context just because they still mention unions.
+                        initial_geo_context = None
+                        initial_geo_sentence_idx = -1
+
                 # Analyze block with context from previous paragraph
                 (
                     block_results,
@@ -11910,8 +11933,8 @@ class UnionAnalyzer:
                     reporting_year=reporting_year,
                     global_max_workers=tracker.global_total,
                     external_total=ext_total,
-                    initial_geo_context=last_geo_context,
-                    initial_geo_sentence_idx=last_geo_sentence_idx,
+                    initial_geo_context=initial_geo_context,
+                    initial_geo_sentence_idx=initial_geo_sentence_idx,
                     previous_totals=prev_paragraph_totals,
                     start_index=global_sentence_index,
                     cik=cik,
@@ -13365,6 +13388,27 @@ class UnionAnalyzer:
                         or bool(next_item.get("worker_terms"))
                     )
                 ):
+                    break
+
+                if (
+                    current.get("is_union", False)
+                    and not next_item.get("is_union", False)
+                    and next_item.get("potential_total") is not None
+                ):
+                    break
+                current_has_union_or_coverage = bool(
+                    current.get("is_union", False)
+                    or current.get("keyword_matched")
+                    or c_data.get("percentage") is not None
+                    or c_data.get("employee_count_covered") is not None
+                    or c_data.get("employee_count_not_covered") is not None
+                    or c_data.get("employee_count_total") is not None
+                )
+                next_has_employment_quant = bool(
+                    next_item.get("potential_total") is not None
+                    or next_has_quantitative_data
+                )
+                if current_has_union_or_coverage and next_has_employment_quant:
                     break
 
                 should_merge = True
