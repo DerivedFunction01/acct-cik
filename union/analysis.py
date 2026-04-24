@@ -10156,6 +10156,15 @@ class Tracker:
             if pct_val is None and explicit_pct_present and explicit_pct_vals:
                 pct_val = max(explicit_pct_vals)
 
+            # A positive covered count should suppress accidental zero pct reporting.
+            if (
+                covered_val is not None
+                and covered_val > 0
+                and pct_val is not None
+                and pct_val == 0
+            ):
+                pct_val = None
+
             explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
                 or (pct_val is not None and pct_val == 0)
