@@ -52,6 +52,30 @@ CASES = [
         100.0,
         30.0,
     ),
+    (
+        "The company has 100 workers in Italy and Argentina consisting of 20 pilots, 10 chefs, and 10 auto workers with 50 belonging to a local union.",
+        {"IT", "AR"},
+        50.0,
+        None,
+        100.0,
+        50.0,
+    ),
+    (
+        "The company has 100 workers in Germany and Mexico consisting of 20 pilots, 10 chefs, and 10 auto workers with 50 belonging to a local union.",
+        {"DE", "MX"},
+        50.0,
+        None,
+        100.0,
+        50.0,
+    ),
+    (
+        "The company has 100 workers in France and China including 20 pilots and 10 auto workers, 50 belonging to a local union.",
+        {"FR", "CN"},
+        50.0,
+        None,
+        100.0,
+        50.0,
+    ),
 ]
 
 
