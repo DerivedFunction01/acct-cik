@@ -3139,6 +3139,16 @@ class ComplexCoverageAnalyzer:
 
             # Get local type
             ctype = get_nearest_type_in_segment(c)
+            if (
+                ctype is not None
+                and c.get("worker_list_group_id") is not None
+                and self.analysis.has_subset_indicator
+                and not self._is_union_linked_count(c)
+            ):
+                ctype = "blocked"
+                logic_notes.append(
+                    "Skipped assignment for non-union-linked worker list member"
+                )
             count_assignments.append(
                 {"match": c, "type": ctype, "seg_idx": seg_idx, "seg_text": seg_text}
             )
@@ -3229,6 +3239,35 @@ class ComplexCoverageAnalyzer:
         count_assignments.sort(
             key=lambda x: (x["match"]["span"][0], 0 if x.get("is_local") else 1)
         )
+
+        promoted_worker_type_total = None
+        promoted_worker_type_group_ids: Set[Any] = set()
+        if self.analysis.total_modifiers and len(self.analysis.worker_types or []) >= 2:
+            worker_type_group_ids = {
+                m.get("worker_group_id")
+                for m in self.analysis._matches
+                if m["type"] == MatchType.WORKER_TYPE
+                and m.get("worker_group_id") is not None
+            }
+            worker_type_total_values: List[float] = []
+            seen_total_ids: Set[int] = set()
+            for item in count_assignments:
+                match_obj = item["match"]
+                if id(match_obj) in seen_total_ids:
+                    continue
+                if match_obj.get("worker_group_id") not in worker_type_group_ids:
+                    continue
+                worker_type_total_values.append(
+                    item.get("override_val", match_obj["val"])
+                )
+                seen_total_ids.add(id(match_obj))
+
+            if len(worker_type_total_values) >= 2:
+                promoted_worker_type_total = sum(worker_type_total_values)
+                promoted_worker_type_group_ids = set(worker_type_group_ids)
+                logic_notes.append(
+                    f"Promoted combined worker-type total {promoted_worker_type_total}"
+                )
 
         def is_connected(idx1, idx2):
             if is_global_context:
@@ -3451,6 +3490,18 @@ class ComplexCoverageAnalyzer:
             ctype = item["type"]
             match_obj = item["match"]
             if id(match_obj) in excluded_match_ids and not item.get("is_local"):
+                continue
+            if (
+                promoted_worker_type_total is not None
+                and ctype == "total"
+                and match_obj.get("worker_group_id") in promoted_worker_type_group_ids
+            ):
+                if not total_candidates:
+                    total_candidates.append(promoted_worker_type_total)
+                    logic_notes.append(
+                        f"Assigned {promoted_worker_type_total} to total (combined worker-type total)"
+                    )
+                excluded_match_ids.add(id(match_obj))
                 continue
             list_gid = match_obj.get("worker_list_group_id")
             list_sum = match_obj.get("worker_list_group_sum")
@@ -3706,6 +3757,22 @@ class ComplexCoverageAnalyzer:
             if has_both or current_total == 0:
                 self.data["employee_count_total"] = parts_sum
                 logic_notes.append(f"Inferred total {parts_sum} from parts")
+
+        if (
+            promoted_worker_type_total is not None
+            and self.data["employee_count_total"] == promoted_worker_type_total
+            and self.data["employee_count_covered"] is not None
+        ):
+            expected_not = max(
+                0.0,
+                self.data["employee_count_total"] - self.data["employee_count_covered"],
+            )
+            current_not = self.data["employee_count_not_covered"]
+            if current_not is None or abs(current_not - expected_not) > 0.01:
+                self.data["employee_count_not_covered"] = expected_not
+                logic_notes.append(
+                    f"Recomputed not covered from promoted worker-type total {promoted_worker_type_total}"
+                )
 
         if logic_notes:
             current_note = self.data["note"] or ""

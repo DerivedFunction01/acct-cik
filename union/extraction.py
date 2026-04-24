@@ -173,6 +173,20 @@ WORKER_COUNT_REGEX = build_regex(
     ]
 )
 
+GENERIC_WORKER_TERMS = {
+    "employee",
+    "worker",
+    "laborer",
+    "personnel",
+    "workforce",
+    "associate",
+    "staff",
+    "employees",
+    "workers",
+    "laborers",
+    "associates",
+}
+
 BARGAINING_UNIT_GAP_PREPOSITION_REGEX = re.compile(
     r"\b(?:in|under|for|with|by|from|to|at|among|between|an|a|the)\b", re.IGNORECASE
 )
@@ -2213,11 +2227,51 @@ class UnionExtractor:
             ],
             key=lambda x: x["span"][0],
         )
+
+        def _group_effective_end(match: Dict[str, Any]) -> int:
+            wg = match.get("worker_group_id")
+            if wg is None:
+                return match["span"][1]
+            ends = [
+                cand["span"][1]
+                for cand in analysis._matches
+                if cand.get("worker_group_id") == wg
+                and cand["type"] in (
+                    MatchType.WORKER_COUNT,
+                    MatchType.NUMBER,
+                    MatchType.WORKER_TERM,
+                )
+            ]
+            return max(ends) if ends else match["span"][1]
+
+        def _group_has_specific_worker_term(match: Dict[str, Any]) -> bool:
+            wg = match.get("worker_group_id")
+            if wg is None:
+                return False
+            terms = [
+                cand.get("val", "")
+                for cand in analysis._matches
+                if cand.get("worker_group_id") == wg
+                and cand["type"] == MatchType.WORKER_TERM
+            ]
+            return any(
+                term
+                and str(term).lower() not in GENERIC_WORKER_TERMS
+                and str(term).lower().rstrip("s") not in GENERIC_WORKER_TERMS
+                for term in terms
+            )
+
         for i in range(len(worker_count_matches_for_chain) - 1):
             curr_m = worker_count_matches_for_chain[i]
             next_m = worker_count_matches_for_chain[i + 1]
 
-            start = curr_m["span"][1]
+            if not (
+                _group_has_specific_worker_term(curr_m)
+                and _group_has_specific_worker_term(next_m)
+            ):
+                continue
+
+            start = _group_effective_end(curr_m)
             end = next_m["span"][0]
             text_between = text[start:end]
 
@@ -2225,6 +2279,96 @@ class UnionExtractor:
                 gid = curr_m.get("worker_list_group_id") or id(curr_m)
                 curr_m["worker_list_group_id"] = gid
                 next_m["worker_list_group_id"] = gid
+
+        def _is_union_linked_chain_member(match: Dict[str, Any]) -> bool:
+            m_start, m_end = match["span"]
+
+            def _nearest_union_like() -> Optional[Dict[str, Any]]:
+                nearest = None
+                best_dist = float("inf")
+                for cand in analysis._matches:
+                    if cand["type"] not in (
+                        MatchType.UNION_TERM,
+                        MatchType.SPECIFIC_UNION,
+                        MatchType.UNION_NAME,
+                    ):
+                        continue
+                    c_start, c_end = cand["span"]
+                    if c_end <= m_start:
+                        dist = m_start - c_end
+                    elif m_end <= c_start:
+                        dist = c_start - m_end
+                    else:
+                        dist = 0
+                    if dist < best_dist:
+                        best_dist = dist
+                        nearest = cand
+                if nearest is None or best_dist >= 80:
+                    return None
+                return nearest
+
+            def _has_intervening_numeric(union_m: Dict[str, Any]) -> bool:
+                u_start, _ = union_m["span"]
+                if u_start < m_end:
+                    return False
+                m_list_gid = match.get("worker_list_group_id")
+                for cand in analysis._matches:
+                    if cand["type"] not in (MatchType.WORKER_COUNT, MatchType.NUMBER):
+                        continue
+                    if cand is match:
+                        continue
+                    c_start, c_end = cand["span"]
+                    if m_end <= c_start and c_end <= u_start:
+                        if (
+                            m_list_gid is not None
+                            and cand.get("worker_list_group_id") == m_list_gid
+                        ):
+                            continue
+                        return True
+                return False
+
+            nearest = _nearest_union_like()
+            return bool(nearest and not _has_intervening_numeric(nearest))
+
+        # Backfill the first missing list member when a chain is union-linked.
+        # This catches patterns like:
+        # "20 pilots, 10 chefs, and 10 auto workers belonging to a local union"
+        # where the leading member sits one step before the already-linked chain.
+        list_groups = {}
+        for m in worker_count_matches_for_chain:
+            lg = m.get("worker_list_group_id")
+            if lg is None:
+                continue
+            list_groups.setdefault(lg, []).append(m)
+
+        for lg, members in list_groups.items():
+            members.sort(key=lambda x: x["span"][0])
+            if not _is_union_linked_chain_member(members[-1]):
+                continue
+            first_member = members[0]
+            first_start = first_member["span"][0]
+            first_gid = first_member.get("worker_group_id")
+
+            changed = True
+            while changed:
+                changed = False
+                for cand in reversed(worker_count_matches_for_chain):
+                    if not _group_has_specific_worker_term(cand):
+                        continue
+                    cand_end = _group_effective_end(cand)
+                    if cand_end > first_start:
+                        continue
+                    if cand.get("worker_list_group_id") == lg:
+                        continue
+                    if first_gid is not None and cand.get("worker_group_id") == first_gid:
+                        continue
+                    start = cand_end
+                    text_between = text[start:first_start]
+                    if len(text_between) < 20 and STRICT_LIST_CONNECTOR.match(text_between):
+                        cand["worker_list_group_id"] = lg
+                        first_start = cand["span"][0]
+                        changed = True
+                        break
 
         # Propagate worker list group id through worker_group_id links.
         worker_gid_to_list_gid = {
