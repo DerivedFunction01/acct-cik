@@ -264,7 +264,7 @@ NORTH_AMERICA = {
                 "Alabama",
                 ["alabama"],
                 [
-                    Location("Birmingham", ["birmingham, al", "birmingham, alabama"]),
+                    Location("Birmingham, AL", ["birmingham, al", "birmingham, alabama"]),
                     Location("Huntsville", ["huntsville"]),
                     Location("Tuscaloosa", ["tuscaloosa"]),
                     Location("Lincoln", ["lincoln, al", "lincoln, alabama"]),
@@ -454,7 +454,7 @@ NORTH_AMERICA = {
                 "New Hampshire",
                 ["new hampshire", "nh"],
                 [
-                    Location("Manchester", ["manchester, nh"]),
+                    Location("Manchester, NH", ["manchester, nh"]),
                     Location("Nashua", ["nashua"]),
                     Location("Concord", ["concord, nh"]),
                 ],
@@ -816,6 +816,8 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("London", ["london"]),
+            Location("Birmingham, UK", ["birmingham, uk"]),
+            Location("Manchester, UK", ["manchester, uk"]),
             Location("Leeds", ["leeds"]),
             Location("Glasgow", ["glasgow"]),
             Location("Liverpool", ["liverpool"]),
