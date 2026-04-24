@@ -1065,12 +1065,6 @@ def export_parquet(
         )
 
         int_pct = _int_reported_pct(country_report)
-        if int_pct is None and int_cov is not None and int_tot not in (None, 0):
-            try:
-                int_pct = round((float(int_cov) / float(int_tot)) * 100.0, 2)
-            except (TypeError, ValueError, ZeroDivisionError):
-                int_pct = None
-
         int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)
 
         tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)

@@ -10,6 +10,7 @@ from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
 from export_provenance_parquet import (
     _normalize_count_pct_pair,
+    _int_reported_pct,
     _resolve_total_count,
     _tot_reported_pct,
 )
@@ -520,6 +521,18 @@ def test_resolve_total_count_prefers_domestic_plus_international():
     assert _resolve_total_count(5307.0, 1559.0, None) == 6866.0
     assert _resolve_total_count(5307.0, 1559.0, 7000.0) == 7000.0
     assert _resolve_total_count(None, None, 7000.0, fallback_total=6500.0) == 7000.0
+
+
+def test_int_reported_pct_does_not_infer_from_counts():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [
+            {"country_code": "MX", "reported_totals": {"cov": 66.0, "tot": 66.0}},
+            {"country_code": "INT", "reported_totals": {"cov": 1493.0, "tot": 1493.0}},
+        ],
+    }
+
+    assert _int_reported_pct(report) is None
 
 
 def test_merge_continuation_items_does_not_absorb_following_employment_counts():
