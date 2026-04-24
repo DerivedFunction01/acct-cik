@@ -14101,6 +14101,7 @@ class UnionAnalyzer:
         # Worker type lookup for cross-sentence inference
         worker_type_lookup: Dict[str, Dict[str, float]] = {}
         worker_type_total_lookup: Dict[str, float] = {}
+        worker_type_lookup_used: Dict[str, Set[str]] = {}
 
         prev_sentence_geo_key: Optional[Tuple[str, ...]] = None
         prev_sentence_has_explicit = False
@@ -14605,6 +14606,17 @@ class UnionAnalyzer:
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
 
+            sentence_worker_targets: set[str] = set(
+                t.lower() for t in (analysis.worker_types or [])
+            )
+            for w in analysis.worker_terms or []:
+                w_low = w.lower()
+                if (
+                    w_low not in GENERIC_WORKER_TERMS
+                    and w_low.rstrip("s") not in GENERIC_WORKER_TERMS
+                ):
+                    sentence_worker_targets.add(w_low)
+
             lookup_keys = _worker_lookup_keys(geo_context)
             if type_map and lookup_keys:
                 type_total = sum(type_map.values())
@@ -14629,29 +14641,21 @@ class UnionAnalyzer:
                     "employee_count_not_covered",
                     "employee_count_total",
                 )
-            )
-            if not has_quantitative_data and analysis.is_union:
-                targets: set[str] = set(
-                    t.lower() for t in (analysis.worker_types or [])
                 )
-                for w in analysis.worker_terms or []:
-                    w_low = w.lower()
-                    if (
-                        w_low not in GENERIC_WORKER_TERMS
-                        and w_low.rstrip("s") not in GENERIC_WORKER_TERMS
-                    ):
-                        targets.add(w_low)
-
-                if targets and lookup_keys:
+            if not has_quantitative_data and analysis.is_union:
+                if sentence_worker_targets and lookup_keys:
                     matched_by_type: Dict[str, float] = {}
                     found_match = False
                     lookup_total = 0.0
                     for lk in lookup_keys:
                         bucket = worker_type_lookup.get(lk, {})
+                        used_targets = worker_type_lookup_used.get(lk, set())
                         lookup_total = max(
                             lookup_total, worker_type_total_lookup.get(lk, 0.0)
                         )
-                        for target in targets:
+                        for target in sentence_worker_targets:
+                            if target in used_targets:
+                                continue
                             if target in bucket:
                                 matched_by_type[target] = max(
                                     matched_by_type.get(target, 0.0), bucket[target]
@@ -14661,6 +14665,9 @@ class UnionAnalyzer:
                     matched_count = sum(matched_by_type.values())
 
                     if found_match and matched_count > 0:
+                        for lk in lookup_keys:
+                            used_targets = worker_type_lookup_used.setdefault(lk, set())
+                            used_targets.update(matched_by_type.keys())
                         if coverage_data.get("negated"):
                             coverage_data["employee_count_not_covered"] = (
                                 coverage_data.get("employee_count_not_covered") or 0.0
@@ -14691,6 +14698,11 @@ class UnionAnalyzer:
                             if coverage_data.get("note")
                             else ""
                         ) + note
+
+            if analysis.is_union and has_quantitative_data and sentence_worker_targets:
+                for lk in lookup_keys:
+                    used_targets = worker_type_lookup_used.setdefault(lk, set())
+                    used_targets.update(sentence_worker_targets)
 
             # 8. Construct Result (Handle Splits)
             split_items = []

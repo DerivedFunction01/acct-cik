@@ -807,3 +807,18 @@ def test_merge_continuation_items_stops_when_union_sentence_has_own_population()
     merged = analyzer._merge_continuation_items(results)
 
     assert len(merged) == 2
+
+
+def test_worker_type_lookup_is_consumed_after_first_use():
+    text = (
+        "As of <2012>, we had 1493 employees. We have employees in the United States, 204 employees in Canada, 160 employees in Argentina, 29 employees in Poland and 116 employees in China. Our total employees consist of 458 salaried employees and 1035 hourly employees and include 665 unionized workers. This compares to 1213 employees at <2011>. "
+        "We have not experienced any work stoppages and consider our relations with our employees to be good. Our hourly employees at our Selma, Alabama facility are covered by a collective bargaining agreement with the Industrial Division of the Communications Workers of America, under a contract running through <2013>. Our hourly employees at our Alloy, West Virginia, Niagara Falls, the Company and Bridgeport, Alabama facilities are covered by collective bargaining agreements with The United Steel, Paper and Forestry, Rubber, Manufacturing, Energy, Allied Industrial and Service Workers International Union under contracts running through <2014>, <2014>, and <2015>, respectively. Union employees in Argentina are working under a contract running through <2013>. Union employees in Canada are working under a contract running through <2013>. Our operations in Poland and China are not unionized."
+    )
+
+    result = UnionAnalyzer().analyze_paragraph(text, reporting_year=2012)
+
+    assert result["items"][5]["coverage_data"]["employee_count_covered"] == 1035.0
+    assert result["items"][6]["coverage_data"]["type"] == "NONE"
+    us = _get_country(result, "US")
+    assert us is not None
+    assert (us.get("reported_totals") or {}).get("cov") == 1035.0
