@@ -10943,7 +10943,7 @@ class Tracker:
             if not country_obj:
                 return False
             reported = country_obj.get("reported_totals") or {}
-            if any(bucket.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
+            if any(reported.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
                 return True
             # Backward compatibility with older serialized reports.
             totals = country_obj.get("country_totals") or {}

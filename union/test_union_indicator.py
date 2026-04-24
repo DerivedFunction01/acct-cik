@@ -11,9 +11,12 @@ from analysis import (
 from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
 from export_provenance_parquet import (
+    _agg_international_totals,
+    _has_explicit_country_totals,
     _normalize_count_pct_pair,
     _drop_temp_sample_columns,
     _int_reported_pct,
+    _int_reported_totals,
     _resolve_total_count,
     generate_stratified_sample,
     _tot_reported_pct,
@@ -608,9 +611,59 @@ def test_total_reported_pct_does_not_derive_from_counts_without_explicit_pct():
             {"country_code": "US", "reported_totals": {"cov": 5307.0, "tot": 6243.0}},
             {"country_code": "MX", "reported_totals": {"cov": 1559.0, "tot": 2490.0}},
         ],
+        "agg": [
+            {
+                "aggregate_key": "AGG",
+                "children": {"AR": {}, "FR": {}},
+                "synthetic_weighted_division": True,
+                "cov": 665.0,
+                "tot": 1493.0,
+                "pct": 44.54,
+            }
+        ],
     }
 
     assert _tot_reported_pct(report, total_count=6866.0, total_covered=6866.0) is None
+
+
+def test_explicit_country_rows_block_synthetic_aggregate_spillover_and_pct():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [
+            {"country_code": "US", "reported_totals": {"cov": 200.0, "tot": 500.0}},
+            {"country_code": "AR", "reported_totals": {"cov": 460.0, "tot": 1033.0}},
+            {"country_code": "FR", "reported_totals": {"cov": 205.0, "tot": 460.0}},
+            {"country_code": "DE", "reported_totals": {"cov": 89.0, "tot": 711.0}},
+            {"country_code": "IT", "reported_totals": {"cov": 11.0, "tot": 89.0}},
+        ],
+        "agg": [
+            {
+                "aggregate_key": "AGG",
+                "children": {"AR": {}, "FR": {}},
+                "synthetic_weighted_division": True,
+                "cov": 665.0,
+                "tot": 1493.0,
+                "pct": 44.54,
+            },
+            {
+                "aggregate_key": "EUR",
+                "children": {"DE": {}, "IT": {}},
+                "synthetic_weighted_division": True,
+                "cov": 100.0,
+                "tot": 800.0,
+                "pct": 12.5,
+            },
+        ],
+    }
+
+    assert _has_explicit_country_totals(report) is True
+
+    int_cov, int_tot, int_not_cov = _int_reported_totals(report)
+    assert (int_cov, int_tot, int_not_cov) == (765.0, 2293.0, None)
+    if not _has_explicit_country_totals(report):
+        agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(report)
+        assert (agg_int_cov, agg_int_tot, agg_int_not_cov) == (765.0, 2293.0, None)
+    assert _tot_reported_pct(report, total_count=1730.0, total_covered=2495.0) is None
 
 
 def test_resolve_total_count_prefers_domestic_plus_international():

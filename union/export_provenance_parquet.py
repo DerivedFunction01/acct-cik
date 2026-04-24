@@ -133,6 +133,18 @@ def _synthetic_weighted_agg_total(report: Dict[str, Any]) -> Optional[float]:
     return total if has_value else None
 
 
+def _has_explicit_country_totals(report: Dict[str, Any]) -> bool:
+    dom_code = report.get("domestic_country_code")
+    for entry in report.get("countries") or []:
+        code = entry.get("country_code")
+        if not code or code == dom_code or code in IGNORED_REGIONS:
+            continue
+        reported = entry.get("reported_totals") or {}
+        if any(reported.get(field) is not None for field in ("tot", "cov", "not_cov")):
+            return True
+    return False
+
+
 def _report_pcts(report: Dict[str, Any]) -> List[Tuple[str, float]]:
     out: List[Tuple[str, float]] = []
     for entry in report.get("countries") or []:
@@ -215,17 +227,6 @@ def _tot_reported_pct(
     if global_pct is not None:
         try:
             return float(global_pct)
-        except (TypeError, ValueError):
-            pass
-
-    for agg in report.get("agg") or []:
-        if not agg.get("synthetic_weighted_division"):
-            continue
-        pct = agg.get("pct")
-        if pct is None:
-            continue
-        try:
-            return float(pct)
         except (TypeError, ValueError):
             pass
 
@@ -1018,15 +1019,16 @@ def export_parquet(
 
         int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
 
-        agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(
-            country_report
-        )
-        if agg_int_cov is not None:
-            int_cov = (int_cov or 0.0) + agg_int_cov
-        if agg_int_tot is not None:
-            int_tot = (int_tot or 0.0) + agg_int_tot
-        if agg_int_not_cov is not None:
-            int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
+        if not _has_explicit_country_totals(country_report):
+            agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(
+                country_report
+            )
+            if agg_int_cov is not None:
+                int_cov = (int_cov or 0.0) + agg_int_cov
+            if agg_int_tot is not None:
+                int_tot = (int_tot or 0.0) + agg_int_tot
+            if agg_int_not_cov is not None:
+                int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
 
         # If domestic coverage exists and international totals include a parent container
         # that contains the domestic country, subtract domestic once to avoid double-counting.
