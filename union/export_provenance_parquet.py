@@ -90,7 +90,7 @@ def _normalize_count_pct_pair(
 def _resolve_total_count(
     dom_count: Optional[float],
     int_count: Optional[float],
-    global_covered_count: Optional[float],
+    global_total_count: Optional[float],
     fallback_total: Optional[float] = None,
     agg_total_fallback: Optional[float] = None,
 ) -> Optional[float]:
@@ -106,12 +106,12 @@ def _resolve_total_count(
     elif fallback_total is not None:
         total = float(fallback_total)
 
-    if global_covered_count is not None:
-        global_covered_count = float(global_covered_count)
+    if global_total_count is not None:
+        global_total_count = float(global_total_count)
         if total is None:
-            total = global_covered_count
+            total = global_total_count
         else:
-            total = max(total, global_covered_count)
+            total = max(total, global_total_count)
 
     return total
 
@@ -1097,23 +1097,15 @@ def export_parquet(
         if global_cov is not None:
             total_cov = float(global_cov)
 
-        global_cov_candidate = global_entry.get("cov")
-        if global_cov_candidate is None:
-            g_tot = global_entry.get("tot")
-            g_pct = global_entry.get("pct")
-            if g_tot is not None and g_pct is not None:
-                try:
-                    global_cov_candidate = (float(g_pct) / 100.0) * float(g_tot)
-                except (TypeError, ValueError, ZeroDivisionError):
-                    global_cov_candidate = None
+        global_tot_candidate = global_entry.get("tot")
 
-    tot_count = _resolve_total_count(
-        dom_domestic_count,
-        int_cov,
-        global_cov_candidate,
-        fallback_total=total_cov,
-        agg_total_fallback=_synthetic_weighted_agg_total(country_report),
-    )
+        tot_count = _resolve_total_count(
+            dom_domestic_count,
+            int_cov,
+            global_tot_candidate,
+            fallback_total=total_cov,
+            agg_total_fallback=_synthetic_weighted_agg_total(country_report),
+        )
 
         int_pct = _int_reported_pct(country_report)
         int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)

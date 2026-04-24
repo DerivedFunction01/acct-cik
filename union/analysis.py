@@ -11121,6 +11121,51 @@ class Tracker:
                             "Single weighted aggregate promoted to Global"
                         ),
                     }
+                elif len(agg) > 1:
+                    seen_child_codes: set[str] = set()
+                    total_tot = 0.0
+                    total_cov = 0.0
+                    total_not_cov = 0.0
+                    has_not_cov = True
+                    candidate_count = 0
+                    for a in agg:
+                        children = a.get("children") or {}
+                        child_codes = [c for c in children.keys() if c]
+                        if not child_codes:
+                            continue
+                        tot = a.get("tot")
+                        cov = a.get("cov")
+                        if tot is None or cov is None:
+                            continue
+                        child_set = set(child_codes)
+                        if seen_child_codes.intersection(child_set):
+                            candidate_count = 0
+                            break
+                        seen_child_codes.update(child_set)
+                        candidate_count += 1
+                        total_tot += float(tot)
+                        total_cov += float(cov)
+                        not_cov = a.get("not_cov")
+                        if not_cov is None:
+                            has_not_cov = False
+                        else:
+                            total_not_cov += float(not_cov)
+                    if candidate_count >= 2:
+                        global_obj = {
+                            "country_code": GeoCode.GLOBAL.value,
+                            "union_indicator": 1,
+                            "reported_totals": {
+                                "tot": total_tot,
+                                "cov": total_cov,
+                                "not_cov": total_not_cov if has_not_cov else None,
+                                "pct": None,
+                            },
+                            "global_source": "promoted_from_aggregate_sum",
+                            "global_source_code": GeoCode.AGGREGATE.value,
+                            "global_source_note": (
+                                "Summed disjoint aggregates promoted to Global"
+                            ),
+                        }
 
         international_obj = None
         if not global_obj:
