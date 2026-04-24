@@ -819,8 +819,6 @@ EUROPE = {
             "britain",
             "united kingdom",
             add_restrictions("england", lookbehinds=[r"new"]),
-            "sterling",
-            "gbp",
             add_restrictions("british", lookaheads=[r"virgin", r"columbia"]),
         ],
         Region.EUROPE,
@@ -2504,7 +2502,7 @@ MIDDLE_EAST_AFRICA = {
         ["tanzania", "tanzanian"],
         Region.MIDDLE_EAST_AFRICA,
         [
-            Location("Dar es Salaam", ["dar es salaam", "dar"]),
+            Location("Dar es Salaam", ["dar es salaam"]),
             Location("Mwanza", ["mwanza"]),
             Location("Dodoma", ["dodoma"]),
             Location("Arusha", ["arusha"]),

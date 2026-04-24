@@ -50,6 +50,11 @@ logging.basicConfig(
 
 TABLE_SPLIT_PATTERN = re.compile(r"(<TABLE>.*?</TABLE>)", re.DOTALL | re.IGNORECASE)
 RAW_PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
+EXHIBIT_METADATA_PREFIX_REGEX = re.compile(
+    r"^\s*(?:<?TYPE>.*?<?TEXT>\s*)", re.IGNORECASE | re.DOTALL
+)
+ITEM1_TAIL_STOP_REGEX = re.compile(r"^\s*(?:item\s+1a\b|item\s+2\b|part\s+ii\b)", re.IGNORECASE)
+ITEM1A_TAIL_STOP_REGEX = re.compile(r"^\s*(?:item\s+2\b|part\s+ii\b)", re.IGNORECASE)
 
 # Regex to find the pattern: Period + Space + (ALL CAPS HEADER) + Space + (Capitalized Word not No.)
 MEGA_SPLIT_REGEX = re.compile(r"(\.\s+)([A-Z][A-Z\s]+)(?=\s+(?!No\.)[A-Z][a-z])")
@@ -280,6 +285,13 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
     return output
 
 
+def strip_exhibit_metadata(text: str) -> str:
+    """Remove SEC exhibit header metadata before paragraph filtering."""
+    if not text:
+        return text
+    return EXHIBIT_METADATA_PREFIX_REGEX.sub("", text, count=1).lstrip()
+
+
 def reduce_first_long_paragraph(
     paragraphs: List[str], allow_risk: bool = False
 ) -> List[str]:
@@ -453,7 +465,14 @@ def _should_skip_before_cleaning(text: str) -> bool:
         return True
     return False
 
-def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False, home_country: Optional[str] = None) -> Tuple[List[str], List[float]]:
+def filter_content(
+    content_list: List[str],
+    company_name: Optional[str] = None,
+    year: Optional[int] = None,
+    allow_risk: bool = False,
+    home_country: Optional[str] = None,
+    section_label: Optional[str] = None,
+) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
     Cleans the text first, then checks for matches.
@@ -519,6 +538,17 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
     prev_census_raw = None
 
     for block in raw_blocks:
+        clean_block = strip_exhibit_metadata(block)
+        if not clean_block:
+            continue
+
+        if section_label == "item1" and ITEM1_TAIL_STOP_REGEX.search(clean_block):
+            break
+        if section_label == "item1a" and ITEM1A_TAIL_STOP_REGEX.search(clean_block):
+            break
+
+        block = clean_block
+
         if _should_skip_before_cleaning(block):
             prev_census_block = None
             prev_census_raw = None
@@ -705,18 +735,20 @@ def process_row(row: Tuple) -> Optional[Tuple]:
         item1_filtered, item1_percents = filter_content(
             item1_list, 
             company_name=company_name, 
-            year=year, 
+            year=year,
             allow_risk=False,
-            home_country=home_country
+            home_country=home_country,
+            section_label="item1",
         )
 
         # Item 1A: Risk Factors (Allow risk terms like "strikes", "disputes")
         item1a_filtered, item1a_percents = filter_content(
             item1a_list, 
             company_name=company_name, 
-            year=year, 
+            year=year,
             allow_risk=True,
-            home_country=home_country
+            home_country=home_country,
+            section_label="item1a",
         )
 
         return (

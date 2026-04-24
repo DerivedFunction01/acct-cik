@@ -316,6 +316,23 @@ def test_filter_content_still_excludes_customer_language_without_labor_context()
     assert not filtered
 
 
+def test_filter_content_strips_exhibit_metadata_and_stops_at_item1_boundary():
+    blocks = [
+        "<TYPE>EX-10.30 <SEQUENCE>5 <FILENAME>d zip code exv 10 w 30. txt <DESCRIPTION>COLLECTIVE BARGAINING AGREEMENT <TEXT>",
+        "The workforce totaled 5750 full-time employees at <2002> of which 78% are represented by unions.",
+        "Item 2. Properties",
+        "Tanzania operations employ 100 employees and are unionized.",
+    ]
+
+    init_worker()
+    filtered = filter_content(blocks, year=2002, home_country="US", section_label="item1")[0]
+
+    assert filtered
+    assert all("<TYPE>" not in block for block in filtered)
+    assert all("Item 2" not in block for block in filtered)
+    assert all("Tanzania" not in block for block in filtered)
+
+
 def test_pct_only_aggregate_sentence_is_explicit_not_weighted():
     text = (
         "As of <2009>, approximately 40% of our North American packaging plant "

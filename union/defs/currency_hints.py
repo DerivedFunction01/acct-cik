@@ -4,6 +4,7 @@ from defs.regex_lib import build_regex
 # Currency hints that can help webpage-level home-country detection without
 # polluting the geographic matcher itself.
 CURRENCY_COUNTRY_HINTS = [
+    (build_regex([r"sterling", r"gbp"]), "GB"),
     (build_regex([r"yen", r"jpy"]), "JP"),
     (build_regex([r"yuan", r"renminbi", r"rmb", r"cny"]), "CN"),
     (build_regex([r"rupee", r"rupees", r"inr"]), "IN"),
