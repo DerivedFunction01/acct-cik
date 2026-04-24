@@ -675,7 +675,7 @@ NORTH_AMERICA = {
             r"American Federation of State, County and Municipal Employees",
             r"AFSCME"
         ],
-        [r"Railway Labor Act", r"RLA", r"National Mediation Board"],
+        [r"Railway Labor Act", r"National Mediation Board"],
         code="US",
     ),
     Nation(
@@ -1178,7 +1178,6 @@ EUROPE = {
         ],
         ["CGIL", "CISL", "UIL", "FIOM", "FIM", "UILM"],
         [
-            "CCNL",
         ],
         code="IT",
     ),
@@ -1233,8 +1232,6 @@ EUROPE = {
         [
             "Vakbond",
             "Ondernemingsraad",
-            "CAO",
-            "WTR",
             "Polder model",
             "Spoorwegen",
         ],
@@ -1255,7 +1252,7 @@ EUROPE = {
             Location("Lugano", ["lugano"]),
         ],
         ["Unia", "Syna"],
-        ["GAV", "CCT", "Arbeitsfrieden"],
+        ["Arbeitsfrieden"],
         code="CH",
     ),
     Nation(
@@ -1353,7 +1350,6 @@ EUROPE = {
         ["STTK", "Akava"],
         [
             "Työehtosopimus",
-            "TES",
             "Ammattiliitto",
             "Työ",
             "Liitto",
@@ -2070,10 +2066,8 @@ LATIN_AMERICA = {
         ],
         [
             "Maquiladora",
-            "PTU",
             "Participación de los Trabajadores en las Utilidades",
             "Contrato Colectivo de Trabajo",
-            "CCT",
             "Ley Federal del Trabajo",
         ],
         code="MX",
@@ -2422,8 +2416,6 @@ MIDDLE_EAST_AFRICA = {
             "FEDUSA",
         ],
         [
-            "LRA",
-            "NEDLAC",
         ],
         code="ZA",
     ),
