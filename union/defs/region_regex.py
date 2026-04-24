@@ -2092,7 +2092,6 @@ LATIN_AMERICA = {
         ],
         [
             "Dissídio",
-            "CLT",
             "Consolidação das Leis do Trabalho",
             "Acordo Coletivo",
             "Contribuição sindical",
