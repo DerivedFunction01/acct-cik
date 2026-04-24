@@ -10769,6 +10769,25 @@ class Tracker:
                     return True
             return False
 
+        def _agg_contains_domestic_context(agg_entry: Dict[str, Any]) -> bool:
+            children = agg_entry.get("children") or {}
+            child_codes = list(children.keys())
+            if not child_codes:
+                return False
+            dom_code = self.domestic_country_code
+            for code in child_codes:
+                if code == dom_code:
+                    return True
+                if code in IGNORED_REGIONS:
+                    continue
+                if is_contained(
+                    container_key=code,
+                    item_key=dom_code,
+                    domestic_country_code=dom_code,
+                ):
+                    return True
+            return False
+
         domestic_country_obj = next(
             (
                 c
@@ -10839,7 +10858,11 @@ class Tracker:
                 ),
                 None,
             )
-            if pct_only_aggregate and not _country_obj_has_quant_signal(domestic_country_obj):
+            if (
+                pct_only_aggregate
+                and _agg_contains_domestic_context(pct_only_aggregate)
+                and not _country_obj_has_quant_signal(domestic_country_obj)
+            ):
                 global_obj = {
                     "country_code": GeoCode.GLOBAL.value,
                     "union_indicator": 1,
@@ -10859,6 +10882,44 @@ class Tracker:
                     "global_source_code": pct_only_aggregate.get("aggregate_key"),
                     "global_source_note": (
                         "Pct-only mixed-region aggregate promoted to Global"
+                    ),
+                }
+
+        international_obj = None
+        if not global_obj:
+            int_candidate = next(
+                (
+                    a
+                    for a in agg
+                    if a.get("pct") is not None
+                    and a.get("tot") is None
+                    and a.get("cov") is None
+                    and a.get("not_cov") is None
+                    and len((a.get("children") or {}).keys()) > 1
+                    and not _agg_contains_domestic_context(a)
+                ),
+                None,
+            )
+            if int_candidate:
+                international_obj = {
+                    "country_code": GeoCode.INTERNATIONAL.value,
+                    "union_indicator": 1,
+                    "country_totals": {
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct": int_candidate.get("pct"),
+                    },
+                    "reported_totals": {
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct": int_candidate.get("pct"),
+                    },
+                    "international_source": "promoted_from_pct_only_aggregate",
+                    "international_source_code": int_candidate.get("aggregate_key"),
+                    "international_source_note": (
+                        "Pct-only multi-region aggregate promoted to International"
                     ),
                 }
 
@@ -10972,6 +11033,7 @@ class Tracker:
             "countries": countries,
             "agg": agg,
             "global": global_obj,
+            "international": international_obj,
             "year_mismatch": self.year_mismatch_detected,
             "summary": summary,
             "global_keywords": global_keywords,

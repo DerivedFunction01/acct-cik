@@ -399,6 +399,26 @@ def test_pct_only_mixed_region_aggregate_promotes_to_global():
     assert global_obj.get("reported_totals", {}).get("pct") == 40.0
 
 
+def test_pct_only_mixed_region_aggregate_without_domestic_promotes_to_international():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.AGGREGATE,
+            key=Region.AGGREGATE.value,
+            percentage=35.0,
+            is_union_record=True,
+            related_geo_codes=["EUR", "LATAM"],
+        )
+    ]
+
+    report = tracker.build_country_provenance_report()
+    international_obj = report.get("international") or {}
+
+    assert international_obj.get("country_code") == "INT"
+    assert international_obj.get("international_source") == "promoted_from_pct_only_aggregate"
+    assert international_obj.get("reported_totals", {}).get("pct") == 35.0
+
+
 def test_labor_contract_bypass_regex_is_unambiguous():
     assert LABOR_CONTRACT_BYPASS_REGEX.search("collective bargaining agreements")
     assert LABOR_CONTRACT_BYPASS_REGEX.search("union contracts")

@@ -96,6 +96,11 @@ def _single_report_pct(report: Dict[str, Any]) -> Optional[float]:
 
 def _int_reported_pct(report: Dict[str, Any]) -> Optional[float]:
     dom_code = report.get("domestic_country_code")
+    international_entry = report.get("international") or {}
+    international_pct = _entry_field(international_entry, "pct")
+    if international_pct is not None:
+        return float(international_pct)
+
     global_source_code = (report.get("global") or {}).get("global_source_code")
 
     for entry in report.get("countries") or []:
@@ -129,6 +134,11 @@ def _tot_reported_pct(
     total_count: Optional[float],
     total_covered: Optional[float],
 ) -> Optional[float]:
+    international_entry = report.get("international") or {}
+    international_pct = _entry_field(international_entry, "pct")
+    if international_pct is not None:
+        return float(international_pct)
+
     global_entry = report.get("global") or {}
     global_pct = global_entry.get("pct")
     if global_pct is not None:
