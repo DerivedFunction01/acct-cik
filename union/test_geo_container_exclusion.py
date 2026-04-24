@@ -93,3 +93,27 @@ def test_warsaw_requires_country_suffix():
         "Warsaw, Poland",
         "PL",
     )
+
+
+def test_hamilton_requires_country_suffix():
+    matcher = RegionMatcher()
+
+    assert matcher.get_location("Hamilton") is None
+    assert matcher.get_location("Hamilton, Canada") == (
+        Region.NORTH_AMERICA,
+        "Canada",
+        "Hamilton, Canada",
+        "CA",
+    )
+    assert matcher.get_location("Hamilton, New Zealand") == (
+        Region.ASIA_PACIFIC,
+        "New Zealand",
+        "Hamilton, New Zealand",
+        "NZ",
+    )
+    assert matcher.get_location("Hamilton, Bermuda") == (
+        Region.LATIN_AMERICA,
+        "Bermuda",
+        "Hamilton, Bermuda",
+        "BM",
+    )

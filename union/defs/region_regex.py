@@ -702,7 +702,7 @@ NORTH_AMERICA = {
             ),
             Location("Ingersoll", ["ingersoll"]),
             Location(
-                "Hamilton", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]
+                "Hamilton, Canada", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]
             ),
             Location("St. Catharines", ["st. catharines"]),
             Location("Sudbury", ["sudbury"]),
@@ -1901,7 +1901,7 @@ ASIA_PACIFIC = {
             Location("Wellington", ["wellington, nz"]),
             Location("Christchurch", ["christchurch"]),
             Location("Dunedin", ["dunedin"]),
-            Location("Hamilton", ["hamilton, nz"]),
+            Location("Hamilton, New Zealand", ["hamilton, nz"]),
         ],
         code="NZ",
     ),
@@ -2203,7 +2203,7 @@ LATIN_AMERICA = {
         "Bermuda",
         ["bermuda", "bermudian"],
         Region.LATIN_AMERICA,
-        [Location("Hamilton", ["hamilton, bermuda"])],
+        [Location("Hamilton, Bermuda", ["hamilton, bermuda"])],
         code="BM",
     ),
     Nation(
