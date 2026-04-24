@@ -8,6 +8,7 @@ from analysis import (
 )
 from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
+from export_provenance_parquet import _normalize_count_pct_pair
 from defs.union_regex import LABOR_CONTRACT_BYPASS_REGEX
 from defs.text_cleaner import (
     CompanyCleaner,
@@ -459,3 +460,11 @@ def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts(
     assert "2 in Brazil" not in cleaned
     assert "1 in Mexico" not in cleaned
     assert "30 distribution and manufacturing center employees" in cleaned
+
+
+def test_count_pct_pair_normalizer_keeps_zero_values_consistent():
+    assert _normalize_count_pct_pair(0.0, None) == (0.0, 0.0)
+    assert _normalize_count_pct_pair(None, 0.0) == (0.0, 0.0)
+    assert _normalize_count_pct_pair(12.0, 0.0) == (12.0, None)
+    assert _normalize_count_pct_pair(0.0, 25.0) == (None, 25.0)
+    assert _normalize_count_pct_pair(0.0, 12.5) == (None, 12.5)

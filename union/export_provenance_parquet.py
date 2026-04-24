@@ -62,6 +62,23 @@ def _entry_field(entry: Dict[str, Any], field: str) -> Optional[float]:
     return None
 
 
+def _normalize_count_pct_pair(
+    count: Optional[float], pct: Optional[float]
+) -> Tuple[Optional[float], Optional[float]]:
+    """
+    Keep zero-style count/pct pairs consistent without forcing fake positive data.
+    """
+    if count is None and pct == 0:
+        count = 0.0
+    if count == 0 and pct is None:
+        pct = 0.0
+    if count is not None and count > 0 and pct == 0:
+        pct = None
+    if count == 0 and pct is not None and pct > 0:
+        count = None
+    return count, pct
+
+
 def _report_pcts(report: Dict[str, Any]) -> List[Tuple[str, float]]:
     out: List[Tuple[str, float]] = []
     for entry in report.get("countries") or []:
@@ -1034,7 +1051,10 @@ def export_parquet(
             except (TypeError, ValueError, ZeroDivisionError):
                 int_pct = None
 
+        int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)
+
         tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)
+        tot_count, tot_pct = _normalize_count_pct_pair(tot_count, tot_pct)
 
         lang_fallback_codes = [
             c.get("country_code")
