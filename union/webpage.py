@@ -110,6 +110,7 @@ def get_system_config():
 # REGEX PATTERNS AND KEYWORDS
 # =============================================================================
 from defs.table_definitions import HTMLTableConverter
+from defs.currency_hints import CURRENCY_COUNTRY_HINTS
 from defs.region_regex import RegionMatcher, TAX_HAVEN_CODES, REGION_CODES
 from defs.union_regex import LABOR_TERMS, RISK_TERMS, DYNAMIC_UNION_REGEX
 from defs.regex_lib import build_regex
@@ -1175,8 +1176,12 @@ def extract_home_country(text: str) -> str:
                 # Penalize regions (we prefer specific countries)
                 if code in REGION_CODES:
                     score *= 0.5
-                
+
                 candidate_scores[code] = candidate_scores.get(code, 0.0) + score
+
+    for pattern, code in CURRENCY_COUNTRY_HINTS:
+        if pattern.search(header):
+            candidate_scores[code] = candidate_scores.get(code, 0.0) + 0.75
 
     if not candidate_scores:
         return "INT"

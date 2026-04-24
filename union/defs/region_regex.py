@@ -989,7 +989,7 @@ EUROPE = {
     ),
     Nation(
         "Turkey",
-        ["turkey", "turkish", "lira", "türkiye", "turkiye"],
+        ["turkey", "turkish", "türkiye", "turkiye"],
         Region.EUROPE,
         [
             Location("Istanbul", ["istanbul"]),
@@ -1004,7 +1004,7 @@ EUROPE = {
     ),
     Nation(
         "Russia",
-        ["russia", "russian", "ruble", "rub"],
+        ["russia", "russian"],
         Region.EUROPE,
         [
             Location("Moscow", ["moscow"]),
@@ -1560,7 +1560,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "Japan",
-        ["japan", "japanese", "yen", "jpy", "nihon", "nippon"],
+        ["japan", "japanese", "nihon", "nippon"],
         Region.ASIA_PACIFIC,
         [
             Location("Tokyo", ["tokyo"]),
@@ -1616,7 +1616,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "South Korea",
-        ["south korea", "krw", add_restrictions(
+        ["south korea", add_restrictions(
             to_build_alternation(["korea", "korean"]), lookbehinds=[r"north"])
         ],
         Region.ASIA_PACIFIC,
@@ -1686,10 +1686,6 @@ ASIA_PACIFIC = {
             "prc",
             "p.r.c.",
             "people's republic of china",
-            "yuan",
-            "renminbi",
-            "rmb",
-            "cny",
         ],
         Region.ASIA_PACIFIC,
         [
@@ -1731,7 +1727,7 @@ ASIA_PACIFIC = {
     ),
     Nation(
         "India",
-        ["india", "indian", "rupee", "inr", "lakh", "crore"],
+        ["india", "indian", "lakh", "crore"],
         Region.ASIA_PACIFIC,
         [
             Location("Mumbai", ["mumbai", "bombay"]),
@@ -2344,7 +2340,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "United Arab Emirates",
-        ["uae", "emirates", "dirham", "aed"],
+        ["uae", "emirates"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Dubai", ["dubai"]),
@@ -2358,7 +2354,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Saudi Arabia",
-        ["saudi arabia", "saudi", "riyal", "sar"],
+        ["saudi arabia", "saudi"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Riyadh", ["riyadh"]),
@@ -2373,7 +2369,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "Israel",
-        ["israel", "israeli", "shekel", "ils"],
+        ["israel", "israeli"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Tel Aviv", ["tel aviv"]),
@@ -2389,7 +2385,7 @@ MIDDLE_EAST_AFRICA = {
     ),
     Nation(
         "South Africa",
-        ["south africa", "south african", "rand", "zar"],
+        ["south africa", "south african"],
         Region.MIDDLE_EAST_AFRICA,
         [
             Location("Johannesburg", ["johannesburg", "joburg"]),

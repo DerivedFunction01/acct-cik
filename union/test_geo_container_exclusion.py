@@ -1,5 +1,6 @@
 from analysis import UnionAnalyzer
 from extraction import UnionExtractor
+from webpage import extract_home_country
 from defs.region_regex import Region, RegionMatcher
 
 
@@ -117,3 +118,30 @@ def test_hamilton_requires_country_suffix():
         "Hamilton, Bermuda",
         "BM",
     )
+
+
+def test_currency_terms_are_not_geo_locations_but_still_help_home_country():
+    matcher = RegionMatcher()
+
+    assert matcher.get_location("lira") is None
+    assert matcher.get_location("ruble") is None
+    assert matcher.get_location("rub") is None
+    assert matcher.get_location("yen") is None
+    assert matcher.get_location("yuan") is None
+    assert matcher.get_location("rupee") is None
+    assert matcher.get_location("dirham") is None
+    assert matcher.get_location("riyal") is None
+    assert matcher.get_location("shekel") is None
+    assert matcher.get_location("rand") is None
+    assert matcher.get_location("won") is None
+
+    assert extract_home_country("The reporting currency is lira.") == "TR"
+    assert extract_home_country("The reporting currency is rubles.") == "RU"
+    assert extract_home_country("The reporting currency is yen.") == "JP"
+    assert extract_home_country("The reporting currency is yuan.") == "CN"
+    assert extract_home_country("The reporting currency is rupees.") == "IN"
+    assert extract_home_country("The reporting currency is dirhams.") == "AE"
+    assert extract_home_country("The reporting currency is riyals.") == "SA"
+    assert extract_home_country("The reporting currency is shekels.") == "IL"
+    assert extract_home_country("The reporting currency is rand.") == "ZA"
+    assert extract_home_country("The reporting currency is won.") == "KR"
