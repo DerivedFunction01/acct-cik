@@ -31,6 +31,8 @@ PUNCT_SPACE_PATTERN = re.compile(r"\s+([,\.;\:\!\?])")
 DOUBLE_PUNCT_PATTERN = re.compile(r"([,\.;\:\!\?])\1+")
 MISSING_SPACE_PATTERN = re.compile(r"(?:(?<!\b[A-Z])\.|[,;\:\!\?])(?=[a-zA-Z])")
 HANGING_APOSTROPHE_PATTERN = re.compile(r"\s+'(s|re|ve|t|m|ll|d)\b", re.IGNORECASE)
+OPEN_PAREN_SPACE_PATTERN = re.compile(r"\(\s+")
+CLOSE_PAREN_SPACE_PATTERN = re.compile(r"\s+\)")
 
 
 def clean_spaces_and_punctuation(text: str) -> str:
@@ -44,6 +46,8 @@ def clean_spaces_and_punctuation(text: str) -> str:
     text = DOUBLE_PUNCT_PATTERN.sub(r"\1", text)
     text = MISSING_SPACE_PATTERN.sub(r"\g<0> ", text)
     text = HANGING_APOSTROPHE_PATTERN.sub(r"'\1", text)
+    text = OPEN_PAREN_SPACE_PATTERN.sub("(", text)
+    text = CLOSE_PAREN_SPACE_PATTERN.sub(")", text)
     return text
 
 
@@ -1159,6 +1163,7 @@ class ContextualNumberCleaner:
 
         asset_pattern = build_alternation(asset_terms)
         worker_pattern = build_alternation(WORKER_TERMS + [r"members?"])
+        self.worker_term_regex = re.compile(rf"\b(?:{worker_pattern})\b", re.IGNORECASE)
 
         # Define number and range patterns
         num = r"\d+(?:\.\d+)?"
@@ -1166,6 +1171,7 @@ class ContextualNumberCleaner:
 
         # Captures: 10, 10-20, 10 to 20
         number_range = rf"{num}(?:{sep}{num})?"
+        small_number = r"\d+(?:\.\d+)?"
 
         # Captures: 10%, 10-20%, 10 to 20%, 10%-20%
         percent_range = rf"{num}(?:\s*%?{sep}{num})?\s*%"
@@ -1377,6 +1383,43 @@ class ContextualNumberCleaner:
         # 11. Small digits followed by char (e.g. "4-S", "4 S")
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
+        forward_strip_context_terms = build_alternation(
+            [
+                *asset_terms,
+                r"groups?",
+                r"councils?",
+                r"unions?",
+                r"contracts?",
+                r"agreements?",
+                r"arrangements?",
+                r"organizations?",
+                r"orgs?",
+                r"entities?",
+                r"locations?",
+                r"sites?",
+                r"regions?",
+                r"countries?",
+                r"states?",
+                r"cities?",
+                r"offices?",
+                r"plants?",
+                r"warehouses?",
+                r"branches?",
+                r"stores?",
+                r"centers?",
+                r"mines?",
+            ]
+        )
+        self.forward_strip_anchor_regex = re.compile(
+            rf"\b(?P<anchor>{small_number})\s+"
+            rf"(?:(?:[\'\w/-]+\s+){{0,4}}(?:{forward_strip_context_terms}))\b"
+            rf"(?!"
+            rf"(?:\s+[\'\w/-]+){{0,4}}\s+(?:{worker_pattern})\b"
+            rf")",
+            re.IGNORECASE,
+        )
+        self.forward_strip_number_regex = re.compile(rf"\b{small_number}\b")
+
         # NEW: Expansion for St. -> Street to disambiguate from Saint
         # Look for TitleCase or Alphanumeric word before St.
         # Exclude common prepositions to avoid "In St. Louis" -> "In Street Louis"
@@ -1500,6 +1543,67 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+    def _strip_forward_small_number_clauses(self, paragraph: str) -> str:
+        if not paragraph:
+            return paragraph
+
+        remove_spans: List[Tuple[int, int]] = []
+
+        for anchor_match in self.forward_strip_anchor_regex.finditer(paragraph):
+            anchor_value = float(anchor_match.group("anchor"))
+            spent = 0.0
+            remove_spans.append(anchor_match.span("anchor"))
+            cursor = anchor_match.end()
+
+            while cursor < len(paragraph):
+                sentence_break = len(paragraph)
+                break_match = re.search(r"(?<!\.)\.(?!\.)|[!?;]", paragraph[cursor:])
+                if break_match:
+                    sentence_break = cursor + break_match.start()
+                if sentence_break <= cursor:
+                    break
+
+                number_match = self.forward_strip_number_regex.search(
+                    paragraph, cursor, sentence_break
+                )
+                if not number_match:
+                    break
+
+                clause_end = sentence_break
+                terminator_match = re.search(r"[,\)]", paragraph[number_match.end():sentence_break])
+                if terminator_match:
+                    clause_end = min(clause_end, number_match.end() + terminator_match.start())
+
+                clause_text = paragraph[number_match.start():clause_end]
+                if self.worker_term_regex.search(clause_text):
+                    break
+
+                value = float(number_match.group(0))
+                if spent + value > anchor_value:
+                    break
+
+                remove_spans.append(number_match.span())
+                spent += value
+                cursor = number_match.end()
+
+        if not remove_spans:
+            return paragraph
+
+        merged_spans: List[Tuple[int, int]] = []
+        for start, end in sorted(remove_spans):
+            if merged_spans and start <= merged_spans[-1][1]:
+                merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], end))
+            else:
+                merged_spans.append((start, end))
+
+        parts: List[str] = []
+        last = 0
+        for start, end in merged_spans:
+            parts.append(paragraph[last:start])
+            last = end
+        parts.append(paragraph[last:])
+        return "".join(parts)
+
     def clean(self, text: str, home_country: Optional[str] = None) -> str:
         if not text:
             return ""
@@ -1512,6 +1616,7 @@ class ContextualNumberCleaner:
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
+            paragraph = self._strip_forward_small_number_clauses(paragraph)
             paragraph = self.asset_regex.sub(r" \1 ", paragraph)
             paragraph = self.subset_event_regex.sub(r" \1\2\3 ", paragraph)
             paragraph = self.change_pre_regex.sub(r" \1 ", paragraph)

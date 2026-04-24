@@ -197,3 +197,30 @@ def test_context_total_fallback_drops_small_noise_numbers():
     analysis = UnionAnalyzer().extractor.analyze_sentence(sentence, context_total=50000)
 
     assert 1.0 not in analysis.numbers
+
+
+def test_contextual_cleaner_removes_forward_small_union_breakdown_clauses():
+    cleaned = ContextualNumberCleaner().clean(
+        "8 unions (4 in Canada, 1 in Mexico, 1 in Venezuela and 2 in Brazil).",
+        home_country="US",
+    )
+
+    assert "unions" in cleaned
+    assert "4 in Canada" not in cleaned
+    assert "1 in Mexico" not in cleaned
+    assert "1 in Venezuela" not in cleaned
+    assert "2 in Brazil" not in cleaned
+
+
+def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():
+    cleaned = ContextualNumberCleaner().clean(
+        "8 union/contracts/employee groups ... 2 in Brazil, 1 in Mexico, and 30 distribution and manufacturing center employees.",
+        home_country="US",
+    )
+
+    assert "union/contracts/employee groups" in cleaned
+    assert "Brazil" in cleaned
+    assert "Mexico" in cleaned
+    assert "2 in Brazil" not in cleaned
+    assert "1 in Mexico" not in cleaned
+    assert "30 distribution and manufacturing center employees" in cleaned
