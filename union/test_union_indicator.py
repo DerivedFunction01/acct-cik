@@ -276,6 +276,113 @@ def test_filter_content_still_excludes_customer_language_without_labor_context()
     assert not filtered
 
 
+def test_pct_only_aggregate_sentence_is_explicit_not_weighted():
+    text = (
+        "As of <2009>, approximately 40% of our North American packaging plant "
+        "employees and most of our packaging plant employees in Europe were "
+        "covered by collective bargaining agreements."
+    )
+
+    result = UnionAnalyzer().analyze_paragraph(text, reporting_year=2009)
+
+    country_report = result.get("country_report", {}) or {}
+    assert country_report.get("agg")
+    assert country_report["agg"][0].get("source_type") == "EXPLICIT"
+
+    countries = country_report.get("countries", []) or []
+    for country in countries:
+        method_breakdown = country.get("method_breakdown") or {}
+        assert "WEIGHTED_DIVISION" not in method_breakdown
+
+
+def test_same_region_aggregate_collapses_to_region_row():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            covered_count=50.0,
+            total_count=50.0,
+            percentage=100.0,
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="CA",
+            covered_count=50.0,
+            total_count=50.0,
+            percentage=100.0,
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.AGGREGATE,
+            key=Region.AGGREGATE.value,
+            covered_count=100.0,
+            total_count=100.0,
+            percentage=100.0,
+            is_union_record=True,
+            related_geo_codes=["US", "CA"],
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    na = _get_country({"country_report": report}, "NA")
+
+    assert na is not None
+    assert na.get("country_totals", {}).get("tot") == 100.0
+    assert na.get("country_totals", {}).get("cov") == 100.0
+    assert na.get("country_totals", {}).get("pct") == 100.0
+    assert not report.get("agg")
+
+
+def test_same_region_aggregate_with_mexico_collapses_to_na():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            covered_count=40.0,
+            total_count=40.0,
+            percentage=100.0,
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="CA",
+            covered_count=30.0,
+            total_count=30.0,
+            percentage=100.0,
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="MX",
+            covered_count=30.0,
+            total_count=30.0,
+            percentage=100.0,
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.AGGREGATE,
+            key=Region.AGGREGATE.value,
+            covered_count=100.0,
+            total_count=100.0,
+            percentage=100.0,
+            is_union_record=True,
+            related_geo_codes=["US", "CA", "MX"],
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    na = _get_country({"country_report": report}, "NA")
+
+    assert na is not None
+    assert na.get("country_totals", {}).get("tot") == 100.0
+    assert na.get("country_totals", {}).get("cov") == 100.0
+    assert "MX" in [c.get("country_code") for c in report.get("countries", [])]
+    assert not report.get("agg")
+
+
 def test_labor_contract_bypass_regex_is_unambiguous():
     assert LABOR_CONTRACT_BYPASS_REGEX.search("collective bargaining agreements")
     assert LABOR_CONTRACT_BYPASS_REGEX.search("union contracts")

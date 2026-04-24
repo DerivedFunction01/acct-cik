@@ -9663,6 +9663,33 @@ class Tracker:
         pseudo_region_by_code: Dict[str, str] = {}
         aggregate_weighted_by_code: Dict[str, Dict[str, Any]] = {}
         aggregate_explicit_by_code: Dict[str, Dict[str, Any]] = {}
+        collapsed_region_seed_entries: Dict[str, List[Entry]] = {}
+
+        def _collapse_same_region_code(child_codes: List[str]) -> Optional[str]:
+            if len(child_codes) < 2:
+                return None
+
+            candidate_regions: List[str] = []
+            for region_code in REGION_NAME_MAP.values():
+                if region_code in IGNORED_REGIONS:
+                    continue
+                if region_code in GLOBAL_SET or region_code in INT_SET:
+                    continue
+                if region_code in AGG_SET or region_code in DOMESTIC_SET:
+                    continue
+                if all(
+                    is_contained(
+                        container_key=region_code,
+                        item_key=child_code,
+                        domestic_country_code=self.domestic_country_code,
+                    )
+                    for child_code in child_codes
+                ):
+                    candidate_regions.append(region_code)
+
+            if len(candidate_regions) == 1:
+                return candidate_regions[0]
+            return None
 
         suppressed_by_code: Dict[str, Dict[str, Dict[str, Any]]] = {}
         if suppressed_clause_items:
@@ -9836,16 +9863,62 @@ class Tracker:
             if not child_codes:
                 continue
 
+            collapse_region_code = _collapse_same_region_code(child_codes)
+            if collapse_region_code:
+                collapsed_region_seed_entries.setdefault(
+                    collapse_region_code, []
+                ).append(
+                    Entry(
+                        covered_count=e.covered_count,
+                        not_covered_count=e.not_covered_count,
+                        percentage=e.percentage,
+                        total_count=e.total_count,
+                        key=collapse_region_code,
+                        is_qualitative=e.is_qualitative,
+                        qualitative_bounds=e.qualitative_bounds,
+                        is_remaining=e.is_remaining,
+                        is_explicit=e.is_explicit,
+                        is_union_record=e.is_union_record,
+                        is_negated=e.is_negated,
+                        scope=Scope.REGION,
+                        sent_idx=e.sent_idx,
+                        related_geo_codes=child_codes,
+                        ambiguity_multiplier=e.ambiguity_multiplier,
+                        is_exception_entry=e.is_exception_entry,
+                        exception_limit_percent=e.exception_limit_percent,
+                        is_exception_remainder=e.is_exception_remainder,
+                        is_parent_breakdown=e.is_parent_breakdown,
+                        is_covered_breakdown=e.is_covered_breakdown,
+                        is_not_covered_breakdown=e.is_not_covered_breakdown,
+                        percentage_source=e.percentage_source,
+                        covered_count_source=e.covered_count_source,
+                        not_covered_count_source=e.not_covered_count_source,
+                        total_count_source=e.total_count_source,
+                        denominator_source=e.denominator_source,
+                        percentage_source_type=e.percentage_source_type,
+                        covered_count_source_type=e.covered_count_source_type,
+                        not_covered_count_source_type=e.not_covered_count_source_type,
+                        total_count_source_type=e.total_count_source_type,
+                        denominator_source_type=e.denominator_source_type,
+                    )
+                )
+                country_codes.add(collapse_region_code)
+                continue
+
             child_weights = {
                 c: float(self.country_totals.get(c, 0.0) or 0.0) for c in child_codes
             }
+            has_agg_counts = any(
+                v is not None for v in (e.total_count, e.covered_count, e.not_covered_count)
+            )
+            pct_only_aggregate = e.percentage is not None and not has_agg_counts
             alloc_total = alloc_map_by_weights(e.total_count, child_weights)
             alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
             bucket_map = (
                 aggregate_explicit_by_code
-                if len(child_codes) == 1
+                if len(child_codes) == 1 or pct_only_aggregate
                 else aggregate_weighted_by_code
             )
             for c in child_codes:
@@ -10289,9 +10362,11 @@ class Tracker:
                     if (
                         e.scope == Scope.REGION
                         and isinstance(e.key, str)
-                        and _CODE_TO_REGION.get(e.key, e.key) == region_name
+                            and _CODE_TO_REGION.get(e.key, e.key) == region_name
                     ):
                         country_entries.append(e)
+                if code in collapsed_region_seed_entries:
+                    country_entries.extend(collapsed_region_seed_entries[code])
             else:
                 for e in self.entries:
                     if e.scope == Scope.COUNTRY and e.key == code:
@@ -10306,6 +10381,8 @@ class Tracker:
                         e.key, code
                     ):
                         segment_entries.append(e)
+            if code in collapsed_region_seed_entries and not is_pseudo_region:
+                country_entries.extend(collapsed_region_seed_entries[code])
             country_entries = self._dedupe_country_entries(country_entries)
 
             # Prefer country-scope resolved entry as final snapshot.
@@ -10585,10 +10662,17 @@ class Tracker:
 
             if not child_codes:
                 continue
+            if _collapse_same_region_code(child_codes):
+                continue
             # Avoid double-counting: omit aggregates that already copied explicit
             # values directly to their single child.
             if getattr(e, "_single_child_explicit_applied", False):
                 continue
+
+            has_agg_counts = any(
+                v is not None for v in (e.total_count, e.covered_count, e.not_covered_count)
+            )
+            pct_only_aggregate = e.percentage is not None and not has_agg_counts
 
             child_weights = {
                 c: float(self.country_totals.get(c, 0.0) or 0.0) for c in child_codes
@@ -10597,10 +10681,29 @@ class Tracker:
             alloc_covered = alloc_map_by_weights(e.covered_count, child_weights)
             alloc_not_covered = alloc_map_by_weights(e.not_covered_count, child_weights)
 
-            has_agg_counts = any(
-                v is not None
-                for v in (e.total_count, e.covered_count, e.not_covered_count)
-            )
+            if pct_only_aggregate:
+                agg.append(
+                    {
+                        "aggregate_key": aggregate_key,
+                        "aggregate_scope": e.scope.value,
+                        "tot": None,
+                        "cov": None,
+                        "not_cov": None,
+                        "pct": e.percentage,
+                        "source_type": SourceType.EXPLICIT.value,
+                        "children": {
+                            c: {
+                                "tot": None,
+                                "cov": None,
+                                "not_cov": None,
+                                "w_tot": child_weights.get(c),
+                            }
+                            for c in child_codes
+                        },
+                    }
+                )
+                continue
+
             if not has_agg_counts:
                 continue
             if e.covered_count == 0:
