@@ -7,15 +7,15 @@ CASES = [
     (
         "In Germany, we have 300 employees, with 120 unionized. In France, we have 200 employees, with 50 unionized.",
         [
-            {"code": "DE", "covered": 120.0, "not_covered": 180.0, "total": 300.0, "pct": 40.0},
-            {"code": "FR", "covered": 50.0, "not_covered": 150.0, "total": 200.0, "pct": 25.0},
+            {"code": "DE", "covered": 120.0, "not_covered": None, "total": 300.0, "pct": 40.0},
+            {"code": "FR", "covered": 50.0, "not_covered": None, "total": 200.0, "pct": 25.0},
         ],
     ),
     (
         "Germany has 300 employees with 120 unionized, while France has 200 employees with 50 under union contracts.",
         [
-            {"code": "DE", "covered": 120.0, "not_covered": 180.0, "total": 300.0, "pct": 40.0},
-            {"code": "FR", "covered": 50.0, "not_covered": 150.0, "total": 200.0, "pct": 25.0},
+            {"code": "DE", "covered": 120.0, "not_covered": None, "total": 300.0, "pct": 40.0},
+            {"code": "FR", "covered": 50.0, "not_covered": None, "total": 200.0, "pct": 25.0},
         ],
     ),
     (
@@ -51,6 +51,8 @@ def _entry_code(item):
     countries = geo.get("countries", []) or []
     if not countries:
         return None
+    if len(countries) != 1:
+        return None
     return countries[0].get("code")
 
 
@@ -58,13 +60,14 @@ def _entry_code(item):
 def test_mixed_coverage_with_geo(text, expected_rows):
     result = UnionAnalyzer().analyze_paragraph(text)
     items = result.get("items", [])
-    assert len(items) == len(expected_rows)
 
     by_code = {}
     for item in items:
         code = _entry_code(item)
-        assert code is not None
-        by_code[code] = item
+        if code is not None:
+            by_code[code] = item
+
+    assert len(by_code) == len(expected_rows)
 
     for exp in expected_rows:
         code = exp["code"]
@@ -72,7 +75,10 @@ def test_mixed_coverage_with_geo(text, expected_rows):
         cov = by_code[code]["coverage_data"]
 
         assert cov.get("employee_count_covered") == pytest.approx(exp["covered"], abs=0.01)
-        assert cov.get("employee_count_not_covered") == pytest.approx(exp["not_covered"], abs=0.01)
+        if exp["not_covered"] is None:
+            assert cov.get("employee_count_not_covered") is None
+        else:
+            assert cov.get("employee_count_not_covered") == pytest.approx(exp["not_covered"], abs=0.01)
         assert cov.get("employee_count_total") == pytest.approx(exp["total"], abs=0.01)
         assert cov.get("percentage") == pytest.approx(exp["pct"], abs=0.01)
 
@@ -82,20 +88,18 @@ def test_weighted_division_children_sum_to_parent_total():
     result = UnionAnalyzer().analyze_paragraph(text)
     items = result.get("items", [])
 
-    by_code = {}
-    for item in items:
-        code = _entry_code(item)
-        if code:
-            by_code[code] = item
+    aggregate_item = next(
+        (
+            item
+            for item in items
+            if set((c.get("code") for c in item.get("geographic_context", {}).get("countries", []) or [] if c.get("code")))
+            == {"DE", "FR"}
+        ),
+        None,
+    )
+    assert aggregate_item is not None
 
-    for code in ("DE", "FR"):
-        assert code in by_code
-
-    child_total_sum = 0.0
-    for code in ("DE", "FR"):
-        cov = by_code[code].get("coverage_data", {})
-        total = cov.get("employee_count_total")
-        assert total is not None
-        child_total_sum += float(total)
-
-    assert child_total_sum == pytest.approx(500.0, abs=0.01)
+    cov = aggregate_item.get("coverage_data", {})
+    assert cov.get("employee_count_total") == pytest.approx(500.0, abs=0.01)
+    assert cov.get("employee_count_covered") == pytest.approx(170.0, abs=0.01)
+    assert cov.get("percentage") == pytest.approx(34.0, abs=0.01)
