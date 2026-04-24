@@ -116,6 +116,99 @@ def _resolve_total_count(
     return total
 
 
+def _agg_children_set(agg_entry: Dict[str, Any]) -> frozenset:
+    children = agg_entry.get("children") or {}
+    if isinstance(children, frozenset):
+        return children
+    if isinstance(children, dict):
+        return frozenset(children.keys())
+    if isinstance(children, (list, tuple, set)):
+        return frozenset(children)
+    return frozenset()
+
+
+def _agg_candidates_disjoint(agg_entries: List[Dict[str, Any]]) -> bool:
+    seen = set()
+    for agg in agg_entries:
+        children = _agg_children_set(agg)
+        if seen.intersection(children):
+            return False
+        seen.update(children)
+    return True
+
+
+def _aggregate_report_totals(
+    report: Dict[str, Any],
+) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+    """
+    Return the strongest aggregate/global total candidate in the report.
+
+    Preference order:
+    1) global reported totals
+    2) international reported totals
+    3) one or more aggregate rows with positive totals
+
+    If multiple aggregate rows are disjoint, their totals are summed and pct is
+    left unset. This keeps the total-count path simple and avoids weighted child
+    spillover.
+    """
+    for entry in (report.get("global") or {}, report.get("international") or {}):
+        tot = _entry_field(entry, "tot")
+        cov = _entry_field(entry, "cov")
+        pct = _entry_field(entry, "pct")
+        if tot is not None or cov is not None:
+            pct = pct if pct is None or pct > 0 else None
+            return tot, cov, pct
+
+    agg_entries: List[Dict[str, Any]] = []
+    for agg in report.get("agg") or []:
+        tot = agg.get("tot")
+        cov = agg.get("cov")
+        if tot is None and cov is None:
+            continue
+        try:
+            tot_val = float(tot) if tot is not None else None
+        except (TypeError, ValueError):
+            continue
+        if tot_val is None or tot_val <= 0:
+            continue
+        try:
+            cov_val = float(cov) if cov is not None else None
+        except (TypeError, ValueError):
+            cov_val = None
+        pct = agg.get("pct")
+        try:
+            pct_val = float(pct) if pct is not None else None
+        except (TypeError, ValueError):
+            pct_val = None
+        if pct_val is not None and pct_val <= 0:
+            pct_val = None
+        agg_entries.append(
+            {
+                "tot": tot_val,
+                "cov": cov_val,
+                "pct": pct_val,
+                "children": _agg_children_set(agg),
+            }
+        )
+
+    if not agg_entries:
+        return None, None, None
+
+    if len(agg_entries) == 1:
+        entry = agg_entries[0]
+        return entry["tot"], entry["cov"], entry["pct"]
+
+    if _agg_candidates_disjoint(agg_entries):
+        total_tot = sum(entry["tot"] for entry in agg_entries if entry["tot"] is not None)
+        total_cov = sum(
+            entry["cov"] for entry in agg_entries if entry["cov"] is not None
+        )
+        return total_tot, total_cov, None
+
+    return None, None, None
+
+
 def _synthetic_weighted_agg_total(report: Dict[str, Any]) -> Optional[float]:
     total = 0.0
     has_value = False
@@ -217,46 +310,9 @@ def _tot_reported_pct(
     total_count: Optional[float],
     total_covered: Optional[float],
 ) -> Optional[float]:
-    international_entry = report.get("international") or {}
-    international_pct = _entry_field(international_entry, "pct")
-    if international_pct is not None:
-        return float(international_pct)
-
-    global_entry = report.get("global") or {}
-    global_pct = global_entry.get("pct")
-    if global_pct is not None:
-        try:
-            return float(global_pct)
-        except (TypeError, ValueError):
-            pass
-
-    global_cov = global_entry.get("cov")
-    global_tot = global_entry.get("tot")
-    if global_cov is not None and global_tot not in (None, 0):
-        try:
-            return round((float(global_cov) / float(global_tot)) * 100.0, 2)
-        except (TypeError, ValueError, ZeroDivisionError):
-            pass
-
-    dom_code = report.get("domestic_country_code")
-    countries = report.get("countries") or []
-    dom_pct = None
-    has_int_signal = False
-    for entry in countries:
-        code = entry.get("country_code")
-        pct = _entry_field(entry, "pct")
-        if code == dom_code and pct is not None and dom_pct is None:
-            dom_pct = float(pct)
-        elif code in INT_SET and pct is not None:
-            has_int_signal = True
-
-    if not has_int_signal and dom_pct is not None:
-        return dom_pct
-
-    single_pct = _single_report_pct(report)
-    if single_pct is not None:
-        return single_pct
-    return None
+    _ = total_count, total_covered
+    _, _, pct = _aggregate_report_totals(report)
+    return pct
 
 
 def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
@@ -642,16 +698,12 @@ def build_parquet_fields_from_country_report(
         dom_domestic_pct = 0.0
 
     int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
-    if not _has_explicit_country_totals(country_report):
-        agg_int_cov, agg_int_tot, agg_int_not_cov = _agg_international_totals(
-            country_report
-        )
-        if agg_int_cov is not None:
-            int_cov = (int_cov or 0.0) + agg_int_cov
-        if agg_int_tot is not None:
-            int_tot = (int_tot or 0.0) + agg_int_tot
-        if agg_int_not_cov is not None:
-            int_not_cov = (int_not_cov or 0.0) + agg_int_not_cov
+    agg_tot, agg_cov, agg_pct = _aggregate_report_totals(country_report)
+    if int_cov is None and agg_cov is not None:
+        int_cov = float(agg_cov)
+    if int_tot is None and agg_tot is not None and int_cov is None:
+        # No explicit international signal, but a synthetic aggregate exists.
+        int_tot = float(agg_tot)
 
     if dom_domestic_count is not None and int_cov is not None:
         dom_code = country_report.get("domestic_country_code")
@@ -679,7 +731,7 @@ def build_parquet_fields_from_country_report(
                 int_cov = max(0.0, float(int_cov) - float(dom_domestic_count))
 
     summary_int_false = summary.get("int_cov") is False
-    if summary_int_false and _agg_international_totals(country_report)[0] is None:
+    if summary_int_false and agg_cov is None:
         int_cov = 0.0
 
     if int_cov is not None and int_cov > 0 and int_tot == 0:
@@ -693,38 +745,15 @@ def build_parquet_fields_from_country_report(
 
     total_cov = None
     if dom_domestic_count is not None and int_cov is not None:
-        total_cov_val = float(dom_domestic_count) + float(int_cov)
-        for a in (country_report.get("agg") or []):
-            if _agg_is_purely_international(
-                a, country_report.get("domestic_country_code")
-            ):
-                continue
-            acov = a.get("cov")
-            if acov is not None:
-                total_cov_val += float(acov)
-        total_cov = total_cov_val
+        total_cov = float(dom_domestic_count) + float(int_cov)
+    elif dom_domestic_count is not None:
+        total_cov = float(dom_domestic_count)
+    elif int_cov is not None:
+        total_cov = float(int_cov)
+    elif agg_cov is not None:
+        total_cov = float(agg_cov)
 
-    global_entry = country_report.get("global") or {}
-    global_cov = global_entry.get("cov")
-    if global_cov is None:
-        g_tot = global_entry.get("tot")
-        g_pct = global_entry.get("pct")
-        if g_tot is not None and g_pct is not None:
-            try:
-                global_cov = (float(g_pct) / 100.0) * float(g_tot)
-            except (TypeError, ValueError):
-                global_cov = None
-    if global_cov is not None:
-        total_cov = float(global_cov)
-
-    global_tot_candidate = global_entry.get("tot")
-    tot_count = _resolve_total_count(
-        dom_domestic_count,
-        int_cov,
-        global_tot_candidate,
-        fallback_total=total_cov,
-        agg_total_fallback=_synthetic_weighted_agg_total(country_report),
-    )
+    tot_count = total_cov
 
     int_pct = _int_reported_pct(country_report)
     int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)

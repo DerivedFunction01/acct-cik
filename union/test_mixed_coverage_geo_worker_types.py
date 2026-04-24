@@ -302,7 +302,7 @@ def test_mixed_country_worker_types_total_before_breakdown_keeps_provenance(
     assert reported.get("pct") == pytest.approx(exp_pct, abs=0.01)
 
 
-def test_disjoint_synthetic_aggregates_can_sum_to_global_without_pct():
+def test_disjoint_synthetic_aggregates_stay_as_agg_when_country_totals_exist():
     sentence = (
         "We have 1493 Argentine and French employees of which 665 unionized workers. "
         "We have 800 German and Italian employees of which 100 unionized workers."
@@ -315,9 +315,5 @@ def test_disjoint_synthetic_aggregates_can_sum_to_global_without_pct():
     reported = global_obj.get("reported_totals", {}) or {}
 
     assert len(agg) == 2
-    assert global_obj.get("country_code") == "GLO"
-    assert global_obj.get("global_source") == "promoted_from_aggregate_sum"
-    assert reported.get("tot") == pytest.approx(2293.0, abs=0.01)
-    assert reported.get("cov") == pytest.approx(765.0, abs=0.01)
-    assert reported.get("not_cov") is None
-    assert reported.get("pct") is None
+    assert global_obj == {}
+    assert reported == {}

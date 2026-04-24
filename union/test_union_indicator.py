@@ -1,3 +1,4 @@
+import pytest
 import pandas as pd
 
 from analysis import (
@@ -614,7 +615,7 @@ def test_count_pct_pair_normalizer_keeps_zero_values_consistent():
     assert _normalize_count_pct_pair(0.0, 12.5) == (None, 12.5)
 
 
-def test_total_reported_pct_does_not_derive_from_counts_without_explicit_pct():
+def test_total_reported_pct_prefers_primary_aggregate_pct():
     report = {
         "domestic_country_code": "US",
         "countries": [
@@ -633,7 +634,9 @@ def test_total_reported_pct_does_not_derive_from_counts_without_explicit_pct():
         ],
     }
 
-    assert _tot_reported_pct(report, total_count=6866.0, total_covered=6866.0) is None
+    assert _tot_reported_pct(report, total_count=6866.0, total_covered=6866.0) == pytest.approx(
+        44.54, abs=0.01
+    )
 
 
 def test_explicit_country_rows_block_synthetic_aggregate_spillover_and_pct():
@@ -702,7 +705,7 @@ def test_build_parquet_fields_from_country_report_is_pure():
     assert fields["dom_count"] == 200.0
     assert fields["int_count"] == 665.0
     assert fields["tot_count"] == 865.0
-    assert fields["tot_pct"] is None
+    assert fields["tot_pct"] == pytest.approx(44.54, abs=0.01)
 
 
 def test_resolve_total_count_prefers_domestic_plus_international():
