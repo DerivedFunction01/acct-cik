@@ -3675,6 +3675,7 @@ class ComplexCoverageAnalyzer:
                 and m.geo_code not in IGNORED_REGIONS
             }
             is_single_country = len(explicit_countries) == 1
+            has_multi_country_geo = len(explicit_countries) >= 2
 
             if len(total_assignments) > 1 and is_single_country:
                 has_overlap_indicator = False
@@ -3698,6 +3699,24 @@ class ComplexCoverageAnalyzer:
                     total_candidates = [max_cand]
                     logic_notes.append(
                         f"Collapsed total candidates to {max_cand} (single country, overlap indicator)"
+                    )
+
+            # In multi-country aggregate sentences, keep geo-linked total candidates
+            # even when they are smaller than an unlinked neighbor. This prevents
+            # explicit country totals from being swallowed by a later country total.
+            if has_multi_country_geo:
+                geo_linked_total_candidates = [
+                    item.get("override_val", item["match"]["val"])
+                    for item in total_assignments
+                    if item["match"].get("linked_geo_group_id") is not None
+                ]
+                if geo_linked_total_candidates:
+                    for val in geo_linked_total_candidates:
+                        if val not in total_candidates:
+                            total_candidates.append(val)
+                    total_candidates.sort()
+                    logic_notes.append(
+                        f"Preserved geo-linked totals in multi-country context: {geo_linked_total_candidates}"
                     )
 
             # 1. Check for internal hierarchy in total_candidates (e.g. [3100, 1800, 1300] -> 3100)
@@ -3773,6 +3792,19 @@ class ComplexCoverageAnalyzer:
                 logic_notes.append(
                     f"Recomputed not covered from promoted worker-type total {promoted_worker_type_total}"
                 )
+
+        if (
+            self.data["employee_count_total"] is not None
+            and self.data["employee_count_covered"] is not None
+            and self.data["employee_count_not_covered"] is None
+        ):
+            self.data["employee_count_not_covered"] = max(
+                0.0,
+                self.data["employee_count_total"] - self.data["employee_count_covered"],
+            )
+            logic_notes.append(
+                "Computed not covered from total and covered counts"
+            )
 
         if logic_notes:
             current_note = self.data["note"] or ""

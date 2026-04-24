@@ -7,8 +7,8 @@ CASES = [
     (
         "In Germany, we have 300 employees, with 120 unionized. In France, we have 200 employees, with 50 unionized.",
         [
-            {"code": "DE", "covered": 120.0, "not_covered": None, "total": 300.0, "pct": 40.0},
-            {"code": "FR", "covered": 50.0, "not_covered": None, "total": 200.0, "pct": 25.0},
+            {"code": "DE", "covered": 120.0, "not_covered": 180.0, "total": 300.0, "pct": 40.0},
+            {"code": "FR", "covered": 50.0, "not_covered": 150.0, "total": 200.0, "pct": 25.0},
         ],
     ),
     (
