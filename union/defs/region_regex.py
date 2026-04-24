@@ -816,8 +816,6 @@ EUROPE = {
         Region.EUROPE,
         [
             Location("London", ["london"]),
-            Location("Birmingham", ["birmingham"]),
-            Location("Manchester", ["manchester"]),
             Location("Leeds", ["leeds"]),
             Location("Glasgow", ["glasgow"]),
             Location("Liverpool", ["liverpool"]),
@@ -2541,7 +2539,6 @@ MIDDLE_EAST_AFRICA = {
         [
             Location("Algiers", ["algiers"]),
             Location("Oran", ["oran", "wahran"]),
-            Location("Constantine", ["constantine"]),
             Location("Annaba", ["annaba"]),
             Location("Blida", ["blida"]),
         ],

@@ -1,5 +1,6 @@
 from analysis import UnionAnalyzer
 from extraction import UnionExtractor
+from defs.region_regex import Region, RegionMatcher
 
 
 def _geo_map(analysis):
@@ -48,3 +49,18 @@ def test_container_context_prefers_explicit_child_countries():
 
     # Container NA should be superseded by explicit children in context.
     assert codes == {"US", "MX", "PR"}
+
+
+def test_shared_us_city_names_resolve_to_us():
+    assert RegionMatcher.get_location("Birmingham") == (
+        Region.NORTH_AMERICA,
+        "United States",
+        "Birmingham",
+        "US",
+    )
+    assert RegionMatcher.get_location("Manchester") == (
+        Region.NORTH_AMERICA,
+        "United States",
+        "Manchester",
+        "US",
+    )
