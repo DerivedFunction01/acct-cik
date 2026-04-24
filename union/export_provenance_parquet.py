@@ -92,6 +92,7 @@ def _resolve_total_count(
     int_count: Optional[float],
     global_covered_count: Optional[float],
     fallback_total: Optional[float] = None,
+    agg_total_fallback: Optional[float] = None,
 ) -> Optional[float]:
     """
     Select the export total count using the simplified rule:
@@ -100,6 +101,8 @@ def _resolve_total_count(
     total = None
     if dom_count is not None and int_count is not None:
         total = float(dom_count) + float(int_count)
+    elif agg_total_fallback is not None:
+        total = float(agg_total_fallback)
     elif fallback_total is not None:
         total = float(fallback_total)
 
@@ -111,6 +114,23 @@ def _resolve_total_count(
             total = max(total, global_covered_count)
 
     return total
+
+
+def _synthetic_weighted_agg_total(report: Dict[str, Any]) -> Optional[float]:
+    total = 0.0
+    has_value = False
+    for agg in report.get("agg") or []:
+        if not agg.get("synthetic_weighted_division"):
+            continue
+        tot = agg.get("tot")
+        if tot is None:
+            continue
+        try:
+            total += float(tot)
+            has_value = True
+        except (TypeError, ValueError):
+            continue
+    return total if has_value else None
 
 
 def _report_pcts(report: Dict[str, Any]) -> List[Tuple[str, float]]:
@@ -195,6 +215,17 @@ def _tot_reported_pct(
     if global_pct is not None:
         try:
             return float(global_pct)
+        except (TypeError, ValueError):
+            pass
+
+    for agg in report.get("agg") or []:
+        if not agg.get("synthetic_weighted_division"):
+            continue
+        pct = agg.get("pct")
+        if pct is None:
+            continue
+        try:
+            return float(pct)
         except (TypeError, ValueError):
             pass
 
@@ -1076,12 +1107,13 @@ def export_parquet(
                 except (TypeError, ValueError, ZeroDivisionError):
                     global_cov_candidate = None
 
-        tot_count = _resolve_total_count(
-            dom_domestic_count,
-            int_cov,
-            global_cov_candidate,
-            fallback_total=total_cov,
-        )
+    tot_count = _resolve_total_count(
+        dom_domestic_count,
+        int_cov,
+        global_cov_candidate,
+        fallback_total=total_cov,
+        agg_total_fallback=_synthetic_weighted_agg_total(country_report),
+    )
 
         int_pct = _int_reported_pct(country_report)
         int_cov, int_pct = _normalize_count_pct_pair(int_cov, int_pct)

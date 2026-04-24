@@ -4631,6 +4631,7 @@ class Tracker:
         self.is_using_virtual: bool = False
         self.domestic_is_negated: bool = False
         self.year_mismatch_detected: bool = False
+        self.synthetic_weighted_split_sentence_indices: Set[int] = set()
         # Countries created via INT_* fallback mapping without explicit mention.
         self.language_fallback_countries: Set[str] = set()
         self.census_log: List[str] = []
@@ -4652,6 +4653,10 @@ class Tracker:
     def _add_source_note(entry: Entry, note: Optional[str]):
         if note:
             entry.source_notes.append(note)
+
+    def mark_synthetic_weighted_split(self, sentence_index: int) -> None:
+        if sentence_index >= 0:
+            self.synthetic_weighted_split_sentence_indices.add(sentence_index)
 
     @staticmethod
     def _derive_count_source_from_percentage(
@@ -10805,6 +10810,125 @@ class Tracker:
                 }
             )
 
+        synthetic_weighted_aggs: List[Dict[str, Any]] = []
+        countries_by_sentence: Dict[Tuple[int, ...], List[Dict[str, Any]]] = {}
+        for country_obj in countries:
+            sentence_indices = tuple(sorted(country_obj.get("source_sentence_indices") or []))
+            if not sentence_indices:
+                continue
+            countries_by_sentence.setdefault(sentence_indices, []).append(country_obj)
+
+        existing_agg_child_sets = {
+            frozenset((a.get("children") or {}).keys())
+            for a in agg
+            if isinstance(a.get("children"), dict) and a.get("children")
+        }
+
+        for sentence_indices, sentence_countries in countries_by_sentence.items():
+            if not any(
+                idx in self.synthetic_weighted_split_sentence_indices
+                for idx in sentence_indices
+            ):
+                continue
+            group_codes: List[str] = []
+            has_value_signal = False
+            for country_obj in sentence_countries:
+                code = country_obj.get("country_code")
+                if not code or code in group_codes:
+                    continue
+                group_codes.append(code)
+                reported = country_obj.get("reported_totals") or {}
+                method_breakdown = country_obj.get("method_breakdown") or {}
+                weighted_bucket = method_breakdown.get(SourceType.WEIGHTED_DIVISION.value)
+                if any(v is not None for v in reported.values()) or weighted_bucket:
+                    has_value_signal = True
+            if not has_value_signal or len(group_codes) < 2:
+                continue
+
+            child_set = frozenset(group_codes)
+            if child_set in existing_agg_child_sets:
+                continue
+
+            child_weights = {
+                c: float(self.country_totals.get(c, 0.0) or 0.0) for c in group_codes
+            }
+            children: Dict[str, Dict[str, Any]] = {}
+            parent_tot = 0.0
+            parent_cov = 0.0
+            parent_not_cov = 0.0
+            has_tot = False
+            has_cov = False
+            has_not_cov = False
+
+            for country_obj in sentence_countries:
+                code = country_obj.get("country_code")
+                if not code or code not in group_codes:
+                    continue
+
+                reported = country_obj.get("reported_totals") or {}
+                method_breakdown = country_obj.get("method_breakdown") or {}
+                weighted_bucket = method_breakdown.get(SourceType.WEIGHTED_DIVISION.value) or {}
+
+                child_tot = reported.get("tot")
+                child_cov = reported.get("cov")
+                child_not_cov = reported.get("not_cov")
+                child_pct = reported.get("pct")
+
+                if child_tot is None and weighted_bucket.get("tot") is not None:
+                    child_tot = weighted_bucket.get("tot")
+                if child_cov is None and weighted_bucket.get("cov") is not None:
+                    child_cov = weighted_bucket.get("cov")
+                if child_not_cov is None and weighted_bucket.get("not_cov") is not None:
+                    child_not_cov = weighted_bucket.get("not_cov")
+                if child_pct is None:
+                    pct_vals = weighted_bucket.get("pct_vals") or []
+                    if pct_vals:
+                        child_pct = pct_vals[0]
+
+                if child_tot is not None:
+                    parent_tot += float(child_tot)
+                    has_tot = True
+                if child_cov is not None:
+                    parent_cov += float(child_cov)
+                    has_cov = True
+                if child_not_cov is not None:
+                    parent_not_cov += float(child_not_cov)
+                    has_not_cov = True
+
+                children[code] = {
+                    "tot": child_tot,
+                    "cov": child_cov,
+                    "not_cov": child_not_cov,
+                    "w_tot": child_weights.get(code),
+                }
+
+            if not (has_tot or has_cov or has_not_cov):
+                continue
+
+            agg_key = _collapse_same_region_code(group_codes)
+            if not agg_key:
+                agg_key = GeoCode.AGGREGATE.value
+
+            synthetic_weighted_aggs.append(
+                {
+                    "aggregate_key": agg_key,
+                    "aggregate_scope": GeoCode.AGGREGATE.value,
+                    "tot": parent_tot if has_tot else None,
+                    "cov": parent_cov if has_cov else None,
+                    "not_cov": parent_not_cov if has_not_cov else None,
+                    "pct": round((parent_cov / parent_tot) * 100.0, 2)
+                    if has_tot and parent_tot > 0 and has_cov
+                    else None,
+                    "source_type": SourceType.WEIGHTED_DIVISION.value,
+                    "children": children,
+                    "synthetic_weighted_division": True,
+                    "source_sentence_indices": list(sentence_indices),
+                }
+            )
+
+        if synthetic_weighted_aggs:
+            agg.extend(synthetic_weighted_aggs)
+
         global_entry = next(
             (
                 e
@@ -11135,8 +11259,9 @@ class Tracker:
                     )
                 )
             ]
-            if len(weighted_global_candidates) == 1 and not any(
-                _country_obj_has_reported_values(c) for c in countries
+            if len(weighted_global_candidates) == 1 and (
+                weighted_global_candidates[0].get("synthetic_weighted_division")
+                or not any(_country_obj_has_reported_values(c) for c in countries)
             ):
                 aggregate_candidate = weighted_global_candidates[0]
                 global_obj = {
@@ -12271,6 +12396,12 @@ class UnionAnalyzer:
                     coverage_type=cov.get("type"),
                     is_table_generated=item.get("is_table_generated", False),
                 )
+                if isinstance(cov.get("note"), str) and cov.get("note", "").startswith(
+                    "Split from list"
+                ):
+                    tracker.mark_synthetic_weighted_split(
+                        item.get("sentence_index", -1)
+                    )
 
             # Resolve missing coverage data using collected totals
             tracker.resolve_coverage(
@@ -12284,6 +12415,36 @@ class UnionAnalyzer:
                 suppressed_clause_items=suppressed_clause_items
             )
             bargaining_report = tracker.build_bargaining_provenance_report()
+
+            synthetic_global_totals = (country_report.get("global") or {}).get(
+                "reported_totals"
+            ) or {}
+            synthetic_global_note = (country_report.get("global") or {}).get(
+                "global_source_note", ""
+            )
+            if (
+                synthetic_global_totals
+                and "weighted aggregate" in synthetic_global_note.lower()
+                and tracker.synthetic_weighted_split_sentence_indices
+            ):
+                for item in results:
+                    if item.get("sentence_index") not in tracker.synthetic_weighted_split_sentence_indices:
+                        continue
+                    cov = item.get("coverage_data") or {}
+                    if not isinstance(cov, dict):
+                        continue
+                    note = str(cov.get("note") or "")
+                    if not note.startswith("Split from list"):
+                        continue
+                    cov["percentage"] = synthetic_global_totals.get("pct")
+                    cov["employee_count_covered"] = synthetic_global_totals.get("cov")
+                    cov["employee_count_not_covered"] = synthetic_global_totals.get(
+                        "not_cov"
+                    )
+                    cov["employee_count_total"] = synthetic_global_totals.get("tot")
+                    if cov.get("percentage") is not None:
+                        cov["type"] = CoverageType.CALCULATED.value
+                    item["coverage_data"] = cov
 
         risk_summary = (
             self.risk_digest.summarize(risk_items) if risk_items else {}
