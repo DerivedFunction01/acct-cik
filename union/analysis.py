@@ -3242,7 +3242,7 @@ class ComplexCoverageAnalyzer:
 
         promoted_worker_type_total = None
         promoted_worker_type_group_ids: Set[Any] = set()
-        if self.analysis.total_modifiers and len(self.analysis.worker_types or []) >= 2:
+        if len(self.analysis.worker_types or []) >= 2:
             worker_type_group_ids = {
                 m.get("worker_group_id")
                 for m in self.analysis._matches
@@ -14384,6 +14384,27 @@ class UnionAnalyzer:
                     for a in assignments
                     if a["type"] in ("covered", "not_covered", "total")
                 ]
+
+                # Do not geo-split when the sentence only provides worker-type
+                # composition alongside multiple countries, but no assignment is
+                # explicitly linked to geography. In that case the country list is
+                # context, not a per-country breakdown.
+                has_linked_geo_assignment = any(
+                    a["match"].get("linked_geo_group_id") is not None
+                    for a in relevant_assignments
+                )
+                if (
+                    len(geo_context.get("countries", [])) > 1
+                    and (
+                        (analysis.worker_types or analysis.worker_terms)
+                        or any(
+                            a["match"].get("linked_geo_group_id") is None
+                            for a in relevant_assignments
+                        )
+                    )
+                    and not has_linked_geo_assignment
+                ):
+                    relevant_assignments = []
 
                 # Only split if we have multiple relevant counts and multiple explicit geos
                 if len(relevant_assignments) > 1:
