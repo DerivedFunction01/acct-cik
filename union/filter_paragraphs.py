@@ -434,6 +434,25 @@ def _should_bypass_customer_client_exclusion(text: str) -> bool:
         and LABOR_CONTRACT_BYPASS_REGEX.search(text)
     )
 
+
+def _should_skip_before_cleaning(text: str) -> bool:
+    """
+    Cheap pre-clean rejection for obvious off-topic paragraphs.
+
+    This keeps the same customer/client bypass rule as the post-clean path,
+    but avoids running the expensive cleaner stack on text we already know we
+    will drop.
+    """
+    if not text:
+        return True
+    if TABLE_TOK in text:
+        return False
+    if EXCLUSION_REGEX.search(text):
+        return True
+    if HARD_EXCLUSION_REGEX.search(text) and not _should_bypass_customer_client_exclusion(text):
+        return True
+    return False
+
 def filter_content(content_list: List[str], company_name: Optional[str] = None, year: Optional[int] = None, allow_risk: bool = False, home_country: Optional[str] = None) -> Tuple[List[str], List[float]]:
     """
     Filters a list of text blocks (paragraphs/tables).
@@ -500,6 +519,10 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
     prev_census_raw = None
 
     for block in raw_blocks:
+        if _should_skip_before_cleaning(block):
+            prev_census_block = None
+            prev_census_raw = None
+            continue
 
         # Pre-clean company names using fuzzy matching
         cleaned_block = COMPANY_CLEANER.clean(block, company_name)
@@ -526,11 +549,6 @@ def filter_content(content_list: List[str], company_name: Optional[str] = None, 
         cleaned_block = " ".join(cleaned_block.split())
 
         if not cleaned_block or EXCLUSION_REGEX.search(cleaned_block):
-            prev_census_block = None
-            prev_census_raw = None
-            continue
-
-        if HARD_EXCLUSION_REGEX.search(cleaned_block) and not _should_bypass_customer_client_exclusion(cleaned_block):
             prev_census_block = None
             prev_census_raw = None
             continue
