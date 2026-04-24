@@ -10112,10 +10112,10 @@ class Tracker:
                         weighted_bucket[f] = add_nullable(
                             weighted_bucket[f], weighted_seed.get(f)
                         )
-                    weighted_bucket["pct_vals"].extend(
-                        weighted_seed.get("pct_vals", [])
-                    )
-                    weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
+                        weighted_bucket["pct_vals"].extend(
+                            weighted_seed.get("pct_vals", [])
+                        )
+                        weighted_bucket["n"] += int(weighted_seed.get("n") or 0)
 
             if explicit_seed:
                 explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
@@ -10125,29 +10125,6 @@ class Tracker:
                     )
                 explicit_bucket["pct_vals"].extend(explicit_seed.get("pct_vals", []))
                 explicit_bucket["n"] += int(explicit_seed.get("n") or 0)
-
-            effective_country_codes: set[str] = set()
-            for ent in country_entries:
-                if ent.scope == Scope.COUNTRY and isinstance(ent.key, str):
-                    effective_country_codes.add(ent.key)
-                elif ent.scope == Scope.SEGMENT and isinstance(ent.key, str):
-                    anchor = self._segment_anchor_code(ent.key)
-                    if anchor:
-                        effective_country_codes.add(anchor)
-            if len(effective_country_codes) <= 1:
-                weighted_bucket = method_breakdown[SourceType.WEIGHTED_DIVISION.value]
-                explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
-                if weighted_bucket["n"] > 0 and any(
-                    weighted_bucket.get(k) is not None
-                    for k in ("tot", "cov", "not_cov")
-                ):
-                    for f in ("tot", "cov", "not_cov"):
-                        explicit_bucket[f] = add_nullable(
-                            explicit_bucket[f], weighted_bucket.get(f)
-                        )
-                    explicit_bucket["pct_vals"].extend(weighted_bucket.get("pct_vals", []))
-                    explicit_bucket["n"] += int(weighted_bucket.get("n") or 0)
-                    method_breakdown[SourceType.WEIGHTED_DIVISION.value] = empty_bucket()
 
             explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
             calculated_bucket = method_breakdown[SourceType.CALCULATED.value]
@@ -10700,7 +10677,7 @@ class Tracker:
 
             if not has_agg_counts:
                 continue
-            if e.covered_count == 0:
+            if e.covered_count == 0 or e.total_count == 0:
                 continue
 
             children = {}

@@ -444,6 +444,77 @@ def test_same_region_aggregate_with_mexico_collapses_to_na():
     assert not report.get("agg")
 
 
+def test_weighted_aggregate_does_not_backfill_child_reported_totals():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.country_keywords = {"US": {"union": 1}, "CA": {"union": 1}}
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            is_union_record=True,
+            sent_idx=0,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="CA",
+            is_union_record=True,
+            sent_idx=0,
+        ),
+        Entry(
+            scope=Scope.AGGREGATE,
+            key=Region.AGGREGATE.value,
+            covered_count=60.0,
+            total_count=100.0,
+            percentage=60.0,
+            is_union_record=True,
+            related_geo_codes=["US", "CA"],
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    us = _get_country({"country_report": report}, "US")
+    ca = _get_country({"country_report": report}, "CA")
+
+    assert us is not None and ca is not None
+    assert us.get("reported_totals") is None
+    assert ca.get("reported_totals") is None
+    assert any(
+        agg.get("source_type") == "WEIGHTED_DIVISION"
+        for agg in (report.get("agg") or [])
+    )
+
+
+def test_zero_valued_weighted_aggregate_is_skipped():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.country_keywords = {"US": {"union": 1}, "CA": {"union": 1}}
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            is_union_record=True,
+            sent_idx=0,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="CA",
+            is_union_record=True,
+            sent_idx=0,
+        ),
+        Entry(
+            scope=Scope.AGGREGATE,
+            key=Region.AGGREGATE.value,
+            covered_count=0.0,
+            total_count=0.0,
+            percentage=0.0,
+            is_union_record=True,
+            related_geo_codes=["US", "CA"],
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    assert report.get("agg") == []
+
+
 def test_pct_only_mixed_region_aggregate_promotes_to_global():
     text = (
         "As of <2009>, approximately 40% of our North American packaging plant "
