@@ -62,6 +62,7 @@ INDUSTRY_PREFIX_TERMS = [
     r"Aviation",
     r"Building",
     r"Construction",
+    r"Communications",
     r"Electrical",
     r"Electronics",
     r"Food",

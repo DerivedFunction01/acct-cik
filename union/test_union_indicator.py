@@ -826,6 +826,21 @@ def test_region_matcher_keeps_acronym_unions_case_sensitive():
     assert matcher.get_union("afl-cio") is None
 
 
+def test_country_suffixed_industry_worker_union_alias_resolves_via_extraction():
+    analysis = UnionAnalyzer().extractor.analyze_sentence(
+        "Communications, Energy and Paperworkers of Canada represent employees."
+    )
+
+    assert any(term == "Communications, Energy and Paperworkers" for term in analysis.union_terms)
+    assert any(
+        geo.geo_code == "CA" and geo.country == "Canada"
+        for geo in analysis.geo_matches
+    )
+
+    matcher = RegionMatcher()
+    assert matcher.get_union("Communications, Energy and Paperworkers of Atlantis") is None
+
+
 def test_union_extractor_strips_leading_fillers_from_union_matches():
     sentence = "The United Steelworkers of America represent employees in the US."
     analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)

@@ -400,6 +400,32 @@ LOWER_DYNAMIC_UNION_REGEX = re.compile(
     r"\b((?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2})(?:\s*(?:,|and|or|&)\s*(?:[A-Z][\w-]*(?:\s+[A-Z][\w-]*){0,2}))*)\s+(?:trade|labou?r)\s+unions?\b"
 )
 
+
+def _build_country_suffixed_dynamic_union_regexes(max_terms: int = 5) -> List[re.Pattern]:
+    industry_term_alt = to_build_alternation(INDUSTRY_PREFIX_TERMS)
+    worker_term_alt = to_build_alternation(WORKER_TERMS)
+    separator = r"(?:,\s*|\s+(?:and|&)\s+)"
+
+    patterns: List[re.Pattern] = []
+    for term_count in range(max_terms, 1, -1):
+        for worker_pos in range(term_count):
+            parts = []
+            for idx in range(term_count):
+                parts.append(worker_term_alt if idx == worker_pos else industry_term_alt)
+            seq = parts[0]
+            for part in parts[1:]:
+                seq = rf"{seq}{separator}{part}"
+            patterns.append(
+                re.compile(
+                    rf"\b({seq})\s+of\s+([A-Z][\w-]*(?:\s+[A-Z][\w-]*){{0,2}})\b"
+                )
+            )
+
+    return patterns
+
+
+COUNTRY_SUFFIXED_DYNAMIC_UNION_REGEXES = _build_country_suffixed_dynamic_union_regexes()
+
 # TitleCased company names that include "Union" (e.g. "Royal Union", "Union Capital",
 # "Union Express Mortgage", "First National Union Bank", "Union of Southern States Credit")
 TITLECASE_UNION_COMPANY_REGEX = re.compile(
@@ -1604,7 +1630,43 @@ class UnionExtractor:
             update_working_text=True,
         )
 
-        # 4c. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
+        # 4c. Extract country-suffixed dynamic union names where the tail is a
+        # concrete country clue. Example: "Communications, Energy and
+        # Paperworkers of Canada" -> union head + CA geo match.
+        def country_suffixed_dynamic_union_side_effect(m: re.Match, val: str):
+            head = normalize_union_candidate(m.group(1))
+            country_tail = normalize_union_candidate(m.group(2))
+            if not head or not country_tail:
+                raise ValueError
+
+            country_info = self.matcher.get_location(country_tail)
+            if not country_info:
+                raise ValueError
+
+            region, country, city, code = country_info
+            analysis.union_terms.append(head)
+            geo_obj = GeoMatch(
+                text=head,
+                region=region,
+                country=country,
+                city=city,
+                geo_code=code,
+                source_type=GeoSource.INFERRED_UNION,
+            )
+            analysis.geo_matches.append(geo_obj)
+            if analysis._matches:
+                analysis._matches[-1]["geo_obj"] = geo_obj
+
+        for country_suffixed_regex in COUNTRY_SUFFIXED_DYNAMIC_UNION_REGEXES:
+            process_matches(
+                country_suffixed_regex,
+                MatchType.UNION_NAME,
+                lambda m: m.group(1),
+                country_suffixed_dynamic_union_side_effect,
+                update_working_text=True,
+            )
+
+        # 4d. Extract Lowercase Dynamic Union Names (TitleCase + lowercase suffix)
         # e.g. "Japanese trade union", "German metal trade union"
         def lower_dynamic_side_effect(m: re.Match, val: str):
             # Group 1 is the chained TitleCase part (potential locations)

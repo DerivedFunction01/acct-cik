@@ -768,11 +768,9 @@ EUROPE = {
     Nation(
         "European Union",
         [
-            "european u",
             "european union",
             "eurozone",
-            "eur",
-            "euro",
+            "EU",
         ],
         Region.EUROPE,
         [],
