@@ -837,6 +837,26 @@ def test_union_extractor_strips_leading_fillers_from_union_matches():
     )
 
 
+def test_trade_union_is_allowed_through_titlecase_mask():
+    sentence = "Trade Union members represent employees in the US."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert analysis.is_union is True
+    assert any(term.lower() == "trade union" for term in analysis.union_terms)
+
+
+def test_european_and_soviet_union_are_not_promoted_to_union_coverage():
+    european = UnionAnalyzer().extractor.analyze_sentence(
+        "The European Union issued a statement."
+    )
+    soviet = UnionAnalyzer().extractor.analyze_sentence(
+        "The Soviet Union no longer exists."
+    )
+
+    assert european.is_union is False
+    assert soviet.is_union is False
+
+
 def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():
     cleaned = ContextualNumberCleaner().clean(
         "8 union/contracts/employee groups ... 2 in Brazil, 1 in Mexico, and 30 distribution and manufacturing center employees.",
