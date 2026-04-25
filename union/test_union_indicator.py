@@ -1000,6 +1000,25 @@ def test_build_parquet_fields_from_country_report_is_pure():
     assert fields["tot_pct"] == pytest.approx(44.54, abs=0.01)
 
 
+def test_build_parquet_fields_preserves_pct_only_int_rows():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [
+            {"country_code": "INT", "reported_totals": {"pct": 33.0}},
+        ],
+        "agg": [],
+        "global": {},
+        "summary": {"dom_cov": None, "int_cov": True},
+    }
+
+    fields = build_parquet_fields_from_country_report(report)
+
+    assert fields["int_count"] is None
+    assert fields["int_pct"] == 33.0
+    assert fields["tot_count"] is None
+    assert fields["tot_pct"] == 33.0
+
+
 def test_resolve_total_count_prefers_domestic_plus_international():
     assert _resolve_total_count(5307.0, 1559.0, None) == 6866.0
     assert _resolve_total_count(5307.0, 1559.0, 7000.0) == 7000.0

@@ -312,7 +312,9 @@ def _tot_reported_pct(
 ) -> Optional[float]:
     _ = total_count, total_covered
     _, _, pct = _aggregate_report_totals(report)
-    return pct
+    if pct is not None:
+        return pct
+    return _single_report_pct(report)
 
 
 def _domestic_explicit(report: Dict[str, Any]) -> Tuple[Optional[float], Optional[float]]:
@@ -691,10 +693,6 @@ def build_parquet_fields_from_country_report(
                 dom_domestic_pct = pct_val
                 dom_pulled_from_risk = True
 
-    if summary.get("dom_cov") is False and not dom_pulled_from_risk:
-        dom_domestic_count = 0.0
-        dom_domestic_pct = 0.0
-
     agg_tot, agg_cov, agg_pct = _aggregate_report_totals(country_report)
     int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
     if agg_cov is not None:
@@ -703,8 +701,6 @@ def build_parquet_fields_from_country_report(
         int_not_cov = None
 
     summary_int_false = summary.get("int_cov") is False
-    if summary_int_false and agg_cov is None:
-        int_cov = 0.0
 
     if int_cov is not None and int_cov > 0 and int_tot == 0:
         int_tot = None
