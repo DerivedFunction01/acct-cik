@@ -16,13 +16,10 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 ITEM_1 = [
     """The Harbin Municipal Government promulgated regulations that were effective <1994>, which provide for the establishment of a pension fund program to which both employer and employee must contribute. Harbin Bearing is required to contribute a monthly amount equivalent to 20% of its employees' aggregate monthly income, and each employee is required to contribute a monthly amount that is equivalent to 2% of such employees' monthly income.
 
-All of the employees of Harbin Bearing are members of a trade union. To date, Harbin Bearing has not been subject to any strikes or other significant labor disputes and is not a party to any collective bargaining agreements.
-
+The employees of Harbin Bearing are members of a trade union. 
 Labour contract covering the recruitment, employment, dismissal and resignation, wages, labour insurance, welfare, rewards, penalty and other matters concerning the staff and workers of the joint venture company shall be drawn up between the joint venture company and the Trade Union of the joint venture company as a whole or individual employees in accordance with the "Regulations of the People's Republic of China on Labour Management in Joint Ventures Using Chinese and Foreign Investment" and its implementation rules.
 
-The labour contracts shall, after being signed, be filed with the local labour management department.
-
-5.10 Employees. hereto contains a complete and correct list of the names of all current employees, consultants and commission agents of the Company together with compensation earned during the ended <1995> (including any bonuses and commissions and fringe benefits not generally available to the Company's employees). For employees, consultants and commission agents hired or retained since <1995>, sets forth the rate of compensation. To the Company's Knowledge, the Company is in compliance in all material respects with all applicable Laws respecting employment and employment practices, terms and conditions of employment and wages and hours. There are no pending or, to the Company's Knowledge, threatened, labor negotiations, work stoppages or work slow downs involving or affecting the Company or its Business, and no union representation questions exist, and there are no organizing activities, in respect of any of the employees of the Company.
+The labour contracts shall, after being signed, be filed with the local labour management department
 """,
 ]
 

@@ -10125,6 +10125,12 @@ class Tracker:
             if explicit_pct_vals:
                 explicit_bucket = method_breakdown[SourceType.EXPLICIT.value]
                 explicit_pct_present = True
+
+            def _has_positive_union_signal(entries: List[Entry]) -> bool:
+                return any(
+                    ent.is_union_record and not ent.is_negated for ent in entries
+                )
+
             for e in country_entries + segment_entries:
                 field_sources = [
                     ("tot", e.total_count, e.total_count_source_type),
@@ -10279,12 +10285,7 @@ class Tracker:
                     not_covered_val = None
                     pct_val = None
 
-            # Coverage-only indicator:
-            # 1 => positive covered population
-            # 0 => explicit non-coverage with no covered population
-            if covered_val is not None and covered_val > 0:
-                union_indicator = 1
-            elif (
+            explicit_non_coverage = (
                 (covered_val is not None and covered_val == 0)
                 or (pct_val is not None and pct_val == 0)
                 or (
@@ -10292,8 +10293,17 @@ class Tracker:
                     and not_covered_val > 0
                     and not covered_val
                 )
-            ):
+            )
+
+            # Union indicator:
+            # 1 => positive covered population or positive union signal
+            # 0 => explicit non-coverage with no covered population
+            if covered_val is not None and covered_val > 0:
+                union_indicator = 1
+            elif explicit_non_coverage:
                 union_indicator = 0
+            elif _has_positive_union_signal(country_entries + segment_entries):
+                union_indicator = 1
             else:
                 has_pct_signal = (
                     (pct_val is not None and pct_val > 0) or explicit_pct_present
@@ -10318,16 +10328,6 @@ class Tracker:
                 and pct_val == 0
             ):
                 pct_val = None
-
-            explicit_non_coverage = (
-                (covered_val is not None and covered_val == 0)
-                or (pct_val is not None and pct_val == 0)
-                or (
-                    not_covered_val is not None
-                    and not_covered_val > 0
-                    and not covered_val
-                )
-            )
 
             has_country_keywords = False
             if country_keywords:
@@ -10400,6 +10400,8 @@ class Tracker:
                 country["country_table_keywords"] = country_table_keywords
             if suppressed_items:
                 country["suppressed_counts"] = suppressed_items
+            if explicit_non_coverage:
+                country["explicit_non_coverage_signal"] = True
             source_sentence_indices = sorted(
                 {
                     e.sent_idx
@@ -10946,6 +10948,8 @@ class Tracker:
         def _country_obj_has_quant_signal(country_obj: Optional[Dict[str, Any]]) -> bool:
             if not country_obj:
                 return False
+            if country_obj.get("union_indicator") == 1:
+                return True
             reported = country_obj.get("reported_totals") or {}
             if any(reported.get(k) is not None for k in ("tot", "cov", "not_cov", "pct")):
                 return True
@@ -10959,6 +10963,26 @@ class Tracker:
             if not country_obj:
                 return False
             if country_obj.get("union_indicator") == 0:
+                return True
+            reported = country_obj.get("reported_totals") or {}
+            if reported.get("pct") == 0:
+                return True
+            if reported.get("not_cov") is not None and reported.get("cov") in (None, 0):
+                return True
+            # Backward compatibility with older serialized reports.
+            totals = country_obj.get("country_totals") or {}
+            if totals.get("pct") == 0:
+                return True
+            if totals.get("not_cov") is not None and totals.get("cov") in (None, 0):
+                return True
+            return False
+
+        def _country_obj_has_explicit_non_coverage_signal(
+            country_obj: Optional[Dict[str, Any]]
+        ) -> bool:
+            if not country_obj:
+                return False
+            if country_obj.get("explicit_non_coverage_signal"):
                 return True
             reported = country_obj.get("reported_totals") or {}
             if reported.get("pct") == 0:
@@ -11026,6 +11050,10 @@ class Tracker:
                 global_entry.not_covered_count,
                 global_entry.percentage,
             )
+        ) or (
+            global_entry
+            and global_entry.is_union_record
+            and not global_entry.is_negated
         ):
             global_obj = build_country_output(
                 code=GeoCode.GLOBAL.value,
@@ -11044,7 +11072,9 @@ class Tracker:
         elif (
             international_country_obj
             and not _country_obj_has_quant_signal(domestic_country_obj)
-            and not _country_obj_is_explicit_non_coverage(domestic_country_obj)
+            and not _country_obj_has_explicit_non_coverage_signal(
+                domestic_country_obj
+            )
         ):
             global_obj = dict(international_country_obj)
             global_obj["country_code"] = GeoCode.GLOBAL.value
@@ -11055,6 +11085,7 @@ class Tracker:
             global_obj["global_source_note"] = (
                 "International promoted to Global because domestic data was missing"
             )
+
         if not global_obj:
             pct_only_aggregate = next(
                 (
@@ -11203,7 +11234,7 @@ class Tracker:
                     "international_source_note": (
                         "Pct-only multi-region aggregate promoted to International"
                     ),
-                }
+                        }
 
         # If a North American union signal produces the same unsplittable signal
         # for both US and CA from the same sentence, keep only the domestic side
@@ -11259,6 +11290,17 @@ class Tracker:
                     for c in countries
                     if c.get("country_code") != other_na_code
                 ]
+
+        if (
+            global_obj
+            and domestic_country_obj
+            and global_obj.get("union_indicator") == 1
+            and domestic_country_obj.get("union_indicator") != 1
+            and not _country_obj_has_explicit_non_coverage_signal(
+                domestic_country_obj
+            )
+        ):
+            domestic_country_obj["union_indicator"] = 1
 
         # Build Summary
         summary = {

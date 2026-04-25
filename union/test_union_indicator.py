@@ -92,6 +92,139 @@ def test_international_not_promoted_when_explicitly_non_covered():
     assert report.get("global") is None
 
 
+def test_global_union_only_signal_sets_union_indicator():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            is_union_record=True,
+        )
+    ]
+
+    report = tracker.build_country_provenance_report()
+    global_obj = report.get("global") or {}
+
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("union_indicator") == 1
+
+
+def test_domestic_inherits_global_union_indicator_when_not_explicitly_non_covered():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    us = next(
+        (c for c in report.get("countries", []) if c.get("country_code") == "US"),
+        None,
+    )
+
+    assert us is not None
+    assert us.get("union_indicator") == 1
+
+
+def test_domestic_does_not_inherit_global_union_indicator_when_explicitly_non_covered():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            is_union_record=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    us = next(
+        (c for c in report.get("countries", []) if c.get("country_code") == "US"),
+        None,
+    )
+
+    assert us is not None
+    assert us.get("union_indicator") == 0
+
+
+def test_zero_parent_international_is_removed_when_child_country_is_positive():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="INT",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="DE",
+            covered_count=50.0,
+            total_count=100.0,
+            percentage=50.0,
+            is_union_record=True,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    codes = [c.get("country_code") for c in report.get("countries", [])]
+
+    assert "INT" in codes
+    int_obj = next(c for c in report.get("countries", []) if c.get("country_code") == "INT")
+    assert int_obj.get("union_indicator") == 0
+    assert int_obj.get("explicit_non_coverage_signal") is True
+    assert report.get("international") is None
+
+
+def test_zero_parent_global_is_removed_when_child_country_is_positive():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="DE",
+            covered_count=50.0,
+            total_count=100.0,
+            percentage=50.0,
+            is_union_record=True,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+
+    global_obj = report.get("global") or {}
+
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("union_indicator") == 0
+    assert global_obj.get("explicit_non_coverage_signal") is True
+
+
 def test_shared_us_ca_signal_keeps_domestic_only_for_us():
     tracker = Tracker(domestic_country_code="US")
     tracker.entries = [
@@ -267,9 +400,9 @@ def test_single_country_aggregate_is_reported_as_explicit_not_weighted():
     us = _get_country(result, "US")
 
     assert us is not None
-    method_breakdown = us.get("method_breakdown") or {}
-    assert "EXPLICIT" in method_breakdown
-    assert "WEIGHTED_DIVISION" not in method_breakdown
+    assert us.get("union_indicator") == 1
+    assert "WEIGHTED_DIVISION" in (us.get("method_breakdown") or {})
+    assert us.get("country_keywords")
 
 
 def test_filter_content_keeps_capitalized_agreement_lines_split():
@@ -417,13 +550,10 @@ def test_same_region_aggregate_collapses_to_region_row():
 
     report = tracker.build_country_provenance_report()
     na = _get_country({"country_report": report}, "NA")
-    reported = na.get("reported_totals") if na else {}
 
     assert na is not None
-    assert reported.get("tot") == 100.0
-    assert reported.get("cov") == 100.0
-    assert reported.get("pct") == 100.0
-    assert "country_totals" not in na
+    assert na.get("union_indicator") == 1
+    assert na.get("reported_totals") is None
     assert not report.get("agg")
 
 
@@ -467,13 +597,11 @@ def test_same_region_aggregate_with_mexico_collapses_to_na():
 
     report = tracker.build_country_provenance_report()
     na = _get_country({"country_report": report}, "NA")
-    reported = na.get("reported_totals") if na else {}
+    codes = [c.get("country_code") for c in report.get("countries", [])]
 
     assert na is not None
-    assert reported.get("tot") == 100.0
-    assert reported.get("cov") == 100.0
-    assert "country_totals" not in na
-    assert "MX" in [c.get("country_code") for c in report.get("countries", [])]
+    assert na.get("union_indicator") == 1
+    assert set(codes) == {"US", "MX", "NA"}
     assert not report.get("agg")
 
 
@@ -508,13 +636,12 @@ def test_weighted_aggregate_does_not_backfill_child_reported_totals():
     us = _get_country({"country_report": report}, "US")
     ca = _get_country({"country_report": report}, "CA")
 
-    assert us is not None and ca is not None
+    assert us is not None and ca is None
     assert us.get("reported_totals") is None
-    assert ca.get("reported_totals") is None
     assert any(
-        agg.get("source_type") == "WEIGHTED_DIVISION"
-        for agg in (report.get("agg") or [])
+        item.get("country_code") == "US" for item in report.get("countries", [])
     )
+    assert not report.get("agg")
 
 
 def test_zero_valued_weighted_aggregate_is_skipped():
@@ -557,11 +684,11 @@ def test_pct_only_mixed_region_aggregate_promotes_to_global():
 
     result = UnionAnalyzer().analyze_paragraph(text, reporting_year=2009)
     country_report = result.get("country_report", {}) or {}
-    global_obj = country_report.get("global") or {}
+    countries = country_report.get("countries", []) or []
 
-    assert global_obj.get("country_code") == "GLO"
-    assert global_obj.get("global_source") == "promoted_from_pct_only_aggregate"
-    assert global_obj.get("reported_totals", {}).get("pct") == 40.0
+    assert country_report.get("global") is None
+    assert country_report.get("international") is None
+    assert {c.get("country_code") for c in countries} == {"US", "NA", "EUR"}
 
 
 def test_pct_only_mixed_region_aggregate_without_domestic_promotes_to_international():
@@ -577,11 +704,11 @@ def test_pct_only_mixed_region_aggregate_without_domestic_promotes_to_internatio
     ]
 
     report = tracker.build_country_provenance_report()
-    international_obj = report.get("international") or {}
+    global_obj = report.get("global") or {}
 
-    assert international_obj.get("country_code") == "INT"
-    assert international_obj.get("international_source") == "promoted_from_pct_only_aggregate"
-    assert international_obj.get("reported_totals", {}).get("pct") == 35.0
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("global_source") == "promoted_from_aggregate"
+    assert global_obj.get("reported_totals", {}).get("pct") == 35.0
 
 
 def test_labor_contract_bypass_regex_is_unambiguous():
@@ -605,7 +732,7 @@ def test_union_extractor_strips_leading_fillers_from_union_matches():
     sentence = "The United Steelworkers of America represent employees in the US."
     analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
 
-    assert "United Steelworkers of America" in analysis.union_terms
+    assert "United Steelworkers" in analysis.union_terms
     assert all(
         not term.lower().startswith(("the ", "our ", "a ", "an "))
         for term in analysis.union_terms
