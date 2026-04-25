@@ -244,7 +244,7 @@ class MinimalTextCleaner:
         ]
     )
     ip_context_regex = re.compile(rf"\b(?:{ip_terms_pattern})\b", re.IGNORECASE)
-    labor_contract_regex = re.compile(r"\blabor\s+contracts?\b", re.IGNORECASE)
+    labor_contract_regex = re.compile(r"\blabou?r\s+contracts?\b", re.IGNORECASE)
     link_regex = re.compile(
         r"(?:"
         r'https?://[^\s<>"\'()]+'  # standard http/https URLs
@@ -1211,7 +1211,7 @@ class ContextualNumberCleaner:
         # - "5 unions" or "5 union" with optional labor/trade prefix
         # - Blocks patterns like "5 union members" or "5 union-represented"
         # - Matches at word boundaries or before punctuation
-        union_prefixes = r"(?:(?:labor|trade)\s+)?"
+        union_prefixes = r"(?:(?:labou?r|trade)\s+)?"
         union_adj_blockers = build_alternation(
             WORKER_TERMS
             + [r"members?", r"represented", r"covered", r"based", r"affiliated"]
@@ -1375,7 +1375,7 @@ class ContextualNumberCleaner:
 
         # 10. Small Contract Counts (1-20) to prevent accidental ratio/count confusion
         contract_context = (
-            r"(?:(?:labor|trade)\s+)?(?:(?:union|collective\s+bargaining\s+(?:agreements?|contracts?))\s+)?"
+            r"(?:(?:labou?r|trade)\s+)?(?:(?:union|collective\s+bargaining\s+(?:agreements?|contracts?))\s+)?"
         )
         contract_nouns = build_alternation(SUFFIX_AGREEMENTS + SUFFIX_ORGS + [r"cbas?", r"unions"])
 
