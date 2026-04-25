@@ -274,7 +274,9 @@ NORTH_AMERICA = {
                 "Alabama",
                 ["alabama"],
                 [
-                    Location("Birmingham, AL", ["birmingham, al", "birmingham, alabama"]),
+                    Location(
+                        "Birmingham, AL", ["birmingham, al", "birmingham, alabama"]
+                    ),
                     Location("Huntsville", ["huntsville"]),
                     Location("Tuscaloosa", ["tuscaloosa"]),
                     Location("Lincoln, AL", ["lincoln, al", "lincoln, alabama"]),
@@ -673,7 +675,7 @@ NORTH_AMERICA = {
             "Police Benevolent Association",
             "International Bricklayers of America",
             r"American Federation of State, County and Municipal Employees",
-            r"AFSCME"
+            r"AFSCME",
         ],
         [r"Railway Labor Act", r"National Mediation Board"],
         code="US",
@@ -702,7 +704,8 @@ NORTH_AMERICA = {
             ),
             Location("Ingersoll", ["ingersoll"]),
             Location(
-                "Hamilton, Canada", ["hamilton, on", "hamilton, ontario", "hamilton, canada"]
+                "Hamilton, Canada",
+                ["hamilton, on", "hamilton, ontario", "hamilton, canada"],
             ),
             Location("St. Catharines", ["st. catharines"]),
             Location("Sudbury", ["sudbury"]),
@@ -723,6 +726,7 @@ NORTH_AMERICA = {
             "Metallurgistes Unis d'Amerique",
             "National Automobile, Aerospace, Transportation and General Workers",
             "Canadian Auto Workers",
+            "Communications, Energy and Paperworkers of Canada",
             "CAW",
         ],
         code="CA",
