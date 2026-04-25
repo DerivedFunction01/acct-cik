@@ -857,6 +857,18 @@ def test_european_and_soviet_union_are_not_promoted_to_union_coverage():
     assert soviet.is_union is False
 
 
+def test_dynamic_union_normalizer_drops_leading_and_trailing_fillers():
+    sentence = "The Union of Workers contract, amendable, date was signed."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert analysis.is_union is True
+    assert any(term == "Union of Workers" for term in analysis.union_terms)
+    assert all(
+        term.lower() not in {"the", "a", "an", "our", "contract", "amendable", "date"}
+        for term in analysis.union_terms
+    )
+
+
 def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():
     cleaned = ContextualNumberCleaner().clean(
         "8 union/contracts/employee groups ... 2 in Brazil, 1 in Mexico, and 30 distribution and manufacturing center employees.",

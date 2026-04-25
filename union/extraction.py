@@ -1165,9 +1165,17 @@ LEADING_UNION_FILLER_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+TRAILING_UNION_FILLER_REGEX = re.compile(
+    r"(?:[\s,;:\-]+(?:(?:and|or|with|of|the|a|an|our|my|your|their|his|her|its|this|that|these|those|some|any|each|every|such)|"
+    r"contract(?:s)?|amend(?:able|ed|ing)?|date(?:s)?|effective|signed|signature|appendix|schedule|exhibit|annex|"
+    r"agreement(?:s)?|memorandum|policy|notice|statement))+\s*$",
+    re.IGNORECASE,
+)
+
 
 def normalize_union_candidate(text: str) -> str:
     cleaned = LEADING_UNION_FILLER_REGEX.sub("", text).strip(" \t\r\n,;:-")
+    cleaned = TRAILING_UNION_FILLER_REGEX.sub("", cleaned).strip(" \t\r\n,;:-")
     return cleaned or text.strip()
 
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
