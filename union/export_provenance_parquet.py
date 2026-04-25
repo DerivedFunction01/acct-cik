@@ -677,6 +677,7 @@ def build_parquet_fields_from_country_report(
         dom_domestic_pct = _domestic_parent_pct(country_report)
 
     dom_pulled_from_risk = False
+    risk_pct = None
     if dom_domestic_count in (None, 0, 0.0) and risk_summary:
         risk_cov = risk_summary.get("cov_t", {}).get("cov")
         risk_pct = risk_summary.get("cov_t", {}).get("pct")
@@ -687,11 +688,15 @@ def build_parquet_fields_from_country_report(
         if risk_cov is not None and risk_cov_has_count:
             dom_domestic_count = float(risk_cov)
             dom_pulled_from_risk = True
-        if risk_pct is not None and float(risk_pct) != 100.0:
+    if risk_pct is not None and float(risk_pct) != 100.0:
             pct_val = float(risk_pct)
             if risk_pct_from_counts and not risk_pct_has_qual and 0.0 <= pct_val <= 100.0:
                 dom_domestic_pct = pct_val
                 dom_pulled_from_risk = True
+
+    if summary.get("dom_cov") is False and not dom_pulled_from_risk:
+        dom_domestic_count = 0.0
+        dom_domestic_pct = 0.0
 
     agg_tot, agg_cov, agg_pct = _aggregate_report_totals(country_report)
     int_cov, int_tot, int_not_cov = _int_reported_totals(country_report)
@@ -701,6 +706,8 @@ def build_parquet_fields_from_country_report(
         int_not_cov = None
 
     summary_int_false = summary.get("int_cov") is False
+    if summary_int_false and agg_cov is None:
+        int_cov = 0.0
 
     if int_cov is not None and int_cov > 0 and int_tot == 0:
         int_tot = None

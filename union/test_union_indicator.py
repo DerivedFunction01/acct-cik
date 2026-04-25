@@ -869,6 +869,14 @@ def test_dynamic_union_normalizer_drops_leading_and_trailing_fillers():
     )
 
 
+def test_labor_contract_is_preserved_as_a_full_keyword():
+    sentence = "Our labor contract was amended."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert any(term.lower() == "labor contract" for term in analysis.union_terms)
+    assert "labor" not in analysis.union_terms or "labor contract" in analysis.union_terms
+
+
 def test_union_process_negation_is_not_treated_as_non_coverage():
     sentence = "The United Steelworkers reported no union votes and no union representation questions."
     analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
@@ -1017,6 +1025,25 @@ def test_build_parquet_fields_preserves_pct_only_int_rows():
     assert fields["int_pct"] == 33.0
     assert fields["tot_count"] is None
     assert fields["tot_pct"] == 33.0
+
+
+def test_build_parquet_fields_uses_zero_for_explicit_non_coverage():
+    report = {
+        "domestic_country_code": "US",
+        "countries": [],
+        "agg": [],
+        "global": {},
+        "summary": {"dom_cov": False, "int_cov": False},
+    }
+
+    fields = build_parquet_fields_from_country_report(report)
+
+    assert fields["dom_count"] == 0.0
+    assert fields["dom_pct"] == 0.0
+    assert fields["int_count"] == 0.0
+    assert fields["int_pct"] == 0.0
+    assert fields["tot_count"] == 0.0
+    assert fields["tot_pct"] == 0.0
 
 
 def test_resolve_total_count_prefers_domestic_plus_international():
