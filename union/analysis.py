@@ -4212,6 +4212,46 @@ def determine_geo_context(
 
         union_names_map = {}
         if union_matches and countries:
+            lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
+            if lang_matches:
+                m = lang_matches[0]
+                mentioned_codes = {
+                    c.get("code")
+                    for c in countries
+                    if c.get("code")
+                }
+                resolved_countries = list(countries)
+                if m.geo_code not in {c.get("code") for c in resolved_countries}:
+                    resolved_countries.append({"name": m.geo_code, "code": m.geo_code})
+                resolved_region = (
+                    Region.AGGREGATE.value
+                    if len(resolved_countries) > 1
+                    else Region.INTERNATIONAL.value
+                )
+
+                return {
+                    "region": resolved_region,
+                    "countries": resolved_countries,
+                    "specificity": (
+                        Specificity.EXPLICIT_INFERRED.value
+                        if countries
+                        else Specificity.INFERRED_LANG.value
+                    ),
+                    "union_name_indicator": m.text,
+                    "union_name_code": m.geo_code,
+                    "note": (
+                        f"Inferred from language term '{m.text}' ({m.geo_code})"
+                    ),
+                    "explicit_countries": [c["name"] for c in resolved_countries],
+                    "union_names_map": (
+                        {
+                            m.geo_code: [m.text],
+                        }
+                    ),
+                    "union_names_mentioned": [m.text for m in union_matches],
+                    "domestic_negated": domestic_negated,
+                }
+
             for c in countries:
                 c_code = c["code"]
                 check_code = (
@@ -4264,8 +4304,12 @@ def determine_geo_context(
 
     # 2. Inferred from Union Name (Medium Priority)
     if union_matches:
+        lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
+
         # Check for specific union inference
-        specific_unions = [m for m in union_matches if m.country]
+        specific_unions = [
+            m for m in union_matches if m.country and m.geo_code not in INT_LANGUAGE_MAP
+        ]
         if specific_unions:
             # Use the first specific union found
             m = specific_unions[0]
@@ -4309,13 +4353,48 @@ def determine_geo_context(
                         for mod in analysis.total_modifiers
                     )
 
-                    if not has_global_mod:
-                        ctx = last_context.copy()
-                        ctx["specificity"] = Specificity.INHERITED.value
-                        ctx["inherited_from_sentence_index"] = last_idx
-                        ctx["union_name_indicator"] = m.text
-                        ctx.pop("explicit_countries", None)
-                        return ctx
+                if not has_global_mod:
+                    ctx = last_context.copy()
+                    ctx["specificity"] = Specificity.INHERITED.value
+                    ctx["inherited_from_sentence_index"] = last_idx
+                    ctx["union_name_indicator"] = m.text
+                    ctx.pop("explicit_countries", None)
+                    return ctx
+
+            if len(union_matches) > len(specific_unions):
+                resolved_countries = [
+                    {"name": m.country, "code": m.geo_code},
+                ]
+                resolved_map = {m.geo_code: [m.text]}
+                seen_codes = {m.geo_code}
+                for lm in lang_matches:
+                    if lm is m:
+                        continue
+                    if lm.geo_code not in seen_codes:
+                        resolved_countries.append(
+                            {"name": lm.geo_code, "code": lm.geo_code}
+                        )
+                        seen_codes.add(lm.geo_code)
+                    resolved_map[lm.geo_code] = [lm.text]
+
+                region_name = (
+                    Region.AGGREGATE.value
+                    if len(resolved_countries) > 1
+                    else m.region.value
+                )
+                return {
+                    "region": region_name,
+                    "countries": resolved_countries,
+                    "specificity": Specificity.EXPLICIT_INFERRED.value,
+                    "union_name_indicator": m.text,
+                    "union_name_code": m.geo_code,
+                    "note": (
+                        f"Resolved language term(s) with specific union '{m.text}'"
+                    ),
+                    "explicit_countries": [c["name"] for c in resolved_countries],
+                    "union_names_map": resolved_map,
+                    "union_names_mentioned": [u.text for u in union_matches],
+                }
 
             return {
                 "region": m.region.value,
@@ -4325,33 +4404,12 @@ def determine_geo_context(
             }
 
         # Check for language-based inference (INT_ES, INT_PT, etc.)
-        lang_matches = [m for m in union_matches if m.geo_code in INT_LANGUAGE_MAP]
         if lang_matches:
             m = lang_matches[0]
             assert m.geo_code is not None
-            allowed_codes = INT_LANGUAGE_MAP[m.geo_code]
-
-            # Try to resolve against last_context if available
-            if last_context and last_context.get("countries") and m.geo_code:
-                refined_code, refined_name = refine_generic_code(
-                    m.geo_code, last_context["countries"], domestic_country_code
-                )
-                if refined_code != m.geo_code:
-                    region_name = _CODE_TO_REGION.get(
-                        refined_code, Region.UNKNOWN.value
-                    )
-                    return {
-                        "region": region_name,
-                        "countries": [{"code": refined_code, "name": refined_name}],
-                        "specificity": Specificity.INFERRED_LANG.value,
-                        "union_name_indicator": m.text,
-                        "union_name_code": m.geo_code,
-                        "note": f"Resolved language term '{m.text}' to {refined_name} from context",
-                    }
-
             return {
-                "region": Region.INTERNATIONAL.value,  # Broad region
-                "countries": [],  # No specific country known
+                "region": Region.INTERNATIONAL.value,
+                "countries": [{"code": m.geo_code, "name": m.geo_code}],
                 "specificity": Specificity.INFERRED_LANG.value,
                 "union_name_indicator": m.text,
                 "union_name_code": m.geo_code,
@@ -5305,54 +5363,69 @@ class Tracker:
         # Preserve insertion order while deduping.
         keyword_target_codes = list(dict.fromkeys(keyword_target_codes))
 
-        for code in keyword_target_codes:
-            if code not in self.country_keywords:
-                self.country_keywords[code] = {}
-            if code not in self.country_sentence_keywords:
-                self.country_sentence_keywords[code] = set()
-            if code not in self.country_table_keywords:
-                self.country_table_keywords[code] = set()
+        for kw in keywords:
+            kw_prefix = None
+            check_kw = kw
+            if "::" in kw:
+                kw_prefix, check_kw = kw.split("::", 1)
 
-            for kw in keywords:
-                # Check if keyword implies a specific geography to avoid cross-contamination
-                check_kw = kw
-                if "::" in kw:
-                    check_kw = kw.split("::")[1]
+            # Preserve language-specific keyword prefixes so they can resolve
+            # to the concrete country resolved in the geo context.
+            if kw_prefix in INT_LANGUAGE_MAP:
+                allowed_codes = INT_LANGUAGE_MAP[kw_prefix]
+                target_codes = [
+                    code
+                    for code in keyword_target_codes
+                    if code in allowed_codes
+                ]
+                if not target_codes:
+                    target_codes = [kw_prefix]
+            else:
+                target_codes = keyword_target_codes
 
-                union_info = RegionMatcher.get_union(check_kw)
-                if union_info:
-                    _, _, u_code = union_info
+            union_info = RegionMatcher.get_union(check_kw)
+            if union_info:
+                _, _, u_code = union_info
 
-                    # Case 1: Union is specific to a concrete country (e.g. DE).
-                    # Apply strict mismatch filtering only for country-scoped codes,
-                    # not for container scopes such as NA/EU/composites.
-                    if u_code in INT_LANGUAGE_MAP:
-                        # Case 2: Union is language-specific (e.g. INT_ES)
-                        allowed_countries = INT_LANGUAGE_MAP[u_code]
-                        if len(code) == 2 and code not in allowed_countries:
-                            continue
-                    elif u_code:
-                        is_concrete_country_union = (
-                            len(u_code) == 2
-                            and u_code not in DOMESTIC_SET
-                            and u_code not in INT_SET
-                            and u_code not in GLOBAL_SET
-                            and not self._is_container_geo_key(u_code)
-                        )
-                        if is_concrete_country_union:
-                            if len(code) == 2 and code != u_code:
-                                continue
-                        else:
-                            # Container union code (e.g. NA): allow contained
-                            # countries and block unrelated concrete countries.
-                            if len(code) == 2 and (
-                                not is_contained(
+                # Language-specific unions should be routed through their own
+                # INT_* pseudo-code so the later resolver can choose the best
+                # concrete country (e.g. INT_ES -> MX, INT_PT -> BR) instead
+                # of inheriting the surrounding explicit country bucket.
+                if u_code in INT_LANGUAGE_MAP:
+                    target_codes = [u_code]
+                elif u_code:
+                    is_concrete_country_union = (
+                        len(u_code) == 2
+                        and u_code not in DOMESTIC_SET
+                        and u_code not in INT_SET
+                        and u_code not in GLOBAL_SET
+                        and not self._is_container_geo_key(u_code)
+                    )
+                    if is_concrete_country_union:
+                        target_codes = [u_code]
+                    else:
+                        # Container union code (e.g. NA): allow contained
+                        # countries and block unrelated concrete countries.
+                        target_codes = [
+                            code
+                            for code in target_codes
+                            if not (
+                                len(code) == 2
+                                and not is_contained(
                                     container_key=u_code,
                                     item_key=code,
                                     domestic_country_code=self.domestic_country_code,
                                 )
-                            ):
-                                continue
+                            )
+                        ]
+
+            for code in target_codes:
+                if code not in self.country_keywords:
+                    self.country_keywords[code] = {}
+                if code not in self.country_sentence_keywords:
+                    self.country_sentence_keywords[code] = set()
+                if code not in self.country_table_keywords:
+                    self.country_table_keywords[code] = set()
 
                 if is_table_generated:
                     # For generated table rows, dedupe repeated keywords before
