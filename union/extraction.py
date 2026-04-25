@@ -51,7 +51,8 @@ from defs.region_regex import (
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
-NUMBER_REGEX = re.compile(r"\b\d+(?:\.\d+)?\b")
+INTEGER_NUMBER_PATTERN = r"(?<![\d.])\d+(?![\d.])"
+NUMBER_REGEX = re.compile(INTEGER_NUMBER_PATTERN)
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
 
@@ -164,12 +165,12 @@ GAP = r"\s+(?:[\w-]+\s+){0,3}"
 LARGE_COUNT = r"(?:\d{3,}|\d{1,3}(?:,\d{3})+)"
 WORKER_COUNT_REGEX = build_regex(
     [
-        rf"employ(?:ed|s)?\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
+        rf"employ(?:ed|s)?\s+{non_numeric_gap}({INTEGER_NUMBER_PATTERN})",
         rf"(?:have|had|has)\s+{non_numeric_gap}({LARGE_COUNT})",
-        rf"(\d+(?:\.\d+)?)\s+{non_numeric_gap}{worker_term_pattern}",
-        rf"{worker_term_pattern}\s+{non_numeric_gap}(\d+(?:\.\d+)?)",
+        rf"({INTEGER_NUMBER_PATTERN})\s+{non_numeric_gap}{worker_term_pattern}",
+        rf"{worker_term_pattern}\s+{non_numeric_gap}({INTEGER_NUMBER_PATTERN})",
         rf"({LARGE_COUNT})\s+(?:in|are|were)",
-        rf"(\d+(?:\.\d+)?)\s+{build_alternation(COVERAGE_VERBS)}",
+        rf"({INTEGER_NUMBER_PATTERN})\s+{build_alternation(COVERAGE_VERBS)}",
     ]
 )
 
@@ -244,7 +245,7 @@ WORKER_CATEGORY_FILLER_TERMS = [
 ]
 _worker_category_filler_alt = build_alternation(WORKER_CATEGORY_FILLER_TERMS)
 WORKER_CATEGORY_LIST_ITEM_REGEX = re.compile(
-    rf"\b(\d+(?:\.\d+)?)\s+({_worker_category_filler_alt})\b"
+    rf"({INTEGER_NUMBER_PATTERN})\s+({_worker_category_filler_alt})\b"
     rf"(?=\s*(?:,|;|\band\b|\bor\b|&|\.|$)|\s+(?:employees?|workers?|staff|personnel)\b)",
     re.IGNORECASE,
 )

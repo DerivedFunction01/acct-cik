@@ -216,6 +216,25 @@ def test_context_total_fallback_drops_small_noise_numbers():
     assert 1.0 not in analysis.numbers
 
 
+def test_extractor_ignores_decimal_counts_but_keeps_percentages():
+    sentence = "5.10 Employees were mentioned, but 25.5% of employees were unionized."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert analysis.worker_counts == []
+    assert 5.10 not in analysis.numbers
+    assert 25.5 in analysis.percentages
+
+
+def test_new_paragraph_does_not_inherit_previous_geo_context():
+    text = "In Germany, we employ 100 workers.\n\nThe company remains unionized."
+    result = UnionAnalyzer().analyze_paragraph(text)
+
+    second_geo = result["items"][1].get("geographic_context", {}) or {}
+
+    assert second_geo.get("countries", []) == []
+    assert second_geo.get("specificity") == "IMPLICIT"
+
+
 def test_contextual_cleaner_removes_forward_small_union_breakdown_clauses():
     cleaned = ContextualNumberCleaner().clean(
         "8 unions (4 in Canada, 1 in Mexico, 1 in Venezuela and 2 in Brazil).",

@@ -12217,8 +12217,10 @@ class UnionAnalyzer:
             for p_text in paragraphs:
                 p_sentences = self.extractor.split_sentences(p_text)
 
-                initial_geo_context = last_geo_context
-                initial_geo_sentence_idx = last_geo_sentence_idx
+                # Start each paragraph without the prior paragraph's geo seed.
+                # Sentence-level geo context still works inside the paragraph.
+                initial_geo_context = None
+                initial_geo_sentence_idx = -1
                 if p_sentences:
                     first_sentence = p_sentences[0]
                     first_analysis = self.extractor.analyze_sentence(

@@ -111,7 +111,14 @@ HARD_EXCLUSION_TERMS = [
     r"ordering",
     r"merger",
     r"patents?",
-    r"trademarks?"
+    r"trademarks?",
+    r"hereto",
+    r"hereby",
+    r"herein",
+    r"thereof",
+    r"therein",
+    r"pursuant\s+to",
+    r"provisions?\s+of",
 ]
 HARD_EXCLUSION_REGEX = build_regex(HARD_EXCLUSION_TERMS)
 CUSTOMER_CLIENT_HARD_EXCLUSION_REGEX = build_regex([r"customers", r"clients"])
