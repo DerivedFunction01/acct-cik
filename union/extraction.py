@@ -14,6 +14,7 @@ from defs.regex_lib import (
 )
 from defs.union_regex import (
     CORE,
+    COLLECTIVE_BARGAIN,
     GENERIC_RISK_REGEX,
     UNION_REGEX,
     RISK_REGEX,
@@ -48,6 +49,7 @@ from defs.region_regex import (
     _CODE_TO_REGION,
     GeoCode,
 )
+from defs.coverage_family import CoverageFamily
 
 # Regex for basic entities
 PERCENT_REGEX = re.compile(r"(\d+(?:\.\d+)?)\s*%", re.IGNORECASE)
@@ -55,6 +57,7 @@ INTEGER_NUMBER_PATTERN = r"(?<![\d.])\d+(?![\d.])"
 NUMBER_REGEX = re.compile(INTEGER_NUMBER_PATTERN)
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
+COLLECTIVE_BARGAIN_REGEX = re.compile(COLLECTIVE_BARGAIN, re.IGNORECASE)
 
 # --- Temporal Regexes ---
 CONDITIONAL_REGEX = build_regex(
@@ -453,6 +456,8 @@ class SentenceAnalysis:
     numbers: List[float] = field(default_factory=list)
     years: List[int] = field(default_factory=list)
     union_terms: List[str] = field(default_factory=list)
+    bargain_terms: List[str] = field(default_factory=list)
+    coverage_family: Optional[CoverageFamily] = None
     sentence_union_keywords: List[str] = field(default_factory=list)
     works_councils: List[str] = field(default_factory=list)
     risk_terms: List[str] = field(default_factory=list)
@@ -1296,6 +1301,16 @@ class UnionExtractor:
             revert=True,
         )
 
+        # Capture collective bargaining / CBA language separately so it can be
+        # distinguished from generic union terms later in coverage gating.
+        process_matches(
+            COLLECTIVE_BARGAIN_REGEX,
+            MatchType.MISC,
+            lambda m: m.group(0),
+            lambda m, val: analysis.bargain_terms.append(val),
+            revert=True,
+        )
+
         # 0. Subset indicators
         process_matches(
             SUBSET_REGEX,
@@ -1632,6 +1647,23 @@ class UnionExtractor:
             for val in pending_non_coverage_negations:
                 if val not in analysis.negation_terms:
                     analysis.negation_terms.append(val)
+
+        def _is_bargain_like_match(match: Dict[str, Any]) -> bool:
+            text_val = match.get("text") or match.get("val") or ""
+            return bool(text_val and COLLECTIVE_BARGAIN_REGEX.fullmatch(text_val))
+
+        has_bargain_family = bool(analysis.bargain_terms)
+        has_union_family = any(
+            m["type"] in (MatchType.UNION_TERM, MatchType.UNION_NAME, MatchType.SPECIFIC_UNION)
+            and not _is_bargain_like_match(m)
+            for m in analysis._matches
+        )
+        if has_bargain_family and has_union_family:
+            analysis.coverage_family = CoverageFamily.BOTH
+        elif has_bargain_family:
+            analysis.coverage_family = CoverageFamily.BARGAIN
+        elif has_union_family:
+            analysis.coverage_family = CoverageFamily.UNION
 
         # 8. Extract Geography (Explicit)
         if self.matcher.location_regexes:

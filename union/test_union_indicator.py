@@ -11,6 +11,7 @@ from analysis import (
 )
 from filter_paragraphs import filter_content, init_worker
 from extraction import SentenceAnalysis
+from defs.coverage_family import CoverageFamily
 from export_provenance_parquet import (
     _agg_international_totals,
     _has_explicit_country_totals,
@@ -160,6 +161,103 @@ def test_domestic_does_not_inherit_global_union_indicator_when_explicitly_non_co
 
     assert us is not None
     assert us.get("union_indicator") == 0
+
+
+def test_bargain_zero_does_not_block_positive_union_country_row():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            is_union_record=True,
+            coverage_family=CoverageFamily.UNION,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+            coverage_family=CoverageFamily.BARGAIN,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    us = next(
+        (c for c in report.get("countries", []) if c.get("country_code") == "US"),
+        None,
+    )
+
+    assert us is not None
+    assert us.get("union_indicator") == 1
+    assert us.get("coverage_family") == "both"
+    assert us.get("explicit_non_coverage_signal") is not True
+
+
+def test_union_zero_does_not_block_positive_bargain_country_row():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            covered_count=25.0,
+            total_count=100.0,
+            percentage=25.0,
+            is_union_record=True,
+            coverage_family=CoverageFamily.BARGAIN,
+        ),
+        Entry(
+            scope=Scope.COUNTRY,
+            key="US",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+            coverage_family=CoverageFamily.UNION,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    us = next(
+        (c for c in report.get("countries", []) if c.get("country_code") == "US"),
+        None,
+    )
+
+    assert us is not None
+    assert us.get("union_indicator") == 1
+    assert us.get("coverage_family") == "both"
+
+
+def test_global_zero_bargain_row_does_not_block_positive_union_global_row():
+    tracker = Tracker(domestic_country_code="US")
+    tracker.entries = [
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            is_union_record=True,
+            coverage_family=CoverageFamily.UNION,
+        ),
+        Entry(
+            scope=Scope.GLOBAL,
+            key="GLO",
+            not_covered_count=100.0,
+            total_count=100.0,
+            percentage=0.0,
+            is_union_record=True,
+            is_negated=True,
+            coverage_family=CoverageFamily.BARGAIN,
+        ),
+    ]
+
+    report = tracker.build_country_provenance_report()
+    global_obj = report.get("global") or {}
+
+    assert global_obj.get("country_code") == "GLO"
+    assert global_obj.get("union_indicator") == 1
+    assert global_obj.get("coverage_family") == "both"
 
 
 def test_zero_parent_international_is_removed_when_child_country_is_positive():

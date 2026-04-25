@@ -71,6 +71,7 @@ from defs.output_enums import (
     SuppressedCountType,
     RelationshipStatus,
 )
+from defs.coverage_family import CoverageFamily
 
 from defs.union_regex import (
     NON_COVERAGE_REGEX,
@@ -4514,6 +4515,7 @@ class Entry:
     is_remaining: bool = False
     is_negated: bool = False
     is_union_record: bool = False
+    coverage_family: Optional[CoverageFamily] = None
     scope: Scope = Scope.UNKNOWN
     sent_idx: int = -1  # The sentence index
     related_geo_codes: List[str] = field(default_factory=list)
@@ -4559,6 +4561,7 @@ class Entry:
                 self.key or "",
                 self.scope.value,
                 str(self.is_union_record),
+                str(self.coverage_family.value if self.coverage_family else ""),
                 str(self.is_qualitative),
                 str(self.covered_count),
                 str(self.total_count),
@@ -5239,6 +5242,7 @@ class Tracker:
         is_exception_remainder: bool = False,
         coverage_type: Optional[str] = None,
         is_table_generated: bool = False,
+        coverage_family: Optional[CoverageFamily] = None,
     ):
         """
         Records coverage data (rate or count) for a specific geographic scope.
@@ -5484,6 +5488,7 @@ class Tracker:
                             if percentage is not None
                             else None
                         ),
+                        coverage_family=coverage_family,
                     )
                 )
             return
@@ -5574,6 +5579,7 @@ class Tracker:
                     if scope_total is not None
                     else None
                 ),
+                coverage_family=coverage_family,
             )
         )
 
@@ -6197,6 +6203,7 @@ class Tracker:
                                 total_count=known_total,
                                 is_explicit=False,
                                 is_union_record=e.is_union_record,
+                                coverage_family=e.coverage_family,
                                 is_qualitative=e.is_qualitative,
                                 qualitative_bounds=e.qualitative_bounds,
                                 is_remaining=e.is_remaining,
@@ -7225,6 +7232,7 @@ class Tracker:
                     percentage=residual_pct,
                     is_explicit=False,
                     is_union_record=parent.is_union_record,
+                    coverage_family=parent.coverage_family,
                     is_qualitative=parent.is_qualitative,
                     qualitative_bounds=parent.qualitative_bounds,
                     is_negated=parent.is_negated,
@@ -8837,9 +8845,24 @@ class Tracker:
         Keep one strongest country entry per country key to avoid duplicate
         country-level processing in metrics/provenance.
         """
-        by_key: Dict[str, Entry] = {}
+        def _family_tags(entry: Entry) -> Tuple[str, ...]:
+            fam = entry.coverage_family
+            if fam == CoverageFamily.BOTH:
+                return ("bargain", "union")
+            if fam in (CoverageFamily.UNION, CoverageFamily.BARGAIN):
+                return (fam.value,)
+            if entry.is_negated or (
+                entry.not_covered_count is not None
+                and entry.not_covered_count > 0
+            ):
+                return ("bargain",)
+            if entry.is_union_record:
+                return ("union",)
+            return ("unknown",)
+
+        by_key: Dict[Tuple[str, Tuple[str, ...]], Entry] = {}
         for e in entries:
-            key = str(e.key)
+            key = (str(e.key), _family_tags(e))
             curr = by_key.get(key)
             if curr is None:
                 by_key[key] = e
@@ -8860,6 +8883,56 @@ class Tracker:
                 by_key[key] = e
 
         return list(by_key.values())
+
+    def _entry_family_selection_score(self, entry: Entry) -> Tuple[int, int, int, int, int, int, int, float]:
+        def _entry_families(ent: Entry) -> set[str]:
+            fam = ent.coverage_family
+            if fam == CoverageFamily.BOTH:
+                return {"union", "bargain"}
+            if fam in (CoverageFamily.UNION, CoverageFamily.BARGAIN):
+                return {fam.value}
+            if ent.is_negated or (
+                ent.not_covered_count is not None and ent.not_covered_count > 0
+            ):
+                return {"bargain"}
+            return {"union"} if ent.is_union_record else set()
+
+        def _entry_explicit_non_coverage(ent: Entry, family: str) -> bool:
+            if family not in _entry_families(ent):
+                return False
+            if ent.is_negated:
+                return True
+            if ent.covered_count is not None and ent.covered_count == 0:
+                return True
+            if ent.percentage is not None and ent.percentage == 0:
+                return True
+            if (
+                ent.not_covered_count is not None
+                and ent.not_covered_count > 0
+                and not ent.covered_count
+            ):
+                return True
+            return False
+
+        has_positive_family = any(
+            family not in ("",) and not _entry_explicit_non_coverage(entry, family)
+            for family in _entry_families(entry)
+        )
+        has_zero_family = any(
+            _entry_explicit_non_coverage(entry, family)
+            for family in _entry_families(entry)
+        )
+        family_rank = 2 if has_positive_family else 1 if has_zero_family else 0
+        return (
+            family_rank,
+            1 if entry.covered_count is not None else 0,
+            1 if entry.not_covered_count is not None else 0,
+            1 if entry.percentage is not None else 0,
+            1 if entry.total_count is not None else 0,
+            1 if entry.is_explicit else 0,
+            1 if entry.sent_idx != -1 else 0,
+            float(entry.total_count or 0.0),
+        )
 
     def validate(self):
         """
@@ -9343,14 +9416,16 @@ class Tracker:
 
         # 2. Check for Explicit Global Entry (AFTER bottom-up)
         log("\n[STEP 2] Checking for Explicit Global Entry...")
-        global_entry = next(
-            (
-                e
-                for e in self.entries
-                if e.scope == Scope.GLOBAL
-                or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
-            ),
-            None,
+        global_entries = [
+            e
+            for e in self.entries
+            if e.scope == Scope.GLOBAL
+            or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
+        ]
+        global_entry = (
+            max(global_entries, key=self._entry_family_selection_score)
+            if global_entries
+            else None
         )
 
         global_entry_percentage = None
@@ -9467,13 +9542,15 @@ class Tracker:
             target_dom_code = self.domestic_country_code
 
             # A. Check Country Entry
-            c_entry = next(
-                (
-                    e
-                    for e in self.entries
-                    if e.scope == Scope.COUNTRY and e.key == target_dom_code
-                ),
-                None,
+            c_entries = [
+                e
+                for e in self.entries
+                if e.scope == Scope.COUNTRY and e.key == target_dom_code
+            ]
+            c_entry = (
+                max(c_entries, key=self._entry_family_selection_score)
+                if c_entries
+                else None
             )
             if c_entry and (
                 c_entry.covered_count is not None or c_entry.percentage is not None
@@ -10131,6 +10208,55 @@ class Tracker:
                     ent.is_union_record and not ent.is_negated for ent in entries
                 )
 
+            def _entry_families(ent: Entry) -> set[str]:
+                fam = ent.coverage_family
+                if fam == CoverageFamily.BOTH:
+                    return {"union", "bargain"}
+                if fam in (CoverageFamily.UNION, CoverageFamily.BARGAIN):
+                    return {fam.value}
+                if fam:
+                    return {str(fam)}
+                return {"union"} if ent.is_union_record else set()
+
+            def _entry_matches_family(ent: Entry, family: str) -> bool:
+                return family in _entry_families(ent)
+
+            def _entry_explicit_non_coverage(ent: Entry, family: str) -> bool:
+                if not _entry_matches_family(ent, family):
+                    return False
+                if ent.is_negated:
+                    return True
+                if ent.covered_count is not None and ent.covered_count == 0:
+                    return True
+                if ent.percentage is not None and ent.percentage == 0:
+                    return True
+                if (
+                    ent.not_covered_count is not None
+                    and ent.not_covered_count > 0
+                    and not ent.covered_count
+                ):
+                    return True
+                return False
+
+            def _entry_positive_for_family(ent: Entry, family: str) -> bool:
+                if not _entry_matches_family(ent, family):
+                    return False
+                return not _entry_explicit_non_coverage(ent, family)
+
+            family_entries = country_entries + segment_entries
+            union_family_positive = any(
+                _entry_positive_for_family(ent, "union") for ent in family_entries
+            )
+            bargain_family_positive = any(
+                _entry_positive_for_family(ent, "bargain") for ent in family_entries
+            )
+            family_has_positive = union_family_positive or bargain_family_positive
+            family_has_zero = any(
+                _entry_explicit_non_coverage(ent, "union")
+                or _entry_explicit_non_coverage(ent, "bargain")
+                for ent in family_entries
+            )
+
             for e in country_entries + segment_entries:
                 field_sources = [
                     ("tot", e.total_count, e.total_count_source_type),
@@ -10285,15 +10411,7 @@ class Tracker:
                     not_covered_val = None
                     pct_val = None
 
-            explicit_non_coverage = (
-                (covered_val is not None and covered_val == 0)
-                or (pct_val is not None and pct_val == 0)
-                or (
-                    not_covered_val is not None
-                    and not_covered_val > 0
-                    and not covered_val
-                )
-            )
+            explicit_non_coverage = family_has_zero and not family_has_positive
 
             # Union indicator:
             # 1 => positive covered population or positive union signal
@@ -10302,7 +10420,9 @@ class Tracker:
                 union_indicator = 1
             elif explicit_non_coverage:
                 union_indicator = 0
-            elif _has_positive_union_signal(country_entries + segment_entries):
+            elif family_has_positive or _has_positive_union_signal(
+                country_entries + segment_entries
+            ):
                 union_indicator = 1
             else:
                 has_pct_signal = (
@@ -10394,6 +10514,20 @@ class Tracker:
                 country["language_fallback_country"] = True
             if any(v is not None for v in reported_totals.values()):
                 country["reported_totals"] = reported_totals
+            if family_has_positive or family_has_zero:
+                families = []
+                if union_family_positive or any(
+                    _entry_explicit_non_coverage(ent, "union")
+                    for ent in family_entries
+                ):
+                    families.append("union")
+                if bargain_family_positive or any(
+                    _entry_explicit_non_coverage(ent, "bargain")
+                    for ent in family_entries
+                ):
+                    families.append("bargain")
+                if families:
+                    country["coverage_family"] = "both" if len(families) > 1 else families[0]
             if country_keywords:
                 country["country_keywords"] = country_keywords
             if country_table_keywords:
@@ -10935,14 +11069,16 @@ class Tracker:
         if synthetic_weighted_aggs:
             agg.extend(synthetic_weighted_aggs)
 
-        global_entry = next(
-            (
-                e
-                for e in self.entries
-                if e.scope == Scope.GLOBAL
-                or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
-            ),
-            None,
+        global_entries = [
+            e
+            for e in self.entries
+            if e.scope == Scope.GLOBAL
+            or (e.key and (e.key.split("::")[0] in GLOBAL_SET))
+        ]
+        global_entry = (
+            max(global_entries, key=self._entry_family_selection_score)
+            if global_entries
+            else None
         )
 
         def _country_obj_has_quant_signal(country_obj: Optional[Dict[str, Any]]) -> bool:
@@ -11055,14 +11191,21 @@ class Tracker:
             and global_entry.is_union_record
             and not global_entry.is_negated
         ):
+            global_country_entries = self._dedupe_country_entries(global_entries)
+            global_segment_entries = [
+                e
+                for e in self.entries
+                if e.scope == Scope.SEGMENT
+                and self._segment_matches_country(e.key, GeoCode.GLOBAL.value)
+            ]
             global_obj = build_country_output(
                 code=GeoCode.GLOBAL.value,
                 total_val=global_entry.total_count,
                 covered_val=global_entry.covered_count,
                 not_covered_val=global_entry.not_covered_count,
                 pct_val=global_entry.percentage,
-                country_entries=[global_entry],
-                segment_entries=[],
+                country_entries=global_country_entries,
+                segment_entries=global_segment_entries,
                 weighted_seed=None,
                 country_keywords=None,
                 country_table_keywords=None,
@@ -12436,6 +12579,7 @@ class UnionAnalyzer:
                             keywords=item.get("keyword_matched"),
                             coverage_type=CoverageType.EXPLICIT_PERCENT.value,
                             is_table_generated=item.get("is_table_generated", False),
+                            coverage_family=analysis.coverage_family,
                         )
 
                 # Handle Union Context (Denominator) items
@@ -12490,6 +12634,7 @@ class UnionAnalyzer:
                     is_exception_remainder=cov.get("is_exception_remainder", False),
                     coverage_type=cov.get("type"),
                     is_table_generated=item.get("is_table_generated", False),
+                    coverage_family=analysis.coverage_family,
                 )
                 if isinstance(cov.get("note"), str) and cov.get("note", "").startswith(
                     "Split from list"
@@ -13694,6 +13839,14 @@ class UnionAnalyzer:
         Post-processing: Merge continuation items (Fix for split sentences)
         e.g. "In Germany we have X employees." -> "They are covered by Y."
         """
+        def _merge_family(curr: Optional[str], nxt: Optional[str]) -> Optional[str]:
+            vals = {v for v in (curr, nxt) if v}
+            if not vals:
+                return None
+            if len(vals) > 1:
+                return "both"
+            return next(iter(vals))
+
         merged_results = []
         skip_indices = set()
 
@@ -14062,6 +14215,9 @@ class UnionAnalyzer:
 
                 if next_item.get("is_union"):
                     current["is_union"] = True
+                current["coverage_family"] = _merge_family(
+                    current.get("coverage_family"), next_item.get("coverage_family")
+                )
 
                 n_idx = next_item.get("sentence_index")
                 if n_idx is not None:
@@ -14979,6 +15135,11 @@ class UnionAnalyzer:
                                 "worker_types": analysis.worker_types,
                                 "is_remaining": analysis.has_remaining_other,
                                 "is_union": analysis.is_union,
+                                "coverage_family": (
+                                    analysis.coverage_family.value
+                                    if analysis.coverage_family
+                                    else None
+                                ),
                                 "explicit_pct_entries": [
                                     ep for ep in explicit_pct_entries
                                     if ep.get("geo_code") == c_code
@@ -15003,6 +15164,11 @@ class UnionAnalyzer:
                     "worker_types": analysis.worker_types,
                     "is_remaining": analysis.has_remaining_other,
                     "is_union": analysis.is_union,
+                    "coverage_family": (
+                        analysis.coverage_family.value
+                        if analysis.coverage_family
+                        else None
+                    ),
                     "potential_total": current_sentence_count,
                     "explicit_pct_entries": explicit_pct_entries,
                 }
@@ -15236,6 +15402,8 @@ class UnionAnalyzer:
             data = e.__dict__.copy()
             if isinstance(data.get("scope"), Enum):
                 data["scope"] = data["scope"].value
+            if isinstance(data.get("coverage_family"), Enum):
+                data["coverage_family"] = data["coverage_family"].value
             entries_dump.append(data)
         logs = output.get("_logs", [])
 
