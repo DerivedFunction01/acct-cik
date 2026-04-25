@@ -58,7 +58,7 @@ if __name__ == "__main__":
         )
 
         results = analysis_output.get("items", [])
-        summary = analysis_output.get("summary", {})
+        # summary = analysis_output.get("summary", {})
         report = analysis_output.get("country_report", {})
         risk_summary = analysis_output.get("risk_summary", {})
 
@@ -68,8 +68,8 @@ if __name__ == "__main__":
         print(json.dumps(results, indent=2))
 
         # print("\n" + "=" * 80)
-        print("\nCALCULATED SUMMARY:\n")
-        print(json.dumps(summary, indent=2))
+        # print("\nCALCULATED SUMMARY:\n")
+        # print(json.dumps(summary, indent=2))
 
         print("\n" + "=" * 80)
         print("\nCOUNTRY REPORT:\n")

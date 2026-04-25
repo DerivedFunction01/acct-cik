@@ -12648,9 +12648,9 @@ class UnionAnalyzer:
                 use_virtual_pool=False, apply_dummy_percentages=False
             )
 
-            summary = self.compute_weighted_coverage(
-                results, tracker, all_region_totals
-            )
+            # summary = self.compute_weighted_coverage(
+            #     results, tracker, all_region_totals
+            # )
             country_report = tracker.build_country_provenance_report(
                 suppressed_clause_items=suppressed_clause_items
             )
@@ -12696,7 +12696,7 @@ class UnionAnalyzer:
             "items": results,
             "risk_items": risk_items,
             "risk_summary": risk_summary,
-            "summary": summary,
+            # "summary": summary,
             "country_report": country_report,
             "bargaining_report": bargaining_report,
         }
@@ -15395,17 +15395,17 @@ class UnionAnalyzer:
         tracker: Tracker,
         region_totals: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
-        output = tracker.calculate_metrics()
+        # output = tracker.calculate_metrics()
 
-        entries_dump = []
-        for e in tracker.entries:
-            data = e.__dict__.copy()
-            if isinstance(data.get("scope"), Enum):
-                data["scope"] = data["scope"].value
-            if isinstance(data.get("coverage_family"), Enum):
-                data["coverage_family"] = data["coverage_family"].value
-            entries_dump.append(data)
-        logs = output.get("_logs", [])
+        # entries_dump = []
+        # for e in tracker.entries:
+        #     data = e.__dict__.copy()
+        #     if isinstance(data.get("scope"), Enum):
+        #         data["scope"] = data["scope"].value
+        #     if isinstance(data.get("coverage_family"), Enum):
+        #         data["coverage_family"] = data["coverage_family"].value
+        #     entries_dump.append(data)
+        # logs = output.get("_logs", [])
 
-        output["entries"] = entries_dump
-        return output
+        # output["entries"] = entries_dump
+        return {}
