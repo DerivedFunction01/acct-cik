@@ -12369,7 +12369,7 @@ class UnionAnalyzer:
             results = risk_items
         else:
             # 1. Split into paragraphs to handle local context
-            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text) if p.strip()]
             if not paragraphs:
                 paragraphs = [text]
 
@@ -14063,6 +14063,69 @@ class UnionAnalyzer:
                     c_data["employee_count_not_covered"] = n_data[
                         "employee_count_not_covered"
                     ]
+
+                # If the current sentence already carries a bare total and the
+                # continuation contributes no new quantitative fields, keep
+                # that count visible on the merged row.
+                if (
+                    c_data.get("employee_count_total") is not None
+                    and c_data.get("employee_count_covered") is None
+                    and c_data.get("employee_count_not_covered") is None
+                    and c_data.get("percentage") is None
+                    and not any(
+                        n_data.get(k) is not None
+                        for k in (
+                            "percentage",
+                            "employee_count_covered",
+                            "employee_count_not_covered",
+                            "employee_count_total",
+                        )
+                    )
+                ):
+                    c_data["employee_count_covered"] = c_data["employee_count_total"]
+                    c_data["percentage"] = 100.0
+                    c_data["type"] = CoverageType.CALCULATED.value
+                    c_data["note"] = (
+                        (c_data.get("note") or "")
+                        + " | Promoted merged count to covered"
+                    )
+
+                # Preserve a continuation count even when the kept record only
+                # had context and the next sentence carried a bare total. This
+                # is the common "baseline sentence + union count continuation"
+                # pattern seen in test_analysis.py.
+                if (
+                    c_data.get("employee_count_covered") is None
+                    and c_data.get("employee_count_not_covered") is None
+                    and c_data.get("percentage") is None
+                    and n_data.get("employee_count_total") is not None
+                    and n_data.get("employee_count_covered") is None
+                    and n_data.get("employee_count_not_covered") is None
+                ):
+                    if (
+                        c_data.get("employee_count_total") is None
+                        and current.get("potential_total")
+                    ):
+                        c_data["employee_count_total"] = current["potential_total"]
+                        c_data["note"] = (
+                            (c_data.get("note") or "")
+                            + f" | Used local count {current['potential_total']}"
+                        )
+                    c_data["employee_count_covered"] = n_data["employee_count_total"]
+                    if c_data.get("employee_count_total"):
+                        c_data["percentage"] = round(
+                            (
+                                c_data["employee_count_covered"]
+                                / c_data["employee_count_total"]
+                            )
+                            * 100.0,
+                            2,
+                        )
+                    c_data["type"] = CoverageType.CALCULATED.value
+                    c_data["note"] = (
+                        (c_data.get("note") or "")
+                        + " | Promoted merged continuation total to covered"
+                    )
 
                 # Recalculate missing values if percentage is present
                 if c_data["percentage"] is not None:

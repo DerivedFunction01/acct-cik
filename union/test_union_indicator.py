@@ -1123,7 +1123,7 @@ def test_merge_continuation_items_does_not_absorb_following_employment_counts():
         },
         {
             "geographic_context": {
-                "specificity": "INHERITED",
+                "specificity": "INHERITED_PREV",
                 "inherited_from_sentence_index": 0,
             },
             "sentence_index": 1,
@@ -1177,7 +1177,7 @@ def test_merge_continuation_items_stops_when_union_sentence_has_own_population()
         },
         {
             "geographic_context": {
-                "specificity": "INHERITED",
+                "specificity": "INHERITED_PREV",
                 "inherited_from_sentence_index": 0,
             },
             "sentence_index": 1,
@@ -1202,6 +1202,187 @@ def test_merge_continuation_items_stops_when_union_sentence_has_own_population()
     merged = analyzer._merge_continuation_items(results)
 
     assert len(merged) == 2
+
+
+def test_merge_continuation_items_promotes_merged_union_total_to_covered():
+    analyzer = UnionAnalyzer()
+    results = [
+        {
+            "geographic_context": {
+                "specificity": "EXPLICIT",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 0,
+            "is_union": True,
+            "keyword_matched": ["unions"],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": 1998.0,
+            "coverage_data": {
+                "percentage": None,
+                "employee_count_covered": None,
+                "employee_count_not_covered": None,
+                "employee_count_total": 1998.0,
+                "negated": False,
+                "negation_type": None,
+                "type": "NONE",
+                "note": "Count (total): 1998.0 (no union association)",
+            },
+        },
+        {
+            "geographic_context": {
+                "specificity": "INHERITED_PREV",
+                "inherited_from_sentence_index": 0,
+            },
+            "sentence_index": 1,
+            "is_union": True,
+            "keyword_matched": ["Canadian Pipeline Employees Association"],
+            "worker_terms": [],
+            "worker_types": [],
+            "potential_total": None,
+            "coverage_data": {
+                "percentage": None,
+                "employee_count_covered": None,
+                "employee_count_not_covered": None,
+                "employee_count_total": None,
+                "negated": False,
+                "negation_type": None,
+                "type": None,
+                "note": None,
+            },
+        },
+    ]
+
+    merged = analyzer._merge_continuation_items(results)
+
+    assert len(merged) == 1
+    cov = merged[0]["coverage_data"]
+    assert cov["employee_count_covered"] == 1998.0
+    assert cov["employee_count_total"] == 1998.0
+    assert cov["percentage"] == 100.0
+    assert merged[0]["merged_sentence_index"] == 1
+
+
+def test_analyze_paragraph_preserves_covered_count_after_continuation_merge():
+    text = (
+        "On Duke Capital had approximately 11700 employees. "
+        "A total of 1998 operating and maintenance employees were represented by unions. "
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association."
+    )
+
+    result = UnionAnalyzer().analyze_paragraph(text)
+    items = result["items"]
+
+    assert len(items) == 2
+
+    first = items[0]
+    cov = first["coverage_data"]
+    assert first["merged_sentence_index"] == 1
+    assert cov["employee_count_covered"] == 1998.0
+    assert cov["employee_count_total"] is None
+
+
+def test_split_sentences_breaks_on_newlines_without_terminal_punctuation():
+    analyzer = UnionAnalyzer()
+    text = (
+        "On Duke Capital had approximately 11700 employees\n"
+        "A total of 1998 operating and maintenance employees were represented by unions\n"
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association"
+    )
+
+    sentences = analyzer.extractor.split_sentences(text)
+
+    assert sentences == [
+        "On Duke Capital had approximately 11700 employees",
+        "A total of 1998 operating and maintenance employees were represented by unions",
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association",
+    ]
+
+
+def test_split_sentences_breaks_on_blank_lines_without_terminal_punctuation():
+    analyzer = UnionAnalyzer()
+    text = (
+        "On Duke Capital had approximately 11700 employees.\n\n"
+        "A total of 1998 operating and maintenance employees were represented by unions.\n\n"
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association"
+    )
+
+    sentences = analyzer.extractor.split_sentences(text)
+
+    assert sentences == [
+        "On Duke Capital had approximately 11700 employees.",
+        "A total of 1998 operating and maintenance employees were represented by unions.",
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association",
+    ]
+
+
+def test_conciseness_cleaner_preserves_indented_blank_line_paragraphs():
+    cleaner = ConcisenessCleaner()
+    text = (
+        "On Duke Capital had approximately 11700 employees.\n"
+        "    \n"
+        "A total of 1998 operating and maintenance employees were represented by unions.\n"
+        "    \n"
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association"
+    )
+
+    cleaned = cleaner.clean(text)
+
+    assert cleaned.split("\n\n") == [
+        "On Duke Capital had approximately 11700 employees.",
+        "A total of 1998 operating and maintenance employees were represented by unions.",
+        "This amount consists of the following: 208 employees represented by the Canadian Pipeline Employees Association",
+    ]
+
+
+def test_test_analysis_paragraph_preserves_merged_count_from_continuation():
+    item = """On Duke Capital had approximately 11,700 employees.
+    A total of 1,998 operating, and maintenance employees were represented by unions.
+    This amount consists of the following:
+
+    208 employees represented by the Canadian Pipeline Employees Association
+
+    156 employees represented by the International Brotherhood of Electrical Workers
+
+    154 employees represented by the United Steelworkers of America
+
+    79 employees represented by Sindicato de Trabajadores del Sector Electrico
+
+    75 employees represented by the International Union of Operating Engineers
+
+    70 employees represented by Sindicato dos Trabalhadores na Industria da Energia Hidroeletrica de Ipaussu
+
+    38 employees represented by Sindicato Unico de Centrales de Generacion Electrica-Canon del Pato
+
+    29 employees represented by Asociacion del Personal Jerarquico del Agua y la Energia
+"""
+
+    analyzer = UnionAnalyzer()
+    cleaner = MinimalTextCleaner()
+    currency_remover = CurrencyRemover()
+    contextual_cleaner = ContextualNumberCleaner()
+    conciseness_cleaner = ConcisenessCleaner()
+    company_cleaner = CompanyCleaner()
+
+    company_name = "TechAdvance Manufacturing Corp LTD."
+    cleaned_text = company_cleaner.clean(item, company_name)
+    cleaned_text = cleaner.clean(cleaned_text, company_name)
+    cleaned_text = currency_remover.clean(cleaned_text)
+    cleaned_text = contextual_cleaner.clean(cleaned_text)
+    cleaned_text = conciseness_cleaner.clean(cleaned_text)
+
+    result = analyzer.analyze_paragraph(
+        cleaned_text, item_type="item1", reporting_year=1995
+    )
+    items = result["items"]
+
+    assert len(items) == 9
+    first = items[0]
+    cov = first["coverage_data"]
+    assert first["merged_sentence_index"] == 1
+    assert cov["employee_count_covered"] == 1998.0
+    assert cov["employee_count_total"] == 11700.0
+    assert cov["percentage"] == pytest.approx(17.08, abs=0.01)
 
 
 def test_worker_type_lookup_is_consumed_after_first_use():

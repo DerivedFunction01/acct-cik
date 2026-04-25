@@ -271,7 +271,7 @@ def split_mega_paragraph(paragraphs: List[str]) -> List[str]:
         # Insert a unique separator (e.g., \n\n) before the header
         p_new = MEGA_SPLIT_REGEX.sub(r"\1\n\n\2", p)
 
-        return p_new.split("\n\n")
+        return re.split(r"\n\s*\n+", p_new)
 
     for paragraph in paragraphs:
         # Split by tables first to protect them

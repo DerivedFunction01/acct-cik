@@ -135,6 +135,8 @@ SENTENCE_SPLIT_PATTERN = re.compile(
     r"(?<!\b[Ee]tc\.)"  # etc.
     r"(?<!\bSt\.)" # St. Petersburg
     r"\s+(?=[A-Z_<])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
+    r"|(?<=\S)\n+\s*(?=[A-Z0-9_<])"  # Split on newline-separated lines even without punctuation
+    r"|\n\s*\n+"  # Split on blank lines even if the paragraph has no terminal punctuation
 )
 
 
@@ -161,6 +163,8 @@ SENTENCE_SPLIT_PATTERN2 = re.compile(
     r"(?<!\b[Ee]tc\.)"  # etc.
     r"(?<!\bSt\.)"
     r"\s+(?=[A-Z0-9_<])"  # Must be followed by Whitespace + Uppercase <-- issue: doesn't consider tags
+    r"|(?<=\S)\n+\s*(?=[A-Z0-9_<])"  # Split on newline-separated lines even without punctuation
+    r"|\n\s*\n+"  # Split on blank lines even if the paragraph has no terminal punctuation
 )
 
 YEAR_REGEX = re.compile(r"\b(19\d{2}|20\d{2})\b")

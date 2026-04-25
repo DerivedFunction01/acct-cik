@@ -27,6 +27,7 @@ from defs.region_regex import MAJOR_CURRENCIES
 COMPANY_TOKEN = "the Company"
 
 SPACE_PATTERN = re.compile(r"\s+")
+BLANK_LINE_PATTERN = re.compile(r"\n\s*\n+")
 PUNCT_SPACE_PATTERN = re.compile(r"\s+([,\.;\:\!\?])")
 DOUBLE_PUNCT_PATTERN = re.compile(r"([,\.;\:\!\?])\1+")
 MISSING_SPACE_PATTERN = re.compile(r"(?:(?<!\b[A-Z])\.|[,;\:\!\?])(?=[a-zA-Z])")
@@ -970,7 +971,7 @@ class MinimalTextCleaner:
         if not text:
             return ""
 
-        paragraphs = text.split("\n\n")
+        paragraphs = BLANK_LINE_PATTERN.split(text)
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
@@ -1122,7 +1123,7 @@ class CurrencyRemover:
 
     def clean(self, text: str) -> str:
         # split by double new lines
-        paragraphs = text.split("\n\n")
+        paragraphs = BLANK_LINE_PATTERN.split(text)
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
@@ -1616,7 +1617,7 @@ class ContextualNumberCleaner:
             ident = m.group(1)
             return f" {ident}"
 
-        paragraphs = text.split("\n\n")
+        paragraphs = BLANK_LINE_PATTERN.split(text)
         paragraphs = [p.strip() for p in paragraphs]
         texts = []
         for paragraph in paragraphs:
@@ -1724,7 +1725,7 @@ class ConcisenessCleaner:
     def clean(self, text: str) -> str:
         if not text:
             return ""
-        paragraphs = text.split("\n\n")
+        paragraphs = BLANK_LINE_PATTERN.split(text)
         processed = []
         for p in paragraphs:
             p = p.strip()
