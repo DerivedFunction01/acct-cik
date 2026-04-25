@@ -1633,7 +1633,7 @@ class UnionExtractor:
         # 4c. Extract country-suffixed dynamic union names where the tail is a
         # concrete country clue. Example: "Communications, Energy and
         # Paperworkers of Canada" -> union head + CA geo match.
-        def country_suffixed_dynamic_union_side_effect(m: re.Match, val: str):
+        def country_suffixed_dynamic_union_extractor(m: re.Match):
             head = normalize_union_candidate(m.group(1))
             country_tail = normalize_union_candidate(m.group(2))
             if not head or not country_tail:
@@ -1644,9 +1644,23 @@ class UnionExtractor:
                 raise ValueError
 
             region, country, city, code = country_info
-            analysis.union_terms.append(head)
+            if city is not None:
+                raise ValueError
+
+            return head
+
+        def country_suffixed_dynamic_union_side_effect(m: re.Match, val: str):
+            country_info = self.matcher.get_location(normalize_union_candidate(m.group(2)))
+            if not country_info:
+                return
+
+            region, country, city, code = country_info
+            if city is not None:
+                return
+
+            analysis.union_terms.append(val)
             geo_obj = GeoMatch(
-                text=head,
+                text=val,
                 region=region,
                 country=country,
                 city=city,
@@ -1661,7 +1675,7 @@ class UnionExtractor:
             process_matches(
                 country_suffixed_regex,
                 MatchType.UNION_NAME,
-                lambda m: m.group(1),
+                country_suffixed_dynamic_union_extractor,
                 country_suffixed_dynamic_union_side_effect,
                 update_working_text=True,
             )
