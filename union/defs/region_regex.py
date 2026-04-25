@@ -620,7 +620,7 @@ NORTH_AMERICA = {
             "National Education Association",
             "AFT",
             "American Federation of Teachers",
-            "AFA",
+            "AFA", "AFA-CWA",
             "Association of Flight Attendants",
             "AFMA",
             "Aircraft Mechanics Fraternal Association",
