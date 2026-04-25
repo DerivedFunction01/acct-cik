@@ -166,28 +166,13 @@ def load_source_text_frame(
             rows = cur.fetchall()
             for row in rows:
                 accession, item1, item1a, home_country, source_period_of_report, cik, url, source_name = row
-                item1_text = _blocks_to_text(item1)
-                item1a_text = _blocks_to_text(item1a)
-                source_period_of_report_text = _normalize_period_of_report(source_period_of_report)
-                source_year = None
-                if source_period_of_report_text is not None:
-                    try:
-                        source_year = int(source_period_of_report_text)
-                    except ValueError:
-                        source_year = None
-                full_text_parts = [part for part in (item1_text, item1a_text) if part]
+                item1_text = _blocks_to_text(item1) or ""
+                item1a_text = _blocks_to_text(item1a) or ""
                 all_rows.append(
                     {
                         "accession": _normalize_accession(accession),
-                        "source_item1_text": item1_text,
-                        "source_item1a_text": item1a_text,
-                        "source_full_text": "\n\n".join(full_text_parts) if full_text_parts else None,
-                        "source_period_of_report": source_period_of_report_text,
-                        "source_home_country": home_country,
-                        "source_cik": cik,
-                        "source_url": url,
-                        "source_year": source_year,
-                        "source_name": source_name,
+                        "source_item1_text": "\n\n".join(item1_text),
+                        "source_item1a_text": "\n\n".join(item1a_text),
                     }
                 )
         text_df = pd.DataFrame(all_rows)
