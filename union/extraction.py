@@ -61,7 +61,7 @@ COLLECTIVE_BARGAIN_REGEX = re.compile(COLLECTIVE_BARGAIN, re.IGNORECASE)
 UNION_PROCESS_TERMS = [
     r"vote(?:s|d|ing)?",
     r"election(?:s)?",
-    r"representation\s+question(?:s)?",
+    r"(?:representation\s+)?question(?:s)?",
     r"authorization\s+card(?:s)?",
     r"certif(?:y|ied|ies|ication|ications?)",
     r"organizing(?:\s+activities?)?",
