@@ -869,6 +869,22 @@ def test_dynamic_union_normalizer_drops_leading_and_trailing_fillers():
     )
 
 
+def test_union_process_negation_is_not_treated_as_non_coverage():
+    sentence = "The United Steelworkers reported no union votes and no union representation questions."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert analysis.is_union is True
+    assert not analysis.negation_terms
+
+
+def test_cba_non_coverage_still_remains_negation():
+    sentence = "The company is not a party to any collective bargaining agreements."
+    analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)
+
+    assert analysis.is_union is True
+    assert analysis.negation_terms
+
+
 def test_contextual_cleaner_keeps_location_words_while_stripping_forward_counts():
     cleaned = ContextualNumberCleaner().clean(
         "8 union/contracts/employee groups ... 2 in Brazil, 1 in Mexico, and 30 distribution and manufacturing center employees.",

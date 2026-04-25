@@ -58,6 +58,16 @@ NUMBER_REGEX = re.compile(INTEGER_NUMBER_PATTERN)
 YEAR_TOKEN_REGEX = re.compile(r"<(\d{4})>")
 RESPECTIVELY_REGEX = re.compile(r"\brespectively\b", re.IGNORECASE)
 COLLECTIVE_BARGAIN_REGEX = re.compile(COLLECTIVE_BARGAIN, re.IGNORECASE)
+UNION_PROCESS_TERMS = [
+    r"vote(?:s|d|ing)?",
+    r"election(?:s)?",
+    r"representation\s+question(?:s)?",
+    r"authorization\s+card(?:s)?",
+    r"certif(?:y|ied|ies|ication|ications?)",
+    r"organizing(?:\s+activities?)?",
+    r"petition(?:s|ing)?",
+]
+UNION_PROCESS_CONTEXT_REGEX = build_regex(UNION_PROCESS_TERMS)
 
 # --- Temporal Regexes ---
 CONDITIONAL_REGEX = build_regex(
@@ -1178,6 +1188,13 @@ def normalize_union_candidate(text: str) -> str:
     cleaned = TRAILING_UNION_FILLER_REGEX.sub("", cleaned).strip(" \t\r\n,;:-")
     return cleaned or text.strip()
 
+
+def has_union_process_context(text: str, start: int, end: int) -> bool:
+    window_start = max(0, start - 40)
+    window_end = min(len(text), end + 80)
+    window = text[window_start:window_end]
+    return bool(UNION_PROCESS_CONTEXT_REGEX.search(window))
+
 # Delimiters: , ; or words like while, although, but, however (allow comma as a soft boundary)
 SEGMENT_DELIMITER_REGEX = re.compile(
     r"(?<!\d)[:;](?!\d)|\b(?:while|although|whereas|but|however|except|aside|apart|yet|compar(ed?|ing|ison)|exclud(?:ing|es?)|other\s+than)\b|(?:,)(?!(?:\s+or))|\band\b(?=\s+\d)",
@@ -1594,7 +1611,11 @@ class UnionExtractor:
             NON_UNION_REGEX,
             MatchType.NON_UNION,
             lambda m: m.group(0),
-            lambda m, val: analysis.negation_terms.append(val),
+            lambda m, val: (
+                analysis.negation_terms.append(val)
+                if not has_union_process_context(text, m.start(), m.end())
+                else None
+            ),
         )
 
         # 5b. Extract Non-Coverage Terms (at-will, unrepresented, non-union)
@@ -1604,7 +1625,11 @@ class UnionExtractor:
             NON_COVERAGE_REGEX,
             MatchType.NON_COVERAGE,
             lambda m: m.group(0),
-            lambda m, val: pending_non_coverage_negations.append(val),
+            lambda m, val: (
+                pending_non_coverage_negations.append(val)
+                if not has_union_process_context(text, m.start(), m.end())
+                else None
+            ),
         )
 
         # 6.5 Mask TitleCase two-word "Union" company names so they don't count as union terms.
