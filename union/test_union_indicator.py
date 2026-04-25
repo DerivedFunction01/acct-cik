@@ -877,6 +877,21 @@ def test_labor_contract_is_preserved_as_a_full_keyword():
     assert "labor" not in analysis.union_terms or "labor contract" in analysis.union_terms
 
 
+def test_titlecase_union_normalizer_strips_table_boilerplate():
+    cases = {
+        "Amendable        Association of Air Personnel Transport": "Association of Air Personnel Transport",
+        "Amendable        Association of Rampservice and Machinists": "Association of Rampservice and Machinists",
+        "Union Employee Group Employees Contract Status Transport Workers Mechanics": "Transport Workers Mechanics",
+        "Union Employee Group Employees Contract Status\n\nInternational Mechanic": "International Mechanic",
+    }
+
+    extractor = UnionAnalyzer().extractor
+    for sentence, expected in cases.items():
+        analysis = extractor.analyze_sentence(sentence)
+        assert any(term == expected for term in analysis.union_terms), sentence
+        assert all(term != sentence for term in analysis.union_terms)
+
+
 def test_union_process_negation_is_not_treated_as_non_coverage():
     sentence = "The United Steelworkers reported no union votes and no union representation questions."
     analysis = UnionAnalyzer().extractor.analyze_sentence(sentence)

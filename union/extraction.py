@@ -1170,23 +1170,107 @@ STRICT_LIST_CONNECTOR = re.compile(
     r"^\s*(?:,|;|and|&|or)\s*(?:and|or|&)?\s*$", re.IGNORECASE
 )
 PARTITIVE_REGEX = re.compile(r"\b(?:(?:out\s+)?of|from)\b", re.IGNORECASE)
+TITLECASE_UNION_TRIGGER_REGEX = re.compile(r"\b[A-Z][a-z]")
+
+TITLECASE_UNION_FILLER_TERMS = [
+    r"the",
+    r"a",
+    r"an",
+    r"our",
+    r"my",
+    r"your",
+    r"their",
+    r"his",
+    r"her",
+    r"its",
+    r"this",
+    r"that",
+    r"these",
+    r"those",
+    r"some",
+    r"any",
+    r"each",
+    r"every",
+    r"such",
+]
+TITLECASE_UNION_FILLER_ALT = build_alternation(TITLECASE_UNION_FILLER_TERMS)
 LEADING_UNION_FILLER_REGEX = re.compile(
-    r"^(?:(?:the|a|an|our|my|your|their|his|her|its|this|that|these|those|some|any|each|every|such)\b[\s,;:\-]+)+",
+    rf"^(?:{TITLECASE_UNION_FILLER_ALT}\b[\s,;:\-]+)+",
     re.IGNORECASE,
 )
 
+TITLECASE_UNION_TABLE_JUNK_TERMS = [
+    r"amendable",
+    r"number(?:\s+of)?",
+    r"status",
+    r"contract(?:s)?",
+    r"employee(?:s)?",
+    r"group",
+    r"date(?:s)?",
+    r"effective",
+    r"signed",
+    r"agreement(?:s)?",
+    r"related",
+    r"classification(?:s)?",
+    r"classifications?",
+]
+TITLECASE_UNION_TABLE_JUNK_ALT = build_alternation(TITLECASE_UNION_TABLE_JUNK_TERMS)
+TITLECASE_UNION_TABLE_PREFIX_REGEX = re.compile(
+    rf"^(?:(?:{TITLECASE_UNION_TABLE_JUNK_ALT})\b[\s,;:\-]+|"
+    rf"union(?:\s+(?:{TITLECASE_UNION_TABLE_JUNK_ALT}))+[\s,;:\-]+)+",
+    re.IGNORECASE,
+)
+
+TITLECASE_UNION_TABLE_SUFFIX_REGEX = re.compile(
+    rf"(?:[\s,;:\-]+(?:{TITLECASE_UNION_TABLE_JUNK_ALT}))+\s*$",
+    re.IGNORECASE,
+)
+
+TITLECASE_UNION_EDGE_TERMS = TITLECASE_UNION_FILLER_TERMS + [
+    r"and",
+    r"or",
+    r"with",
+    r"of",
+]
+TITLECASE_UNION_EDGE_ALT = build_alternation(TITLECASE_UNION_EDGE_TERMS)
+
+TITLECASE_UNION_TRAILING_FILLER_TERMS = [
+    r"contract(?:s)?",
+    r"amend(?:able|ed|ing)?",
+    r"date(?:s)?",
+    r"effective",
+    r"signed",
+    r"signatures?",
+    r"appendix",
+    r"schedules?",
+    r"exhibits?",
+    r"annex",
+    r"agreement(?:s)?",
+    r"memorandums?",
+    r"polic(?:y|ies)",
+    r"notices?",
+    r"statements?",
+]
+TITLECASE_UNION_TRAILING_FILLER_ALT = build_alternation(
+    TITLECASE_UNION_TRAILING_FILLER_TERMS
+)
+
 TRAILING_UNION_FILLER_REGEX = re.compile(
-    r"(?:[\s,;:\-]+(?:(?:and|or|with|of|the|a|an|our|my|your|their|his|her|its|this|that|these|those|some|any|each|every|such)|"
-    r"contract(?:s)?|amend(?:able|ed|ing)?|date(?:s)?|effective|signed|signature|appendix|schedule|exhibit|annex|"
-    r"agreement(?:s)?|memorandum|policy|notice|statement))+\s*$",
+    rf"(?:[\s,;:\-]+(?:{TITLECASE_UNION_EDGE_ALT}|{TITLECASE_UNION_TRAILING_FILLER_ALT}))+\s*$",
     re.IGNORECASE,
 )
 
 
 def normalize_union_candidate(text: str) -> str:
-    cleaned = LEADING_UNION_FILLER_REGEX.sub("", text).strip(" \t\r\n,;:-")
+    stripped = text.strip(" \t\r\n,;:-")
+    if not TITLECASE_UNION_TRIGGER_REGEX.search(text):
+        return stripped
+
+    cleaned = LEADING_UNION_FILLER_REGEX.sub("", stripped).strip(" \t\r\n,;:-")
+    cleaned = TITLECASE_UNION_TABLE_PREFIX_REGEX.sub("", cleaned).strip(" \t\r\n,;:-")
     cleaned = TRAILING_UNION_FILLER_REGEX.sub("", cleaned).strip(" \t\r\n,;:-")
-    return cleaned or text.strip()
+    cleaned = TITLECASE_UNION_TABLE_SUFFIX_REGEX.sub("", cleaned).strip(" \t\r\n,;:-")
+    return cleaned or stripped
 
 
 def has_union_process_context(text: str, start: int, end: int) -> bool:
