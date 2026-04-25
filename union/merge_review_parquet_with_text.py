@@ -171,8 +171,8 @@ def load_source_text_frame(
                 all_rows.append(
                     {
                         "accession": _normalize_accession(accession),
-                        "source_item1_text": "\n\n".join(item1_text),
-                        "source_item1a_text": "\n\n".join(item1a_text),
+                        "source_item1_text": item1_text,
+                        "source_item1a_text": item1a_text,
                     }
                 )
         text_df = pd.DataFrame(all_rows)
