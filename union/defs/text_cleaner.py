@@ -1461,6 +1461,7 @@ class ContextualNumberCleaner:
             r"products",
             r"disputes?",
             r"acres?",
+            r"nationalit(?:y|ies)",
             r"leases?",
             r"patents?",
             r"trademarks?",
