@@ -88,6 +88,7 @@ HARD_EXCLUSION_TERMS = [
     r"(?:preferred|treasury|common|performance)\s+(?:stocks?|shares)",
     r"(?:shares?|stock)[-\s](?:splits?|awards?|dividends?|options?)",
     r"brokers?",
+    r"registered\s+propert(?:y|ies)",
     r"vested",
     r"stock\s+purchases?",
     r"option\s+agreements?",
