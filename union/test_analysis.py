@@ -14,25 +14,10 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
-    """On Duke Capital had approximately 11,700 employees.
-    A total of 1,998 operating, and maintenance employees were represented by unions. 
-    This amount consists of the following:
-    
-    208 employees represented by the Canadian Pipeline Employees Association
-    
-    156 employees represented by the International Brotherhood of Electrical Workers
-    
-    154 employees represented by the United Steelworkers of America
-    
-    79 employees represented by Sindicato de Trabajadores del Sector Electrico
-    
-    75 employees represented by the International Union of Operating Engineers
-    
-    70 employees represented by Sindicato dos Trabalhadores na Industria da Energia Hidroeletrica de Ipaussu
-    
-    38 employees represented by Sindicato Unico de Centrales de Generacion Electrica-Canon del Pato
-    
-    29 employees represented by Asociacion del Personal Jerarquico del Agua y la Energia
+    """The Company (including its subsidiaries) employed approximately 920 people including full time, part time and casual employees. 
+    Of the 920 employees, 49 are members of unions, and employee relations are believed by management to be generally good. 
+    The Company entered into a three-year Collective Bargaining Agreement with the International Brotherhood of Teamsters now representing approximately 39 employees on the NASA ELVIS contract at Vandenberg Air Force Base in California. 
+    The Company entered into a three-year Collective Bargaining Agreement with the International Brotherhood of Electrical Workers now representing approximately 11 employees on the NASA ELVIS contract at the Kennedy Space Center in Florida.
 """,
 ]
 
