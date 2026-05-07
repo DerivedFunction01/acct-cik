@@ -230,7 +230,7 @@ _LOOSE_CORE_DYNAMIC_PATTERN = build_alternation(
 LOOSE_DYNAMIC_UNION_PATTERN = f"{TITLE_PREFIX}{_LOOSE_CORE_DYNAMIC_PATTERN}{TITLE_SUFFIX}"
 LOOSE_DYNAMIC_UNION_REGEX = build_regex([LOOSE_DYNAMIC_UNION_PATTERN], ignore_case=False)
 
-FX_DYNAMIC_UNION_REGEX = build_regex(_FX_DYNAMIC_LIST, ignore_case=True)
+FX_DYNAMIC_UNION_REGEX = build_regex(_FX_DYNAMIC_LIST)
 
 # Regex to capture comma-separated worker titles preceding a union name
 # e.g. "Teachers, Instructors and " before "Writers Association"
