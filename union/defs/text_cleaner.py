@@ -124,6 +124,7 @@ class WebTextCleaner:
                         [
                             r"union",
                             r"pacific",
+                            r"atlantic",
                             r"western",
                             r"eastern",
                             r"southern",
@@ -133,7 +134,8 @@ class WebTextCleaner:
                             r"trans",
                             r"inter",
                             r"company",
-                            r"royal"
+                            r"royal",
+                            r"business"
                         ],
                         [
                             r"union",
@@ -145,6 +147,7 @@ class WebTextCleaner:
                             r"company",
                             r"corporation",
                             r"oil",
+                            r"business",
                             r"holdings?",
                             r"gas",
                             r"trusts?",
