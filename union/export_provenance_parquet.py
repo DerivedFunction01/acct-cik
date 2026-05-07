@@ -736,6 +736,12 @@ def build_parquet_fields_from_country_report(
     tot_pct = _tot_reported_pct(country_report, tot_count, total_cov)
     tot_count, tot_pct = _normalize_count_pct_pair(tot_count, tot_pct)
 
+    if summary.get("dom_cov") or summary.get("int_cov"):
+        if tot_count == 0.0:
+            tot_count = None
+        if tot_pct == 0.0:
+            tot_pct = None
+
     lang_fallback_codes = [
         c.get("country_code")
         for c in countries
