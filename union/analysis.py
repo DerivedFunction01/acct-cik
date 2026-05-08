@@ -12529,21 +12529,6 @@ class UnionAnalyzer:
                 results.extend(block_results)
                 risk_items.extend(block_risk_items)
 
-                # Handle Excluded Geographies (Implicit Coverage)
-                for idx, analysis in enumerate(
-                    [
-                        self.extractor.analyze_sentence(
-                            s,
-                            emp_count=ext_total,
-                            context_total=tracker.global_total or ext_total,
-                        )
-                        for s in p_sentences
-                    ]
-                ):
-                    # We need to match the analysis to the result item to get coverage_data
-                    # This is handled inside _analyze_block now to keep context aligned
-                    pass
-
                 # Update previous totals for the next iteration (Sliding window: only look back 1 paragraph)
                 prev_paragraph_totals = local_totals
 
@@ -12572,6 +12557,8 @@ class UnionAnalyzer:
             for item in results:
                 cov: Dict[str, Any] = item.get("coverage_data", {})
                 geo = item.get("geographic_context", {})
+                item_fam_str = item.get("coverage_family")
+                item_coverage_family = CoverageFamily(item_fam_str) if item_fam_str else None
                 # if (
                 #     explicit_non_table
                 #     and item.get("is_table_generated")
@@ -12652,7 +12639,7 @@ class UnionAnalyzer:
                             keywords=item.get("keyword_matched"),
                             coverage_type=CoverageType.EXPLICIT_PERCENT.value,
                             is_table_generated=item.get("is_table_generated", False),
-                            coverage_family=analysis.coverage_family,
+                                coverage_family=item_coverage_family,
                         )
 
                 # Handle Union Context (Denominator) items
@@ -12707,7 +12694,7 @@ class UnionAnalyzer:
                     is_exception_remainder=cov.get("is_exception_remainder", False),
                     coverage_type=cov.get("type"),
                     is_table_generated=item.get("is_table_generated", False),
-                    coverage_family=analysis.coverage_family,
+                    coverage_family=item_coverage_family,
                 )
                 if isinstance(cov.get("note"), str) and cov.get("note", "").startswith(
                     "Split from list"
@@ -15091,12 +15078,12 @@ class UnionAnalyzer:
                                 coverage_data["employee_count_not_covered"] = (
                                     coverage_data["employee_count_total"]
                                     - coverage_data["employee_count_covered"]
-                                )
+                                ) # type: ignore
                                 total_val = coverage_data["employee_count_total"]
                                 covered_val = coverage_data["employee_count_covered"]
                                 if total_val and total_val > 0:
                                     coverage_data["percentage"] = round(
-                                        (covered_val / total_val) * 100.0, 2
+                                        (covered_val / total_val) * 100.0, 2 # type: ignore
                                     )
                                 coverage_data["type"] = CoverageType.CALCULATED.value
                                 coverage_data["note"] = (
