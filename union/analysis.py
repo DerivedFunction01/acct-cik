@@ -4345,7 +4345,7 @@ def determine_geo_context(
                 is_specific_prev = last_region not in IGNORED_REGIONS or (
                     last_countries and last_countries[0]["code"] not in IGNORED_REGIONS
                 )
-
+                has_global_mod = False
                 if is_specific_prev:
                     strong_global_modifiers = {"global", "international"}
                     has_global_mod = any(
