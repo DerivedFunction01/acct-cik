@@ -1396,6 +1396,7 @@ class ContextualNumberCleaner:
                 *asset_terms,
                 r"groups?",
                 r"councils?",
+                r"unions",
                 r"contracts?",
                 r"agreements?",
                 r"arrangements?",
