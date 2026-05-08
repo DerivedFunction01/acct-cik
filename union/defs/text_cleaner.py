@@ -1396,7 +1396,6 @@ class ContextualNumberCleaner:
                 *asset_terms,
                 r"groups?",
                 r"councils?",
-                r"unions",
                 r"contracts?",
                 r"agreements?",
                 r"arrangements?",
@@ -1420,9 +1419,9 @@ class ContextualNumberCleaner:
         )
         self.forward_strip_anchor_regex = re.compile(
             rf"\b(?P<anchor>{small_number})\s+"
-            rf"(?:(?:[\'\w/-]+\s+){{0,4}}(?:{forward_strip_context_terms}))\b"
+            rf"(?:(?:[\'\w/-]+\s+){{0,1}}(?:{forward_strip_context_terms}))\b"
             rf"(?!"
-            rf"(?:\s+[\'\w/-]+){{0,4}}\s+(?:{worker_pattern})\b"
+            rf"(?:\s+[\'\w/-]+){{0,3}}\s+(?:{worker_pattern})\b"
             rf")",
             re.IGNORECASE,
         )
