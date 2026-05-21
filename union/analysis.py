@@ -171,6 +171,31 @@ def has_status_negation_matches(matches: List[Dict[str, Any]]) -> bool:
     return any(m.get("type") in NEGATIVE_COVERAGE_MATCH_TYPES for m in matches)
 
 
+def _clear_impossible_total(data: Dict[str, Any]) -> bool:
+    """
+    Remove totals that are smaller than the covered / not-covered counts.
+
+    When that happens, the total cannot be the denominator, so any derived
+    percentage is invalid and must be cleared as well.
+    """
+    total = data.get("employee_count_total")
+    if total is None:
+        return False
+
+    covered = data.get("employee_count_covered")
+    not_covered = data.get("employee_count_not_covered")
+
+    if (
+        (covered is not None and covered > total)
+        or (not_covered is not None and not_covered > total)
+    ):
+        data["employee_count_total"] = None
+        data["percentage"] = None
+        return True
+
+    return False
+
+
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
@@ -15011,6 +15036,8 @@ class UnionAnalyzer:
                         ):
                             coverage_data["employee_count_total"] = lookup_total
 
+                        _clear_impossible_total(coverage_data)
+
                         total_val = coverage_data.get("employee_count_total")
                         covered_val = coverage_data.get("employee_count_covered")
                         if total_val and covered_val is not None and total_val > 0:
@@ -15208,6 +15235,8 @@ class UnionAnalyzer:
                             elif cov_val is not None:
                                 new_cov_data["negated"] = False
                                 new_cov_data["negation_type"] = None
+
+                            _clear_impossible_total(new_cov_data)
 
                             # Calculate percentage if possible
                             if (
