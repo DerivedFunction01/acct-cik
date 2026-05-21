@@ -519,6 +519,10 @@ class MinimalTextCleaner:
     percent_range_pattern = re.compile(
         r"\b(\d+(?:\.\d+)?)\s*%?\s*(?:-|–|—|to)\s*(\d+(?:\.\d+)?)\s*%", re.IGNORECASE
     )
+    geo_collective_comma_pattern = re.compile(
+        r"\b((?:domestic|foreign|international))\s*,\s+((?:collective\s+bargain(?:ing)?|collective\s+labor))\b",
+        re.IGNORECASE,
+    )
 
     # Numbers
     comma_pattern = re.compile(r"(?<=\d),(?=\d{3})")
@@ -1086,6 +1090,7 @@ class MinimalTextCleaner:
             paragraph = self.percent_pattern.sub("%", paragraph)
             paragraph = self.percent_range_pattern.sub(r"\1% to \2%", paragraph)
             paragraph = self.percent_space_pattern.sub(r"\1%", paragraph)
+            paragraph = self.geo_collective_comma_pattern.sub(r"\1 \2", paragraph)
 
             # Punctuation cleanup
             paragraph = clean_spaces_and_punctuation(paragraph)
@@ -1388,6 +1393,11 @@ class ContextualNumberCleaner:
             re.IGNORECASE,
         )
 
+        self.geo_collective_comma_regex = re.compile(
+            r"\b((?:domestic|foreign|international))\s*,\s+((?:collective|bargain(?:ing)?))\b",
+            re.IGNORECASE,
+        )
+
         # 11. Small digits followed by char (e.g. "4-S", "4 S")
         self.small_digit_pattern = re.compile(r"\b\d[\s-](?=[A-Za-z]\b)")
 
@@ -1525,7 +1535,7 @@ class ContextualNumberCleaner:
             rf"\b({number_range}|{percent_range})\s+((?:(?:[\'\w-]+\s+){{0,2}}(?:{gap_term_pattern}))|(?:{strict_term_pattern}))",
             re.IGNORECASE,
         )
-        
+
         self.union_street_regex = build_regex(
             [
                 build_compound(r"union", street_terms)
@@ -1558,7 +1568,7 @@ class ContextualNumberCleaner:
             r"groups?",
             r"councils?",
         ]
-        
+
         self.erg_regex = re.compile(
             rf"\b{number_range}\s+((?:[\'\w-]+\s+){{0,3}}{build_alternation(erg_terms)})\b",
             re.IGNORECASE,
@@ -1655,6 +1665,7 @@ class ContextualNumberCleaner:
             )  # CONSOLIDATED union pattern
             paragraph = self.remaining_cleaner_regex.sub(r" \1 ", paragraph)
             paragraph = self.small_contract_regex.sub(r" \1 ", paragraph)
+            paragraph = self.geo_collective_comma_regex.sub(r"\1 \2", paragraph)
             paragraph = self.small_digit_pattern.sub(" ", paragraph)
             paragraph = self.st_expansion_regex.sub(r"\1 Street", paragraph)
             paragraph = self.other_terms_regex.sub(r" \2 ", paragraph)
