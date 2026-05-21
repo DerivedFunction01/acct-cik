@@ -210,7 +210,7 @@ BARGAINING_UNIT_WORKER_PREFIX_PATTERN = build_alternation(INDUSTRY_PREFIX_TERMS)
 BARGAINING_UNIT_WORKER_PHRASE_PATTERN = (
     # Allow a one word gap
     r"(?:[^\W\d][\w-]*\s+){0,1}"
-    rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN})(?:['’]s?)?" # base word
+    rf"(?:{BARGAINING_UNIT_WORKER_BASE_PATTERN}|domestic|foreign|international)(?:['’]s?)?" # base word
 )
 
 BARGAINING_UNIT_COUNT_REGEX = build_regex(
