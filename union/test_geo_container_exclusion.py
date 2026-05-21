@@ -38,6 +38,19 @@ def test_except_excludes_child_country_but_not_container_region():
     assert gm["DE"].is_strict is False
 
 
+def test_excluding_our_canadian_operations_marks_canada_excluded():
+    sentence = (
+        "Excluding our Canadian operations and Company-owned retail locations, "
+        "we have 4828 full-time employees."
+    )
+    analysis = UnionExtractor().analyze_sentence(sentence)
+    gm = _geo_map(analysis)
+
+    assert "CA" in gm
+    assert gm["CA"].is_excluded is True
+    assert gm["CA"].is_strict is False
+
+
 def test_container_context_prefers_explicit_child_countries():
     sentence = (
         "In North America, we have 15,000 employees in the United States, "
