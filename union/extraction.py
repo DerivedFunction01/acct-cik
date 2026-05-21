@@ -389,7 +389,10 @@ OUTSIDE_REGEX = build_regex(
 # Capture exactly non US, etc.
 NON_GEO_REGEX = re.compile(r"\b(?:non|not\s+in(?:\s+the)?)(?:[\s-]*)(\w+)\b", re.IGNORECASE)
 
-EXCLUSION_CONNECTOR_REGEX = re.compile(r"(?:[\s,-]|of|the|in|for|at)*", re.IGNORECASE)
+EXCLUSION_CONNECTOR_REGEX = re.compile(
+    r"(?:[\s,-]|of|the|in|for|at|our|their|its|a|an|this|that|these|those)*",
+    re.IGNORECASE,
+)
 EXCLUSION_EXTENDED_CONNECTOR_REGEX = re.compile(r"\b(?:in|at|from)(?:\s+the)?\s*$", re.IGNORECASE)
 CHAINED_CONNECTOR_REGEX = re.compile(r"(?:[\s,]|and|or|&|of|the)*", re.IGNORECASE)
 
