@@ -2914,7 +2914,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        print(analysis)
+        # print(analysis)
         # print("Counts: ", analysis.worker_counts + analysis.numbers)
         # print("Union terms", analysis.union_terms)
         # print("Negation terms", analysis.negation_terms)
