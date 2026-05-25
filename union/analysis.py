@@ -9936,6 +9936,11 @@ class Tracker:
         pseudo_region_name_by_code = {
             code: region_name for region_name, code in REGION_NAME_MAP.items()
         }
+        provenance_log: List[str] = []
+
+        def _plog(msg: str) -> None:
+            provenance_log.append(msg)
+
         promoted_region_codes = set(REGION_NAME_MAP.values()) | set(
             COMPOSITE_REGION_MAP.keys()
         )
@@ -10940,10 +10945,15 @@ class Tracker:
         agg = []
         seen_agg = set()
         for e in self.entries:
+            _plog(
+                f"ENTRY scope={e.scope.value} key={e.key} total={e.total_count} cov={e.covered_count} pct={e.percentage} related={e.related_geo_codes}"
+            )
             if not _is_aggregate_parent_entry(e) or not e.related_geo_codes:
+                _plog("SKIP aggregate-candidate: not aggregate parent or no related_geo_codes")
                 continue
             agg_id = (e.key, e.sent_idx)
             if agg_id in seen_agg:
+                _plog(f"SKIP aggregate-candidate: duplicate agg_id={agg_id}")
                 continue
             seen_agg.add(agg_id)
 
@@ -10960,9 +10970,16 @@ class Tracker:
             child_codes: List[str] = []
             for raw_code in e.related_geo_codes:
                 normalized = normalize_geo_code(raw_code, region_name_to_code)
+                _plog(
+                    f"  normalize_geo_code raw={raw_code!r} -> normalized={normalized!r}"
+                )
                 if normalized and normalized not in child_codes:
                     child_codes.append(normalized)
+                    _plog(
+                        f"  accepted child_code={normalized!r} for aggregate key={e.key}"
+                    )
             if not child_codes:
+                _plog(f"SKIP aggregate-candidate: no normalized child_codes for key={e.key}")
                 continue
 
             child_codes = reduce_child_codes(
@@ -10970,12 +10987,17 @@ class Tracker:
                 aggregate_key=aggregate_key if isinstance(aggregate_key, str) else None,
                 region_name_to_code=region_name_to_code,
             )
+            _plog(
+                f"  reduce_child_codes aggregate_key={aggregate_key!r} -> child_codes={child_codes!r}"
+            )
 
             if not child_codes:
+                _plog(f"SKIP aggregate-candidate: child_codes emptied after reduce for key={e.key}")
                 continue
             # Avoid double-counting: omit aggregates that already copied explicit
             # values directly to their single child.
             if getattr(e, "_single_child_explicit_applied", False):
+                _plog(f"SKIP aggregate-candidate: single child explicit already applied for key={e.key}")
                 continue
 
             has_agg_counts = any(
@@ -10992,7 +11014,11 @@ class Tracker:
 
             if pct_only_aggregate:
                 if e.percentage is None or e.percentage <= 0:
+                    _plog(f"SKIP pct-only aggregate: non-positive pct for key={e.key}")
                     continue
+                _plog(
+                    f"APPEND pct-only aggregate key={aggregate_key} children={child_codes} pct={e.percentage}"
+                )
                 agg.append(
                     {
                         "aggregate_key": aggregate_key,
@@ -11013,11 +11039,16 @@ class Tracker:
                         },
                     }
                 )
+                _plog(
+                    f"  appended agg entry reason=pct_only scope={e.scope.value} aggregate_key={aggregate_key} child_count={len(child_codes)}"
+                )
                 continue
 
             if not has_agg_counts:
+                _plog(f"SKIP aggregate-candidate: no aggregate counts for key={e.key}")
                 continue
             if e.covered_count == 0 or e.total_count == 0:
+                _plog(f"SKIP aggregate-candidate: zero covered/total for key={e.key}")
                 continue
 
             children = {}
@@ -11033,6 +11064,9 @@ class Tracker:
             if len(child_codes) == 1:
                 agg_source_type = SourceType.EXPLICIT.value
 
+            _plog(
+                f"APPEND aggregate key={aggregate_key} scope={e.scope.value} children={child_codes} tot={e.total_count} cov={e.covered_count} pct={e.percentage}"
+            )
             agg.append(
                 {
                     "aggregate_key": aggregate_key,
@@ -11045,6 +11079,9 @@ class Tracker:
                     "children": children,
                 }
             )
+            _plog(
+                f"  appended agg entry reason=counts scope={e.scope.value} aggregate_key={aggregate_key} child_count={len(child_codes)} source_type={agg_source_type}"
+            )
 
         if not agg:
             fallback_agg_entry = next(
@@ -11056,6 +11093,9 @@ class Tracker:
                 None,
             )
             if fallback_agg_entry:
+                _plog(
+                    f"FALLBACK aggregate candidate key={fallback_agg_entry.key} scope={fallback_agg_entry.scope.value} related={fallback_agg_entry.related_geo_codes}"
+                )
                 fallback_child_codes: List[str] = []
                 for raw_code in fallback_agg_entry.related_geo_codes:
                     normalized = normalize_geo_code(raw_code, region_name_to_code)
@@ -11070,6 +11110,9 @@ class Tracker:
                         fallback_aggregate_key = region_name_to_code[
                             fallback_aggregate_key
                         ]
+                    _plog(
+                        f"APPEND fallback aggregate key={fallback_aggregate_key} children={fallback_child_codes}"
+                    )
                     agg.append(
                         {
                             "aggregate_key": fallback_aggregate_key,
@@ -11089,6 +11132,9 @@ class Tracker:
                                 for c in fallback_child_codes
                             },
                         }
+                    )
+                    _plog(
+                        f"  appended agg entry reason=fallback scope={fallback_agg_entry.scope.value} aggregate_key={fallback_aggregate_key} child_count={len(fallback_child_codes)}"
                     )
 
         synthetic_weighted_aggs: List[Dict[str, Any]] = []
@@ -11210,7 +11256,12 @@ class Tracker:
             )
 
         if synthetic_weighted_aggs:
+            _plog(f"APPEND synthetic weighted aggregates count={len(synthetic_weighted_aggs)}")
             agg.extend(synthetic_weighted_aggs)
+            for synth in synthetic_weighted_aggs:
+                _plog(
+                    f"  appended agg entry reason=synthetic_weighted scope={synth.get('aggregate_scope')} aggregate_key={synth.get('aggregate_key')} child_count={len((synth.get('children') or {}).keys())}"
+                )
 
         global_entries = [
             e
@@ -11696,6 +11747,7 @@ class Tracker:
             "global_keyword_count": len(global_keywords),
             "global_table_keywords": global_table_keywords,
             "entries_snapshot": entries_snapshot,
+            "provenance_log": provenance_log,
             "notes": [],
         }
 
