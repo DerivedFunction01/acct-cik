@@ -12584,6 +12584,10 @@ class UnionAnalyzer:
                 geo = item.get("geographic_context", {})
                 item_fam_str = item.get("coverage_family")
                 item_coverage_family = CoverageFamily(item_fam_str) if item_fam_str else None
+                bu_counts = item.get("bargaining_unit_counts") or []
+                bu_sum = sum(bu_counts) if bu_counts else None
+                if bu_sum is not None and cov.get("bargaining_unit_count") is None:
+                    cov["bargaining_unit_count"] = bu_sum
                 # if (
                 #     explicit_non_table
                 #     and item.get("is_table_generated")
@@ -15285,6 +15289,7 @@ class UnionAnalyzer:
                                 "sentence_index": current_idx,
                                 "worker_type_map": type_map,
                                 "worker_types": analysis.worker_types,
+                                "bargaining_unit_counts": analysis.bargaining_unit_counts,
                                 "is_remaining": analysis.has_remaining_other,
                                 "is_union": analysis.is_union,
                                 "coverage_family": (
@@ -15314,6 +15319,7 @@ class UnionAnalyzer:
                     "sentence_index": current_idx,
                     "worker_type_map": type_map,
                     "worker_types": analysis.worker_types,
+                    "bargaining_unit_counts": analysis.bargaining_unit_counts,
                     "is_remaining": analysis.has_remaining_other,
                     "is_union": analysis.is_union,
                     "coverage_family": (
