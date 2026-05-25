@@ -219,6 +219,12 @@ BARGAINING_UNIT_COUNT_REGEX = build_regex(
         rf"(?:collective\s+)?bargaining\s+units?",
     ]
 )
+BARGAINING_UNIT_COUNT_LIST_REGEX = re.compile(
+    rf"\b(\d{{1,3}})\s+(?:[^\W\d][\w-]*\s+){{0,2}}"
+    rf"(?:and|or|&|,)\s+(\d{{1,3}})\s+(?:[^\W\d][\w-]*\s+){{0,2}}"
+    rf"(?:collective\s+)?bargaining\s+units?\b",
+    re.IGNORECASE,
+)
 BARGAINING_UNIT_COUNT_NUMBER_OF_REGEX = build_regex(
     [
         r"number\s+of\s+(?:collective[-\s]+)?bargaining\s+units?\s+(?:is|are|was|were)\s+(\d{1,3})",
@@ -1520,6 +1526,37 @@ class UnionExtractor:
                 raise ValueError
             return float(count), m.start(1), m.end(1)
 
+        def extract_bu_list_pair(m: re.Match) -> Tuple[float, int, int]:
+            first = m.group(1)
+            if not first:
+                raise ValueError
+            return float(first), m.start(1), m.end(0)
+
+        def record_bu_list_pair(m: re.Match, val: float) -> None:
+            analysis.bargaining_unit_counts.append(val)
+            if "collective bargaining" not in analysis.union_terms:
+                analysis.union_terms.append("collective bargaining")
+            if "collective bargaining" not in analysis.bargain_terms:
+                analysis.bargain_terms.append("collective bargaining")
+            second = m.group(2)
+            if not second:
+                return
+            analysis.bargaining_unit_counts.append(float(second))
+            analysis._matches.append(
+                {
+                    "type": MatchType.BARGAINING_UNIT_COUNT,
+                    "val": float(second),
+                    "span": (m.start(2), m.end(2)),
+                    "text": m.group(0),
+                }
+            )
+
+        process_matches(
+            BARGAINING_UNIT_COUNT_LIST_REGEX,
+            MatchType.BARGAINING_UNIT_COUNT,
+            extract_bu_list_pair,
+            record_bu_list_pair,
+        )
         process_matches(
             BARGAINING_UNIT_COUNT_REGEX,
             MatchType.BARGAINING_UNIT_COUNT,
@@ -1532,6 +1569,48 @@ class UnionExtractor:
             lambda m: (float(m.group(1)), m.start(1), m.end(1)),
             lambda m, val: analysis.bargaining_unit_counts.append(val),
         )
+
+        # Chain bargaining-unit counts when they appear as a coordinated list,
+        # e.g. "28 domestic and 8 foreign collective bargaining units".
+        bargaining_unit_matches = [
+            m for m in analysis._matches if m["type"] == MatchType.BARGAINING_UNIT_COUNT
+        ]
+        bargaining_unit_matches.sort(key=lambda x: x["span"][0])
+
+        for i in range(len(bargaining_unit_matches) - 1):
+            curr_m = bargaining_unit_matches[i]
+            next_m = bargaining_unit_matches[i + 1]
+
+            start = curr_m["span"][1]
+            end = next_m["span"][0]
+            text_between = text[start:end]
+
+            # Allow a short descriptor plus a simple connector, e.g.
+            # "domestic and" / "and foreign".
+            if len(text_between) > 35:
+                continue
+
+            if not re.search(r"\b(?:and|or|&|,|;)\b", text_between, re.IGNORECASE):
+                continue
+
+            if SEGMENT_DELIMITER_REGEX.search(text_between):
+                continue
+
+            gid = curr_m.get("bargaining_unit_list_group_id") or id(curr_m)
+            curr_m["bargaining_unit_list_group_id"] = gid
+            next_m["bargaining_unit_list_group_id"] = gid
+
+        bargaining_unit_groups: Dict[Any, List[Dict[str, Any]]] = {}
+        for m in bargaining_unit_matches:
+            gid = m.get("bargaining_unit_list_group_id")
+            if gid is None:
+                continue
+            bargaining_unit_groups.setdefault(gid, []).append(m)
+
+        for gid, members in bargaining_unit_groups.items():
+            group_sum = sum(float(m.get("val", 0.0)) for m in members)
+            for m in members:
+                m["bargaining_unit_list_group_sum"] = group_sum
 
         # 3.2 Extract Specific Unions (Highest Priority for Unions)
         # These are explicit names like "UAW", "IG Metall" defined in region_regex
@@ -2821,7 +2900,7 @@ class UnionExtractor:
                                     if r.value == region_name:
                                         m.region = r
                                         break
-        # print(analysis)
+        print(analysis)
         # print("Counts: ", analysis.worker_counts + analysis.numbers)
         # print("Union terms", analysis.union_terms)
         # print("Negation terms", analysis.negation_terms)
