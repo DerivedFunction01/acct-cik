@@ -10597,7 +10597,6 @@ class Tracker:
                 pct_val is not None
                 and pct_val == 100.0
                 and not explicit_pct_present
-                and not _has_explicit_or_propagated_pct(country_entries + segment_entries)
             )
             if suppress_implicit_full_pct:
                 pct_val = None
