@@ -2,7 +2,7 @@ from enum import Enum
 import math
 from typing import List, Dict, Any, Optional, Set, Tuple, Union
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import csv
 from pathlib import Path
 import pandas as pd
@@ -5477,7 +5477,10 @@ class Tracker:
 
         codes = [c.get("code") for c in countries]
 
-        if region and region not in INT_SET | UNK_SET:
+        if region in AGG_SET:
+            scope = Scope.AGGREGATE
+            key = Region.AGGREGATE.value
+        elif region and region not in INT_SET | UNK_SET:
             scope = Scope.REGION
             key = region
         elif region in INT_SET:
@@ -5487,9 +5490,6 @@ class Tracker:
             else:
                 scope = Scope.REGION
                 key = region
-        elif region in AGG_SET:
-            scope = Scope.AGGREGATE
-            key = Region.AGGREGATE.value
         elif region in UNK_SET:
             # Unknown geography should only collapse to domestic when we have a
             # single-country context. Otherwise treat as global.
@@ -5700,7 +5700,10 @@ class Tracker:
 
         codes = [c.get("code") for c in countries]
 
-        if region and region not in INT_SET | UNK_SET:
+        if region in AGG_SET:
+            scope = Scope.AGGREGATE
+            key = Region.AGGREGATE.value
+        elif region and region not in INT_SET | UNK_SET:
             scope = Scope.REGION
             key = region
         elif region in INT_SET:
@@ -5710,9 +5713,6 @@ class Tracker:
             else:
                 scope = Scope.REGION
                 key = region
-        elif region in AGG_SET:
-            scope = Scope.AGGREGATE
-            key = Region.AGGREGATE.value
         elif region in UNK_SET:
             if len(countries) == 1:
                 c_code = countries[0].get("code")
@@ -9944,6 +9944,14 @@ class Tracker:
         aggregate_explicit_by_code: Dict[str, Dict[str, Any]] = {}
         collapsed_region_seed_entries: Dict[str, List[Entry]] = {}
 
+        def _is_aggregate_parent_entry(entry: Entry) -> bool:
+            return entry.scope == Scope.AGGREGATE or (
+                entry.scope == Scope.REGION and isinstance(entry.key, str) and (
+                    entry.key in AGG_SET
+                    or entry.key == Region.AGGREGATE.value
+                )
+            )
+
         def _collapse_same_region_code(child_codes: List[str]) -> Optional[str]:
             if len(child_codes) < 2:
                 return None
@@ -10110,10 +10118,7 @@ class Tracker:
         # Precompute weighted allocations from aggregate parents for country-level
         # method breakdown seeding/reclassification.
         for e in self.entries:
-            is_aggregate_parent = e.scope == Scope.AGGREGATE or (
-                e.scope == Scope.REGION and e.key in AGG_SET
-            )
-            if not is_aggregate_parent or not e.related_geo_codes:
+            if not _is_aggregate_parent_entry(e) or not e.related_geo_codes:
                 continue
             if getattr(e, "_single_child_explicit_applied", False):
                 # Avoid weighted-division seeding when aggregate was collapsed
@@ -10935,10 +10940,7 @@ class Tracker:
         agg = []
         seen_agg = set()
         for e in self.entries:
-            is_aggregate_parent = e.scope == Scope.AGGREGATE or (
-                e.scope == Scope.REGION and e.key in AGG_SET
-            )
-            if not is_aggregate_parent or not e.related_geo_codes:
+            if not _is_aggregate_parent_entry(e) or not e.related_geo_codes:
                 continue
             agg_id = (e.key, e.sent_idx)
             if agg_id in seen_agg:
@@ -10970,8 +10972,6 @@ class Tracker:
             )
 
             if not child_codes:
-                continue
-            if _collapse_same_region_code(child_codes):
                 continue
             # Avoid double-counting: omit aggregates that already copied explicit
             # values directly to their single child.
@@ -11045,6 +11045,51 @@ class Tracker:
                     "children": children,
                 }
             )
+
+        if not agg:
+            fallback_agg_entry = next(
+                (
+                    e
+                    for e in self.entries
+                    if _is_aggregate_parent_entry(e) and e.related_geo_codes
+                ),
+                None,
+            )
+            if fallback_agg_entry:
+                fallback_child_codes: List[str] = []
+                for raw_code in fallback_agg_entry.related_geo_codes:
+                    normalized = normalize_geo_code(raw_code, region_name_to_code)
+                    if normalized and normalized not in fallback_child_codes:
+                        fallback_child_codes.append(normalized)
+                if fallback_child_codes:
+                    fallback_aggregate_key = fallback_agg_entry.key
+                    if (
+                        isinstance(fallback_aggregate_key, str)
+                        and fallback_aggregate_key in region_name_to_code
+                    ):
+                        fallback_aggregate_key = region_name_to_code[
+                            fallback_aggregate_key
+                        ]
+                    agg.append(
+                        {
+                            "aggregate_key": fallback_aggregate_key,
+                            "aggregate_scope": fallback_agg_entry.scope.value,
+                            "tot": fallback_agg_entry.total_count,
+                            "cov": fallback_agg_entry.covered_count,
+                            "not_cov": fallback_agg_entry.not_covered_count,
+                            "pct": fallback_agg_entry.percentage,
+                            "source_type": SourceType.EXPLICIT.value,
+                            "children": {
+                                c: {
+                                    "tot": None,
+                                    "cov": None,
+                                    "not_cov": None,
+                                    "w_tot": float(self.country_totals.get(c, 0.0) or 0.0),
+                                }
+                                for c in fallback_child_codes
+                            },
+                        }
+                    )
 
         synthetic_weighted_aggs: List[Dict[str, Any]] = []
         countries_by_sentence: Dict[Tuple[int, ...], List[Dict[str, Any]]] = {}
@@ -11630,6 +11675,15 @@ class Tracker:
             for e in self.explicit_pct_entries
         ]
 
+        entries_snapshot = []
+        for e in self.entries:
+            entry_data = asdict(e)
+            if isinstance(entry_data.get("scope"), Enum):
+                entry_data["scope"] = entry_data["scope"].value
+            if isinstance(entry_data.get("coverage_family"), Enum):
+                entry_data["coverage_family"] = entry_data["coverage_family"].value
+            entries_snapshot.append(entry_data)
+
         return {
             "domestic_country_code": self.domestic_country_code,
             "countries": countries,
@@ -11641,6 +11695,7 @@ class Tracker:
             "global_keywords": global_keywords,
             "global_keyword_count": len(global_keywords),
             "global_table_keywords": global_table_keywords,
+            "entries_snapshot": entries_snapshot,
             "notes": [],
         }
 
