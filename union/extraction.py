@@ -1363,6 +1363,7 @@ class UnionExtractor:
             side_effect=None,
             update_working_text=False,
             revert=False,
+            mask_spans_func=None,
         ):
             nonlocal working_text
             current_iter_matches = list(pattern.finditer(working_text))
@@ -1401,9 +1402,18 @@ class UnionExtractor:
                 if side_effect:
                     side_effect(m, extracted)
 
-                # Mask with spaces
-                for i in range(start, end):
-                    chars[i] = " "
+                # Mask with spaces.
+                # Default behavior removes the whole match from future passes,
+                # but some extractors need to preserve interior tokens so later
+                # geo/union logic can still see them.
+                mask_spans = (
+                    mask_spans_func(m, start, end)
+                    if mask_spans_func
+                    else [(start, end)]
+                )
+                for m_start, m_end in mask_spans:
+                    for i in range(m_start, m_end):
+                        chars[i] = " "
 
                 if update_working_text:
                     working_text = "".join(chars)
@@ -1556,6 +1566,10 @@ class UnionExtractor:
             MatchType.BARGAINING_UNIT_COUNT,
             extract_bu_list_pair,
             record_bu_list_pair,
+            mask_spans_func=lambda m, start, end: [
+                (m.start(1), m.end(1)),
+                (m.start(2), m.end(2)),
+            ],
         )
         process_matches(
             BARGAINING_UNIT_COUNT_REGEX,
