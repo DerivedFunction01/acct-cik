@@ -9873,6 +9873,8 @@ class Tracker:
             code = raw.strip()
             if not code:
                 return None
+            if code in INT_SET:
+                return GeoCode.INTERNATIONAL.value
             if code in IGNORED_REGIONS:
                 return None
             if code in region_name_to_code:
