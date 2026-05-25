@@ -4127,6 +4127,21 @@ def determine_geo_context(
                     # Skip other excluded regions for now to avoid false positives
                     continue
 
+            # Promote explicit "Domestic" to the concrete filer country code as
+            # early as possible so downstream aggregation treats it like a real
+            # country instead of a container label.
+            if m.geo_code in DOMESTIC_SET and domestic_country_code:
+                m.geo_code = domestic_country_code
+                if not m.country or m.country in DOMESTIC_SET:
+                    m.country = domestic_country_code
+                try:
+                    m.region = next(
+                        (r for r in Region if r.value == _CODE_TO_REGION.get(domestic_country_code, Region.UNKNOWN.value)),
+                        Region.UNKNOWN,
+                    )
+                except Exception:
+                    m.region = Region.UNKNOWN
+
             if m.city:
                 if m.geo_code not in locations_by_country:
                     locations_by_country[m.geo_code] = set()

@@ -14,10 +14,7 @@ from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleane
 
 
 ITEM_1 = [
-    """The Company (including its subsidiaries) employed approximately 920 people including full time, part time and casual employees. 
-    Of the 920 employees, 49 are members of unions, and employee relations are believed by management to be generally good. 
-    The Company entered into a three-year Collective Bargaining Agreement with the International Brotherhood of Teamsters now representing approximately 39 employees on the NASA ELVIS contract at Vandenberg Air Force Base in California. 
-    The Company entered into a three-year Collective Bargaining Agreement with the International Brotherhood of Electrical Workers now representing approximately 11 employees on the NASA ELVIS contract at the Kennedy Space Center in Florida.
+    """Approximately 4,698 employees are represented by domestic and foreign unions.
 """,
 ]
 
@@ -69,6 +66,14 @@ if __name__ == "__main__":
         print("\n" + "=" * 80)
         print("\nCOUNTRY REPORT:\n")
         print(json.dumps(report, indent=2))
+
+        print("\n" + "=" * 80)
+        print("\nTRACKER ENTRIES SNAPSHOT:\n")
+        print(json.dumps(report.get("entries_snapshot", []), indent=2))
+
+        print("\n" + "=" * 80)
+        print("\nPROVENANCE LOG:\n")
+        print(json.dumps(report.get("provenance_log", []), indent=2))
 
         print("\n" + "=" * 80)
         print("\nRISK SUMMARY:\n")
