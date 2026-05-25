@@ -4244,6 +4244,36 @@ def determine_geo_context(
             # Remove temporary field
             c.pop("region_enum", None)
 
+        def _region_has_country_child(region_code: str) -> bool:
+            for c in countries:
+                c_code = c.get("code")
+                if not c_code:
+                    continue
+                if is_contained(
+                    container_key=region_code,
+                    item_key=str(c_code),
+                    domestic_country_code=domestic_country_code,
+                ):
+                    return True
+            return False
+
+        country_codes = {str(c.get("code")) for c in countries if c.get("code")}
+        for r_obj, _r_enum in found_regions_map.values():
+            r_code = r_obj.get("code")
+            if not isinstance(r_code, str) or not r_code:
+                continue
+            if r_code in country_codes:
+                continue
+            if _region_has_country_child(r_code):
+                continue
+            countries.append(
+                {
+                    "name": r_obj.get("name"),
+                    "code": r_code,
+                }
+            )
+            country_codes.add(r_code)
+
         region_val = (
             Region.AGGREGATE.value
             if len(regions) > 1
@@ -10562,6 +10592,22 @@ class Tracker:
             # in country_totals without fabricating counts.
             if pct_val is None and explicit_pct_present and explicit_pct_vals:
                 pct_val = max(explicit_pct_vals)
+
+            suppress_implicit_full_pct = (
+                pct_val is not None
+                and pct_val == 100.0
+                and not explicit_pct_present
+                and not _has_explicit_or_propagated_pct(country_entries + segment_entries)
+            )
+            if suppress_implicit_full_pct:
+                pct_val = None
+                if reported_pct == 100.0:
+                    reported_pct = None
+                for bucket_name, bucket in method_breakdown.items():
+                    if bucket_name == SourceType.EXPLICIT.value:
+                        continue
+                    pct_vals = bucket.get("pct_vals") or []
+                    bucket["pct_vals"] = [p for p in pct_vals if p != 100.0]
 
             # A positive covered count should suppress accidental zero pct reporting.
             if (
