@@ -9,12 +9,13 @@ Test Focus: Rigidity - ensure no false claims while handling variations
 """
 
 import json
+from enum import Enum
 from analysis import UnionAnalyzer
 from defs.text_cleaner import CompanyCleaner, CurrencyRemover, MinimalTextCleaner, ContextualNumberCleaner, ConcisenessCleaner
 
 
 ITEM_1 = [
-    """Approximately 4,698 employees are represented by domestic and foreign unions.
+    """Approximately 4698 employees are represented by domestic and foreign unions.
 """,
 ]
 
@@ -68,16 +69,8 @@ if __name__ == "__main__":
         print(json.dumps(report, indent=2))
 
         print("\n" + "=" * 80)
-        print("\nTRACKER ENTRIES SNAPSHOT:\n")
-        print(json.dumps(report.get("entries_snapshot", []), indent=2))
-
-        print("\n" + "=" * 80)
-        print("\nPROVENANCE LOG:\n")
-        print(json.dumps(report.get("provenance_log", []), indent=2))
-
-        print("\n" + "=" * 80)
         print("\nRISK SUMMARY:\n")
-        print(json.dumps(risk_summary, indent=2))
+        print(json.dumps(risk_summary))
 
     # # Combined Consistency Test
     # print("\n" + "=" * 80)
