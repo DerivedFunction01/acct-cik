@@ -15377,13 +15377,12 @@ class UnionAnalyzer:
 
                             # Try to find total from lookup if not present
                             if new_cov_data["employee_count_total"] is None:
-                                c_total = effective_totals.get(c_code)
-                                max_part = max(
-                                    new_cov_data["employee_count_covered"] or 0,
-                                    new_cov_data["employee_count_not_covered"] or 0,
-                                )
-                                if c_total and c_total >= max_part:
-                                    new_cov_data["employee_count_total"] = c_total
+                                # Do not backfill a split row total from an unrelated
+                                # geography-wide lookup total. If the sentence only
+                                # supplied a covered/not-covered count for this split,
+                                # leave the denominator unset rather than inventing a
+                                # misleading percentage.
+                                pass
 
                             # Normalize negation semantics for split rows:
                             # mixed covered + not_covered is not a negated-only statement.
