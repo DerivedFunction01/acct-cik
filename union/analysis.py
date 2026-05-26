@@ -15440,12 +15440,6 @@ class UnionAnalyzer:
                                 else:
                                     new_cov_data["negated"] = False
                                     new_cov_data["negation_type"] = None
-                                    if not analysis.negation_terms:
-                                        # This sentence is describing multiple
-                                        # covered populations, not a covered vs.
-                                        # not-covered split. Drop the synthetic
-                                        # remainder to avoid over-100% rows.
-                                        new_cov_data["employee_count_not_covered"] = None
                             elif cov_val is not None and not_cov_val is None:
                                 new_cov_data["negated"] = False
                                 new_cov_data["negation_type"] = None
@@ -15461,9 +15455,10 @@ class UnionAnalyzer:
                             if (
                                 new_cov_data["employee_count_total"] is None
                                 and new_cov_data["employee_count_covered"] is not None
-                                and not analysis.negation_terms
                             ):
                                 new_cov_data["employee_count_not_covered"] = None
+                                new_cov_data["negated"] = False
+                                new_cov_data["negation_type"] = None
 
                             _clear_impossible_total(new_cov_data)
 
