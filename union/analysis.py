@@ -196,6 +196,24 @@ def _clear_impossible_total(data: Dict[str, Any]) -> bool:
     return False
 
 
+def _append_coverage_note(data: Dict[str, Any], message: str) -> None:
+    """Append a trace message to the coverage note."""
+    if not message:
+        return
+    data["note"] = (
+        ((data.get("note") or "") + " | ") if data.get("note") else ""
+    ) + message
+
+
+def _coverage_math_trace(data: Dict[str, Any], label: str) -> str:
+    """Format the current coverage values for debugging."""
+    return (
+        f"{label}: covered={data.get('employee_count_covered')}, "
+        f"not_covered={data.get('employee_count_not_covered')}, "
+        f"total={data.get('employee_count_total')}, pct={data.get('percentage')}"
+    )
+
+
 FILLER = r"(?:,|;|&|[,;\s]?(?:and|or))"
 SEP_PATTERN = rf"^(?:{FILLER})(?:\s+\w+){{0,1}}$"
 LIST_REGEX = re.compile(SEP_PATTERN, re.IGNORECASE)
@@ -2755,7 +2773,6 @@ class ComplexCoverageAnalyzer:
         elif (
             SUBSET_REGEX.search(text_between)
             or CONSIST_REGEX.search(text_between)
-            or SPLIT_ADVERBS_REGEX.search(text_between)
         ):
             is_subset = True
         # 3. Introductory Total: "Of 100, 20..." or "For 100, 20..."
@@ -13949,10 +13966,14 @@ class UnionAnalyzer:
         # If we have mapped splits, check if we can return them
         if mapped_splits:
             # Allow return if remaining assignments are only totals (likely global/aggregate totals)
-            # or if we have no remaining assignments
+            # or if we have no remaining assignments. Once a linked geo split has
+            # been produced, do not let the fallback mapper reinterpret the
+            # remaining non-total assignments and collapse the split back together.
             if not remaining_assignments or all(
                 a["type"] == "total" for a in remaining_assignments
             ):
+                return mapped_splits
+            if any(a["type"] != "total" for a in remaining_assignments):
                 return mapped_splits
 
         # Filter aligned_geos for fallback logic
@@ -15120,11 +15141,10 @@ class UnionAnalyzer:
                 coverage_data["employee_count_total"] = None
                 coverage_data["type"] = CoverageType.NONE.value
                 coverage_data.pop("is_explicit_percent", None)
-                coverage_data["note"] = (
-                    ((coverage_data.get("note") or "") + " | ")
-                    if coverage_data.get("note")
-                    else ""
-                ) + "Suppressed contract-clause numerics (prior explicit in same geo)"
+                _append_coverage_note(
+                    coverage_data,
+                    "Suppressed contract-clause numerics (prior explicit in same geo)",
+                )
 
             explicit_pct_entries = _collect_explicit_pct_entries(
                 analysis, geo_context, coverage_data, current_idx
@@ -15134,22 +15154,20 @@ class UnionAnalyzer:
                 coverage_data.pop("is_explicit_percent", None)
                 coverage_data["type"] = CoverageType.NONE.value
                 coverage_data["percentage"] = None
-                coverage_data["note"] = (
-                    (coverage_data.get("note", "") + " | ")
-                    if coverage_data.get("note")
-                    else ""
-                ) + "Explicit percent recorded separately for mixed-geo sentence"
+                _append_coverage_note(
+                    coverage_data,
+                    "Explicit percent recorded separately for mixed-geo sentence",
+                )
                 # Avoid double counting: if this is a mixed-geo sentence and we are not
                 # splitting it into per-geo items, clear derived counts from the main entry.
                 if len(geo_context.get("countries", [])) > 1:
                     coverage_data["employee_count_covered"] = None
                     coverage_data["employee_count_not_covered"] = None
                     coverage_data["employee_count_total"] = None
-                    coverage_data["note"] = (
-                        (coverage_data.get("note", "") + " | ")
-                        if coverage_data.get("note")
-                        else ""
-                    ) + "Cleared counts to avoid mixed-geo double counting"
+                    _append_coverage_note(
+                        coverage_data,
+                        "Cleared counts to avoid mixed-geo double counting",
+                    )
 
             # NEW: Resolve types
             type_map = self._resolve_counts_to_types(analysis)
@@ -15259,13 +15277,16 @@ class UnionAnalyzer:
                                     (covered_val / total_val) * 100.0, 2
                                 )
                                 coverage_data["type"] = CoverageType.CALCULATED.value
-
-                            note = f"Inferred coverage for {matched_count} (worker type lookup)"
-                            coverage_data["note"] = (
-                                ((coverage_data.get("note") or "") + " | ")
-                                if coverage_data.get("note")
-                                else ""
-                            ) + note
+                            _append_coverage_note(
+                                coverage_data,
+                                (
+                                    f"Inferred coverage for {matched_count} "
+                                    f"(worker type lookup); "
+                                    + _coverage_math_trace(
+                                        coverage_data, "worker-type lookup result"
+                                    )
+                                ),
+                            )
 
             if analysis.is_union and has_quantitative_data and sentence_worker_targets:
                 for lk in lookup_keys:
@@ -15320,21 +15341,23 @@ class UnionAnalyzer:
                                     coverage_data["employee_count_total"]
                                     - coverage_data["employee_count_covered"]
                                 ) # type: ignore
-                                total_val = coverage_data["employee_count_total"]
-                                covered_val = coverage_data["employee_count_covered"]
-                                if total_val and total_val > 0:
-                                    coverage_data["percentage"] = round(
-                                        (covered_val / total_val) * 100.0, 2 # type: ignore
-                                    )
-                                coverage_data["type"] = CoverageType.CALCULATED.value
-                                coverage_data["note"] = (
-                                    ((coverage_data.get("note") or "") + " | ")
-                                    if coverage_data.get("note")
-                                    else ""
-                                ) + (
-                                    "Promoted combined geo-linked total "
-                                    f"{linked_total_sum}"
+                            total_val = coverage_data["employee_count_total"]
+                            covered_val = coverage_data["employee_count_covered"]
+                            if total_val and total_val > 0:
+                                coverage_data["percentage"] = round(
+                                    (covered_val / total_val) * 100.0, 2 # type: ignore
                                 )
+                            coverage_data["type"] = CoverageType.CALCULATED.value
+                            _append_coverage_note(
+                                coverage_data,
+                                (
+                                    "Promoted combined geo-linked total "
+                                    f"{linked_total_sum}; "
+                                    + _coverage_math_trace(
+                                        coverage_data, "linked-total promotion"
+                                    )
+                                ),
+                            )
                     relevant_assignments = []
 
                 # Only split if we have multiple relevant counts and multiple explicit geos
@@ -15494,6 +15517,39 @@ class UnionAnalyzer:
                                         2,
                                     )
 
+                            if any(
+                                new_cov_data.get(k) is not None
+                                for k in (
+                                    "employee_count_covered",
+                                    "employee_count_not_covered",
+                                    "employee_count_total",
+                                    "percentage",
+                                )
+                            ):
+                                if (
+                                    new_cov_data.get("employee_count_covered") is not None
+                                    and new_cov_data.get("employee_count_total") is not None
+                                ):
+                                    formula = "pct=covered/total"
+                                elif (
+                                    new_cov_data.get("employee_count_not_covered")
+                                    is not None
+                                    and new_cov_data.get("employee_count_total")
+                                    is not None
+                                ):
+                                    formula = "pct=(total-not_covered)/total"
+                                else:
+                                    formula = "pct=unavailable"
+                                _append_coverage_note(
+                                    new_cov_data,
+                                    (
+                                        f"Split math ({formula}); "
+                                        + _coverage_math_trace(
+                                            new_cov_data, "split result"
+                                        )
+                                    ),
+                                )
+
                             split_item = {
                                 "sentence": sent,
                                 "keyword_matched": self._get_annotated_keywords(
@@ -15552,6 +15608,34 @@ class UnionAnalyzer:
                     "potential_total": current_sentence_count,
                     "explicit_pct_entries": explicit_pct_entries,
                 }
+                if any(
+                    coverage_data.get(k) is not None
+                    for k in (
+                        "employee_count_covered",
+                        "employee_count_not_covered",
+                        "employee_count_total",
+                        "percentage",
+                    )
+                ):
+                    if (
+                        coverage_data.get("employee_count_covered") is not None
+                        and coverage_data.get("employee_count_total") is not None
+                    ):
+                        formula = "pct=covered/total"
+                    elif (
+                        coverage_data.get("employee_count_not_covered") is not None
+                        and coverage_data.get("employee_count_total") is not None
+                    ):
+                        formula = "pct=(total-not_covered)/total"
+                    else:
+                        formula = "pct=unavailable"
+                    _append_coverage_note(
+                        coverage_data,
+                        (
+                            f"Final math ({formula}); "
+                            + _coverage_math_trace(coverage_data, "final result")
+                        ),
+                    )
                 results.append(item)
 
             last_employee_count = current_sentence_count
