@@ -15446,6 +15446,9 @@ class UnionAnalyzer:
                                         # not-covered split. Drop the synthetic
                                         # remainder to avoid over-100% rows.
                                         new_cov_data["employee_count_not_covered"] = None
+                            elif cov_val is not None and not_cov_val is None:
+                                new_cov_data["negated"] = False
+                                new_cov_data["negation_type"] = None
                             elif not_cov_val is not None and cov_val is None:
                                 new_cov_data["negated"] = True
                                 new_cov_data["negation_type"] = (
@@ -15454,6 +15457,13 @@ class UnionAnalyzer:
                             elif cov_val is not None:
                                 new_cov_data["negated"] = False
                                 new_cov_data["negation_type"] = None
+
+                            if (
+                                new_cov_data["employee_count_total"] is None
+                                and new_cov_data["employee_count_covered"] is not None
+                                and not analysis.negation_terms
+                            ):
+                                new_cov_data["employee_count_not_covered"] = None
 
                             _clear_impossible_total(new_cov_data)
 
