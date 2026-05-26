@@ -14359,6 +14359,7 @@ class UnionAnalyzer:
                     and n_data.get("employee_count_total") is not None
                     and n_data.get("employee_count_covered") is None
                     and n_data.get("employee_count_not_covered") is None
+                    and c_data.get("employee_count_covered") is None
                 ):
                     if (
                         c_data.get("employee_count_total") is None
@@ -14516,8 +14517,8 @@ class UnionAnalyzer:
                             if n_data.get("negated")
                             else "employee_count_covered"
                         )
-                        current_val = c_data.get(target_field) or 0.0
-                        c_data[target_field] = current_val + matched_count
+                        if c_data.get(target_field) is None:
+                            c_data[target_field] = matched_count
 
                         if c_data.get("employee_count_total"):
                             cov = c_data.get("employee_count_covered") or 0.0
@@ -15167,64 +15168,73 @@ class UnionAnalyzer:
                     "employee_count_total",
                 )
                 )
+            has_existing_covered_signal = (
+                coverage_data.get("employee_count_covered") is not None
+                or coverage_data.get("employee_count_not_covered") is not None
+            )
             if not has_quantitative_data and analysis.is_union:
                 if sentence_worker_targets and lookup_keys:
-                    matched_by_type: Dict[str, float] = {}
-                    found_match = False
-                    lookup_total = 0.0
-                    for lk in lookup_keys:
-                        bucket = worker_type_lookup.get(lk, {})
-                        used_targets = worker_type_lookup_used.get(lk, set())
-                        lookup_total = max(
-                            lookup_total, worker_type_total_lookup.get(lk, 0.0)
-                        )
-                        for target in sentence_worker_targets:
-                            if target in used_targets:
-                                continue
-                            if target in bucket:
-                                matched_by_type[target] = max(
-                                    matched_by_type.get(target, 0.0), bucket[target]
-                                )
-                                found_match = True
-
-                    matched_count = sum(matched_by_type.values())
-
-                    if found_match and matched_count > 0:
+                    if has_existing_covered_signal:
                         for lk in lookup_keys:
                             used_targets = worker_type_lookup_used.setdefault(lk, set())
-                            used_targets.update(matched_by_type.keys())
-                        if coverage_data.get("negated"):
-                            coverage_data["employee_count_not_covered"] = (
-                                coverage_data.get("employee_count_not_covered") or 0.0
-                            ) + matched_count
-                        else:
-                            coverage_data["employee_count_covered"] = (
-                                coverage_data.get("employee_count_covered") or 0.0
-                            ) + matched_count
-
-                        if (
-                            coverage_data.get("employee_count_total") is None
-                            and lookup_total >= matched_count
-                            and lookup_total > 0
-                        ):
-                            coverage_data["employee_count_total"] = lookup_total
-
-                        _clear_impossible_total(coverage_data)
-
-                        total_val = coverage_data.get("employee_count_total")
-                        covered_val = coverage_data.get("employee_count_covered")
-                        if total_val and covered_val is not None and total_val > 0:
-                            coverage_data["percentage"] = round(
-                                (covered_val / total_val) * 100.0, 2
+                            used_targets.update(sentence_worker_targets)
+                    else:
+                        matched_by_type = {}
+                        found_match = False
+                        lookup_total = 0.0
+                        for lk in lookup_keys:
+                            bucket = worker_type_lookup.get(lk, {})
+                            used_targets = worker_type_lookup_used.get(lk, set())
+                            lookup_total = max(
+                                lookup_total, worker_type_total_lookup.get(lk, 0.0)
                             )
-                            coverage_data["type"] = CoverageType.CALCULATED.value
+                            for target in sentence_worker_targets:
+                                if target in used_targets:
+                                    continue
+                                if target in bucket:
+                                    matched_by_type[target] = max(
+                                        matched_by_type.get(target, 0.0), bucket[target]
+                                    )
+                                    found_match = True
 
-                        note = f"Inferred coverage for {matched_count} (worker type lookup)"
-                        coverage_data["note"] = (
-                            ((coverage_data.get("note") or "") + " | ")
-                            if coverage_data.get("note")
-                            else ""
-                        ) + note
+                        matched_count = sum(matched_by_type.values())
+
+                        if found_match and matched_count > 0:
+                            for lk in lookup_keys:
+                                used_targets = worker_type_lookup_used.setdefault(lk, set())
+                                used_targets.update(matched_by_type.keys())
+                            if coverage_data.get("negated"):
+                                coverage_data["employee_count_not_covered"] = (
+                                    coverage_data.get("employee_count_not_covered") or 0.0
+                                ) + matched_count
+                            else:
+                                coverage_data["employee_count_covered"] = (
+                                    coverage_data.get("employee_count_covered") or 0.0
+                                ) + matched_count
+
+                            if (
+                                coverage_data.get("employee_count_total") is None
+                                and lookup_total >= matched_count
+                                and lookup_total > 0
+                            ):
+                                coverage_data["employee_count_total"] = lookup_total
+
+                            _clear_impossible_total(coverage_data)
+
+                            total_val = coverage_data.get("employee_count_total")
+                            covered_val = coverage_data.get("employee_count_covered")
+                            if total_val and covered_val is not None and total_val > 0:
+                                coverage_data["percentage"] = round(
+                                    (covered_val / total_val) * 100.0, 2
+                                )
+                                coverage_data["type"] = CoverageType.CALCULATED.value
+
+                            note = f"Inferred coverage for {matched_count} (worker type lookup)"
+                            coverage_data["note"] = (
+                                ((coverage_data.get("note") or "") + " | ")
+                                if coverage_data.get("note")
+                                else ""
+                            ) + note
 
             if analysis.is_union and has_quantitative_data and sentence_worker_targets:
                 for lk in lookup_keys:
