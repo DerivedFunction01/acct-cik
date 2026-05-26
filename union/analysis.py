@@ -14501,6 +14501,28 @@ class UnionAnalyzer:
                         targets.add(w)
 
                 if next_item.get("keyword_matched") and targets:
+                    if current.get("has_coverage_signal") or next_item.get(
+                        "has_coverage_signal"
+                    ):
+                        merge_note = (
+                            f" [Merged with next sentence: '{next_item.get('sentence', '')[:30]}...']"
+                        )
+                        c_data["note"] = (c_data.get("note") or "") + merge_note
+                        current["merged_sentence_index"] = next_item.get(
+                            "sentence_index"
+                        )
+                        if next_item.get("is_union"):
+                            current["is_union"] = True
+                        current["coverage_family"] = _merge_family(
+                            current.get("coverage_family"),
+                            next_item.get("coverage_family"),
+                        )
+                        n_idx = next_item.get("sentence_index")
+                        if n_idx is not None:
+                            anchor_sentence_indices.add(n_idx)
+                        skip_indices.add(j)
+                        j += 1
+                        continue
                     c_map = current.get("worker_type_map", {})
                     matched_count = 0.0
                     found_match = False
@@ -15172,6 +15194,15 @@ class UnionAnalyzer:
                 coverage_data.get("employee_count_covered") is not None
                 or coverage_data.get("employee_count_not_covered") is not None
             )
+            has_coverage_signal = any(
+                coverage_data.get(k) is not None
+                for k in (
+                    "percentage",
+                    "employee_count_covered",
+                    "employee_count_not_covered",
+                    "employee_count_total",
+                )
+            )
             if not has_quantitative_data and analysis.is_union:
                 if sentence_worker_targets and lookup_keys:
                     if has_existing_covered_signal:
@@ -15470,6 +15501,7 @@ class UnionAnalyzer:
                                 "bargaining_unit_counts": analysis.bargaining_unit_counts,
                                 "is_remaining": analysis.has_remaining_other,
                                 "is_union": analysis.is_union,
+                                "has_coverage_signal": has_coverage_signal,
                                 "coverage_family": (
                                     analysis.coverage_family.value
                                     if analysis.coverage_family
@@ -15500,6 +15532,7 @@ class UnionAnalyzer:
                     "bargaining_unit_counts": analysis.bargaining_unit_counts,
                     "is_remaining": analysis.has_remaining_other,
                     "is_union": analysis.is_union,
+                    "has_coverage_signal": has_coverage_signal,
                     "coverage_family": (
                         analysis.coverage_family.value
                         if analysis.coverage_family
